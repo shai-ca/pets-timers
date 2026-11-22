@@ -132,6 +132,34 @@
   .tbl td:first-child,.tbl th:first-child{text-align:right;color:var(--muted);white-space:nowrap}
   .tbl tr[data-day]{cursor:pointer}
   .tbl .z{color:var(--faint)}
+
+  /* ---------- desktop: square tiles in a grid (phones keep the single-column list above) ---------- */
+  @media (min-width:760px){
+    body{padding-top:36px}
+    .wrap{max-width:1248px}
+    header{margin-bottom:22px}
+    .seg{max-width:420px}
+    main{display:grid;grid-template-columns:repeat(auto-fill,240px);gap:12px;align-items:start}
+    main > *{grid-column:1/-1}
+    main > .card.item, main > .card.medc{grid-column:auto;width:240px;height:240px;min-width:0;display:flex;flex-direction:column;align-items:stretch;gap:6px;padding:18px}
+    .card.item > div:nth-child(2){flex:1}
+    .card.item .big{font-size:29px}
+    .card.item .big.txt{font-size:23px}
+    .card.item .acts{gap:4px}
+    
+    .card.medc .meds-h{margin-bottom:6px}
+    .card.medc .meds{grid-template-columns:1fr;flex:1;align-content:end}
+    main > h2{margin-top:14px}
+    main > .card.log, main > .card.tblc{max-width:720px}
+    main > .card.sumnav{max-width:440px}
+    .tiles, .tiles.two{grid-template-columns:repeat(auto-fill,minmax(170px,190px));gap:14px}
+    .tiles .tile{grid-column:auto !important;aspect-ratio:1/1;padding:18px;justify-content:flex-end}
+    .tiles .tile .ic{margin-bottom:auto}
+    .tbl tr[data-day]:hover td{background:var(--bg)}
+    .log .r[data-e]:hover{background:var(--bg);margin:0 -16px;padding-left:16px;padding-right:16px}
+    .bg{align-items:center}
+    .sheet{max-width:440px;border-radius:22px;padding-bottom:22px}
+  }
 </style>
 </head>
 <body>
@@ -395,7 +423,7 @@ function render(){
         <span class="ck">${t?ico('check'):''}</span>
         <span><b>${lbl}</b><small>${t?'ניתנה ב־'+clock(t)+byOf(pet,'med_'+s,t):(late?'עוד לא ניתנה':'לא ניתנה')}</small></span></button>`;
     };
-    h += `<div class="card"><div class="meds-h"><div class="ic">${ico('pill')}</div><b>תרופות היום</b></div>
+    h += `<div class="card medc"><div class="meds-h"><div class="ic">${ico('pill')}</div><b>תרופות היום</b></div>
       <div class="meds">${slot('am','בוקר',11)}${slot('pm','ערב',21)}</div></div>`;
   }
 
@@ -500,7 +528,7 @@ function renderSummary(){
     small = now >= from && now < to ? 'החודש' : 'חודש';
   }
   const modes = [['day','יום'],['week','שבוע'],['month','חודש']];
-  let h = `<div class="card">
+  let h = `<div class="card sumnav">
     <div class="seg">${modes.map(([m,l]) => `<button class="${m===sumMode?'on':''}" data-act="mode" data-k="${m}">${l}</button>`).join('')}</div>
     <div class="nav">
       <button class="arr" data-act="prev" aria-label="הקודם">${ico('chevR')}</button>

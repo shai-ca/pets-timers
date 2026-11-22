@@ -8,6 +8,9 @@ A single-page mobile web app (Hebrew, RTL) for tracking two pets:
 - **Summary (סיכום):** a second view per pet with day / week / month totals, navigable by date (arrows or a date picker). Week and month show per-day averages and a per-day table; tapping a row opens that day. Weeks start on Sunday. Computed from `log` in `renderSummary()` / `stats()`.
 - **Who did it:** each device picks a user once (יונתן / שי / ליזה, the `USERS` object; stored in localStorage `pets-timers-v1-user`, changeable from the header chip). `commit()` stamps `by` on every new log entry and the name is shown next to events. This is self-declared per device, not tied to the Google account.
 
+- **Fixing entries:** tapping a history row opens a sheet to change its time or delete it (`openEntrySheet`, `recalc`). Entering a time earlier than the current "last" one asks whether to correct the last entry or add another (`logAt`).
+- **Desktop vs phone:** under 760px it is a single-column list; from 760px up (`@media (min-width:760px)` at the end of the CSS) the cards become 240px square tiles in a grid. With a mouse (`pointer:fine`) time fields are text boxes that accept `935`, `9:35`, `9` and save on Enter (`timeField`, `parseTime`); touch devices keep the native time picker.
+
 Every action can be undone from the toast for 6 seconds, and any event can be logged at an earlier time ("שעה אחרת" / "הוספה"). There's a history list per pet.
 
 ## Files
