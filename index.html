@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>קוצ׳יק וקישמיש</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#f6f4f1; --card:#fff; --ink:#24201d; --muted:#8c847c; --faint:#b9b2aa; --line:#ece7e1;
+    --kochik:#c4683b; --kochik-soft:#f8ece5;
+    --kishmish:#6a5ec6; --kishmish-soft:#eeecfa;
+    --ok:#2f8a66; --ok-soft:#e7f4ee; --alert:#c64d68; --alert-soft:#fbeaee;
+    --acc:var(--kishmish); --acc-soft:var(--kishmish-soft);
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;background:var(--bg);color:var(--ink);font-family:Heebo,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+  body{padding:calc(env(safe-area-inset-top) + 18px) 16px calc(env(safe-area-inset-bottom) + 96px)}
+  body.p-kochik{--acc:var(--kochik);--acc-soft:var(--kochik-soft)}
+  .wrap{max-width:520px;margin:0 auto}
+  svg.i{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;flex:none}
+  svg.i.s{width:16px;height:16px}
+
+  header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+  .brand{display:flex;align-items:center;gap:10px}
+  .mark{width:36px;height:36px;border-radius:11px;background:var(--ink);color:#fff;display:grid;place-items:center}
+  .mark svg{width:20px;height:20px;fill:currentColor;stroke:none}
+  h1{font-size:19px;margin:0;font-weight:600;letter-spacing:-.2px}
+  .sync{display:flex;align-items:center;gap:6px;font:inherit;font-size:12px;color:var(--muted);border:0;background:none;padding:6px 0;cursor:pointer}
+  .sync.login{background:var(--ink);color:#fff;border-radius:10px;padding:7px 13px;font-size:13px;font-weight:500}
+  .sync.login i{display:none}
+  .sync i{width:7px;height:7px;border-radius:50%;background:var(--faint)}
+  .sync.on i{background:var(--ok)} .sync.err i{background:var(--alert)}
+
+  .seg{display:flex;background:#ebe7e1;border-radius:14px;padding:4px;margin-bottom:16px}
+  .seg button{flex:1;border:0;background:none;border-radius:11px;padding:10px;font:inherit;font-size:15.5px;font-weight:500;color:var(--muted);cursor:pointer;transition:all .15s}
+  .seg button.on{background:#fff;color:var(--ink);box-shadow:0 1px 3px rgba(40,30,20,.1)}
+  .seg button.on[data-pet=kochik]{color:var(--kochik)} .seg button.on[data-pet=kishmish]{color:var(--kishmish)}
+
+  main{display:flex;flex-direction:column;gap:10px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:16px;box-shadow:0 1px 2px rgba(40,30,20,.03)}
+  .item{display:grid;grid-template-columns:44px 1fr auto;gap:14px;align-items:center}
+  .ic{width:44px;height:44px;border-radius:13px;background:var(--acc-soft);color:var(--acc);display:grid;place-items:center}
+  .lbl{font-size:13.5px;color:var(--muted);display:flex;align-items:center;gap:6px}
+  .big{font-size:28px;font-weight:600;font-variant-numeric:tabular-nums;letter-spacing:-.3px;line-height:1.25;direction:ltr;text-align:right}
+  .big.txt{direction:rtl;font-size:22px}
+  .big.none{color:var(--faint)}
+  .sub{font-size:12.5px;color:var(--muted)}
+  .acts{display:flex;flex-direction:column;align-items:stretch;gap:4px}
+  .go{border:0;border-radius:12px;padding:10px 16px;font:inherit;font-weight:500;font-size:14.5px;color:#fff;background:var(--acc);cursor:pointer;white-space:nowrap;min-width:108px}
+  .go:active{transform:scale(.97)}
+  .ghost{border:0;background:none;color:var(--muted);font:inherit;font-size:12.5px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:4px;padding:4px}
+  .card.live{border-color:color-mix(in srgb,var(--ok) 40%,transparent);background:linear-gradient(0deg,var(--ok-soft),var(--ok-soft))}
+  .card.live .ic{background:#fff;color:var(--ok)} .card.live .go{background:var(--ok)}
+  .card.live.cry{border-color:color-mix(in srgb,var(--alert) 40%,transparent);background:var(--alert-soft)}
+  .card.live.cry .ic{color:var(--alert)} .card.live.cry .go{background:var(--alert)}
+  .dot{width:7px;height:7px;border-radius:50%;background:currentColor;animation:pulse 1.6s infinite}
+  .card.live .lbl{color:var(--ok);font-weight:500} .card.live.cry .lbl{color:var(--alert)}
+  @keyframes pulse{50%{opacity:.25}}
+
+  .meds-h{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+  .meds-h .ic{width:36px;height:36px;border-radius:11px}
+  .meds-h b{font-weight:600;font-size:15px}
+  .meds{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .med{border:1.5px solid var(--line);background:var(--bg);border-radius:14px;padding:12px;font:inherit;text-align:right;cursor:pointer;display:flex;gap:10px;align-items:center;color:var(--ink)}
+  .med .ck{width:24px;height:24px;border-radius:50%;border:1.5px solid var(--faint);display:grid;place-items:center;flex:none;color:#fff}
+  .med .ck svg{width:14px;height:14px;stroke-width:2.4}
+  .med b{display:block;font-weight:500;font-size:14.5px}
+  .med small{display:block;font-size:12px;color:var(--muted);margin-top:1px}
+  .med.done{border-color:color-mix(in srgb,var(--ok) 45%,transparent);background:var(--ok-soft)}
+  .med.done .ck{background:var(--ok);border-color:var(--ok)}
+  .med.done small{color:var(--ok)}
+  .med.late{border-color:color-mix(in srgb,var(--alert) 45%,transparent);background:var(--alert-soft)}
+  .med.late .ck{border-color:var(--alert)} .med.late small{color:var(--alert);font-weight:500}
+
+  h2{font-size:13px;color:var(--muted);font-weight:500;margin:18px 4px 2px;letter-spacing:.2px}
+  .log{padding:4px 16px}
+  .log .r{display:flex;align-items:center;gap:10px;padding:11px 0;border-bottom:1px solid var(--line);font-size:14px}
+  .log .r:last-child{border-bottom:0}
+  .log .r span{flex:1}
+  .log .r time{color:var(--muted);font-size:13px;font-variant-numeric:tabular-nums}
+  .log .r svg{color:var(--acc)}
+  .empty{color:var(--faint);font-size:14px;padding:14px 0;text-align:center}
+
+  .toast{position:fixed;left:50%;transform:translate(-50%,20px);opacity:0;pointer-events:none;bottom:calc(env(safe-area-inset-bottom) + 20px);background:var(--ink);color:#fff;border-radius:14px;padding:8px 8px 8px 14px;display:flex;align-items:center;gap:10px;font-size:14px;box-shadow:0 8px 24px rgba(0,0,0,.18);transition:all .2s;white-space:nowrap;padding-right:14px}
+  .toast.show{opacity:1;transform:translate(-50%,0);pointer-events:auto}
+  .toast button{background:rgba(255,255,255,.14);color:#fff;border:0;border-radius:9px;padding:7px 12px;font:inherit;font-weight:500;cursor:pointer}
+
+  .bg{position:fixed;inset:0;background:rgba(30,25,20,.3);display:none;align-items:flex-end;justify-content:center;z-index:5}
+  .bg.show{display:flex}
+  .sheet{background:#fff;width:100%;max-width:520px;border-radius:22px 22px 0 0;padding:22px 20px calc(env(safe-area-inset-bottom) + 20px)}
+  .sheet h3{margin:0 0 16px;font-size:17px;font-weight:600}
+  .chips{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
+  .chips button,.btn{border:1px solid var(--line);background:var(--bg);border-radius:11px;padding:9px 13px;font:inherit;font-size:14px;cursor:pointer;color:var(--ink)}
+  .field{display:flex;align-items:center;gap:10px;font-size:14px;color:var(--muted);margin-bottom:8px}
+  .field input{font:inherit;font-size:17px;padding:8px 10px;border:1px solid var(--line);border-radius:11px;color:var(--ink);background:#fff}
+  .foot{display:flex;gap:8px;margin-top:18px;justify-content:space-between}
+  .btn.primary{background:var(--ink);color:#fff;border-color:var(--ink);padding:10px 22px}
+  .btn.danger{color:var(--alert);background:#fff}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand"><div class="mark" id="mark"></div><h1>קוצ׳יק וקישמיש</h1></div>
+    <button class="sync" id="sync"><i></i><span>טוען…</span></button>
+  </header>
+  <div class="seg">
+    <button data-pet="kochik">קוצ׳יק</button>
+    <button data-pet="kishmish">קישמיש</button>
+  </div>
+  <main id="main"></main>
+</div>
+<div class="toast" id="toast"><span id="toastMsg"></span><button id="undo">ביטול</button></div>
+<div class="bg" id="sheetBg"><div class="sheet" id="sheet"></div></div>
+
+<script>
+// ---------- icons ----------
+const ICONS = {
+  food:'<path d="M3.5 11h17c0 4.4-3.8 8-8.5 8s-8.5-3.6-8.5-8Z"/><circle cx="8.5" cy="7.2" r="1.2"/><circle cx="12.2" cy="5.4" r="1.2"/><circle cx="15.5" cy="7.6" r="1.2"/>',
+  pee:'<path d="M12 3.5c2.8 3.6 6 7.2 6 10.5a6 6 0 0 1-12 0c0-3.3 3.2-6.9 6-10.5Z"/><path d="M9.3 14.5a2.8 2.8 0 0 0 2.2 2.6"/>',
+  poop:'<path d="M6.8 19.5h10.4a2.6 2.6 0 0 0 .5-5.15A2.4 2.4 0 0 0 15.4 10h-.2a2.8 2.8 0 0 0-2.6-4.9c-.1 1.2-.9 2.1-2 2.5A2.4 2.4 0 0 0 8.6 10h-.1a2.4 2.4 0 0 0-2.2 4.35A2.6 2.6 0 0 0 6.8 19.5Z"/><path d="M8.6 14.4h6.8M10 10h4"/>',
+  sleep:'<path d="M19.5 14.3A7.6 7.6 0 0 1 9.7 4.5a7.6 7.6 0 1 0 9.8 9.8Z"/><path d="M16.5 3.5v3M15 5h3"/>',
+  cry:'<circle cx="12" cy="12" r="8.5"/><path d="M8.4 10.4q1-.9 2 0M13.6 10.4q1-.9 2 0M9.6 16.2q2.4-1.6 4.8 0"/><path d="M8.2 12.6c.5.8.9 1.4.9 1.9a.9.9 0 0 1-1.8 0c0-.5.4-1.1.9-1.9Z" fill="currentColor" stroke="none"/>',
+  pill:'<rect x="2.8" y="8.6" width="18.4" height="6.8" rx="3.4" transform="rotate(-45 12 12)"/><path d="M9.6 9.6l4.8 4.8"/>',
+  check:'<path d="M5 12.5l4.2 4.2L19 7"/>',
+  clock:'<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>',
+  plus:'<path d="M12 6v12M6 12h12"/>',
+  paw:'<path d="M12 12.3c-2.6 0-5.1 2.7-5.1 4.9 0 1.6 1.3 2.3 2.6 2.3 1 0 1.6-.5 2.5-.5s1.5.5 2.5.5c1.3 0 2.6-.7 2.6-2.3 0-2.2-2.5-4.9-5.1-4.9Z"/><ellipse cx="5.9" cy="10.2" rx="1.75" ry="2.15"/><ellipse cx="9.4" cy="6.2" rx="1.75" ry="2.25"/><ellipse cx="14.6" cy="6.2" rx="1.75" ry="2.25"/><ellipse cx="18.1" cy="10.2" rx="1.75" ry="2.15"/>'
+};
+const ico = (n, cls='') => `<svg class="i ${cls}" viewBox="0 0 24 24">${ICONS[n]}</svg>`;
+document.getElementById('mark').innerHTML = `<svg viewBox="0 0 24 24">${ICONS.paw}</svg>`;
+
+// ---------- model ----------
+const PETS = {
+  kochik:   {name:'קוצ׳יק', items:['food','pee','poop'], meds:true},
+  kishmish: {name:'קישמיש', items:['food','pee','poop','sleep','cry']}
+};
+const ITEMS = {
+  food:{lbl:'מאז האוכל האחרון',btn:'אכלה',log:'אכלה'},
+  pee:{lbl:'מאז הפיפי האחרון',btn:'פיפי',log:'פיפי'},
+  poop:{lbl:'מאז הקקי האחרון',btn:'קקי',log:'קקי'},
+  sleep:{dur:true,lbl:'שינה אחרונה',live:'ישנה',start:'נרדמה',stop:'התעוררה',log:'ישנה',startQ:'מתי נרדמה?'},
+  cry:{dur:true,lbl:'בכי אחרון',live:'בוכה',start:'בוכה',stop:'נרגעה',log:'בכתה',startQ:'מתי התחילה לבכות?'},
+  med_am:{icon:'pill',log:'תרופת בוקר'},
+  med_pm:{icon:'pill',log:'תרופת ערב'}
+};
+const iconOf = k => (ITEMS[k] && ITEMS[k].icon) || k;
+const LOG_MAX = 400, LS_KEY = 'pets-timers-v1';
+
+let state = blank(), pet = 'kishmish';
+let ref = null, writing = false, dirty = false, lastUndo = null, toastTimer = null;
+
+function blank(){ return {kochik:{}, kishmish:{}, log:[]}; }
+function clone(o){ return JSON.parse(JSON.stringify(o)); }
+function norm(s){
+  const b = blank();
+  if(!s || typeof s!=='object') return b;
+  for(const p of Object.keys(PETS)) b[p] = (s[p] && typeof s[p]==='object') ? clone(s[p]) : {};
+  b.log = Array.isArray(s.log) ? clone(s.log).filter(e => e && ITEMS[e.k] && PETS[e.p]) : [];
+  return b;
+}
+
+// ---------- persistence ----------
+try { const ls = localStorage.getItem(LS_KEY); if(ls) state = norm(JSON.parse(ls)); } catch(e){}
+try { const p = localStorage.getItem(LS_KEY+'-tab'); if(p && PETS[p]) pet = p; } catch(e){}
+function saveLocal(){ try{ localStorage.setItem(LS_KEY, JSON.stringify(state)); }catch(e){} }
+function setSync(t, cls=''){ const s=document.getElementById('sync'); s.className='sync '+cls; s.querySelector('span').textContent=t; }
+
+async function push(){
+  saveLocal();
+  if(!ref) return;
+  if(writing){ dirty = true; return; }
+  writing = true; setSync('שומר…');
+  try { await ref.set(clone(state)); setSync('מסונכרן','on'); }
+  catch(e){ setSync(e && e.code==='permission-denied' ? 'אין הרשאה' : 'השמירה נכשלה','err'); }
+  writing = false;
+  if(dirty){ dirty = false; push(); }
+}
+
+// Firebase (Firestore + Google sign-in). Paste the web-app config from the Firebase console
+// (Project settings → Your apps → SDK setup and configuration). While it is null the app
+// works on this device only (localStorage).
+const FIREBASE_CONFIG = null;
+const FB_CDN = 'https://www.gstatic.com/firebasejs/10.14.1/';
+let fb = null;   // { auth, signIn(), signOut() } once Firebase has loaded
+
+(async () => {
+  if(!FIREBASE_CONFIG){ setSync('נשמר במכשיר'); return; }
+  let A, F, app;
+  try {
+    const mods = await Promise.all(['app','auth','firestore'].map(m => import(`${FB_CDN}firebase-${m}.js`)));
+    app = mods[0].initializeApp(FIREBASE_CONFIG); A = mods[1]; F = mods[2];
+  } catch(e){ setSync('אין חיבור','err'); return; }
+
+  const auth = A.getAuth(app);
+  let store;
+  try { store = F.initializeFirestore(app, {localCache: F.persistentLocalCache({tabManager: F.persistentMultipleTabManager()})}); }
+  catch(e){ store = F.getFirestore(app); }
+  const docRef = F.doc(store, 'state', 'main');
+  fb = {
+    auth,
+    signIn: () => A.signInWithPopup(auth, new A.GoogleAuthProvider()),
+    signOut: () => A.signOut(auth)
+  };
+
+  let unsub = null, t = null;
+  A.onAuthStateChanged(auth, user => {
+    if(unsub){ unsub(); unsub = null; }
+    clearTimeout(t); ref = null; writing = dirty = false;
+    if(!user){ setSync('התחברות','login'); return; }
+    setSync('טוען…');
+    ref = { set: d => F.setDoc(docRef, d) };
+    t = setTimeout(()=>setSync('אין חיבור','err'), 10000);
+    unsub = F.onSnapshot(docRef, {includeMetadataChanges:true}, snap => {
+      if(!snap.metadata.fromCache) clearTimeout(t);
+      if(snap.exists()){
+        if(!writing && !dirty && !snap.metadata.hasPendingWrites){ state = norm(snap.data()); saveLocal(); render(); }
+        if(!snap.metadata.fromCache && !writing) setSync('מסונכרן','on');
+      } else if(!snap.metadata.fromCache){
+        if(state.log.length) push(); else setSync('מסונכרן','on');
+      }
+    }, err => {
+      clearTimeout(t); ref = null;
+      if(err && err.code==='permission-denied') setSync('אין הרשאה','err'); else setSync('נשמר במכשיר');
+    });
+  });
+})();
+
+document.getElementById('sync').onclick = async () => {
+  if(!fb) return;
+  const u = fb.auth.currentUser;
+  if(u){ if(confirm(`להתנתק מ־${u.email}?`)) fb.signOut(); return; }
+  try { await fb.signIn(); }
+  catch(e){
+    if(e && (e.code==='auth/popup-closed-by-user' || e.code==='auth/cancelled-popup-request')) return;
+    setSync('ההתחברות נכשלה','err');
+    setTimeout(() => { if(!fb.auth.currentUser) setSync('התחברות','login'); }, 3000);
+  }
+};
+
+// ---------- actions ----------
+function commit(msg, mutate){
+  const before = clone(state);
+  mutate();
+  state.log.sort((x,y)=>x.t-y.t);
+  state.log = state.log.slice(-LOG_MAX);
+  render(); push(); showToast(msg, before);
+}
+function tapPoint(p, k, t){
+  t = t || Date.now();
+  commit(`${PETS[p].name} · ${ITEMS[k].log}`, () => {
+    const cur = state[p][k];
+    state[p][k] = (typeof cur==='number' && cur > t) ? cur : t;
+    state.log.push({p,k,t});
+  });
+}
+function tapDur(p, k){
+  const now = Date.now(), d = state[p][k] || {};
+  if(d.start) commit(`${PETS[p].name} · ${ITEMS[k].stop}`, () => {
+    state[p][k] = {lastStart:d.start, lastEnd:now};
+    state.log.push({p,k,t:d.start,end:now});
+  });
+  else commit(`${PETS[p].name} · ${ITEMS[k].start}`, () => { state[p][k] = Object.assign({}, d, {start:now}); });
+}
+function dayKey(t){ const d=new Date(t); return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`; }
+function medsOf(p){ return ((state[p].meds||{})[dayKey(Date.now())]) || {}; }
+function setMed(p, slot, ts){
+  const k = 'med_'+slot;
+  commit(`${PETS[p].name} · ${ITEMS[k].log}${ts?'':' בוטלה'}`, () => {
+    const day = dayKey(Date.now());
+    const meds = Object.assign({}, state[p].meds || {});
+    const cur = Object.assign({}, meds[day] || {});
+    state.log = state.log.filter(e => !(e.p===p && e.k===k && dayKey(e.t)===day));
+    if(ts){ cur[slot] = ts; state.log.push({p,k,t:ts}); } else delete cur[slot];
+    meds[day] = cur;
+    const keys = Object.keys(meds).sort(); while(keys.length > 60) delete meds[keys.shift()];
+    state[p].meds = meds;
+  });
+}
+
+// ---------- formatting ----------
+function pad(n){ return String(n).padStart(2,'0'); }
+function dur(ms){
+  const s = Math.floor(Math.max(0,ms)/1000), h = Math.floor(s/3600), m = Math.floor(s%3600/60);
+  return h ? `${h}:${pad(m)}:${pad(s%60)}` : `${m}:${pad(s%60)}`;
+}
+function words(ms){
+  const m = Math.round(Math.max(0,ms)/60000);
+  if(m < 1) return 'פחות מדקה';
+  if(m < 60) return m===1 ? 'דקה' : `${m} דקות`;
+  const h = Math.floor(m/60), r = m%60;
+  return (h===1?'שעה':h===2?'שעתיים':`${h} שעות`) + (r ? ` ו־${r} דק׳` : '');
+}
+function clock(t){ const d = new Date(t); return `${pad(d.getHours())}:${pad(d.getMinutes())}`; }
+function dayLabel(t){
+  const d = new Date(t), n = new Date(), y = new Date(); y.setDate(n.getDate()-1);
+  if(d.toDateString()===n.toDateString()) return 'היום';
+  if(d.toDateString()===y.toDateString()) return 'אתמול';
+  return `${d.getDate()}.${d.getMonth()+1}`;
+}
+function todayTotal(p, k){
+  const s = new Date(); s.setHours(0,0,0,0); const s0 = s.getTime();
+  let tot = 0;
+  for(const e of state.log) if(e.p===p && e.k===k && e.end && e.end > s0) tot += e.end - Math.max(e.t, s0);
+  const live = state[p][k] && state[p][k].start;
+  if(live) tot += Date.now() - Math.max(live, s0);
+  return tot;
+}
+
+// ---------- render ----------
+function render(){
+  document.body.className = 'p-'+pet;
+  document.querySelectorAll('.seg button').forEach(b => b.classList.toggle('on', b.dataset.pet===pet));
+  const P = PETS[pet], S = state[pet];
+  let h = '';
+
+  if(P.meds){
+    const m = medsOf(pet), hr = new Date().getHours();
+    const slot = (s, lbl, lateHour) => {
+      const t = m[s], late = !t && hr >= lateHour;
+      return `<button class="med ${t?'done':''} ${late?'late':''}" data-act="med" data-k="${s}">
+        <span class="ck">${t?ico('check'):''}</span>
+        <span><b>${lbl}</b><small>${t?'ניתנה ב־'+clock(t):(late?'עוד לא ניתנה':'לא ניתנה')}</small></span></button>`;
+    };
+    h += `<div class="card"><div class="meds-h"><div class="ic">${ico('pill')}</div><b>תרופות היום</b></div>
+      <div class="meds">${slot('am','בוקר',11)}${slot('pm','ערב',21)}</div></div>`;
+  }
+
+  for(const k of P.items){
+    const it = ITEMS[k];
+    if(!it.dur){
+      const t = S[k];
+      h += `<div class="card item">
+        <div class="ic">${ico(k)}</div>
+        <div><div class="lbl">${it.lbl}</div>
+          <div class="big ${t?'':'none'}" ${t?`data-since="${t}"`:''}>${t ? dur(Date.now()-t) : '–'}</div>
+          <div class="sub">${t ? `${dayLabel(t)} ב־${clock(t)}` : 'עוד לא נרשם'}</div></div>
+        <div class="acts"><button class="go" data-act="pt" data-k="${k}">${it.btn}</button>
+          <button class="ghost" data-act="edit" data-k="${k}">${ico('clock','s')}שעה אחרת</button></div></div>`;
+    } else {
+      const d = S[k] || {}, live = !!d.start, tt = todayTotal(pet,k);
+      let lbl, big, sub;
+      if(live){
+        lbl = `<span class="dot"></span>${it.live} כבר`;
+        big = `<div class="big" data-since="${d.start}">${dur(Date.now()-d.start)}</div>`;
+        sub = `מ־${clock(d.start)}`;
+      } else if(d.lastEnd){
+        lbl = it.lbl;
+        big = `<div class="big txt">${words(d.lastEnd-d.lastStart)}</div>`;
+        sub = `לפני <span data-words="${d.lastEnd}">${words(Date.now()-d.lastEnd)}</span>`;
+      } else { lbl = it.lbl; big = `<div class="big none">–</div>`; sub = 'עוד לא נרשם'; }
+      const cur = live ? Date.now()-d.start : (d.lastEnd ? d.lastEnd-d.lastStart : 0);
+      if(tt > cur + 60000) sub += ` · סה״כ היום <span data-total="${k}">${words(tt)}</span>`;
+      h += `<div class="card item ${live?'live':''} ${k==='cry'?'cry':''}">
+        <div class="ic">${ico(k)}</div>
+        <div><div class="lbl">${lbl}</div>${big}<div class="sub">${sub}</div></div>
+        <div class="acts"><button class="go" data-act="dur" data-k="${k}">${live?it.stop:it.start}</button>
+          <button class="ghost" data-act="edit" data-k="${k}">${ico(live?'clock':'plus','s')}${live?'שעת התחלה':'הוספה'}</button></div></div>`;
+    }
+  }
+
+  const items = state.log.filter(e => e.p===pet).slice(-25).reverse();
+  h += `<h2>היסטוריה</h2><div class="card log">` + (items.length ? items.map(e =>
+    `<div class="r">${ico(iconOf(e.k),'s')}<span>${ITEMS[e.k].log}${e.end ? ' · '+words(e.end-e.t) : ''}</span>
+     <time>${dayLabel(e.t)} <bdi dir="ltr">${clock(e.t)}${e.end ? '–'+clock(e.end) : ''}</bdi></time></div>`
+  ).join('') : `<div class="empty">אין עדיין רישומים</div>`) + `</div>`;
+  document.getElementById('main').innerHTML = h;
+}
+function tick(){
+  const now = Date.now();
+  document.querySelectorAll('[data-since]').forEach(el => el.textContent = dur(now - +el.dataset.since));
+  document.querySelectorAll('[data-words]').forEach(el => el.textContent = words(now - +el.dataset.words));
+  document.querySelectorAll('[data-total]').forEach(el => el.textContent = words(todayTotal(pet, el.dataset.total)));
+}
+let lastMin = new Date().getMinutes();
+setInterval(() => { const m = new Date().getMinutes(); if(m !== lastMin){ lastMin = m; render(); } else tick(); }, 1000);
+
+// ---------- events ----------
+document.querySelectorAll('.seg button').forEach(b => b.onclick = () => {
+  pet = b.dataset.pet; try{ localStorage.setItem(LS_KEY+'-tab', pet); }catch(e){} render();
+});
+document.getElementById('main').addEventListener('click', e => {
+  const b = e.target.closest('button'); if(!b) return;
+  const k = b.dataset.k, a = b.dataset.act;
+  if(a==='pt') tapPoint(pet, k);
+  else if(a==='dur') tapDur(pet, k);
+  else if(a==='edit') openSheet(pet, k);
+  else if(a==='med'){ if(medsOf(pet)[k]) openMedSheet(pet, k); else setMed(pet, k, Date.now()); }
+});
+function showToast(msg, before){
+  lastUndo = before;
+  document.getElementById('toastMsg').textContent = msg;
+  const t = document.getElementById('toast'); t.classList.add('show');
+  clearTimeout(toastTimer); toastTimer = setTimeout(()=>{ t.classList.remove('show'); lastUndo=null; }, 6000);
+}
+document.getElementById('undo').onclick = () => {
+  if(!lastUndo) return;
+  state = lastUndo; lastUndo = null;
+  document.getElementById('toast').classList.remove('show');
+  render(); push();
+};
+
+// ---------- sheets ----------
+const bg = document.getElementById('sheetBg'), sh = document.getElementById('sheet');
+bg.onclick = e => { if(e.target===bg) close(); };
+function close(){ bg.classList.remove('show'); }
+function timeToTs(v){
+  const [hh,mm] = v.split(':').map(Number); const d = new Date(); d.setHours(hh,mm,0,0);
+  if(d.getTime() > Date.now()+60000) d.setDate(d.getDate()-1);
+  return d.getTime();
+}
+const ago = m => Date.now() - m*60000;
+const nowStr = () => clock(Date.now());
+const chips = (list) => `<div class="chips">${list.map(m=>`<button data-m="${m}">${m===0?'עכשיו':'לפני '+(m===60?'שעה':m+' דק׳')}</button>`).join('')}</div>`;
+
+function sheet(title, body, footL, onOk, onChip){
+  sh.innerHTML = `<h3>${title}</h3>${body}<div class="foot">${footL}<button class="btn primary" id="ok">שמירה</button></div>`;
+  sh.querySelectorAll('[data-m]').forEach(b => b.onclick = () => { close(); onChip(ago(+b.dataset.m)); });
+  sh.querySelector('#ok').onclick = onOk;
+  const c = sh.querySelector('#cancel'); if(c) c.onclick = close;
+  bg.classList.add('show');
+}
+const cancelBtn = '<button class="btn" id="cancel">ביטול</button>';
+
+function openSheet(p, k){
+  const it = ITEMS[k], name = PETS[p].name, d = state[p][k] || {};
+  if(!it.dur){
+    sheet(`${name} · ${it.log} — מתי?`, chips([5,10,15,30,60]) + `<label class="field">או בשעה <input type="time" id="tIn" value="${nowStr()}"></label>`,
+      cancelBtn, () => { const v=sh.querySelector('#tIn').value; if(!v) return; close(); tapPoint(p,k,timeToTs(v)); },
+      ts => tapPoint(p,k,ts));
+  } else if(d.start){
+    const setStart = ts => commit(`${name} · שעת ההתחלה עודכנה`, () => { state[p][k] = Object.assign({}, d, {start:ts}); });
+    sheet(`${name} · ${it.startQ}`, chips([5,10,15,30,60]) + `<label class="field">או בשעה <input type="time" id="tIn" value="${clock(d.start)}"></label>`,
+      '<button class="btn danger" id="del">מחיקה</button>',
+      () => { const v=sh.querySelector('#tIn').value; if(!v) return; close(); setStart(timeToTs(v)); }, setStart);
+    sh.querySelector('#del').onclick = () => { close(); commit(`${name} · נמחק`, () => { const x = Object.assign({}, d); delete x.start; state[p][k] = x; }); };
+  } else {
+    sheet(`${name} · הוספת ${it.lbl.replace(' אחרונה','').replace(' אחרון','')} שהסתיים`,
+      `<label class="field">התחלה <input type="time" id="aIn"></label><label class="field">סיום&nbsp; <input type="time" id="bIn" value="${nowStr()}"></label>`,
+      cancelBtn, () => {
+        const a = sh.querySelector('#aIn').value, b = sh.querySelector('#bIn').value; if(!a||!b) return;
+        const tb = timeToTs(b); let ta = timeToTs(a); if(ta > tb) ta -= 86400000;
+        close();
+        commit(`${name} · ${it.log} נוסף`, () => {
+          state.log.push({p,k,t:ta,end:tb});
+          const cur = state[p][k] || {};
+          if(!cur.start && (!cur.lastEnd || tb >= cur.lastEnd)) state[p][k] = {lastStart:ta, lastEnd:tb};
+        });
+      });
+  }
+}
+function openMedSheet(p, slot){
+  const k = 'med_'+slot, given = medsOf(p)[slot];
+  sheet(`${PETS[p].name} · ${ITEMS[k].log}`, chips([0,15,30,60]) + `<label class="field">או בשעה <input type="time" id="tIn" value="${clock(given)}"></label>`,
+    '<button class="btn danger" id="del">לא ניתנה</button>',
+    () => { const v=sh.querySelector('#tIn').value; if(!v) return; close(); setMed(p, slot, timeToTs(v)); },
+    ts => setMed(p, slot, ts));
+  sh.querySelector('#del').onclick = () => { close(); setMed(p, slot, null); };
+}
+
+render();
+</script>
+</body>
+</html>
