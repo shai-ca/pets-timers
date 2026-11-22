@@ -239,7 +239,14 @@ async function push(){
 // Firebase (Firestore + Google sign-in). Paste the web-app config from the Firebase console
 // (Project settings → Your apps → SDK setup and configuration). While it is null the app
 // works on this device only (localStorage).
-const FIREBASE_CONFIG = null;
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyBneMeIPhvpRJ3mzTwT6uX1UIe5iUASgUE",
+  authDomain: "pets-timers.firebaseapp.com",
+  projectId: "pets-timers",
+  storageBucket: "pets-timers.firebasestorage.app",
+  messagingSenderId: "638712299148",
+  appId: "1:638712299148:web:43c5a48342dc731caf45a9"
+};
 const FB_CDN = 'https://www.gstatic.com/firebasejs/10.14.1/';
 let fb = null;   // { auth, signIn(), signOut() } once Firebase has loaded
 
