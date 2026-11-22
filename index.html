@@ -645,8 +645,8 @@ function openSheet(p, k){
   const it = ITEMS[k], name = PETS[p].name, d = state[p][k] || {};
   if(!it.dur){
     sheet(`${name} · ${it.log} — מתי?`, chips([5,10,15,30,60]) + `<label class="field">או בשעה ${timeField("tIn", nowStr())}</label>`,
-      cancelBtn, () => { const v=timeVal('tIn'); if(!v) return; close(); tapPoint(p,k,timeToTs(v)); },
-      ts => tapPoint(p,k,ts));
+      cancelBtn, () => { const v=timeVal('tIn'); if(!v) return; close(); logAt(p,k,timeToTs(v)); },
+      ts => logAt(p,k,ts));
   } else if(d.start){
     const setStart = ts => commit(`${name} · שעת ההתחלה עודכנה`, () => { state[p][k] = Object.assign({}, d, {start:ts}); });
     sheet(`${name} · ${it.startQ}`, chips([5,10,15,30,60]) + `<label class="field">או בשעה ${timeField("tIn", clock(d.start))}</label>`,
@@ -667,6 +667,26 @@ function openSheet(p, k){
         });
       });
   }
+}
+// Logging a time that is earlier than the current "last" one: ask whether it corrects the last entry
+// or is an additional, earlier event. (Silently adding it left the timer unchanged, which looked broken.)
+function logAt(p, k, ts){
+  const cur = state[p][k];
+  if(typeof cur !== 'number' || ts >= cur){ tapPoint(p, k, ts); return; }
+  const name = PETS[p].name, what = SUM_LBL[k], when = t => `${dayLabel(t)} ב־<bdi dir="ltr">${clock(t)}</bdi>`;
+  sh.innerHTML = `<h3>${name} · כבר רשום ${what} מאוחר יותר</h3>
+    <div class="sub" style="font-size:14px;margin-bottom:18px">ה${what} האחרון שרשום: ${when(cur)}.<br>השעה שהזנת: ${when(ts)}.</div>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <button class="btn primary" id="repl">לתקן: ה${what} האחרון היה ב־<bdi dir="ltr">${clock(ts)}</bdi></button>
+      <button class="btn" id="addb">להוסיף כרישום נוסף, מוקדם יותר</button>
+      <button class="btn" id="cancel">ביטול</button></div>`;
+  sh.querySelector('#repl').onclick = () => { close(); commit(`${name} · ${ITEMS[k].log} עודכן`, () => {
+    state.log = state.log.filter(e => !(e.p===p && e.k===k && e.t > ts));
+    state.log.push({p, k, t:ts}); state[p][k] = ts;
+  }); };
+  sh.querySelector('#addb').onclick = () => { close(); tapPoint(p, k, ts); };
+  sh.querySelector('#cancel').onclick = close;
+  bg.classList.add('show');
 }
 function openMedSheet(p, slot){
   const k = 'med_'+slot, given = medsOf(p)[slot];
