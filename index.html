@@ -98,17 +98,51 @@
   .foot{display:flex;gap:8px;margin-top:18px;justify-content:space-between}
   .btn.primary{background:var(--ink);color:#fff;border-color:var(--ink);padding:10px 22px}
   .btn.danger{color:var(--alert);background:#fff}
+
+  .hr{display:flex;align-items:center;gap:10px}
+  .me{border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:10px;padding:5px 10px;font:inherit;font-size:12.5px;font-weight:500;cursor:pointer;white-space:nowrap}
+  .by{font-style:normal;color:var(--muted);font-size:12px;margin-inline-start:6px}
+  .chips button.sel{background:var(--ink);color:#fff;border-color:var(--ink)}
+  .chips.users button{flex:1;padding:14px 10px;font-size:16px;font-weight:500}
+  .seg.sm{margin-top:-8px} .seg.sm button{padding:7px;font-size:14px}
+  .card .seg{margin:0}
+  .nav{display:flex;align-items:center;gap:8px;margin-top:12px}
+  .nav .arr{width:40px;height:40px;border-radius:12px;border:1px solid var(--line);background:var(--bg);color:var(--ink);display:grid;place-items:center;cursor:pointer;flex:none;padding:0}
+  .nav .arr:disabled{opacity:.3;cursor:default}
+  .nav .when{position:relative;flex:1;text-align:center;font-weight:600;font-size:16.5px;line-height:1.3}
+  .nav .when small{display:block;font-weight:400;font-size:12px;color:var(--muted)}
+  .nav .when input{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer}
+  .tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+  .tiles.two{grid-template-columns:1fr 1fr}
+  .tile{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:14px 12px;display:flex;flex-direction:column;gap:1px;min-width:0}
+  .tile .ic{width:34px;height:34px;border-radius:10px;margin-bottom:6px}
+  .tile .ic svg{width:19px;height:19px}
+  .tile b{font-size:25px;font-weight:600;font-variant-numeric:tabular-nums;line-height:1.2}
+  .tile b.t{font-size:18px;line-height:1.67}
+  .tile span{font-size:13px;color:var(--muted)}
+  .tile small{font-size:11.5px;color:var(--muted);opacity:.8}
+  .tblc{padding:6px 14px}
+  .tbl{width:100%;border-collapse:collapse;font-size:14px;font-variant-numeric:tabular-nums}
+  .tbl th{font-weight:400;color:var(--acc);padding:9px 2px 7px}
+  .tbl td{padding:10px 2px;text-align:center;border-top:1px solid var(--line)}
+  .tbl td:first-child,.tbl th:first-child{text-align:right;color:var(--muted);white-space:nowrap}
+  .tbl tr[data-day]{cursor:pointer}
+  .tbl .z{color:var(--faint)}
 </style>
 </head>
 <body>
 <div class="wrap">
   <header>
     <div class="brand"><div class="mark" id="mark"></div><h1>קוצ׳יק וקישמיש</h1></div>
-    <button class="sync" id="sync"><i></i><span>טוען…</span></button>
+    <div class="hr"><button class="me" id="me"></button><button class="sync" id="sync"><i></i><span>טוען…</span></button></div>
   </header>
   <div class="seg">
     <button data-pet="kochik">קוצ׳יק</button>
     <button data-pet="kishmish">קישמיש</button>
+  </div>
+  <div class="seg sm">
+    <button data-view="now">מעקב</button>
+    <button data-view="sum">סיכום</button>
   </div>
   <main id="main"></main>
 </div>
@@ -127,6 +161,8 @@ const ICONS = {
   check:'<path d="M5 12.5l4.2 4.2L19 7"/>',
   clock:'<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>',
   plus:'<path d="M12 6v12M6 12h12"/>',
+  chevR:'<path d="M9 6l6 6-6 6"/>',
+  chevL:'<path d="M15 6l-6 6 6 6"/>',
   paw:'<path d="M12 12.3c-2.6 0-5.1 2.7-5.1 4.9 0 1.6 1.3 2.3 2.6 2.3 1 0 1.6-.5 2.5-.5s1.5.5 2.5.5c1.3 0 2.6-.7 2.6-2.3 0-2.2-2.5-4.9-5.1-4.9Z"/><ellipse cx="5.9" cy="10.2" rx="1.75" ry="2.15"/><ellipse cx="9.4" cy="6.2" rx="1.75" ry="2.25"/><ellipse cx="14.6" cy="6.2" rx="1.75" ry="2.25"/><ellipse cx="18.1" cy="10.2" rx="1.75" ry="2.15"/>'
 };
 const ico = (n, cls='') => `<svg class="i ${cls}" viewBox="0 0 24 24">${ICONS[n]}</svg>`;
@@ -147,8 +183,10 @@ const ITEMS = {
   med_pm:{icon:'pill',log:'תרופת ערב'}
 };
 const iconOf = k => (ITEMS[k] && ITEMS[k].icon) || k;
-const LOG_MAX = 400, LS_KEY = 'pets-timers-v1';
+const LOG_MAX = 5000, LS_KEY = 'pets-timers-v1';
 
+const USERS = {yonatan:'יונתן', shai:'שי', liza:'ליזה'};   // who is using this device; stamped on every log entry as `by`
+let me = null;
 let state = blank(), pet = 'kishmish';
 let ref = null, writing = false, dirty = false, lastUndo = null, toastTimer = null;
 
@@ -165,7 +203,26 @@ function norm(s){
 // ---------- persistence ----------
 try { const ls = localStorage.getItem(LS_KEY); if(ls) state = norm(JSON.parse(ls)); } catch(e){}
 try { const p = localStorage.getItem(LS_KEY+'-tab'); if(p && PETS[p]) pet = p; } catch(e){}
+try { const u = localStorage.getItem(LS_KEY+'-user'); if(USERS[u]) me = u; } catch(e){}
 function saveLocal(){ try{ localStorage.setItem(LS_KEY, JSON.stringify(state)); }catch(e){} }
+
+// One-time import of the state copied from the old claude.ai artifact on 22.11.2026 (only into an
+// empty app, only for two days after that). Safe to delete.
+(function seed(){
+  const at = (h,m) => new Date(2026,10,22,h,m).getTime();
+  try {
+    if(state.log.length || Object.keys(state.kochik).length || Object.keys(state.kishmish).length) return;
+    if(localStorage.getItem(LS_KEY+'-seed') || Date.now() > at(19,36) + 2*86400000) return;
+    localStorage.setItem(LS_KEY+'-seed','1');
+  } catch(e){ return; }
+  state = norm({
+    kochik:   {food:at(17,0)},
+    kishmish: {food:at(18,15), pee:at(19,20), sleep:{start:at(19,16)}},
+    log: [{p:'kochik',k:'food',t:at(17,0)}, {p:'kishmish',k:'food',t:at(18,15)},
+          {p:'kishmish',k:'pee',t:at(19,15)}, {p:'kishmish',k:'pee',t:at(19,20)}]
+  });
+  saveLocal();
+})();
 function setSync(t, cls=''){ const s=document.getElementById('sync'); s.className='sync '+cls; s.querySelector('span').textContent=t; }
 
 async function push(){
@@ -242,8 +299,10 @@ document.getElementById('sync').onclick = async () => {
 
 // ---------- actions ----------
 function commit(msg, mutate){
-  const before = clone(state);
+  if(!me){ openUserSheet(() => commit(msg, mutate)); return; }
+  const before = clone(state), old = new Set(state.log);
   mutate();
+  for(const e of state.log) if(!old.has(e) && !e.by) e.by = me;
   state.log.sort((x,y)=>x.t-y.t);
   state.log = state.log.slice(-LOG_MAX);
   render(); push(); showToast(msg, before);
@@ -312,7 +371,8 @@ function todayTotal(p, k){
 // ---------- render ----------
 function render(){
   document.body.className = 'p-'+pet;
-  document.querySelectorAll('.seg button').forEach(b => b.classList.toggle('on', b.dataset.pet===pet));
+  document.querySelectorAll('.seg button').forEach(b => b.classList.toggle('on', b.dataset.pet===pet || b.dataset.view===view));
+  if(view==='sum'){ document.getElementById('main').innerHTML = renderSummary(); return; }
   const P = PETS[pet], S = state[pet];
   let h = '';
 
@@ -322,7 +382,7 @@ function render(){
       const t = m[s], late = !t && hr >= lateHour;
       return `<button class="med ${t?'done':''} ${late?'late':''}" data-act="med" data-k="${s}">
         <span class="ck">${t?ico('check'):''}</span>
-        <span><b>${lbl}</b><small>${t?'ניתנה ב־'+clock(t):(late?'עוד לא ניתנה':'לא ניתנה')}</small></span></button>`;
+        <span><b>${lbl}</b><small>${t?'ניתנה ב־'+clock(t)+byOf(pet,'med_'+s,t):(late?'עוד לא ניתנה':'לא ניתנה')}</small></span></button>`;
     };
     h += `<div class="card"><div class="meds-h"><div class="ic">${ico('pill')}</div><b>תרופות היום</b></div>
       <div class="meds">${slot('am','בוקר',11)}${slot('pm','ערב',21)}</div></div>`;
@@ -336,7 +396,7 @@ function render(){
         <div class="ic">${ico(k)}</div>
         <div><div class="lbl">${it.lbl}</div>
           <div class="big ${t?'':'none'}" ${t?`data-since="${t}"`:''}>${t ? dur(Date.now()-t) : '–'}</div>
-          <div class="sub">${t ? `${dayLabel(t)} ב־${clock(t)}` : 'עוד לא נרשם'}</div></div>
+          <div class="sub">${t ? `${dayLabel(t)} ב־${clock(t)}${byOf(pet,k,t)}` : 'עוד לא נרשם'}</div></div>
         <div class="acts"><button class="go" data-act="pt" data-k="${k}">${it.btn}</button>
           <button class="ghost" data-act="edit" data-k="${k}">${ico('clock','s')}שעה אחרת</button></div></div>`;
     } else {
@@ -362,11 +422,117 @@ function render(){
   }
 
   const items = state.log.filter(e => e.p===pet).slice(-25).reverse();
-  h += `<h2>היסטוריה</h2><div class="card log">` + (items.length ? items.map(e =>
-    `<div class="r">${ico(iconOf(e.k),'s')}<span>${ITEMS[e.k].log}${e.end ? ' · '+words(e.end-e.t) : ''}</span>
-     <time>${dayLabel(e.t)} <bdi dir="ltr">${clock(e.t)}${e.end ? '–'+clock(e.end) : ''}</bdi></time></div>`
-  ).join('') : `<div class="empty">אין עדיין רישומים</div>`) + `</div>`;
+  h += `<h2>היסטוריה</h2><div class="card log">` + (items.length ? items.map(logRow).join('') : `<div class="empty">אין עדיין רישומים</div>`) + `</div>`;
   document.getElementById('main').innerHTML = h;
+}
+function byOf(p, k, t){   // " · name" of whoever logged this event, if known
+  for(let i = state.log.length-1; i >= 0; i--){ const e = state.log[i]; if(e.p===p && e.k===k && e.t===t) return USERS[e.by] ? ' · '+USERS[e.by] : ''; }
+  return '';
+}
+function logRow(e){
+  return `<div class="r">${ico(iconOf(e.k),'s')}<span>${e.live ? ITEMS[e.k].live+' עכשיו' : ITEMS[e.k].log}${e.end ? ' · '+words(e.end-e.t) : ''}${USERS[e.by] ? `<i class="by">${USERS[e.by]}</i>` : ''}</span>
+     <time>${dayLabel(e.t)} <bdi dir="ltr">${clock(e.t)}${e.end ? '–'+clock(e.end) : ''}</bdi></time></div>`;
+}
+
+// ---------- summary ----------
+let view = 'now', sumMode = 'day', sumAnchor = Date.now();
+const DAY = 86400000;
+const DOW = ['א׳','ב׳','ג׳','ד׳','ה׳','ו׳','ש׳'];
+const MONTHS = ['ינואר','פברואר','מרץ','אפריל','מאי','יוני','יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר'];
+const SUM_LBL = {food:'אוכל', pee:'פיפי', poop:'קקי', sleep:'שינה', cry:'בכי'};
+function sod(t){ const d = new Date(t); d.setHours(0,0,0,0); return d; }
+function ddmm(t){ const d = new Date(t); return `${d.getDate()}.${d.getMonth()+1}`; }
+function hm(ms){ const m = Math.round(ms/60000); return `${Math.floor(m/60)}:${pad(m%60)}`; }
+function sumRange(mode, anchor){   // [from, to) — weeks start on Sunday
+  const a = sod(anchor);
+  if(mode==='week') a.setDate(a.getDate()-a.getDay());
+  if(mode==='month') a.setDate(1);
+  const b = new Date(a);
+  if(mode==='day') b.setDate(b.getDate()+1); else if(mode==='week') b.setDate(b.getDate()+7); else b.setMonth(b.getMonth()+1);
+  return [a.getTime(), b.getTime()];
+}
+function sumShift(dir){
+  const d = sod(sumAnchor);
+  if(sumMode==='day') d.setDate(d.getDate()+dir);
+  else if(sumMode==='week') d.setDate(d.getDate()+7*dir);
+  else { d.setDate(1); d.setMonth(d.getMonth()+dir); }
+  sumAnchor = Math.min(d.getTime(), Date.now());
+}
+function stats(p, from, to){
+  const r = {food:0, pee:0, poop:0, sleep:{n:0,ms:0}, cry:{n:0,ms:0}, meds:0};
+  const add = (k, a, b) => { const ov = Math.min(b,to) - Math.max(a,from); if(ov > 0){ r[k].ms += ov; r[k].n++; } };
+  for(const e of state.log){
+    if(e.p !== p) continue;
+    if(ITEMS[e.k].dur){ if(e.end) add(e.k, e.t, e.end); }
+    else if(typeof r[e.k]==='number' && e.t >= from && e.t < to) r[e.k]++;
+  }
+  for(const k of PETS[p].items) if(ITEMS[k].dur && state[p][k] && state[p][k].start) add(k, state[p][k].start, Date.now());
+  const meds = state[p].meds || {};
+  for(const d = new Date(from); d.getTime() < to; d.setDate(d.getDate()+1)){ const m = meds[dayKey(d)] || {}; r.meds += (m.am?1:0) + (m.pm?1:0); }
+  return r;
+}
+function renderSummary(){
+  const P = PETS[pet], now = Date.now(), [from, to] = sumRange(sumMode, sumAnchor);
+  const st = stats(pet, from, to), multi = sumMode !== 'day';
+  const days = Math.max(0, Math.round((Math.min(to, sod(now).getTime()+DAY) - from) / DAY));
+  const d0 = new Date(from);
+  let title, small;
+  if(sumMode==='day'){
+    const dl = dayLabel(from);
+    title = (dl==='היום' || dl==='אתמול') ? dl : `יום ${DOW[d0.getDay()]}`;
+    small = `${d0.getDate()} ב${MONTHS[d0.getMonth()]} ${d0.getFullYear()}`;
+  } else if(sumMode==='week'){
+    title = `<bdi dir="ltr">${ddmm(from)}–${ddmm(to-1)}</bdi>`;
+    small = now >= from && now < to ? 'השבוע' : `שבוע · ${d0.getFullYear()}`;
+  } else {
+    title = `${MONTHS[d0.getMonth()]} ${d0.getFullYear()}`;
+    small = now >= from && now < to ? 'החודש' : 'חודש';
+  }
+  const modes = [['day','יום'],['week','שבוע'],['month','חודש']];
+  let h = `<div class="card">
+    <div class="seg">${modes.map(([m,l]) => `<button class="${m===sumMode?'on':''}" data-act="mode" data-k="${m}">${l}</button>`).join('')}</div>
+    <div class="nav">
+      <button class="arr" data-act="prev" aria-label="הקודם">${ico('chevR')}</button>
+      <label class="when">${title}<small>${small} · בחירת תאריך</small><input type="date" id="sumDate" value="${dayKey(sumAnchor)}" max="${dayKey(now)}"></label>
+      <button class="arr" data-act="next" aria-label="הבא" ${to > now ? 'disabled' : ''}>${ico('chevL')}</button>
+    </div></div>`;
+
+  const avg = n => multi && days > 1 ? `<small>ממוצע ${(n/days).toFixed(1).replace('.0','')} ליום</small>` : '';
+  h += `<div class="tiles">` + ['food','pee','poop'].map(k =>
+    `<div class="tile"><div class="ic">${ico(k)}</div><b>${st[k]}</b><span>${SUM_LBL[k]}</span>${avg(st[k])}</div>`).join('') + `</div>`;
+  const durs = P.items.filter(k => ITEMS[k].dur);
+  if(durs.length) h += `<div class="tiles two">` + durs.map(k =>
+    `<div class="tile"><div class="ic">${ico(k)}</div><b class="t">${st[k].ms ? words(st[k].ms) : '–'}</b>
+      <span>${SUM_LBL[k]} · ${st[k].n===1 ? 'פעם אחת' : st[k].n+' פעמים'}</span>
+      ${multi && days > 1 && st[k].ms ? `<small>ממוצע ${words(st[k].ms/days)} ליום</small>` : ''}</div>`).join('') + `</div>`;
+  if(P.meds){
+    const m = (state[pet].meds || {})[dayKey(from)] || {};
+    h += `<div class="tiles two">` + (multi
+      ? `<div class="tile" style="grid-column:1/-1"><div class="ic">${ico('pill')}</div><b><bdi dir="ltr">${st.meds}/${days*2}</bdi></b><span>תרופות שניתנו</span></div>`
+      : [['am','בוקר'],['pm','ערב']].map(([s,l]) =>
+        `<div class="tile"><div class="ic">${ico('pill')}</div><b class="t">${m[s] ? 'ניתנה ב־'+clock(m[s]) : 'לא ניתנה'}</b><span>תרופת ${l}${m[s] ? byOf(pet,'med_'+s,m[s]) : ''}</span></div>`).join('')) + `</div>`;
+  }
+
+  if(multi){
+    const cols = P.items.concat(P.meds ? ['pill'] : []);
+    const cell = v => `<td class="${v==='0' || v==='0:00' || v==='0/2' ? 'z' : ''}">${v}</td>`;
+    let rows = '';
+    for(const d = new Date(from); d.getTime() < to && d.getTime() <= now; d.setDate(d.getDate()+1)){
+      const a = d.getTime(), b = new Date(d); b.setDate(b.getDate()+1);
+      const s = stats(pet, a, b.getTime());
+      rows += `<tr data-day="${a}"><td>${DOW[d.getDay()]} · <bdi dir="ltr">${ddmm(a)}</bdi></td>` +
+        cols.map(k => cell(k==='pill' ? `${s.meds}/2` : ITEMS[k].dur ? hm(s[k].ms) : String(s[k]))).join('') + `</tr>`;
+    }
+    h += `<h2>לפי יום</h2><div class="card tblc">` + (rows
+      ? `<table class="tbl"><tr><th></th>${cols.map(k => `<th>${ico(k,'s')}</th>`).join('')}</tr>${rows}</table>`
+      : `<div class="empty">אין רישומים בתקופה הזו</div>`) + `</div>`;
+  } else {
+    const ev = state.log.filter(e => e.p===pet && (e.end ? (e.end > from && e.t < to) : (e.t >= from && e.t < to)));
+    for(const k of durs){ const s = state[pet][k] && state[pet][k].start; if(s && s < to && now > from) ev.push({p:pet, k, t:s, live:true}); }
+    ev.sort((x,y) => y.t - x.t);
+    h += `<h2>אירועי היום</h2><div class="card log">` + (ev.length ? ev.map(logRow).join('') : `<div class="empty">אין רישומים ביום הזה</div>`) + `</div>`;
+  }
+  return h;
 }
 function tick(){
   const now = Date.now();
@@ -375,16 +541,27 @@ function tick(){
   document.querySelectorAll('[data-total]').forEach(el => el.textContent = words(todayTotal(pet, el.dataset.total)));
 }
 let lastMin = new Date().getMinutes();
-setInterval(() => { const m = new Date().getMinutes(); if(m !== lastMin){ lastMin = m; render(); } else tick(); }, 1000);
+setInterval(() => { const m = new Date().getMinutes(); if(m !== lastMin){ lastMin = m; if(!(document.activeElement && document.activeElement.id==='sumDate')) render(); } else tick(); }, 1000);
 
 // ---------- events ----------
-document.querySelectorAll('.seg button').forEach(b => b.onclick = () => {
+document.querySelectorAll('[data-pet]').forEach(b => b.onclick = () => {
   pet = b.dataset.pet; try{ localStorage.setItem(LS_KEY+'-tab', pet); }catch(e){} render();
 });
+document.querySelectorAll('[data-view]').forEach(b => b.onclick = () => { view = b.dataset.view; render(); window.scrollTo(0,0); });
+document.getElementById('main').addEventListener('change', e => {
+  if(e.target.id !== 'sumDate' || !e.target.value) return;
+  const [y,m,d] = e.target.value.split('-').map(Number);
+  sumAnchor = Math.min(new Date(y, m-1, d).getTime(), Date.now()); e.target.blur(); render();
+});
 document.getElementById('main').addEventListener('click', e => {
+  if(e.target.id === 'sumDate'){ try{ e.target.showPicker(); }catch(_){} return; }
+  const row = e.target.closest('tr[data-day]');
+  if(row){ sumMode = 'day'; sumAnchor = +row.dataset.day; render(); window.scrollTo(0,0); return; }
   const b = e.target.closest('button'); if(!b) return;
   const k = b.dataset.k, a = b.dataset.act;
-  if(a==='pt') tapPoint(pet, k);
+  if(a==='mode'){ sumMode = k; render(); }
+  else if(a==='prev' || a==='next'){ sumShift(a==='prev' ? -1 : 1); render(); }
+  else if(a==='pt') tapPoint(pet, k);
   else if(a==='dur') tapDur(pet, k);
   else if(a==='edit') openSheet(pet, k);
   else if(a==='med'){ if(medsOf(pet)[k]) openMedSheet(pet, k); else setMed(pet, k, Date.now()); }
@@ -460,7 +637,21 @@ function openMedSheet(p, slot){
   sh.querySelector('#del').onclick = () => { close(); setMed(p, slot, null); };
 }
 
-render();
+function renderMe(){ document.getElementById('me').textContent = me ? USERS[me] : 'מי אני?'; }
+function openUserSheet(then){
+  sh.innerHTML = `<h3>מי משתמש/ת במכשיר הזה?</h3>
+    <div class="chips users">${Object.entries(USERS).map(([k,n]) => `<button data-u="${k}" class="${k===me?'sel':''}">${n}</button>`).join('')}</div>
+    <div class="sub">השם יופיע ליד כל רישום שנעשה מהמכשיר הזה. אפשר להחליף בלחיצה על השם למעלה.</div>`;
+  sh.querySelectorAll('[data-u]').forEach(b => b.onclick = () => {
+    me = b.dataset.u; try{ localStorage.setItem(LS_KEY+'-user', me); }catch(e){}
+    close(); renderMe(); if(then) then();
+  });
+  bg.classList.add('show');
+}
+document.getElementById('me').onclick = () => openUserSheet();
+
+render(); renderMe();
+if(!me) openUserSheet();
 </script>
 </body>
 </html>

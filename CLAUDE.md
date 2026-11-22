@@ -5,6 +5,9 @@ A single-page mobile web app (Hebrew, RTL) for tracking two pets:
 - **Kochik (קוצ׳יק):** time since last food / pee / poop, plus a daily morning + evening medication checklist (turns red if the morning dose isn't marked by 11:00 or the evening dose by 21:00; resets at midnight).
 - **Kishmish (קישמיש):** time since last food / pee / poop, plus start/stop timers for sleep and crying (shows the live duration, the last duration, and today's total).
 
+- **Summary (סיכום):** a second view per pet with day / week / month totals, navigable by date (arrows or a date picker). Week and month show per-day averages and a per-day table; tapping a row opens that day. Weeks start on Sunday. Computed from `log` in `renderSummary()` / `stats()`.
+- **Who did it:** each device picks a user once (יונתן / שי / ליזה, the `USERS` object; stored in localStorage `pets-timers-v1-user`, changeable from the header chip). `commit()` stamps `by` on every new log entry and the name is shown next to events. This is self-declared per device, not tied to the Google account.
+
 Every action can be undone from the toast for 6 seconds, and any event can be logged at an earlier time ("שעה אחרת" / "הוספה"). There's a history list per pet.
 
 ## Files
@@ -21,7 +24,7 @@ All state lives in one JSON object:
   kishmish: { food: ts, pee: ts, poop: ts,
               sleep: { start?: ts, lastStart?: ts, lastEnd?: ts },
               cry:   { start?: ts, lastStart?: ts, lastEnd?: ts } },
-  log: [ { p: "kochik"|"kishmish", k: "food"|"pee"|"poop"|"sleep"|"cry"|"med_am"|"med_pm", t: ts, end?: ts } ]  // capped at 400
+  log: [ { p: "kochik"|"kishmish", k: "food"|"pee"|"poop"|"sleep"|"cry"|"med_am"|"med_pm", t: ts, end?: ts, by?: "yonatan"|"shai"|"liza" } ]  // capped at 5000 (LOG_MAX)
 }
 ```
 
@@ -32,6 +35,10 @@ All state lives in one JSON object:
 The header status pill doubles as the auth control: "התחברות" signs in (Google popup); tapping it when signed in offers sign-out. "אין הרשאה" means the signed-in email isn't in the Firestore rules.
 
 - `firestore.rules` — the rules to paste into the Firebase console, with placeholder emails. Real emails stay out of the repo (it's public).
+
+The log cap is 5000 entries so the monthly summary has data to read (roughly 300 KB, well under Firestore's 1 MiB document limit). If it ever gets close, move old entries to per-month documents.
+
+`seed()` in the persistence section is a one-time import of the state from the old claude.ai artifact (22.11.2026); it only runs on an empty app within two days of that date and can be deleted.
 
 ## Setup still to do (needs the owner's Google account)
 
