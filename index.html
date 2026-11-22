@@ -97,6 +97,8 @@
   .chips button,.btn{border:1px solid var(--line);background:var(--bg);border-radius:11px;padding:9px 13px;font:inherit;font-size:14px;cursor:pointer;color:var(--ink)}
   .field{display:flex;align-items:center;gap:10px;font-size:14px;color:var(--muted);margin-bottom:8px}
   .field input{font:inherit;font-size:17px;padding:8px 10px;border:1px solid var(--line);border-radius:11px;color:var(--ink);background:#fff}
+  .field input.kb{width:5.5em;text-align:center;font-variant-numeric:tabular-nums}
+  .field input.bad{border-color:var(--alert);background:var(--alert-soft)}
   .foot{display:flex;gap:8px;margin-top:18px;justify-content:space-between}
   .btn.primary{background:var(--ink);color:#fff;border-color:var(--ink);padding:10px 22px}
   .btn.danger{color:var(--alert);background:#fff}
@@ -603,32 +605,59 @@ const ago = m => Date.now() - m*60000;
 const nowStr = () => clock(Date.now());
 const chips = (list) => `<div class="chips">${list.map(m=>`<button data-m="${m}">${m===0?'עכשיו':'לפני '+(m===60?'שעה':m+' דק׳')}</button>`).join('')}</div>`;
 
+// Time entry: phones keep the native time wheel; with a mouse and keyboard it is a plain text box that
+// accepts 935, 9:35, 09.35, "9 35" or just 9, and Enter saves.
+const KB = !!(window.matchMedia && window.matchMedia('(pointer:fine)').matches);
+function timeField(id, v){
+  return KB ? `<input type="text" class="kb" id="${id}" value="${v}" dir="ltr" inputmode="numeric" maxlength="5" placeholder="9:35" autocomplete="off">`
+            : `<input type="time" id="${id}" value="${v}">`;
+}
+function parseTime(v){
+  v = String(v || '').trim();
+  const m = v.match(/^(\d{1,2})\s*[:.,\s]\s*(\d{1,2})$/) || v.match(/^(\d{1,2})(\d{2})$/) || v.match(/^(\d{1,2})()$/);
+  if(!m) return '';
+  const h = +m[1], mi = +(m[2] || 0);
+  return h < 24 && mi < 60 ? `${pad(h)}:${pad(mi)}` : '';
+}
+function timeVal(id){
+  const el = sh.querySelector('#'+id); if(!el) return '';
+  const v = parseTime(el.value);
+  if(el.classList) el.classList.toggle('bad', !v);
+  if(!v && el.focus){ el.focus(); if(el.select) el.select(); }
+  return v;
+}
+document.addEventListener('keydown', e => {
+  if(!bg.classList.contains('show')) return;
+  if(e.key === 'Escape') close();
+  else if(e.key === 'Enter' && e.target && e.target.tagName === 'INPUT'){ const ok = sh.querySelector('#ok'); if(ok){ e.preventDefault(); ok.click(); } }
+});
 function sheet(title, body, footL, onOk, onChip){
   sh.innerHTML = `<h3>${title}</h3>${body}<div class="foot">${footL}<button class="btn primary" id="ok">שמירה</button></div>`;
   sh.querySelectorAll('[data-m]').forEach(b => b.onclick = () => { close(); onChip(ago(+b.dataset.m)); });
   sh.querySelector('#ok').onclick = onOk;
   const c = sh.querySelector('#cancel'); if(c) c.onclick = close;
   bg.classList.add('show');
+  if(KB){ const f = sh.querySelector('input.kb'); if(f){ f.focus(); f.select(); } sh.querySelectorAll('input.kb').forEach(i => i.onfocus = () => i.select()); }
 }
 const cancelBtn = '<button class="btn" id="cancel">ביטול</button>';
 
 function openSheet(p, k){
   const it = ITEMS[k], name = PETS[p].name, d = state[p][k] || {};
   if(!it.dur){
-    sheet(`${name} · ${it.log} — מתי?`, chips([5,10,15,30,60]) + `<label class="field">או בשעה <input type="time" id="tIn" value="${nowStr()}"></label>`,
-      cancelBtn, () => { const v=sh.querySelector('#tIn').value; if(!v) return; close(); tapPoint(p,k,timeToTs(v)); },
+    sheet(`${name} · ${it.log} — מתי?`, chips([5,10,15,30,60]) + `<label class="field">או בשעה ${timeField("tIn", nowStr())}</label>`,
+      cancelBtn, () => { const v=timeVal('tIn'); if(!v) return; close(); tapPoint(p,k,timeToTs(v)); },
       ts => tapPoint(p,k,ts));
   } else if(d.start){
     const setStart = ts => commit(`${name} · שעת ההתחלה עודכנה`, () => { state[p][k] = Object.assign({}, d, {start:ts}); });
-    sheet(`${name} · ${it.startQ}`, chips([5,10,15,30,60]) + `<label class="field">או בשעה <input type="time" id="tIn" value="${clock(d.start)}"></label>`,
+    sheet(`${name} · ${it.startQ}`, chips([5,10,15,30,60]) + `<label class="field">או בשעה ${timeField("tIn", clock(d.start))}</label>`,
       '<button class="btn danger" id="del">מחיקה</button>',
-      () => { const v=sh.querySelector('#tIn').value; if(!v) return; close(); setStart(timeToTs(v)); }, setStart);
+      () => { const v=timeVal('tIn'); if(!v) return; close(); setStart(timeToTs(v)); }, setStart);
     sh.querySelector('#del').onclick = () => { close(); commit(`${name} · נמחק`, () => { const x = Object.assign({}, d); delete x.start; state[p][k] = x; }); };
   } else {
     sheet(`${name} · הוספת ${it.lbl.replace(' אחרונה','').replace(' אחרון','')} שהסתיים`,
-      `<label class="field">התחלה <input type="time" id="aIn"></label><label class="field">סיום&nbsp; <input type="time" id="bIn" value="${nowStr()}"></label>`,
+      `<label class="field">התחלה ${timeField("aIn", "")}</label><label class="field">סיום&nbsp; ${timeField("bIn", nowStr())}</label>`,
       cancelBtn, () => {
-        const a = sh.querySelector('#aIn').value, b = sh.querySelector('#bIn').value; if(!a||!b) return;
+        const a = timeVal('aIn'), b = timeVal('bIn'); if(!a||!b) return;
         const tb = timeToTs(b); let ta = timeToTs(a); if(ta > tb) ta -= 86400000;
         close();
         commit(`${name} · ${it.log} נוסף`, () => {
@@ -641,9 +670,9 @@ function openSheet(p, k){
 }
 function openMedSheet(p, slot){
   const k = 'med_'+slot, given = medsOf(p)[slot];
-  sheet(`${PETS[p].name} · ${ITEMS[k].log}`, chips([0,15,30,60]) + `<label class="field">או בשעה <input type="time" id="tIn" value="${clock(given)}"></label>`,
+  sheet(`${PETS[p].name} · ${ITEMS[k].log}`, chips([0,15,30,60]) + `<label class="field">או בשעה ${timeField("tIn", clock(given))}</label>`,
     '<button class="btn danger" id="del">לא ניתנה</button>',
-    () => { const v=sh.querySelector('#tIn').value; if(!v) return; close(); setMed(p, slot, timeToTs(v)); },
+    () => { const v=timeVal('tIn'); if(!v) return; close(); setMed(p, slot, timeToTs(v)); },
     ts => setMed(p, slot, ts));
   sh.querySelector('#del').onclick = () => { close(); setMed(p, slot, null); };
 }
@@ -664,12 +693,12 @@ function openEntrySheet(i){
   const it = ITEMS[e.k], name = PETS[e.p].name, med = e.k.startsWith('med_'), pt = !it.dur && !med;
   const find = () => state.log.findIndex(x => x.p===e.p && x.k===e.k && x.t===e.t && x.end===e.end);
   sheet(`${name} · ${it.log} · ${dayLabel(e.t)} <bdi dir="ltr">${clock(e.t)}</bdi>`,
-    pt ? `<label class="field">תיקון השעה <input type="time" id="tIn" value="${clock(e.t)}"></label>`
+    pt ? `<label class="field">תיקון השעה ${timeField("tIn", clock(e.t))}</label>`
        : `<div class="sub">אפשר למחוק את הרישום הזה.</div>`,
     '<button class="btn danger" id="del">מחיקה</button>',
     () => {
       if(!pt){ close(); return; }
-      const v = sh.querySelector('#tIn').value; if(!v) return;
+      const v = timeVal('tIn'); if(!v) return;
       const [hh,mm] = v.split(':').map(Number), d = new Date(e.t); d.setHours(hh,mm,0,0);
       close();
       if(d.getTime() === e.t) return;
