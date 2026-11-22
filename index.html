@@ -81,6 +81,8 @@
   .log .r span{flex:1}
   .log .r time{color:var(--muted);font-size:13px;font-variant-numeric:tabular-nums}
   .log .r svg{color:var(--acc)}
+  .log .r[data-e]{cursor:pointer}
+  h2 small{font-weight:400;color:var(--faint);margin-inline-start:6px}
   .empty{color:var(--faint);font-size:14px;padding:14px 0;text-align:center}
 
   .toast{position:fixed;left:50%;transform:translate(-50%,20px);opacity:0;pointer-events:none;bottom:calc(env(safe-area-inset-bottom) + 20px);background:var(--ink);color:#fff;border-radius:14px;padding:8px 8px 8px 14px;display:flex;align-items:center;gap:10px;font-size:14px;box-shadow:0 8px 24px rgba(0,0,0,.18);transition:all .2s;white-space:nowrap;padding-right:14px}
@@ -429,7 +431,7 @@ function render(){
   }
 
   const items = state.log.filter(e => e.p===pet).slice(-25).reverse();
-  h += `<h2>היסטוריה</h2><div class="card log">` + (items.length ? items.map(logRow).join('') : `<div class="empty">אין עדיין רישומים</div>`) + `</div>`;
+  h += `<h2>היסטוריה<small>לחיצה על רישום לתיקון או מחיקה</small></h2><div class="card log">` + (items.length ? items.map(logRow).join('') : `<div class="empty">אין עדיין רישומים</div>`) + `</div>`;
   document.getElementById('main').innerHTML = h;
 }
 function byOf(p, k, t){   // " · name" of whoever logged this event, if known
@@ -437,7 +439,7 @@ function byOf(p, k, t){   // " · name" of whoever logged this event, if known
   return '';
 }
 function logRow(e){
-  return `<div class="r">${ico(iconOf(e.k),'s')}<span>${e.live ? ITEMS[e.k].live+' עכשיו' : ITEMS[e.k].log}${e.end ? ' · '+words(e.end-e.t) : ''}${USERS[e.by] ? `<i class="by">${USERS[e.by]}</i>` : ''}</span>
+  return `<div class="r" ${e.live ? '' : `data-e="${state.log.indexOf(e)}"`}>${ico(iconOf(e.k),'s')}<span>${e.live ? ITEMS[e.k].live+' עכשיו' : ITEMS[e.k].log}${e.end ? ' · '+words(e.end-e.t) : ''}${USERS[e.by] ? `<i class="by">${USERS[e.by]}</i>` : ''}</span>
      <time>${dayLabel(e.t)} <bdi dir="ltr">${clock(e.t)}${e.end ? '–'+clock(e.end) : ''}</bdi></time></div>`;
 }
 
@@ -537,7 +539,7 @@ function renderSummary(){
     const ev = state.log.filter(e => e.p===pet && (e.end ? (e.end > from && e.t < to) : (e.t >= from && e.t < to)));
     for(const k of durs){ const s = state[pet][k] && state[pet][k].start; if(s && s < to && now > from) ev.push({p:pet, k, t:s, live:true}); }
     ev.sort((x,y) => y.t - x.t);
-    h += `<h2>אירועי היום</h2><div class="card log">` + (ev.length ? ev.map(logRow).join('') : `<div class="empty">אין רישומים ביום הזה</div>`) + `</div>`;
+    h += `<h2>אירועי היום<small>לחיצה על רישום לתיקון או מחיקה</small></h2><div class="card log">` + (ev.length ? ev.map(logRow).join('') : `<div class="empty">אין רישומים ביום הזה</div>`) + `</div>`;
   }
   return h;
 }
@@ -562,6 +564,8 @@ document.getElementById('main').addEventListener('change', e => {
 });
 document.getElementById('main').addEventListener('click', e => {
   if(e.target.id === 'sumDate'){ try{ e.target.showPicker(); }catch(_){} return; }
+  const ent = e.target.closest('.r[data-e]');
+  if(ent){ openEntrySheet(+ent.dataset.e); return; }
   const row = e.target.closest('tr[data-day]');
   if(row){ sumMode = 'day'; sumAnchor = +row.dataset.day; render(); window.scrollTo(0,0); return; }
   const b = e.target.closest('button'); if(!b) return;
@@ -642,6 +646,44 @@ function openMedSheet(p, slot){
     () => { const v=sh.querySelector('#tIn').value; if(!v) return; close(); setMed(p, slot, timeToTs(v)); },
     ts => setMed(p, slot, ts));
   sh.querySelector('#del').onclick = () => { close(); setMed(p, slot, null); };
+}
+
+// Fix or delete one history entry, then rebuild the "last time" values from what is left in the log.
+function recalc(p, k){
+  const es = state.log.filter(e => e.p===p && e.k===k);
+  if(ITEMS[k].dur){
+    const cur = state[p][k] || {}, last = es.filter(e => e.end).sort((a,b) => a.end-b.end).pop(), n = {};
+    if(cur.start) n.start = cur.start;
+    if(last){ n.lastStart = last.t; n.lastEnd = last.end; }
+    state[p][k] = n;
+  } else if(es.length) state[p][k] = Math.max(...es.map(e => e.t));
+  else delete state[p][k];
+}
+function openEntrySheet(i){
+  const e = state.log[i]; if(!e) return;
+  const it = ITEMS[e.k], name = PETS[e.p].name, med = e.k.startsWith('med_'), pt = !it.dur && !med;
+  const find = () => state.log.findIndex(x => x.p===e.p && x.k===e.k && x.t===e.t && x.end===e.end);
+  sheet(`${name} · ${it.log} · ${dayLabel(e.t)} <bdi dir="ltr">${clock(e.t)}</bdi>`,
+    pt ? `<label class="field">תיקון השעה <input type="time" id="tIn" value="${clock(e.t)}"></label>`
+       : `<div class="sub">אפשר למחוק את הרישום הזה.</div>`,
+    '<button class="btn danger" id="del">מחיקה</button>',
+    () => {
+      if(!pt){ close(); return; }
+      const v = sh.querySelector('#tIn').value; if(!v) return;
+      const [hh,mm] = v.split(':').map(Number), d = new Date(e.t); d.setHours(hh,mm,0,0);
+      close();
+      if(d.getTime() === e.t) return;
+      commit(`${name} · ${it.log} עודכן`, () => { const j = find(); if(j < 0) return; state.log[j].t = d.getTime(); recalc(e.p, e.k); });
+    });
+  sh.querySelector('#del').onclick = () => {
+    close();
+    commit(`${name} · ${it.log} נמחק`, () => {
+      const j = find(); if(j < 0) return;
+      state.log.splice(j, 1);
+      if(med){ const day = (state[e.p].meds || {})[dayKey(e.t)]; if(day) delete day[e.k.slice(4)]; }
+      else recalc(e.p, e.k);
+    });
+  };
 }
 
 function renderMe(){ document.getElementById('me').textContent = me ? USERS[me] : 'מי אני?'; }
