@@ -13,6 +13,7 @@ function use(s, b){ state = s; if(b !== undefined) base = b; if(typeof setState 
 function reset(who = 'shai', showPet = 'kishmish'){
   localStorage.clear(); try { localStorage.setItem(LS_KEY + '-salvaged', '1'); } catch(e){}
   use(blank(), blank()); me = who; pet = showPet; view = 'now'; sumFilter = null;
+  if(typeof DUP_MS !== 'undefined') DUP_MS = 0;   // most cases tap the same button repeatedly on purpose; extras.js tests the guard
   close(); renderMe(); document.getElementById('toast').classList.remove('show'); render();
 }
 // A fake server shared by simulated phones. Keys come back in a different order, like Firestore.
