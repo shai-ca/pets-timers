@@ -158,6 +158,10 @@
   .field input.kb{width:5.5em;text-align:center;font-variant-numeric:tabular-nums}
   .field input.bad{border-color:var(--alert);background:var(--alert-soft)}
   .foot{display:flex;gap:8px;margin-top:18px;justify-content:space-between}
+  .sc{margin-top:10px;padding:10px 12px 12px;border:1px dashed var(--faint);border-radius:14px}
+  .sc-h{font-size:12px;color:var(--muted);margin-bottom:8px;line-height:1.35}
+  .sc-b{display:flex;flex-wrap:wrap;gap:8px}
+  .sc .btn.sel{background:var(--btn);border-color:var(--btn);color:#fff}
   .cyc-a .btn.sel{background:var(--btn);border-color:var(--btn);color:#fff}
   .btn.primary{background:var(--ink);color:#fff;border-color:var(--ink);padding:10px 22px}
   .btn.danger{color:var(--alert);background:#fff}
@@ -701,7 +705,7 @@ function stepBack(p){
       recalc(p, st.k);
     }
     if(st.food){ state.log = state.log.filter(e => !(e.p===p && ((e.k==='food' && e.t===last.t && !e.y) || (e.k==='nofood' && e.t >= last.t)))); recalc(p, 'food'); }
-    for(const k of ['crate','sleep']){
+    for(const k of last.i === 0 ? [] : ['crate','sleep']){   // entering the crate closes nothing, so there is nothing to restart
       const e = state.log.find(x => x.p===p && x.k===k && x.end===last.t);
       if(e && !(S[k] && S[k].start)){ state.log = state.log.filter(x => x !== e); recalc(p, k); S[k] = Object.assign({}, S[k] || {}, {start:e.t}); }
     }
@@ -936,6 +940,16 @@ function cycleHTML(p){
   const main = inCrate ? `<button class="go ${asleep?'wait':''}" data-act="out">הוצאתי אותה מהכלוב</button>`
     : asleep ? `<button class="go wait" data-act="wake">כשתתעורר: ${CYCLE[1].n}</button>`
     : `<button class="go" data-act="step" data-k="${next}">${brk ? 'חזרה לשגרה' : 'הבא'}: ${CYCLE[next].n}</button>`;
+  // Shortcuts for the current step, in a labelled box so it is clear what they are: the potty buttons
+  // write exactly what the pee / poop tiles below write; the play kinds and "did not eat" exist only here.
+  const box = (title, btns) => `<div class="sc"><div class="sc-h">${title}</div><div class="sc-b">${btns}</div></div>`;
+  const shortcuts =
+    (potty ? box('קיצור לשלב הזה · נרשם בדיוק כמו בכרטיסי הפיפי והקקי למטה',
+      `<button class="btn" data-act="pt" data-k="pee">פיפי</button><button class="btn" data-act="pt" data-k="poop">קקי</button><button class="btn" data-act="pt" data-k="none">לא עשתה</button>`) : '') +
+    (c && CYCLE[ci].play && !inCrate ? box('במה שיחקה? אפשר לסמן כמה · אוכל במשחק נרשם גם כארוחה',
+      Object.keys(PLAY).map(y => `<button class="btn ${playOn(p, y) ? 'sel' : ''}" data-act="play" data-k="${y}">${PLAY[y]}</button>`).join('')) : '') +
+    (c && CYCLE[ci].food && !inCrate ? box('הארוחה נרשמה עם הכניסה לשלב · אם לא אכלה:',
+      `<button class="btn ${noFood(p) ? 'sel' : ''}" data-act="nofood">לא אכלה</button>`) : '');
   return `<div class="card cyc ${due||over?'due':''}">
     <div class="cyc-h"><b>השגרה של ${PETS[p].name}</b><small>${c && rn ? roundName(rn) : brk ? 'בהפסקה' : ''}</small></div>
     <div class="steps"><svg class="ring" viewBox="0 0 200 200" aria-hidden="true">${segs}</svg>
@@ -943,8 +957,8 @@ function cycleHTML(p){
     ${over ? `<div class="duemsg">${ico('crate','s')}<span>בכלוב כבר יותר מ${words(CRATE_MAX)} · מ־<bdi dir="ltr">${clock(S.crate.start)}</bdi></span></div>` : ''}
     ${due ? `<div class="duemsg">${ico('pee','s')}<span>זמן להוציא לצרכים · ${due.why}, לפני <span data-words="${due.t}">${words(now-due.t)}</span></span></div>` : ''}
     ${asleep ? `<div class="zz">${ico('sleep','s')}<span>ישנה מ־<bdi dir="ltr">${clock(S.sleep.start)}</bdi> · נותנים לה לישון</span></div>` : ''}
-    <div class="cyc-a">${potty ? `<button class="btn" data-act="pt" data-k="pee">פיפי</button><button class="btn" data-act="pt" data-k="poop">קקי</button><button class="btn" data-act="pt" data-k="none">לא עשתה</button>` : ''}
-${c && CYCLE[ci].food && !inCrate ? `<button class="btn ${noFood(p) ? 'sel' : ''}" data-act="nofood">לא אכלה</button>` : ''}${c && CYCLE[ci].play && !inCrate ? Object.keys(PLAY).map(y => `<button class="btn ${playOn(p, y) ? 'sel' : ''}" data-act="play" data-k="${y}">${PLAY[y]}</button>`).join('') : ''}
+    ${shortcuts}
+    <div class="cyc-a">
       ${(S.hist || []).length ? `<button class="ghost" data-act="back">${ico('chevR','s')}חזרה שלב</button>` : ''}
       ${brk || inCrate ? '' : `<button class="ghost" data-act="brk">${ico('none','s')}הפסקה בשגרה</button>`}
       ${inCrate ? `<span class="sub">בכלוב עד שמסמנים הוצאה</span>` : ''}
