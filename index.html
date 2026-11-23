@@ -1485,9 +1485,21 @@ function openSheet(p, k){
   } else if(start){
     // The timer is running: move its start, or cancel it.
     const setStart = ts => commit(`${name} · שעת ההתחלה עודכנה`, () => { const o = running().sort((x,y) => x.t-y.t); if(o[0]) o[0].t = Math.min(ts, Date.now()); });
-    sheet(`${name} · ${it.startQ}`, chips([5,10,15,30,60,120,180]) + `<label class="field">או בשעה ${timeField("tIn", clock(start))}</label>`,
+    // …or record that it already ended earlier (she woke up a while ago and nobody tapped).
+    const endAt = ts => commit(`${name} · ${it.stop}`, () => { stopDur(p, k, Math.min(ts, Date.now())); });
+    sheet(`${name} · ${it.startQ}`, chips([5,10,15,30,60,120,180]) + `<label class="field">או בשעה ${timeField("tIn", clock(start))}</label>
+       <div class="sub" style="margin:14px 0 8px">כבר נגמר ולא סימנו? מתי זה נגמר:</div><label class="field">נגמר ב־ ${timeField("eIn", "")}</label>`,
       '<button class="btn danger" id="del">מחיקה</button>',
-      () => { const v=timeVal('tIn'); if(!v) return; close(); setStart(timeToTs(v)); }, setStart);
+      () => {
+        const endV = sh.querySelector('#eIn').value.trim();
+        if(endV){   // an end time was given: finish the stay then
+          const e = timeVal('eIn'); if(!e) return;
+          const te = timeToTs(e);
+          if(te <= start){ sh.querySelector('#eIn').classList.add('bad'); return; }
+          close(); endAt(te); return;
+        }
+        const v=timeVal('tIn'); if(!v) return; close(); setStart(timeToTs(v));
+      }, setStart);
     sh.querySelector('#del').onclick = () => { close(); commit(`${name} · נמחק`, () => { const o = running(); state.log = state.log.filter(e => !o.includes(e)); }); };
   } else {
     sheet(`${name} · ${it.lbl.replace(' אחרונה','').replace(' אחרון','')} — הוספה`,

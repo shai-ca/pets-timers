@@ -51,6 +51,12 @@
       seed([{ p:'kishmish', k:'crate', t: now - 30*MIN }, { p:'kishmish', k:'crate', t: now - 28*MIN }]);
       ok('two running entries: the earlier one is the stay', K().crate.start === now - 30*MIN);
       tapDur('kishmish', 'crate'); ok('stopping leaves one stay', logOf('kishmish', 'crate').length === 1 && logOf('kishmish', 'crate')[0].t === now - 30*MIN && !K().crate.start);
+      // a running timer that really ended a while ago
+      seed([{ p:'kishmish', k:'sleep', t: now - 140*MIN }]);
+      $q('[data-act=edit][data-k=sleep]').click(); sh.querySelector('#eIn').value = clock(now - 50*MIN); sh.querySelector('#ok').click();
+      ok('"it already ended at …" closes the running timer at that time', !K().sleep.start && logOf('kishmish', 'sleep').length === 1 && clock(logOf('kishmish', 'sleep')[0].end) === clock(now - 50*MIN) && logOf('kishmish', 'sleep')[0].t === now - 140*MIN);
+      openEntrySheet(0); sh.querySelector('#bIn').value = clock(now - 70*MIN); sh.querySelector('#ok').click();
+      ok('a finished stay\'s end can be corrected afterwards', clock(logOf('kishmish', 'sleep')[0].end) === clock(now - 70*MIN) && clock(K().sleep.lastEnd) === clock(now - 70*MIN));
       seed([{ p:'kishmish', k:'sleep', t: now - 23*HOUR }, { p:'kishmish', k:'crate', t: now - HOUR }]);
       tapDur('kishmish', 'crate');
       ok('leaving the crate does not "end" a sleep left running since yesterday', logOf('kishmish', 'sleep')[0].end == null && !!logOf('kishmish', 'crate')[0].end);
