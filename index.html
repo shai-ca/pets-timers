@@ -186,6 +186,12 @@
   .tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
   .tiles.two{grid-template-columns:1fr 1fr}
   .tile{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:14px 12px;display:flex;flex-direction:column;gap:1px;min-width:0}
+  button.tile{font:inherit;color:inherit;text-align:right;align-items:flex-start;cursor:pointer}
+  .tile.on{border-color:var(--acc);box-shadow:inset 0 0 0 1.5px var(--acc)}
+  .tile.dim{opacity:.5}
+  .flt{font-size:12.5px;color:var(--muted);margin:0 4px -2px}
+  .flt b{color:var(--ink);font-weight:600}
+  .b.cry{top:5px;bottom:5px;background:#e0a0ae} .lg .k.b.cry{background:#e0a0ae}
   .tile .ic{width:34px;height:34px;border-radius:10px;margin-bottom:6px}
   .tile .ic svg{width:19px;height:19px}
   .tile b{font-size:25px;font-weight:600;font-variant-numeric:tabular-nums;line-height:1.2}
@@ -975,6 +981,7 @@ function logRow(e){
 
 // ---------- summary ----------
 let view = 'now', sumMode = 'day', sumAnchor = Date.now();
+let sumFilter = null;   // one kind ("pee", "crate"…) the summary is narrowed to; set by tapping its tile
 const DAY = 86400000;
 const DOW = ['א׳','ב׳','ג׳','ד׳','ה׳','ו׳','ש׳'];
 const MONTHS = ['ינואר','פברואר','מרץ','אפריל','מאי','יוני','יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר'];
@@ -1023,8 +1030,9 @@ const WHERE_LEGEND = [['out','בחוץ / על החצץ'], ['pad','על הפד'],
 function eachDay(from, to, fn){ const now = Date.now(); for(const d = new Date(from); d.getTime() < to && d.getTime() <= now; d.setDate(d.getDate()+1)){ const b = new Date(d); b.setDate(b.getDate()+1); fn(d, d.getTime(), b.getTime()); } }
 // One bar per day, midnight to midnight (left to right): crate and sleep as bands, meals as ticks,
 // every pee / poop as a dot. Tapping a dot opens that entry for fixing.
-function timelineHTML(p, from, to){
-  const now = Date.now(), rows = [], bands = ['crate','sleep'].filter(k => PETS[p].items.includes(k));
+function timelineHTML(p, from, to, F){   // F: only this kind (optional)
+  const now = Date.now(), rows = [], bands = (F ? [F] : ['crate','sleep']).filter(k => PETS[p].items.includes(k) && ITEMS[k].dur);
+  const dots = !F || hasWhere(F), meals = !F || F === 'food';
   eachDay(from, to, (d, a, b) => {
     const pct = t => (Math.max(0, Math.min(1, (t-a)/(b-a)))*100).toFixed(2);
     let m = [25,50,75].map(x => `<i class="g" style="left:${x}%"></i>`).join('');
@@ -1035,24 +1043,25 @@ function timelineHTML(p, from, to){
     }
     state.log.forEach((e, i) => {
       if(e.p !== p || e.t < a || e.t >= b) return;
-      if(e.k === 'food') m += `<i class="f" style="left:${pct(e.t)}%" title="אוכל ${clock(e.t)}"></i>`;
-      else if(hasWhere(e.k)){ const tip = `${ITEMS[e.k].log} ${clock(e.t)}${WHERE[e.w] ? ' · '+WHERE[e.w] : ' · לא סומן איפה'}`; m += `<button class="d ${e.k} ${whereCls(e.w)}" data-e="${i}" style="left:${pct(e.t)}%" title="${tip}" aria-label="${tip}"></button>`; }
+      if(e.k === 'food'){ if(meals) m += `<i class="f" style="left:${pct(e.t)}%" title="אוכל ${clock(e.t)}"></i>`; }
+      else if(hasWhere(e.k) && (!F || F === e.k)){ const tip = `${ITEMS[e.k].log} ${clock(e.t)}${WHERE[e.w] ? ' · '+WHERE[e.w] : ' · לא סומן איפה'}`; m += `<button class="d ${e.k} ${whereCls(e.w)}" data-e="${i}" style="left:${pct(e.t)}%" title="${tip}" aria-label="${tip}"></button>`; }
     });
     rows.push(`<div class="tl-row"><span class="tl-d">${DOW[d.getDay()]} · <bdi dir="ltr">${ddmm(a)}</bdi></span><div class="tl-t" dir="ltr">${m}</div></div>`);
   });
   if(!rows.length) return '';
   const axis = `<div class="tl-row"><span></span><div class="tl-x" dir="ltr">${[0,6,12,18,24].map(hh => `<span style="left:${hh/24*100}%">${pad(hh)}:00</span>`).join('')}</div></div>`;
-  const legend = `<div class="lg"><span><i class="k pee unk"></i>פיפי</span><span><i class="k poop unk"></i>קקי</span><span><i class="k f"></i>אוכל</span>${bands.map(k => `<span><i class="k b ${k}"></i>${SUM_LBL[k]}</span>`).join('')}</div>
-    <div class="lg">${WHERE_LEGEND.map(([c,l]) => `<span><i class="k pee ${c}"></i>${l}</span>`).join('')}</div>`;
+  const legend = `<div class="lg">${['pee','poop'].filter(k => !F || F === k).map(k => `<span><i class="k ${k} unk"></i>${SUM_LBL[k]}</span>`).join('')}${meals ? `<span><i class="k f"></i>אוכל</span>` : ''}${bands.map(k => `<span><i class="k b ${k}"></i>${SUM_LBL[k]}</span>`).join('')}</div>` +
+    (dots ? `<div class="lg">${WHERE_LEGEND.map(([c,l]) => `<span><i class="k ${F === 'poop' ? 'poop' : 'pee'} ${c}"></i>${l}</span>`).join('')}</div>` : '');
   return `<h2>ציר זמן<small>לחיצה על נקודה לתיקון</small></h2><div class="card tl">${axis}${rows.join('')}${legend}</div>`;
 }
 // One stacked column per day: how many pees + poops were outside, on the pad, or accidents.
 // Accidents sit on the baseline so their trend is the easiest thing to read. Tapping a day opens it.
-function whereBarsHTML(p, from, to){
+function whereBarsHTML(p, from, to, F){
+  if(F && !hasWhere(F)) return '';
   const days = []; let max = 0, any = 0;
   eachDay(from, to, (d, a, b) => {
     const c = {out:0, pad:0, acc:0, unk:0};
-    for(const e of state.log) if(e.p===p && hasWhere(e.k) && e.t >= a && e.t < b) c[whereCls(e.w)]++;
+    for(const e of state.log) if(e.p===p && hasWhere(e.k) && (!F || e.k===F) && e.t >= a && e.t < b) c[whereCls(e.w)]++;
     const n = c.out + c.pad + c.acc + c.unk; max = Math.max(max, n); any += n;
     days.push({d:new Date(d), a, c, n});
   });
@@ -1064,7 +1073,7 @@ function whereBarsHTML(p, from, to){
     return `<button class="wb-c" data-day="${x.a}" title="${tip}" aria-label="${tip}">${few && x.n ? `<span class="n">${x.n}</span>` : ''}
       ${['unk','out','pad','acc'].filter(c => x.c[c]).map(c => `<i class="${c}" style="height:${Math.max(3, x.c[c]*unit - 2).toFixed(1)}px"></i>`).join('')}<em>${lbl}</em></button>`;
   }).join('');
-  return `<h2>פיפי וקקי — איפה<small>לחיצה על יום לפירוט</small></h2><div class="card wbc"><div class="wb ${few?'few':''}" dir="ltr">${cols}</div>
+  return `<h2>${F ? SUM_LBL[F] : 'פיפי וקקי'} — איפה<small>לחיצה על יום לפירוט</small></h2><div class="card wbc"><div class="wb ${few?'few':''}" dir="ltr">${cols}</div>
     <div class="lg">${WHERE_LEGEND.map(([c,l]) => `<span><i class="k sq ${c}"></i>${l}</span>`).join('')}</div></div>`;
 }
 function renderSummary(){
@@ -1094,14 +1103,18 @@ function renderSummary(){
     </div></div>`;
 
   const avg = n => multi && days > 1 ? `<small>ממוצע ${(n/days).toFixed(1).replace('.0','')} ליום</small>` : '';
+  // Tapping a tile narrows everything below it (timeline, chart, table, list) to that one kind.
+  const F = P.items.includes(sumFilter) ? sumFilter : null;
+  const tcls = k => `tile ${F === k ? 'on' : F ? 'dim' : ''}`;
+  h += `<div class="flt">${F ? `מוצג רק: <b>${SUM_LBL[F]}</b> <button class="lnk" data-act="filt" data-k="${F}">הצגת הכול</button>` : 'לחיצה על קטגוריה מציגה רק אותה'}</div>`;
   h += `<div class="tiles">` + ['food','pee','poop'].map(k =>
-    `<div class="tile"><div class="ic">${ico(k)}</div><b>${st[k]}</b><span>${SUM_LBL[k]}</span>${avg(st[k])}${whereLine(st.w[k])}</div>`).join('') + `</div>`;
+    `<button class="${tcls(k)}" data-act="filt" data-k="${k}"><div class="ic">${ico(k)}</div><b>${st[k]}</b><span>${SUM_LBL[k]}</span>${avg(st[k])}${whereLine(st.w[k])}</button>`).join('') + `</div>`;
   const durs = P.items.filter(k => ITEMS[k].dur);
   if(durs.length) h += `<div class="tiles two">` + durs.map(k =>
-    `<div class="tile"><div class="ic">${ico(k)}</div><b class="t">${st[k].ms ? words(st[k].ms) : '–'}</b>
+    `<button class="${tcls(k)}" data-act="filt" data-k="${k}"><div class="ic">${ico(k)}</div><b class="t">${st[k].ms ? words(st[k].ms) : '–'}</b>
       <span>${SUM_LBL[k]} · ${st[k].n===1 ? 'פעם אחת' : st[k].n+' פעמים'}</span>
-      ${multi && days > 1 && st[k].ms ? `<small>ממוצע ${words(st[k].ms/days)} ליום</small>` : ''}</div>`).join('') + `</div>`;
-  if(P.meds){
+      ${multi && days > 1 && st[k].ms ? `<small>ממוצע ${words(st[k].ms/days)} ליום</small>` : ''}</button>`).join('') + `</div>`;
+  if(P.meds && !F){
     const m = (state[pet].meds || {})[dayKey(from)] || {};
     h += `<div class="tiles two">` + (multi
       ? `<div class="tile" style="grid-column:1/-1"><div class="ic">${ico('pill')}</div><b><bdi dir="ltr">${st.meds}/${days*2}</bdi></b><span>תרופות שניתנו</span></div>`
@@ -1109,11 +1122,13 @@ function renderSummary(){
         `<div class="tile"><div class="ic">${ico('pill')}</div><b class="t">${m[s] ? 'ניתנה ב־'+clock(m[s]) : 'לא ניתנה'}</b><span>תרופת ${l}${m[s] ? byOf(pet,'med_'+s,m[s]) : ''}</span></div>`).join('')) + `</div>`;
   }
 
-  if(sumMode !== 'month') h += timelineHTML(pet, from, to);
-  if(multi) h += whereBarsHTML(pet, from, to);
+  if(sumMode !== 'month') h += timelineHTML(pet, from, to, F);
+  if(multi) h += whereBarsHTML(pet, from, to, F);
+
+  const evAll = state.log.filter(e => e.p===pet && (!F || e.k===F) && (e.end ? (e.end > from && e.t < to) : (e.t >= from && e.t < to)));
 
   if(multi){
-    const cols = P.items.concat(P.meds ? ['pill'] : []);
+    const cols = F ? [F] : P.items.concat(P.meds ? ['pill'] : []);
     const cell = v => `<td class="${v==='0' || v==='0:00' || v==='0/2' ? 'z' : ''}">${v}</td>`;
     let rows = '';
     for(const d = new Date(from); d.getTime() < to && d.getTime() <= now; d.setDate(d.getDate()+1)){
@@ -1125,11 +1140,15 @@ function renderSummary(){
     h += `<h2>לפי יום</h2><div class="card tblc">` + (rows
       ? `<table class="tbl ${cols.length > 6 ? 'wide' : ''}"><tr><th></th>${cols.map(k => `<th>${ico(k,'s')}</th>`).join('')}</tr>${rows}</table>`
       : `<div class="empty">אין רישומים בתקופה הזו</div>`) + `</div>`;
+    if(F){   // with a filter on, list the entries themselves too
+      const ev = evAll.slice().sort((x,y) => y.t - x.t), shown = ev.slice(0, 150);
+      h += `<h2>כל הרישומים · ${SUM_LBL[F]}<small>${ev.length > shown.length ? `${shown.length} האחרונים מתוך ${ev.length} · ` : ''}לחיצה לתיקון</small></h2><div class="card log">` + (shown.length ? shown.map(logRow).join('') : `<div class="empty">אין רישומים בתקופה הזו</div>`) + `</div>`;
+    }
   } else {
-    const ev = state.log.filter(e => e.p===pet && (e.end ? (e.end > from && e.t < to) : (e.t >= from && e.t < to)));
-    for(const k of durs){ const s = state[pet][k] && state[pet][k].start; if(s && s < to && now > from) ev.push({p:pet, k, t:s, live:true}); }
+    const ev = evAll;
+    for(const k of durs.filter(k => !F || k===F)){ const s = state[pet][k] && state[pet][k].start; if(s && s < to && now > from) ev.push({p:pet, k, t:s, live:true}); }
     ev.sort((x,y) => y.t - x.t);
-    if(P.cycle){
+    if(P.cycle && !F){
       const rs = rounds(pet).filter(r => r.day === dayKey(from)).reverse();
       if(rs.length) h += `<h2>סבבים<small>לחיצה על שלב לתיקון</small></h2><div class="card rounds">${roundsHTML(pet, rs)}</div>`;
     }
@@ -1165,6 +1184,7 @@ document.getElementById('main').addEventListener('click', e => {
   const b = e.target.closest('button'); if(!b) return;
   const k = b.dataset.k, a = b.dataset.act;
   if(a==='mode'){ sumMode = k; render(); }
+  else if(a==='filt'){ sumFilter = sumFilter === k ? null : k; render(); }
   else if(a==='prev' || a==='next'){ sumShift(a==='prev' ? -1 : 1); render(); }
   else if(a==='step') goStep(pet, +k);
   else if(a==='rstep') openStepSheet(pet, +k);
