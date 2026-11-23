@@ -101,6 +101,9 @@
   .toast .tw button.sel{background:#fff;color:var(--ink)}
   .lnk{border:0;background:none;padding:0;font:inherit;color:var(--acc);text-decoration:underline;cursor:pointer}
   .sub.hint{margin-top:2px;opacity:.85}
+  .sub.fc{margin-top:3px;color:var(--ink);font-weight:500}
+  .sub.fc i{display:none;width:8px;height:8px;border-radius:50%;margin-inline-end:6px;vertical-align:baseline}
+  .sub.fc.now i{display:inline-block;background:#fab219} .sub.fc.late i{display:inline-block;background:#d03b3b}
   .chips.mini{margin:2px 0 10px;gap:6px} .chips.mini button{padding:6px 10px;font-size:13px}
   .chips.where button{flex:1 1 40%;padding:14px 10px;font-size:16px;font-weight:500}
   /* charts: status colours for "where" (validated for colour-blind separation), neutral bands */
@@ -792,6 +795,8 @@ function pottyDue(p){
   if(S.crate && S.crate.lastEnd) c.push([S.crate.lastEnd, 'אחרי יציאה מהכלוב']);
   if(typeof S.food === 'number') c.push([S.food, 'אחרי אוכל']);   // before play: on a tie the meal is the reason shown
   if(S.playEnd) c.push([S.playEnd, 'אחרי משחק']);
+  const fc = peeForecast(p);
+  if(fc && fc.state !== 'soon') c.push([fc.from, 'לפי הקצב הרגיל שלה']);
   c.sort((a,b) => b[0]-a[0]);
   if(!c.length) return null;
   const done = Math.max(S.pee || 0, S.poop || 0, S.none || 0, S.out || 0);
@@ -882,7 +887,7 @@ function render(){
           ${it.slow ? `<div class="big txt ${t?'':'none'}">${t ? wordsLong(Date.now()-t) : '–'}</div>`
                     : `<div class="big ${t?'':'none'}" ${t?`data-since="${t}"`:''}>${t ? dur(Date.now()-t) : '–'}</div>`}
           <div class="sub">${t ? `${dayLabel(t)} ב־${clock(t)}${whereOf(pet,k,t) || (hasWhere(k) ? ` · <button class="lnk" data-act="where" data-k="${k}">איפה?</button>` : '')}${byOf(pet,k,t)}` : 'עוד לא נרשם'}</div>
-          ${todayWhere(pet,k) ? `<div class="sub hint">${todayWhere(pet,k)}</div>` : ''}${P.cycle && typical(pet,k) ? `<div class="sub hint">${typical(pet,k)}</div>` : ''}${it.note ? `<div class="sub hint">${it.note}</div>` : ''}</div>
+          ${P.cycle && k === 'pee' ? forecastLine(pet) : ''}${todayWhere(pet,k) ? `<div class="sub hint">${todayWhere(pet,k)}</div>` : ''}${P.cycle && typical(pet,k) ? `<div class="sub hint">${typical(pet,k)}</div>` : ''}${it.note ? `<div class="sub hint">${it.note}</div>` : ''}</div>
         <div class="acts"><button class="go" data-act="pt" data-k="${k}">${it.btn}</button>
           <button class="ghost" data-act="edit" data-k="${k}">${ico('clock','s')}שעה אחרת</button></div></div>`;
     } else {
@@ -1019,19 +1024,38 @@ function crateOver(p){
 // nights and long breaks left out) and how long after a meal she usually poops. Shown under the tiles
 // once there is enough data to mean something.
 function median(a){ const s = a.slice().sort((x,y) => x-y), m = s.length >> 1; return s.length % 2 ? s[m] : (s[m-1]+s[m])/2; }
+function peeGaps(p){   // gaps between consecutive pees in the last 7 days; nights and long breaks left out
+  const since = Date.now() - 7*86400000, t = state.log.filter(e => e.p===p && e.k==='pee' && e.t >= since).map(e => e.t), g = [];
+  for(let i = 1; i < t.length; i++){ const d = t[i]-t[i-1]; if(d >= 10*60000 && d <= 5*3600000) g.push(d); }
+  return g;
+}
 function typical(p, k){
   const since = Date.now() - 7*86400000, ev = kk => state.log.filter(e => e.p===p && e.k===kk && e.t >= since).map(e => e.t), g = [];
-  if(k === 'pee'){
-    const t = ev('pee');
-    for(let i = 1; i < t.length; i++){ const d = t[i]-t[i-1]; if(d >= 10*60000 && d <= 5*3600000) g.push(d); }
-    return g.length >= 4 ? `בדרך כלל כל ${words(median(g))}` : '';
-  }
+  if(k === 'pee'){ const pg = peeGaps(p); return pg.length >= 4 ? `בדרך כלל כל ${words(median(pg))}` : ''; }
   if(k === 'poop'){
     const f = ev('food'), pp = ev('poop');
     for(const m of f){ const n = pp.find(x => x > m); if(n && n-m <= 3*3600000 && !f.some(x => x > m && x < n)) g.push(n-m); }
     return g.length >= 3 ? `בדרך כלל ${words(median(g))} אחרי אוכל` : '';
   }
   return '';
+}
+// Forecast of the next pee from her own rhythm: the last pee plus the middle half of her usual gaps
+// (25th to 75th percentile), so it is a window, not a single time. Needs at least 4 gaps.
+// `state`: "soon" before the window, "now" inside it, "late" after it.
+function quantile(sorted, q){ const i = (sorted.length-1)*q, lo = Math.floor(i), hi = Math.ceil(i); return sorted[lo] + (sorted[hi]-sorted[lo])*(i-lo); }
+function peeForecast(p){
+  const last = state[p].pee, g = peeGaps(p).sort((x,y) => x-y);
+  if(typeof last !== 'number' || g.length < 4) return null;
+  const from = last + quantile(g, .25), to = last + quantile(g, .75), now = Date.now();
+  return {from, to, state: now < from ? 'soon' : now <= to ? 'now' : 'late'};
+}
+function forecastLine(p){
+  const f = peeForecast(p); if(!f) return '';
+  const span = `<bdi dir="ltr">${clock(f.from)}–${clock(f.to)}</bdi>`;
+  const quiet = (state[p].sleep && state[p].sleep.start) || (state[p].crate && state[p].crate.start);   // asleep or in the crate: no alarm colours
+  if(f.state === 'soon') return `<div class="sub fc">הפיפי הבא צפוי בין ${span}</div>`;
+  if(f.state === 'now') return `<div class="sub fc ${quiet ? '' : 'now'}"><i></i>הפיפי הבא צפוי עכשיו · עד <bdi dir="ltr">${clock(f.to)}</bdi></div>`;
+  return `<div class="sub fc ${quiet ? '' : 'late'}"><i></i>הפיפי היה צפוי עד <bdi dir="ltr">${clock(f.to)}</bdi></div>`;
 }
 // "היום: חצץ 2 · פד 1" on the pee / poop tiles — today's count by place, best place first.
 function todayWhere(p, k){
