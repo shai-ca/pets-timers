@@ -355,9 +355,9 @@ const BREAK = -1;   // pseudo step in `hist`: the routine is on hold (vet, a tri
 const stepName = i => i === BREAK ? 'הפסקה' : CYCLE[i].n;
 const HIST_MAX = 1500;   // step changes kept for the rounds list (about a month)
 // Kinds of play, stored as `y` on a `play` log entry. Several can be marked in one play step.
-const PLAY = {rope:'חבל', kong:'קונג ממולא', train:'אילוף עם אוכל'};
+const PLAY = {rope:'חבל', kong:'קונג ממולא', lick:'משטח ליקוק', train:'אילוף עם אוכל'};
 // These kinds are a meal too (she is tiny): the play step then logs one `food` entry, tagged `y:"play"`.
-const PLAY_FOOD = {kong:true, train:true};
+const PLAY_FOOD = {kong:true, lick:true, train:true};
 const STEP_ICON = ['crate','paw','ball','food','pee'];   // one per CYCLE step, drawn on its ring segment
 const DUE_MAX = 60*60000;   // the "take her out" reminder gives up after an hour
 const iconOf = k => (ITEMS[k] && ITEMS[k].icon) || k;
