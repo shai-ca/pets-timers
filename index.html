@@ -290,8 +290,8 @@ document.getElementById('mark').innerHTML = `<svg viewBox="0 0 24 24">${ICONS.pa
 
 // ---------- model ----------
 const PETS = {
-  kochik:   {name:'קוצ׳יק', items:['food','pee','poop'], meds:true},
-  kishmish: {name:'קישמיש', items:['food','pee','poop','sleep','cry','crate'], cycle:true}
+  kochik:   {name:'קוצ׳יק', items:['food','pee','poop'], meds:true, where:['out','gravel','pad','floor']},
+  kishmish: {name:'קישמיש', items:['food','pee','poop','sleep','cry','crate'], cycle:true, where:['gravel','pad','floor','crate','out']}
 };
 const ITEMS = {
   food:{lbl:'מאז האוכל האחרון',btn:'אכלה',log:'אכלה'},
@@ -315,8 +315,10 @@ const CYCLE = [
   {n:'צרכים', potty:true}
 ];
 // Where a pee / poop happened; stored as `w` on the log entry (optional).
-const WHERE = {out:'בחוץ', pad:'על הפד', floor:'על הרצפה', crate:'בכלוב'};   // floor and crate are accidents (shown in red)
-const WHERE_SHORT = {out:'בחוץ', pad:'פד', floor:'רצפה', crate:'כלוב'};
+const WHERE = {out:'בחוץ', gravel:'על החצץ במרפסת', pad:'על הפד', floor:'על הרצפה', crate:'בכלוב'};   // floor and crate are accidents (shown in red)
+// The choices offered per pet, best place first. Kishmish is not vaccinated yet and does not go outside: her target is the gravel on the balcony.
+const whereKeys = p => PETS[p].where || Object.keys(WHERE);
+const WHERE_SHORT = {out:'בחוץ', gravel:'חצץ', pad:'פד', floor:'רצפה', crate:'כלוב'};
 const hasWhere = k => k==='pee' || k==='poop';
 const CRATE_MAX = 2*3600000;   // a crate stay longer than this turns red (tile and strip)
 const DAY_FROM = 7, DAY_TO = 22;   // the red crate flag is only shown between these hours
@@ -729,7 +731,7 @@ function openStepSheet(p, j){
      <div class="chips" style="margin-bottom:8px">${['pee','poop','none'].map(k => `<button data-add="${k}">${k==='none' ? 'לא עשתה' : ITEMS[k].log}</button>`).join('')}</div>
      <label class="field">בשעה ${timeField("eIn", clock(h.t))}</label>` +
     (evs.length ? `<div class="sub" style="margin:14px 0 2px">נרשם בשלב הזה (איפה — כאן; לחיצה על השורה לתיקון שעה או מחיקה):</div><div class="log" style="padding:0">${evs.map(ev =>
-      logRow(ev) + (hasWhere(ev.k) ? `<div class="chips mini" data-ev="${ev.k}|${ev.t}">${Object.keys(WHERE).map(w => `<button data-w="${w}" class="${ev.w===w?'sel':''}">${WHERE[w]}</button>`).join('')}</div>` : '')).join('')}</div>` : ''),
+      logRow(ev) + (hasWhere(ev.k) ? `<div class="chips mini" data-ev="${ev.k}|${ev.t}">${whereKeys(p).map(w => `<button data-w="${w}" class="${ev.w===w?'sel':''}">${WHERE[w]}</button>`).join('')}</div>` : '')).join('')}</div>` : ''),
     '<button class="btn danger" id="del">מחיקת השלב</button>',
     () => {
       const v = timeVal('tIn'); if(!v) return;
@@ -1009,15 +1011,15 @@ function stats(p, from, to){
   return r;
 }
 function whereLine(c){   // "רצפה 1 · פד 2" under the pee / poop tiles
-  const parts = ['floor','crate','pad','out'].filter(w => c && c[w]).map(w => `<em class="wh ${w}">${WHERE_SHORT[w]} ${c[w]}</em>`);
+  const parts = ['floor','crate','pad','gravel','out'].filter(w => c && c[w]).map(w => `<em class="wh ${w}">${WHERE_SHORT[w]} ${c[w]}</em>`);
   return parts.length ? `<small>${parts.join(' · ')}</small>` : '';
 }
 // ---------- charts (summary view) ----------
 // Colour says where a pee / poop happened and is the same in both charts: green outside, amber on the
-// pad, red for an accident (floor or crate), grey when it was not marked. Shape says what it was
+// pad, red for an accident (floor or crate); the balcony gravel counts as outside, grey when it was not marked. Shape says what it was
 // (round = pee, square = poop). Every colour is also named in the legend, never colour alone.
-const whereCls = w => w==='out' ? 'out' : w==='pad' ? 'pad' : (w==='floor' || w==='crate') ? 'acc' : 'unk';
-const WHERE_LEGEND = [['out','בחוץ'], ['pad','על הפד'], ['acc','תאונה (רצפה / כלוב)'], ['unk','לא סומן']];
+const whereCls = w => (w==='out' || w==='gravel') ? 'out' : w==='pad' ? 'pad' : (w==='floor' || w==='crate') ? 'acc' : 'unk';
+const WHERE_LEGEND = [['out','בחוץ / על החצץ'], ['pad','על הפד'], ['acc','תאונה (רצפה / כלוב)'], ['unk','לא סומן']];
 function eachDay(from, to, fn){ const now = Date.now(); for(const d = new Date(from); d.getTime() < to && d.getTime() <= now; d.setDate(d.getDate()+1)){ const b = new Date(d); b.setDate(b.getDate()+1); fn(d, d.getTime(), b.getTime()); } }
 // One bar per day, midnight to midnight (left to right): crate and sleep as bands, meals as ticks,
 // every pee / poop as a dot. Tapping a dot opens that entry for fixing.
@@ -1189,7 +1191,7 @@ function whereSheet(p, k, t){
   const find = () => state.log.find(e => e.p===p && e.k===k && e.t===t);
   const e = find(); if(!e) return;
   sh.innerHTML = `<h3>${PETS[p].name} · ${ITEMS[k].log} · <bdi dir="ltr">${clock(t)}</bdi> — איפה?</h3>
-    <div class="chips where">${Object.keys(WHERE).map(w => `<button data-w="${w}" class="${e.w===w?'sel':''}">${WHERE[w]}</button>`).join('')}</div>
+    <div class="chips where">${whereKeys(p).map(w => `<button data-w="${w}" class="${e.w===w?'sel':''}">${WHERE[w]}</button>`).join('')}</div>
     <div class="foot"><span></span><button class="btn" id="cancel">דילוג</button></div>`;
   sh.querySelectorAll('[data-w]').forEach(b => b.onclick = () => { const x = find(); close(); if(!x) return; x.w = b.dataset.w; render(); push(); });
   sh.querySelector('#cancel').onclick = close;
@@ -1332,7 +1334,7 @@ function openEntrySheet(i){
   const canReopen = !!it.dur && !(state[e.p][e.k] || {}).start && !state.log.some(x => x.p===e.p && x.k===e.k && x.end > e.end);
   sheet(`${name} · ${it.log} · ${dayLabel(e.t)} <bdi dir="ltr">${clock(e.t)}</bdi>`,
     pt ? `<label class="field">תיקון השעה ${timeField("tIn", clock(e.t))}</label>` +
-         (hasWhere(e.k) ? `<div class="sub" style="margin:14px 0 8px">איפה?</div><div class="chips">${Object.keys(WHERE).map(w => `<button data-w="${w}" class="${e.w===w?'sel':''}">${WHERE[w]}</button>`).join('')}</div>` : '')
+         (hasWhere(e.k) ? `<div class="sub" style="margin:14px 0 8px">איפה?</div><div class="chips">${whereKeys(e.p).map(w => `<button data-w="${w}" class="${e.w===w?'sel':''}">${WHERE[w]}</button>`).join('')}</div>` : '')
        : (canReopen ? `<div class="sub" style="margin-bottom:10px">נרשם בטעות כאילו נגמר?</div><div class="chips"><button id="reopen">עדיין נמשך (מ־${clock(e.t)})</button></div>` : '') +
          `<div class="sub">אפשר למחוק את הרישום הזה.</div>`,
     '<button class="btn danger" id="del">מחיקה</button>',
