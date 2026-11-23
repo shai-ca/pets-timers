@@ -775,8 +775,9 @@ function openAddSheet(p){
   const kinds = PETS[p].cycle ? ['pee','poop','none','food'] : ['pee','poop','food'];
   let k = kinds[0];
   sheet(`${PETS[p].name} · הוספת רישום`,
-    `<div class="chips">${kinds.map(x => `<button data-kind="${x}" class="${x===k?'sel':''}">${ITEMS[x].log}</button>`).join('')}</div><label class="field">בשעה ${timeField("tIn", nowStr())}</label>`,
-    cancelBtn, () => { const v = timeVal('tIn'); if(!v) return; close(); tapPoint(p, k, timeToTs(v)); });
+    `<div class="chips">${kinds.map(x => `<button data-kind="${x}" class="${x===k?'sel':''}">${ITEMS[x].log}</button>`).join('')}</div>
+     <div class="sub" style="margin-bottom:8px">מתי?</div>${chips([5,10,15,30,60])}<label class="field">או בשעה ${timeField("tIn", nowStr())}</label>`,
+    cancelBtn, () => { const v = timeVal('tIn'); if(!v) return; close(); tapPoint(p, k, timeToTs(v)); }, ts => tapPoint(p, k, ts));
   sh.querySelectorAll('[data-kind]').forEach(b => b.onclick = () => { k = b.dataset.kind; sh.querySelectorAll('[data-kind]').forEach(x => x.classList.toggle('sel', x === b)); });
 }
 // When a puppy needs to go out (trainer's list): after waking up, leaving the crate, playing or eating.
@@ -1306,7 +1307,9 @@ function timeToTs(v){
 }
 const ago = m => Date.now() - m*60000;
 const nowStr = () => clock(Date.now());
-const chips = (list) => `<div class="chips">${list.map(m=>`<button data-m="${m}">${m===0?'עכשיו':'לפני '+(m===60?'שעה':m===120?'שעתיים':m%60===0?(m/60)+' שעות':m+' דק׳')}</button>`).join('')}</div>`;
+// "How long ago" choices: quick buttons, plus a box for any number of minutes (the time is worked out from it).
+const chips = (list) => `<div class="chips">${list.map(m=>`<button data-m="${m}">${m===0?'עכשיו':'לפני '+(m===60?'שעה':m===120?'שעתיים':m%60===0?(m/60)+' שעות':m+' דק׳')}</button>`).join('')}</div>
+  <label class="field">או לפני <input type="number" class="kb" id="agoIn" inputmode="numeric" min="0" max="1440" placeholder="20" autocomplete="off"> דקות</label>`;
 
 // Time entry: phones keep the native time wheel; with a mouse and keyboard it is a plain text box that
 // accepts 935, 9:35, 09.35, "9 35" or just 9, and Enter saves.
@@ -1337,10 +1340,20 @@ document.addEventListener('keydown', e => {
 function sheet(title, body, footL, onOk, onChip){
   sh.innerHTML = `<h3>${title}</h3>${body}<div class="foot">${footL}<button class="btn primary" id="ok">שמירה</button></div>`;
   sh.querySelectorAll('[data-m]').forEach(b => b.onclick = () => { close(); onChip(ago(+b.dataset.m)); });
-  sh.querySelector('#ok').onclick = onOk;
+  // A number typed into "לפני … דקות" wins over the clock field: save at now minus that many minutes.
+  const ag = sh.querySelector('#agoIn');
+  if(ag) ag.oninput = () => ag.classList.remove('bad');
+  sh.querySelector('#ok').onclick = () => {
+    if(ag && ag.value.trim() !== '' && onChip){
+      const m = Number(ag.value);
+      if(!(m >= 0 && m <= 1440)){ ag.classList.add('bad'); ag.focus(); return; }
+      close(); onChip(ago(m)); return;
+    }
+    onOk();
+  };
   const c = sh.querySelector('#cancel'); if(c) c.onclick = close;
   bg.classList.add('show');
-  if(KB){ const f = sh.querySelector('input.kb'); if(f){ f.focus(); f.select(); } sh.querySelectorAll('input.kb').forEach(i => i.onfocus = () => i.select()); }
+  if(KB){ const f = sh.querySelector('#tIn.kb, #aIn.kb') || sh.querySelector('input.kb:not(#agoIn)'); if(f){ f.focus(); f.select(); } sh.querySelectorAll('input.kb').forEach(i => i.onfocus = () => i.select()); }
 }
 const cancelBtn = '<button class="btn" id="cancel">ביטול</button>';
 
