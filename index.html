@@ -101,6 +101,7 @@
   .toast .tw button.sel{background:#fff;color:var(--ink)}
   .lnk{border:0;background:none;padding:0;font:inherit;color:var(--acc);text-decoration:underline;cursor:pointer}
   .sub.hint{margin-top:2px;opacity:.85}
+  .chips.mini{margin:2px 0 10px;gap:6px} .chips.mini button{padding:6px 10px;font-size:13px}
   .chips.where button{flex:1 1 40%;padding:14px 10px;font-size:16px;font-weight:500}
   /* charts: status colours for "where" (validated for colour-blind separation), neutral bands */
   .out{--c:#0ca30c} .pad{--c:#fab219} .acc{--c:#d03b3b} .unk{--c:#8a857d}
@@ -727,7 +728,8 @@ function openStepSheet(p, j){
      <div class="sub" style="margin:14px 0 8px">להוסיף מה שקרה בשלב הזה:</div>
      <div class="chips" style="margin-bottom:8px">${['pee','poop','none'].map(k => `<button data-add="${k}">${k==='none' ? 'לא עשתה' : ITEMS[k].log}</button>`).join('')}</div>
      <label class="field">בשעה ${timeField("eIn", clock(h.t))}</label>` +
-    (evs.length ? `<div class="sub" style="margin:14px 0 2px">נרשם בשלב הזה (לחיצה לתיקון):</div><div class="log" style="padding:0">${evs.map(logRow).join('')}</div>` : ''),
+    (evs.length ? `<div class="sub" style="margin:14px 0 2px">נרשם בשלב הזה (איפה — כאן; לחיצה על השורה לתיקון שעה או מחיקה):</div><div class="log" style="padding:0">${evs.map(ev =>
+      logRow(ev) + (hasWhere(ev.k) ? `<div class="chips mini" data-ev="${ev.k}|${ev.t}">${Object.keys(WHERE).map(w => `<button data-w="${w}" class="${ev.w===w?'sel':''}">${WHERE[w]}</button>`).join('')}</div>` : '')).join('')}</div>` : ''),
     '<button class="btn danger" id="del">מחיקת השלב</button>',
     () => {
       const v = timeVal('tIn'); if(!v) return;
@@ -742,6 +744,13 @@ function openStepSheet(p, j){
     close(); tapPoint(p, b.dataset.add, Math.min(ts, Date.now()));
   });
   sh.querySelectorAll('.r[data-e]').forEach(el => el.onclick = () => openEntrySheet(+el.dataset.e));
+  // Where it happened can be set right here, one tap, without leaving the round.
+  sh.querySelectorAll('.chips.mini').forEach(box => box.querySelectorAll('[data-w]').forEach(b => b.onclick = () => {
+    const [k, t] = box.dataset.ev.split('|'), x = state.log.find(e => e.p===p && e.k===k && e.t===+t); if(!x) return;
+    if(x.w === b.dataset.w) delete x.w; else x.w = b.dataset.w;
+    box.querySelectorAll('[data-w]').forEach(y => y.classList.toggle('sel', y.dataset.w === x.w));
+    render(); push();
+  }));
   sh.querySelector('#del').onclick = () => {
     close();
     commit(`${PETS[p].name} · ${stepName(h.i)} נמחק מהסבב`, () => {
@@ -1331,6 +1340,7 @@ function openEntrySheet(i){
       if(!pt){ close(); return; }
       const v = timeVal('tIn'); if(!v) return;
       const [hh,mm] = v.split(':').map(Number), d = new Date(e.t); d.setHours(hh,mm,0,0);
+      if(v === clock(e.t)) d.setTime(e.t);   // same minute = time untouched
       if(d.getTime() > Date.now() + 60000){ sh.querySelector('#tIn').classList.add('bad'); return; }   // not in the future
       close();
       if(d.getTime() === e.t && w === e.w) return;
