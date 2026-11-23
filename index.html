@@ -433,7 +433,7 @@ document.getElementById('mark').innerHTML = `<svg viewBox="0 0 24 24">${ICONS.pa
 
 // ---------- model ----------
 const PETS = {
-  kochik:   {name:'קוצ׳יק', items:['food','pee','poop','gel'], meds:true, where:['out','balcony','home','pad']},   // Kochik is an adult: outside is the norm, the balcony or indoors happen sometimes
+  kochik:   {name:'קוצ׳יק', items:['food','pee','poop','gel'], meds:true, poopType:true, where:['out','balcony','home','pad']},   // Kochik is an adult: outside is the norm, the balcony or indoors happen sometimes
   kishmish: {name:'קישמיש', items:['crate','pee','poop','food','sleep','cry'], cycle:true, where:['gravel','pad','floor','out']}   // not "in the crate": she does not go there (the owner's working assumption)
 };
 const ITEMS = {
@@ -463,6 +463,10 @@ const WHERE = {out:'בחוץ', gravel:'על החצץ במרפסת', balcony:'ב�
 const whereKeys = p => PETS[p].where || Object.keys(WHERE);
 const WHERE_SHORT = {out:'בחוץ', gravel:'חצץ', balcony:'מרפסת', pad:'פד', home:'בית', floor:'רצפה', crate:'כלוב'};
 const hasWhere = k => k==='pee' || k==='poop';
+// What a poop was like, stored as `q` on the entry — for Kochik, whose diarrhoea comes and goes.
+const POOP = {ok:'תקין', soft:'רך', dia:'שלשול'};
+const hasType = (p, k) => k === 'poop' && !!PETS[p].poopType;
+const typeTag = q => POOP[q] ? ` · <em class="wh ${q === 'dia' ? 'floor' : q === 'soft' ? 'no' : ''}">${POOP[q]}</em>` : '';
 const CRATE_MAX = 2*3600000;   // a crate stay longer than this turns red (tile and strip)
 const DAY_FROM = 7, DAY_TO = 22;   // the red crate flag is only shown between these hours
 // Kinds of play, stored as `y` on a `play` log entry. Several can be marked in one play step.
@@ -1180,7 +1184,7 @@ function render(){
         <div><div class="lbl">${it.lbl}</div>
           ${it.slow ? `<div class="big txt ${t?'':'none'}">${t ? wordsLong(Date.now()-t) : '–'}</div>`
                     : `<div class="big ${t?'':'none'}" ${t?`data-since="${t}"`:''}>${t ? dur(Date.now()-t) : '–'}</div>`}
-          <div class="sub">${t ? `${dayLabel(t)} ב־${clock(t)}${whereOf(pet,k,t) || (hasWhere(k) ? ` · <button class="lnk" data-act="where" data-k="${k}">איפה?</button>` : '')}${byOf(pet,k,t)}` : 'עוד לא נרשם'}</div>
+          <div class="sub">${t ? `${dayLabel(t)} ב־${clock(t)}${whereOf(pet,k,t) || (hasWhere(k) ? ` · <button class="lnk" data-act="where" data-k="${k}">איפה?</button>` : '')}${typeOf(pet,k,t)}${byOf(pet,k,t)}` : 'עוד לא נרשם'}</div>
           ${P.cycle && k === 'pee' ? forecastLine(pet) : ''}${todayWhere(pet,k) ? `<div class="sub hint">${todayWhere(pet,k)}</div>` : ''}${P.cycle && typical(pet,k) ? `<div class="sub hint">${typical(pet,k)}</div>` : ''}${it.note ? `<div class="sub hint">${it.note}</div>` : ''}</div>
         <div class="acts"><button class="go" data-act="pt" data-k="${k}">${it.btn}</button>
           <button class="ghost" data-act="edit" data-k="${k}">${ico('clock','s')}שעה אחרת</button>
@@ -1394,13 +1398,18 @@ function whereOf(p, k, t){   // " · where" of the pee / poop logged at t, if it
   for(let i = state.log.length-1; i >= 0; i--){ const e = state.log[i]; if(e.p===p && e.k===k && e.t===t) return whereTag(e.w); }
   return '';
 }
+function typeOf(p, k, t){   // " · what kind" of the poop logged at t — or a link to say so
+  if(!hasType(p, k)) return '';
+  const e = state.log.filter(x => x.p===p && x.k===k && x.t===t).pop();
+  return !e ? '' : POOP[e.q] ? typeTag(e.q) : ` · <button class="lnk" data-act="ptype" data-k="${k}">איזה סוג?</button>`;
+}
 function byOf(p, k, t){   // " · name" of whoever logged this event, if known
   for(let i = state.log.length-1; i >= 0; i--){ const e = state.log[i]; if(e.p===p && e.k===k && e.t===t) return USERS[e.by] ? ' · '+USERS[e.by] : ''; }
   return '';
 }
 function logRow(e){
   const live = isLive(e);
-  return `<div class="r" ${live ? `data-live="${e.k}"` : `data-e="${state.log.indexOf(e)}"`}>${ico(iconOf(e.k),'s')}<span>${live ? ITEMS[e.k].live+' עכשיו' : ITEMS[e.k].log}${e.r ? ' · ניסיון חוזר' : ''}${afterCrate(e.p, e)}${PLAY[e.y] ? ' · '+PLAY[e.y] : e.y === 'play' ? ' · במשחק' : ''}${whereTag(e.w)}${e.end ? ' · '+words(e.end-e.t) : ''}${USERS[e.by] ? `<i class="by">${USERS[e.by]}</i>` : ''}</span>
+  return `<div class="r" ${live ? `data-live="${e.k}"` : `data-e="${state.log.indexOf(e)}"`}>${ico(iconOf(e.k),'s')}<span>${live ? ITEMS[e.k].live+' עכשיו' : ITEMS[e.k].log}${e.r ? ' · ניסיון חוזר' : ''}${typeTag(e.q)}${afterCrate(e.p, e)}${PLAY[e.y] ? ' · '+PLAY[e.y] : e.y === 'play' ? ' · במשחק' : ''}${whereTag(e.w)}${e.end ? ' · '+words(e.end-e.t) : ''}${USERS[e.by] ? `<i class="by">${USERS[e.by]}</i>` : ''}</span>
      <time>${dayLabel(e.t)} <bdi dir="ltr">${clock(e.t)}${e.end ? '–'+clock(e.end) : ''}</bdi></time></div>`;
 }
 
@@ -1430,12 +1439,12 @@ function sumShift(dir){
   sumAnchor = Math.min(d.getTime(), Date.now());
 }
 function stats(p, from, to){
-  const r = {food:0, pee:0, poop:0, gel:0, none:0, sleep:{n:0,ms:0}, cry:{n:0,ms:0}, crate:{n:0,ms:0}, meds:0, w:{pee:{}, poop:{}}};
+  const r = {food:0, pee:0, poop:0, gel:0, none:0, sleep:{n:0,ms:0}, cry:{n:0,ms:0}, crate:{n:0,ms:0}, meds:0, w:{pee:{}, poop:{}}, q:{}};
   const add = (k, a, b) => { const ov = Math.min(b,to) - Math.max(a,from); if(ov > 0){ r[k].ms += ov; r[k].n++; } };
   for(const e of state.log){
     if(e.p !== p) continue;
     if(ITEMS[e.k].dur) add(e.k, e.t, e.end == null ? Date.now() : e.end);
-    else if(typeof r[e.k]==='number' && e.t >= from && e.t < to){ r[e.k]++; if(WHERE[e.w] && r.w[e.k]) r.w[e.k][e.w] = (r.w[e.k][e.w] || 0) + 1; }
+    else if(typeof r[e.k]==='number' && e.t >= from && e.t < to){ r[e.k]++; if(WHERE[e.w] && r.w[e.k]) r.w[e.k][e.w] = (r.w[e.k][e.w] || 0) + 1; if(e.k === 'poop' && POOP[e.q]) r.q[e.q] = (r.q[e.q] || 0) + 1; }
   }
   const meds = V[p].meds;
   for(const d = new Date(from); d.getTime() < to; d.setDate(d.getDate()+1)){ const m = meds[dayKey(d)] || {}; r.meds += (m.am?1:0) + (m.pm?1:0); }
@@ -1509,7 +1518,7 @@ function logText(p, from, to){
     for(const e of ev){
       const it = ITEMS[e.k];
       const live = isLive(e), time = e.end ? `${clock(e.t)}–${clock(e.end)}` : live ? `${clock(e.t)}–עכשיו` : clock(e.t);
-      const what = (live ? it.live : it.log) + (PLAY[e.y] ? ` · ${PLAY[e.y]}` : e.y === 'play' ? ' · במשחק' : '') + (WHERE[e.w] ? ` · ${WHERE[e.w]}` : '')
+      const what = (live ? it.live : it.log) + (PLAY[e.y] ? ` · ${PLAY[e.y]}` : e.y === 'play' ? ' · במשחק' : '') + (WHERE[e.w] ? ` · ${WHERE[e.w]}` : '') + (POOP[e.q] ? ` · ${POOP[e.q]}` : '')
         + (e.end ? ` · ${words(e.end - e.t)}` : live ? ` · כבר ${words(Date.now() - e.t)}` : '') + afterCrate(p, e);
       out.push(`${time}  ${what}`);
     }
@@ -1595,7 +1604,7 @@ function renderSummary(){
   const tcls = k => `tile ${F === k ? 'on' : F ? 'dim' : ''}`;
   h += `<div class="flt">${F ? `מוצג רק: <b>${SUM_LBL[F]}</b> <button class="lnk" data-act="filt" data-k="${F}">הצגת הכול</button>` : 'לחיצה על קטגוריה מציגה רק אותה'}</div>`;
   h += `<div class="tiles">` + P.items.filter(k => !ITEMS[k].dur).map(k =>
-    `<button class="${tcls(k)}" data-act="filt" data-k="${k}"><div class="ic">${ico(k)}</div><b>${st[k]}</b><span>${SUM_LBL[k]}</span>${avg(st[k])}${whereLine(st.w[k])}</button>`).join('') + `</div>`;
+    `<button class="${tcls(k)}" data-act="filt" data-k="${k}"><div class="ic">${ico(k)}</div><b>${st[k]}</b><span>${SUM_LBL[k]}</span>${avg(st[k])}${whereLine(st.w[k])}${k === 'poop' && (st.q.dia || st.q.soft) ? `<small>${st.q.dia ? `<em class="wh floor">שלשול ${st.q.dia}</em>` : ''}${st.q.dia && st.q.soft ? ' · ' : ''}${st.q.soft ? `רך ${st.q.soft}` : ''}</small>` : ''}</button>`).join('') + `</div>`;
   const durs = P.items.filter(k => ITEMS[k].dur);
   if(durs.length) h += `<div class="tiles two">` + durs.map(k =>
     `<button class="${tcls(k)}" data-act="filt" data-k="${k}"><div class="ic">${ico(k)}</div><b class="t">${st[k].ms ? words(st[k].ms) : '–'}</b>
@@ -1710,6 +1719,7 @@ document.getElementById('shell').addEventListener('click', e => {
   else if(a==='play') askWhen(`${PETS[pet].name} · משחק · ${PLAY[k]} — מתי?`, ts => logPlay(pet, k, false, ts));
   else if(a==='nofood') askWhen(`${PETS[pet].name} · לא אכלה — מתי?`, ts => logNoFood(pet, false, ts));
   else if(a==='where'){ const e = state.log.filter(x => x.p===pet && x.k===k).pop(); if(e) whereSheet(e.id); }
+  else if(a==='ptype'){ const e = state.log.filter(x => x.p===pet && x.k===k).pop(); if(e) typeSheet(e.id); }
   else if(a==='pt'){
     const ask = () => askWhen(`${PETS[pet].name} · ${ITEMS[k].log} — מתי?`, ts => tapPoint(pet, k, ts, true));
     const d = recentDouble(pet, e => e.k === k);
@@ -1734,13 +1744,25 @@ function showToast(msg, undo){
 function whereSheet(id){
   const find = () => state.log.find(e => e.id === id);
   const e = find(); if(!e) return;
+  const next = () => { const x = find(); if(x && hasType(x.p, x.k) && !x.q) typeSheet(id); };   // then: what kind of poop
   sh.innerHTML = `<h3>${PETS[e.p].name} · ${ITEMS[e.k].log} · <bdi dir="ltr">${clock(e.t)}</bdi> — איפה?</h3>
     <div class="chips where">${whereKeys(e.p).map(w => `<button data-w="${w}" class="${e.w===w?'sel':''}">${WHERE[w]}</button>`).join('')}</div>
     <div class="foot"><span></span><button class="btn" id="cancel">דילוג</button></div>`;
   sh.querySelectorAll('[data-w]').forEach(b => b.onclick = () => {
     close();
     commit('', () => { const x = find(); if(x) x.w = b.dataset.w; }, {quiet:true});   // the undo toast of the pee itself stays up
+    next();
   });
+  sh.querySelector('#cancel').onclick = () => { close(); next(); };
+  bg.classList.add('show');
+}
+function typeSheet(id){
+  const find = () => state.log.find(e => e.id === id);
+  const e = find(); if(!e) return;
+  sh.innerHTML = `<h3>${PETS[e.p].name} · קקי · <bdi dir="ltr">${clock(e.t)}</bdi> — איך הוא היה?</h3>
+    <div class="chips where">${Object.keys(POOP).map(q => `<button data-q="${q}" class="${e.q===q?'sel':''}">${POOP[q]}</button>`).join('')}</div>
+    <div class="foot"><span></span><button class="btn" id="cancel">דילוג</button></div>`;
+  sh.querySelectorAll('[data-q]').forEach(b => b.onclick = () => { close(); commit('', () => { const x = find(); if(x) x.q = b.dataset.q; }, {quiet:true}); });
   sh.querySelector('#cancel').onclick = close;
   bg.classList.add('show');
 }
@@ -1908,7 +1930,8 @@ function openEntrySheet(i){
   const canReopen = !!it.dur && !(V[e.p][e.k] || {}).start && !state.log.some(x => x.p===e.p && x.k===e.k && x.end > e.end);
   sheet(`${name} · ${it.log} · ${dayLabel(e.t)} <bdi dir="ltr">${clock(e.t)}</bdi>`,
     pt ? `<label class="field">תיקון השעה ${timeField("tIn", clock(e.t))}</label>` +
-         (hasWhere(e.k) ? `<div class="sub" style="margin:14px 0 8px">איפה?</div><div class="chips">${whereKeys(e.p).map(w => `<button data-w="${w}" class="${e.w===w?'sel':''}">${WHERE[w]}</button>`).join('')}</div>` : '')
+         (hasWhere(e.k) ? `<div class="sub" style="margin:14px 0 8px">איפה?</div><div class="chips">${whereKeys(e.p).map(w => `<button data-w="${w}" class="${e.w===w?'sel':''}">${WHERE[w]}</button>`).join('')}</div>` : '') +
+         (hasType(e.p, e.k) ? `<div class="sub" style="margin:14px 0 8px">איך היה הקקי?</div><div class="chips">${Object.keys(POOP).map(q => `<button data-q="${q}" class="${e.q===q?'sel':''}">${POOP[q]}</button>`).join('')}</div>` : '')
        : (it.dur ? `<label class="field">התחלה ${timeField("aIn", clock(e.t))}</label><label class="field">סיום&nbsp; ${timeField("bIn", clock(e.end))}</label>` : '') +
          (canReopen ? `<div class="sub" style="margin:10px 0">נרשם בטעות כאילו נגמר?</div><div class="chips"><button id="reopen">עדיין נמשך (מ־${clock(e.t)})</button></div>` : '') +
          `<div class="sub">אפשר למחוק את הרישום הזה.</div>`,
@@ -1930,17 +1953,22 @@ function openEntrySheet(i){
       if(v === clock(e.t)) d.setTime(e.t);   // same minute = time untouched
       if(d.getTime() > Date.now() + 60000){ sh.querySelector('#tIn').classList.add('bad'); return; }   // not in the future
       close();
-      if(d.getTime() === e.t && w === e.w) return;
+      if(d.getTime() === e.t && w === e.w && q === e.q) return;
       commit(`${name} · ${it.log} עודכן`, () => {
         const x = find(); if(!x) return;
         if(w) x.w = w; else delete x.w;
+        if(q) x.q = q; else delete x.q;
         x.t = d.getTime();
       });
     });
-  let w = e.w;
+  let w = e.w, q = e.q;
   sh.querySelectorAll('[data-w]').forEach(b => b.onclick = () => {
     w = w === b.dataset.w ? undefined : b.dataset.w;
     sh.querySelectorAll('[data-w]').forEach(x => x.classList.toggle('sel', x.dataset.w === w));
+  });
+  sh.querySelectorAll('[data-q]').forEach(b => b.onclick = () => {
+    q = q === b.dataset.q ? undefined : b.dataset.q;
+    sh.querySelectorAll('[data-q]').forEach(x => x.classList.toggle('sel', x.dataset.q === q));
   });
   const ro = sh.querySelector('#reopen');
   if(ro) ro.onclick = () => {

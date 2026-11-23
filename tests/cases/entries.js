@@ -114,6 +114,21 @@
     ok('"not given" removes the entry', !medsOf('kochik').pm && logOf('kochik', 'med_pm').length === 0);
     tapPoint('kochik', 'pee'); ok('kochik: outside, balcony, at home, pad', [...sh.querySelectorAll('[data-w]')].map(b => b.dataset.w).join() === 'out,balcony,home,pad');
     sh.querySelector('[data-w=home]').click(); ok('"at home" is saved and shown in red', logOf('kochik', 'pee')[0].w === 'home' && !!$q('.wh.home') && whereCls('home') === 'acc' && whereCls('balcony') === 'pad');
+    // kochik's poop: what kind it was
+    seed([]); tapPoint('kochik', 'poop');
+    ok('after a poop: first where…', !!sh.querySelector('[data-w=out]')); sh.querySelector('[data-w=out]').click();
+    ok('…then what kind: fine, soft or diarrhoea', sh.querySelector('h3').textContent.includes('איך הוא היה') && [...sh.querySelectorAll('[data-q]')].map(b => b.dataset.q).join() === 'ok,soft,dia');
+    sh.querySelector('[data-q=dia]').click();
+    ok('diarrhoea is saved and shown on the tile and in the list', logOf('kochik', 'poop')[0].q === 'dia' && logOf('kochik', 'poop')[0].w === 'out' && $q('.card.item [data-k=poop]').closest('.card').textContent.includes('שלשול') && $q('.card.log').textContent.includes('קקי · שלשול'));
+    tapPoint('kochik', 'poop', Date.now() - 5*MIN); sh.querySelector('#cancel').click(); sh.querySelector('#cancel').click();
+    seed([{ p:'kochik', k:'poop', t: now - 10*MIN }]);
+    ok('a poop with no kind shows "which kind?" on the tile', !!$q('[data-act=ptype]'));
+    $q('[data-act=ptype]').click(); sh.querySelector('[data-q=soft]').click(); ok('set from the tile', logOf('kochik', 'poop')[0].q === 'soft' && !$q('[data-act=ptype]'));
+    openEntrySheet(0); sh.querySelector('[data-q=ok]').click(); sh.querySelector('#ok').click();
+    ok('and it can be changed on the entry', logOf('kochik', 'poop')[0].q === 'ok');
+    ok('the text log and the summary count it', (seed([{ p:'kochik', k:'poop', t: now - 10*MIN, q:'dia' }]), logText('kochik', midnight(), midnight() + 24*HOUR).includes('קקי · שלשול')) && stats('kochik', midnight(), midnight() + 24*HOUR).q.dia === 1);
+    pet = 'kishmish'; seed([]); tapPoint('kishmish', 'poop'); sh.querySelector('#cancel').click();
+    ok('kishmish is not asked about the kind', !bg.classList.contains('show')); pet = 'kochik'; seed([]);
     $q('[data-act=pt][data-k=gel]').click(); ok('ear gel logged, counted in days', typeof KO().gel === 'number' && wordsLong(53*HOUR) === 'יומיים ו־5 שעות');
     done();
   } catch(e){ crashed(e); }
