@@ -9,8 +9,8 @@
 <style>
   :root{
     --bg:#f6f4f1; --card:#fff; --ink:#24201d; --muted:#8c847c; --faint:#b9b2aa; --line:#ece7e1;
-    --kochik:#66727f; --kochik-soft:#edf0f3;      /* Maltese: snow white and silver */
-    --kishmish:#a8672d; --kishmish-soft:#f6e6d2;  /* Yorkshire puppy: black and tan */
+    --kochik:#17181b; --kochik-soft:#eceef1;      /* Maltese: snow white with black nose and eyes */
+    --kishmish:#a8672d; --kishmish-soft:#f6e6d2;  /* Yorkshire puppy: tan and chestnut brown, black only as ink */
     --seg:#ebe7e1; --btn:var(--acc);
     --ok:#2f8a66; --ok-soft:#e7f4ee; --alert:#c64d68; --alert-soft:#fbeaee;
     --acc:var(--kishmish); --acc-soft:var(--kishmish-soft);
@@ -20,9 +20,9 @@
   body{padding:calc(env(safe-area-inset-top) + 18px) 16px calc(env(safe-area-inset-bottom) + 96px)}
   /* Per-pet theme; the class is set on <html> and <body> by render(). */
   .p-kochik{--acc:var(--kochik);--acc-soft:var(--kochik-soft);
-    --bg:#f5f6f8; --card:#fff; --ink:#23272c; --muted:#858c94; --faint:#b6bcc3; --line:#e6e9ed; --seg:#e8ebef}
+    --bg:#f7f8fa; --card:#fff; --ink:#131416; --muted:#80868e; --faint:#b6bcc3; --line:#e7e9ed; --seg:#e9ebef; --btn:#131416}
   .p-kishmish{--acc:var(--kishmish);--acc-soft:var(--kishmish-soft);
-    --bg:#f5ede3; --card:#fffbf6; --ink:#1d1713; --muted:#8b7a69; --faint:#c2b3a2; --line:#eadecf; --seg:#eadfd1; --btn:#221a15}
+    --bg:#f5ede3; --card:#fffbf6; --ink:#1d1713; --muted:#8b7a69; --faint:#c2b3a2; --line:#eadecf; --seg:#eadfd1; --btn:#77471f}
   .wrap{max-width:520px;margin:0 auto}
   svg.i{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;flex:none}
   svg.i.s{width:16px;height:16px}
@@ -97,6 +97,14 @@
   .toast .tw button{flex:1}
   .toast .tw button.sel{background:#fff;color:var(--ink)}
   .wh{font-style:normal}
+  .wh.no{color:var(--muted)}
+  .rounds{padding:4px 16px}
+  .rd{padding:12px 0;border-bottom:1px solid var(--line)} .rd:last-child{border-bottom:0}
+  .rd-h{font-size:12.5px;color:var(--muted);margin-bottom:8px}
+  .rd-s{display:flex;flex-wrap:wrap;gap:6px}
+  .rd-s span{background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:6px 10px;font-size:13px;font-weight:500}
+  .rd-s span i{font-style:normal;font-weight:400;color:var(--muted);margin-inline-end:6px}
+  .rd-s span.now{border-color:var(--acc);background:var(--acc-soft)}
   .wh.floor{color:var(--alert);font-weight:500}
   .toast.show{opacity:1;transform:translate(-50%,0);pointer-events:auto}
   .toast button{background:rgba(255,255,255,.14);color:#fff;border:0;border-radius:9px;padding:7px 12px;font:inherit;font-weight:500;cursor:pointer}
@@ -174,7 +182,7 @@
     .card.medc .meds-h{margin-bottom:6px}
     .card.medc .meds{grid-template-columns:1fr;flex:1;align-content:end}
     main > h2{margin-top:14px}
-    main > .card.log, main > .card.tblc{max-width:720px}
+    main > .card.log, main > .card.tblc, main > .card.rounds{max-width:720px}
     main > .card.sumnav{max-width:440px}
     main > .card.cyc{max-width:744px}
     .tiles, .tiles.two{grid-template-columns:repeat(auto-fill,minmax(170px,190px));gap:14px}
@@ -215,6 +223,7 @@ const ICONS = {
   sleep:'<path d="M19.5 14.3A7.6 7.6 0 0 1 9.7 4.5a7.6 7.6 0 1 0 9.8 9.8Z"/><path d="M16.5 3.5v3M15 5h3"/>',
   cry:'<circle cx="12" cy="12" r="8.5"/><path d="M8.4 10.4q1-.9 2 0M13.6 10.4q1-.9 2 0M9.6 16.2q2.4-1.6 4.8 0"/><path d="M8.2 12.6c.5.8.9 1.4.9 1.9a.9.9 0 0 1-1.8 0c0-.5.4-1.1.9-1.9Z" fill="currentColor" stroke="none"/>',
   crate:'<rect x="3.5" y="6.5" width="17" height="12.5" rx="2.2"/><path d="M8 6.5V19M12 6.5V19M16 6.5V19M9.5 6.5V5a2.5 2.5 0 0 1 5 0v1.5"/>',
+  none:'<circle cx="12" cy="12" r="8.5"/><path d="M6.2 17.8 17.8 6.2"/>',
   pill:'<rect x="2.8" y="8.6" width="18.4" height="6.8" rx="3.4" transform="rotate(-45 12 12)"/><path d="M9.6 9.6l4.8 4.8"/>',
   check:'<path d="M5 12.5l4.2 4.2L19 7"/>',
   clock:'<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>',
@@ -238,6 +247,7 @@ const ITEMS = {
   sleep:{dur:true,lbl:'שינה אחרונה',live:'ישנה',start:'נרדמה',stop:'התעוררה',log:'ישנה',startQ:'מתי נרדמה?'},
   cry:{dur:true,lbl:'בכי אחרון',live:'בוכה',start:'בוכה',stop:'נרגעה',log:'בכתה',startQ:'מתי התחילה לבכות?'},
   crate:{dur:true,lbl:'כלוב אחרון',live:'בכלוב',start:'נכנסה לכלוב',stop:'יצאה מהכלוב',log:'בכלוב',startQ:'מתי נכנסה לכלוב?'},
+  none:{log:'יצאה ולא עשתה'},   // taken out for potty, nothing happened (logged from the routine strip)
   med_am:{icon:'pill',log:'תרופת בוקר'},
   med_pm:{icon:'pill',log:'תרופת ערב'}
 };
@@ -255,6 +265,7 @@ const CYCLE = [
 const WHERE = {out:'בחוץ', pad:'על הפד', floor:'על הרצפה'};
 const WHERE_SHORT = {out:'בחוץ', pad:'פד', floor:'רצפה'};
 const hasWhere = k => k==='pee' || k==='poop';
+const HIST_MAX = 200;   // step changes kept for the rounds list
 const DUE_MAX = 60*60000;   // the "take her out" reminder gives up after an hour
 const iconOf = k => (ITEMS[k] && ITEMS[k].icon) || k;
 const LOG_MAX = 5000, LS_KEY = 'pets-timers-v1';
@@ -406,7 +417,7 @@ function tapDur(p, k){
   else commit(`${PETS[p].name} · ${ITEMS[k].start}`, () => { state[p][k] = Object.assign({}, d, {start:now}); });
   // Keep the routine strip in step with the crate timer when it is used directly:
   // entering the crate = step 1, leaving it = "walk + potty".
-  if(PETS[p].cycle && k==='crate' && state[p][k] !== d) state[p].cyc = {i: d.start ? 1 : 0, t:now};
+  if(PETS[p].cycle && k==='crate' && state[p][k] !== d) setStep(state[p], d.start ? 1 : 0, now);
 }
 // Move the routine to step i: stop the crate timer if the crate step is being left, start the new step's
 // timer, and log a meal when entering the food step. One commit, so the toast undoes all of it.
@@ -422,8 +433,39 @@ function goStep(p, i){
     if(S.cyc && CYCLE[S.cyc.i] && CYCLE[S.cyc.i].play) S.playEnd = now;
     if(st.k && !(S[st.k] || {}).start) S[st.k] = Object.assign({}, S[st.k] || {}, {start:now});
     if(st.food){ S.food = Math.max(S.food || 0, now); state.log.push({p, k:'food', t:now}); }
-    S.cyc = {i, t:now};
+    setStep(S, i, now);
   });
+}
+// The current step plus a short history of step changes (`hist`), which is what the rounds list is built from.
+function setStep(S, i, t){
+  const h = Array.isArray(S.hist) ? S.hist : (S.cyc ? [S.cyc] : []);
+  S.cyc = {i, t};
+  S.hist = h.concat([{i, t}]).slice(-HIST_MAX);
+}
+// Rounds of the routine: a new round starts whenever the step number does not go forward
+// (normally: back to the crate). Each step gets the time it lasted and what was logged during it.
+function rounds(p){
+  const h = state[p].hist || [], out = [];
+  let cur = null;
+  h.forEach((s, j) => {
+    if(!CYCLE[s.i]) return;
+    if(!cur || s.i <= h[j-1].i){ cur = {t:s.t, steps:[]}; out.push(cur); }
+    cur.steps.push({i:s.i, t:s.t, end: h[j+1] ? h[j+1].t : null});
+    cur.end = h[j+1] ? h[j+1].t : null;
+  });
+  return out;
+}
+function stepResult(p, s){
+  const st = CYCLE[s.i], to = s.end || Infinity, parts = [];
+  if(st.k || st.play) parts.push(s.end ? words(s.end - s.t) : 'עכשיו');
+  if(st.food) parts.push(`<bdi dir="ltr">${clock(s.t)}</bdi>`);
+  for(const e of state.log){
+    if(e.p !== p || e.t < s.t || e.t >= to) continue;
+    if(hasWhere(e.k)) parts.push(ITEMS[e.k].log + (WHERE[e.w] ? ` <em class="wh ${e.w}">${WHERE_SHORT[e.w]}</em>` : ''));
+    else if(e.k === 'none') parts.push('<em class="wh no">לא עשתה</em>');
+  }
+  if(st.potty && !parts.length) parts.push(s.end ? '<em class="wh no">לא נרשם</em>' : '…');
+  return parts.join(', ');
 }
 // When a puppy needs to go out (trainer's list): after waking up, leaving the crate, playing or eating.
 // Returns the latest such moment if nothing (pee, poop, or "went out, nothing") was logged since.
@@ -436,7 +478,7 @@ function pottyDue(p){
   if(typeof S.food === 'number') c.push([S.food, 'אחרי אוכל']);
   c.sort((a,b) => b[0]-a[0]);
   if(!c.length) return null;
-  const done = Math.max(S.pee || 0, S.poop || 0, S.out || 0);
+  const done = Math.max(S.pee || 0, S.poop || 0, S.none || 0, S.out || 0);
   if(done >= c[0][0] || Date.now() - c[0][0] > DUE_MAX) return null;
   return {t:c[0][0], why:c[0][1]};
 }
@@ -540,6 +582,13 @@ function render(){
     }
   }
 
+  if(P.cycle){
+    const rs = rounds(pet).slice(-3).reverse();
+    if(rs.length) h += `<h2>סבבים<small>מה קרה בכל שלב</small></h2><div class="card rounds">` + rs.map(r =>
+      `<div class="rd"><div class="rd-h">${r.end ? `${dayLabel(r.t)} <bdi dir="ltr">${clock(r.t)}–${clock(r.end)}</bdi>` : `הסבב הנוכחי · מ־<bdi dir="ltr">${clock(r.t)}</bdi>${dayLabel(r.t)==='היום' ? '' : ' ('+dayLabel(r.t)+')'}`}</div>
+        <div class="rd-s">${r.steps.map(s => `<span class="${s.end?'':'now'}"><i>${CYCLE[s.i].n}</i>${stepResult(pet, s)}</span>`).join('')}</div></div>`).join('') + `</div>`;
+  }
+
   const items = state.log.filter(e => e.p===pet).slice(-25).reverse();
   h += `<h2>היסטוריה<small>לחיצה על רישום לתיקון או מחיקה</small></h2><div class="card log">` + (items.length ? items.map(logRow).join('') : `<div class="empty">אין עדיין רישומים</div>`) + `</div>`;
   document.getElementById('main').innerHTML = h;
@@ -551,7 +600,7 @@ function cycleHTML(p){
     <div class="cyc-h"><b>השגרה של ${PETS[p].name}</b><small>${c ? `${CYCLE[ci].n} · כבר <span data-words="${c.t}">${words(now-c.t)}</span>` : 'לחיצה על שלב מתחילה את המעקב'}</small></div>
     <div class="steps">${CYCLE.map((s,i) => `<button class="${i===ci?'on':''}" data-act="step" data-k="${i}"><i>${i+1}</i>${s.n}</button>`).join('')}</div>
     ${due ? `<div class="duemsg">${ico('pee','s')}<span>זמן להוציא לצרכים · ${due.why}, לפני <span data-words="${due.t}">${words(now-due.t)}</span></span></div>` : ''}
-    <div class="cyc-a">${potty ? `<button class="btn" data-act="pt" data-k="pee">פיפי</button><button class="btn" data-act="pt" data-k="poop">קקי</button>` : ''}${due ? `<button class="btn" data-act="nopotty">לא עשתה</button>` : ''}
+    <div class="cyc-a">${potty ? `<button class="btn" data-act="pt" data-k="pee">פיפי</button><button class="btn" data-act="pt" data-k="poop">קקי</button><button class="btn" data-act="pt" data-k="none">לא עשתה</button>` : ''}
       <button class="go" data-act="step" data-k="${next}">הבא: ${CYCLE[next].n}</button></div></div>`;
 }
 function whereTag(w){ return WHERE[w] ? ` · <em class="wh ${w}">${WHERE[w]}</em>` : ''; }
@@ -702,7 +751,6 @@ document.getElementById('main').addEventListener('click', e => {
   if(a==='mode'){ sumMode = k; render(); }
   else if(a==='prev' || a==='next'){ sumShift(a==='prev' ? -1 : 1); render(); }
   else if(a==='step') goStep(pet, +k);
-  else if(a==='nopotty') commit(`${PETS[pet].name} · יצאה, לא עשתה`, () => { state[pet].out = Date.now(); });
   else if(a==='pt') tapPoint(pet, k);
   else if(a==='dur') tapDur(pet, k);
   else if(a==='edit') openSheet(pet, k);
