@@ -103,12 +103,14 @@
   .wh.no{color:var(--muted)}
   .rounds{padding:4px 16px}
   .rd{padding:12px 0;border-bottom:1px solid var(--line)} .rd:last-child{border-bottom:0}
-  .rd-h{font-size:12.5px;color:var(--muted);margin-bottom:8px}
-  .rd-s{display:flex;flex-wrap:wrap;gap:6px}
-  .rd-s span{background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:6px 10px;font-size:13px;font-weight:500}
-  .rd-s span i{font-style:normal;font-weight:400;color:var(--muted);margin-inline-end:6px}
-  .rd-s span.now{border-color:var(--acc);background:var(--acc-soft)}
-  .wh.floor{color:var(--alert);font-weight:500}
+  .rd-h{font-size:12.5px;color:var(--muted);margin-bottom:8px;display:flex;justify-content:space-between;align-items:baseline}
+  .rd-h b{font-size:14px;font-weight:600;color:var(--ink)}
+  .rd-l button{display:grid;grid-template-columns:46px 104px 1fr;align-items:baseline;gap:6px;width:100%;border:0;border-top:1px solid var(--line);background:none;padding:8px 6px;font:inherit;font-size:13.5px;color:var(--ink);text-align:right;cursor:pointer}
+  .rd-l time{color:var(--muted);font-variant-numeric:tabular-nums;direction:ltr;text-align:right}
+  .rd-l i{font-style:normal;color:var(--muted)}
+  .rd-l span{font-weight:500}
+  .rd-l button.now{background:var(--acc-soft);border-radius:10px;border-top-color:transparent}
+  .rd-l button.now + button{border-top-color:transparent}
   .toast.show{opacity:1;transform:translate(-50%,0);pointer-events:auto}
   .toast button{background:rgba(255,255,255,.14);color:#fff;border:0;border-radius:9px;padding:7px 12px;font:inherit;font-weight:500;cursor:pointer}
 
@@ -150,6 +152,7 @@
   .tile small{font-size:11.5px;color:var(--muted);opacity:.8}
   .tblc{padding:6px 14px}
   .tbl{width:100%;border-collapse:collapse;font-size:14px;font-variant-numeric:tabular-nums}
+  .tbl.wide{font-size:12.5px} .tbl.wide td,.tbl.wide th{padding-left:0;padding-right:0}
   .tbl th{font-weight:400;color:var(--acc);padding:9px 2px 7px}
   .tbl td{padding:10px 2px;text-align:center;border-top:1px solid var(--line)}
   .tbl td:first-child,.tbl th:first-child{text-align:right;color:var(--muted);white-space:nowrap}
@@ -226,6 +229,7 @@ const ICONS = {
   sleep:'<path d="M19.5 14.3A7.6 7.6 0 0 1 9.7 4.5a7.6 7.6 0 1 0 9.8 9.8Z"/><path d="M16.5 3.5v3M15 5h3"/>',
   cry:'<circle cx="12" cy="12" r="8.5"/><path d="M8.4 10.4q1-.9 2 0M13.6 10.4q1-.9 2 0M9.6 16.2q2.4-1.6 4.8 0"/><path d="M8.2 12.6c.5.8.9 1.4.9 1.9a.9.9 0 0 1-1.8 0c0-.5.4-1.1.9-1.9Z" fill="currentColor" stroke="none"/>',
   crate:'<rect x="3.5" y="6.5" width="17" height="12.5" rx="2.2"/><path d="M8 6.5V19M12 6.5V19M16 6.5V19M9.5 6.5V5a2.5 2.5 0 0 1 5 0v1.5"/>',
+  pen:'<path d="M4.5 8.5V19M9.5 6.5V19M14.5 6.5V19M19.5 8.5V19M2.5 11.5h19M2.5 16h19"/>',
   none:'<circle cx="12" cy="12" r="8.5"/><path d="M6.2 17.8 17.8 6.2"/>',
   pill:'<rect x="2.8" y="8.6" width="18.4" height="6.8" rx="3.4" transform="rotate(-45 12 12)"/><path d="M9.6 9.6l4.8 4.8"/>',
   check:'<path d="M5 12.5l4.2 4.2L19 7"/>',
@@ -241,7 +245,7 @@ document.getElementById('mark').innerHTML = `<svg viewBox="0 0 24 24">${ICONS.pa
 // ---------- model ----------
 const PETS = {
   kochik:   {name:'קוצ׳יק', items:['food','pee','poop'], meds:true},
-  kishmish: {name:'קישמיש', items:['food','pee','poop','sleep','cry','crate'], cycle:true}
+  kishmish: {name:'קישמיש', items:['food','pee','poop','sleep','cry','crate','pen'], cycle:true}
 };
 const ITEMS = {
   food:{lbl:'מאז האוכל האחרון',btn:'אכלה',log:'אכלה'},
@@ -250,6 +254,7 @@ const ITEMS = {
   sleep:{dur:true,lbl:'שינה אחרונה',live:'ישנה',start:'נרדמה',stop:'התעוררה',log:'ישנה',startQ:'מתי נרדמה?'},
   cry:{dur:true,lbl:'בכי אחרון',live:'בוכה',start:'בוכה',stop:'נרגעה',log:'בכתה',startQ:'מתי התחילה לבכות?'},
   crate:{dur:true,lbl:'כלוב אחרון',live:'בכלוב',start:'נכנסה לכלוב',stop:'יצאה מהכלוב',log:'בכלוב',startQ:'מתי נכנסה לכלוב?'},
+  pen:{dur:true,lbl:'גדר אחרונה',live:'בגדר',start:'נכנסה לגדר',stop:'יצאה מהגדר',log:'בגדר',startQ:'מתי נכנסה לגדר?'},
   none:{log:'יצאה ולא עשתה'},   // taken out for potty, nothing happened (logged from the routine strip)
   med_am:{icon:'pill',log:'תרופת בוקר'},
   med_pm:{icon:'pill',log:'תרופת ערב'}
@@ -268,7 +273,8 @@ const CYCLE = [
 const WHERE = {out:'בחוץ', pad:'על הפד', floor:'על הרצפה'};
 const WHERE_SHORT = {out:'בחוץ', pad:'פד', floor:'רצפה'};
 const hasWhere = k => k==='pee' || k==='poop';
-const HIST_MAX = 200;   // step changes kept for the rounds list
+const EXCL = {crate:['pen'], pen:['crate']};   // timers that cannot run together
+const HIST_MAX = 1500;   // step changes kept for the rounds list (about a month)
 const DUE_MAX = 60*60000;   // the "take her out" reminder gives up after an hour
 const iconOf = k => (ITEMS[k] && ITEMS[k].icon) || k;
 const LOG_MAX = 5000, LS_KEY = 'pets-timers-v1';
@@ -411,28 +417,35 @@ function tapPoint(p, k, t){
   });
   if(hasWhere(k)) toastWhere(p, k, t);
 }
-function tapDur(p, k){
+function tapDur(p, k, at){   // `at`: start a timer that began earlier ("she went in 10 minutes ago and is still there")
   const now = Date.now(), d = state[p][k] || {};
-  if(d.start) commit(`${PETS[p].name} · ${ITEMS[k].stop}`, () => {
-    state[p][k] = {lastStart:d.start, lastEnd:now};
-    state.log.push({p,k,t:d.start,end:now});
+  if(d.start && !at) commit(`${PETS[p].name} · ${ITEMS[k].stop}`, () => {
+    stopDur(p, k, now);
+    // Keep the routine strip in step with the crate tile: leaving the crate = "walk + potty".
+    if(PETS[p].cycle && k==='crate') setStep(state[p], 1, now);
   });
-  else commit(`${PETS[p].name} · ${ITEMS[k].start}`, () => { state[p][k] = Object.assign({}, d, {start:now}); });
-  // Keep the routine strip in step with the crate timer when it is used directly:
-  // entering the crate = step 1, leaving it = "walk + potty".
-  if(PETS[p].cycle && k==='crate' && state[p][k] !== d) setStep(state[p], d.start ? 1 : 0, now);
+  else commit(`${PETS[p].name} · ${ITEMS[k].start}`, () => {
+    const t = at || now;
+    for(const o of EXCL[k] || []) stopDur(p, o, t);   // she is in the crate or in the pen, not both
+    state[p][k] = Object.assign({}, state[p][k] || {}, {start:t});
+    if(PETS[p].cycle && k==='crate') setStep(state[p], 0, t);
+  });
+}
+function stopDur(p, k, t){
+  const d = state[p][k] || {}; if(!d.start) return;
+  const end = Math.max(t, d.start);
+  state[p][k] = {lastStart:d.start, lastEnd:end};
+  state.log.push({p, k, t:d.start, end});
 }
 // Move the routine to step i: stop the crate timer if the crate step is being left, start the new step's
 // timer, and log a meal when entering the food step. One commit, so the toast undoes all of it.
 function goStep(p, i){
   const st = CYCLE[i]; if(!st) return;
-  if(state[p].cyc && state[p].cyc.i === i) return;
+  if(state[p].cyc && state[p].cyc.i === i && !(st.k && !(state[p][st.k] || {}).start)) return;
   commit(`${PETS[p].name} · ${st.n}`, () => {
     const now = Date.now(), S = state[p];
-    for(const k of ['crate']){
-      const d = S[k] || {};
-      if(d.start && st.k !== k){ S[k] = {lastStart:d.start, lastEnd:now}; state.log.push({p, k, t:d.start, end:now}); }
-    }
+    if(st.k !== 'crate') stopDur(p, 'crate', now);
+    if(st.k) for(const o of EXCL[st.k] || []) stopDur(p, o, now);
     if(S.cyc && CYCLE[S.cyc.i] && CYCLE[S.cyc.i].play) S.playEnd = now;
     if(st.k && !(S[st.k] || {}).start) S[st.k] = Object.assign({}, S[st.k] || {}, {start:now});
     if(st.food){ S.food = Math.max(S.food || 0, now); state.log.push({p, k:'food', t:now}); }
@@ -442,26 +455,91 @@ function goStep(p, i){
 // The current step plus a short history of step changes (`hist`), which is what the rounds list is built from.
 function setStep(S, i, t){
   const h = Array.isArray(S.hist) ? S.hist : (S.cyc ? [S.cyc] : []);
+  if(h.length) t = Math.max(t, h[h.length-1].t);   // a timer started "10 minutes ago" must not go back in the history
   S.cyc = {i, t};
   S.hist = h.concat([{i, t}]).slice(-HIST_MAX);
 }
-// Rounds of the routine: a new round starts whenever the step number does not go forward
-// (normally: back to the crate). Each step gets the time it lasted and what was logged during it.
+// Rounds of the routine, built from `hist`. A round starts when she goes into the crate (step 1 of the
+// trainer's cycle); going back to an earlier step inside a round is a correction, not a new round.
+// Rounds are numbered per day by the day they started on. `j` = the step's index in `hist`.
 function rounds(p){
-  const h = state[p].hist || [], out = [];
+  const h = state[p].hist || [], out = [], perDay = {};
   let cur = null;
   h.forEach((s, j) => {
     if(!CYCLE[s.i]) return;
-    if(!cur || s.i <= h[j-1].i){ cur = {t:s.t, steps:[]}; out.push(cur); }
-    cur.steps.push({i:s.i, t:s.t, end: h[j+1] ? h[j+1].t : null});
-    cur.end = h[j+1] ? h[j+1].t : null;
+    if(!cur || s.i === 0){
+      const day = dayKey(s.t); perDay[day] = (perDay[day] || 0) + 1;
+      cur = {t:s.t, day, n:perDay[day], steps:[]}; out.push(cur);
+    }
+    const end = h[j+1] ? h[j+1].t : null;
+    cur.steps.push({i:s.i, t:s.t, end, j});
+    cur.end = end;
   });
   return out;
+}
+function roundName(r){ const dl = dayLabel(r.t); return `סבב ${r.n}${dl==='היום' ? '' : ' · '+dl}`; }
+function roundsHTML(p, rs){
+  return rs.map(r =>
+    `<div class="rd"><div class="rd-h"><b>${roundName(r)}</b><span>התחיל ב־<bdi dir="ltr">${clock(r.t)}</bdi> · ${r.end ? 'נמשך '+words(r.end-r.t) : 'עכשיו'}</span></div>
+      <div class="rd-l">${r.steps.map(s => `<button class="${s.end?'':'now'}" data-act="rstep" data-k="${s.j}"><time>${clock(s.t)}</time><i>${CYCLE[s.i].n}</i><span>${stepResult(p, s)}</span></button>`).join('')}</div></div>`).join('');
+}
+// Move a step's start time (= the end of the step before it), and move along with it whatever the
+// routine itself wrote at that same moment: the crate timer's start / end and the meal of the food step.
+function editStepTime(p, j, nt){
+  commit(`${PETS[p].name} · ${CYCLE[state[p].hist[j].i].n} עודכן`, () => {
+    const S = state[p], h = S.hist[j], old = h.t, st = CYCLE[h.i], prev = S.hist[j-1] && CYCLE[S.hist[j-1].i];
+    h.t = nt;
+    if(j === S.hist.length-1) S.cyc = {i:h.i, t:nt};
+    if(st.k){
+      if(S[st.k] && S[st.k].start === old) S[st.k].start = nt;
+      for(const e of state.log) if(e.p===p && e.k===st.k && e.t===old) e.t = nt;
+      recalc(p, st.k);
+    }
+    if(st.food){ for(const e of state.log) if(e.p===p && e.k==='food' && e.t===old) e.t = nt; recalc(p, 'food'); }
+    if(prev && prev.k){ for(const e of state.log) if(e.p===p && e.k===prev.k && e.end===old) e.end = nt; recalc(p, prev.k); }
+    if(prev && prev.play && S.playEnd === old) S.playEnd = nt;
+  });
+}
+// Fix one step of any round: its start time, what happened in it (pee / poop / nothing, at a chosen time),
+// or remove the step. Entries already logged in it are listed and open their own edit sheet.
+function openStepSheet(p, j){
+  const S = state[p], h = (S.hist || [])[j]; if(!h || !CYCLE[h.i]) return;
+  const r = rounds(p).find(x => x.steps.some(s => s.j === j)), s = r.steps.find(x => x.j === j);
+  const lo = j > 0 ? S.hist[j-1].t : 0, hi = s.end || Date.now();
+  const at = v => { const [hh,mm] = v.split(':').map(Number), d = new Date(h.t); d.setHours(hh,mm,0,0); return d.getTime(); };
+  const evs = state.log.filter(e => e.p===p && !ITEMS[e.k].dur && e.t >= s.t && e.t < (s.end || Infinity));
+  sheet(`${PETS[p].name} · ${roundName(r)} · ${CYCLE[h.i].n}`,
+    `<label class="field">השלב התחיל ב־ ${timeField("tIn", clock(h.t))}</label>
+     <div class="sub" style="margin:14px 0 8px">להוסיף מה שקרה בשלב הזה:</div>
+     <div class="chips" style="margin-bottom:8px">${['pee','poop','none'].map(k => `<button data-add="${k}">${k==='none' ? 'לא עשתה' : ITEMS[k].log}</button>`).join('')}</div>
+     <label class="field">בשעה ${timeField("eIn", clock(h.t))}</label>` +
+    (evs.length ? `<div class="sub" style="margin:14px 0 2px">נרשם בשלב הזה (לחיצה לתיקון):</div><div class="log" style="padding:0">${evs.map(logRow).join('')}</div>` : ''),
+    '<button class="btn danger" id="del">מחיקת השלב</button>',
+    () => {
+      const v = timeVal('tIn'); if(!v) return;
+      const nt = at(v);
+      if(v === clock(h.t)){ close(); return; }   // the field has minutes only; same minute = unchanged
+      if(nt < lo || nt > hi){ sh.querySelector('#tIn').classList.add('bad'); return; }   // must stay between its neighbours
+      close(); editStepTime(p, j, nt);
+    });
+  sh.querySelectorAll('[data-add]').forEach(b => b.onclick = () => {
+    const v = timeVal('eIn'); if(!v) return;
+    const ts = v === clock(h.t) ? h.t : at(v);   // same minute as the step start: keep it inside the step
+    close(); tapPoint(p, b.dataset.add, Math.min(ts, Date.now()));
+  });
+  sh.querySelectorAll('.r[data-e]').forEach(el => el.onclick = () => openEntrySheet(+el.dataset.e));
+  sh.querySelector('#del').onclick = () => {
+    close();
+    commit(`${PETS[p].name} · ${CYCLE[h.i].n} נמחק מהסבב`, () => {
+      const H = state[p].hist; H.splice(j, 1);
+      if(j === H.length){ if(H.length) state[p].cyc = Object.assign({}, H[H.length-1]); else delete state[p].cyc; }
+    });
+  };
 }
 function stepResult(p, s){
   const st = CYCLE[s.i], to = s.end || Infinity, parts = [];
   if(st.k || st.play) parts.push(s.end ? words(s.end - s.t) : 'עכשיו');
-  if(st.food) parts.push(`<bdi dir="ltr">${clock(s.t)}</bdi>`);
+  if(st.food) parts.push('אכלה');
   for(const e of state.log){
     if(e.p !== p || e.t < s.t || e.t >= to) continue;
     if(hasWhere(e.k)) parts.push(ITEMS[e.k].log + (WHERE[e.w] ? ` <em class="wh ${e.w}">${WHERE_SHORT[e.w]}</em>` : ''));
@@ -586,10 +664,10 @@ function render(){
   }
 
   if(P.cycle){
-    const rs = rounds(pet).slice(-3).reverse();
-    if(rs.length) h += `<h2>סבבים<small>מה קרה בכל שלב</small></h2><div class="card rounds">` + rs.map(r =>
-      `<div class="rd"><div class="rd-h">${r.end ? `${dayLabel(r.t)} <bdi dir="ltr">${clock(r.t)}–${clock(r.end)}</bdi>` : `הסבב הנוכחי · מ־<bdi dir="ltr">${clock(r.t)}</bdi>${dayLabel(r.t)==='היום' ? '' : ' ('+dayLabel(r.t)+')'}`}</div>
-        <div class="rd-s">${r.steps.map(s => `<span class="${s.end?'':'now'}"><i>${CYCLE[s.i].n}</i>${stepResult(pet, s)}</span>`).join('')}</div></div>`).join('') + `</div>`;
+    const all = rounds(pet), today = dayKey(Date.now());
+    let rs = all.filter(r => r.day === today || !r.end);
+    if(!rs.length) rs = all.slice(-1);
+    if(rs.length) h += `<h2>סבבים<small>לחיצה על שלב לתיקון · ימים קודמים בסיכום</small></h2><div class="card rounds">${roundsHTML(pet, rs.reverse())}</div>`;
   }
 
   const items = state.log.filter(e => e.p===pet).slice(-25).reverse();
@@ -598,9 +676,9 @@ function render(){
 }
 function cycleHTML(p){
   const S = state[p], c = S.cyc && CYCLE[S.cyc.i] ? S.cyc : null, ci = c ? c.i : -1, next = (ci+1) % CYCLE.length;
-  const due = pottyDue(p), potty = due || (c && CYCLE[ci].potty), now = Date.now();
+  const due = pottyDue(p), potty = due || (c && CYCLE[ci].potty), now = Date.now(), rn = rounds(p).pop();
   return `<div class="card cyc ${due?'due':''}">
-    <div class="cyc-h"><b>השגרה של ${PETS[p].name}</b><small>${c ? `${CYCLE[ci].n} · כבר <span data-words="${c.t}">${words(now-c.t)}</span>` : 'לחיצה על שלב מתחילה את המעקב'}</small></div>
+    <div class="cyc-h"><b>השגרה של ${PETS[p].name}</b><small>${c ? `${rn ? roundName(rn)+' · ' : ''}${CYCLE[ci].n} · כבר <span data-words="${c.t}">${words(now-c.t)}</span>` : 'לחיצה על שלב מתחילה את המעקב'}</small></div>
     <div class="steps">${CYCLE.map((s,i) => `<button class="${i===ci?'on':''}" data-act="step" data-k="${i}"><i>${i+1}</i>${s.n}</button>`).join('')}</div>
     ${due ? `<div class="duemsg">${ico('pee','s')}<span>זמן להוציא לצרכים · ${due.why}, לפני <span data-words="${due.t}">${words(now-due.t)}</span></span></div>` : ''}
     <div class="cyc-a">${potty ? `<button class="btn" data-act="pt" data-k="pee">פיפי</button><button class="btn" data-act="pt" data-k="poop">קקי</button><button class="btn" data-act="pt" data-k="none">לא עשתה</button>` : ''}
@@ -625,7 +703,7 @@ let view = 'now', sumMode = 'day', sumAnchor = Date.now();
 const DAY = 86400000;
 const DOW = ['א׳','ב׳','ג׳','ד׳','ה׳','ו׳','ש׳'];
 const MONTHS = ['ינואר','פברואר','מרץ','אפריל','מאי','יוני','יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר'];
-const SUM_LBL = {food:'אוכל', pee:'פיפי', poop:'קקי', sleep:'שינה', cry:'בכי', crate:'כלוב'};
+const SUM_LBL = {food:'אוכל', pee:'פיפי', poop:'קקי', sleep:'שינה', cry:'בכי', crate:'כלוב', pen:'גדר'};
 function sod(t){ const d = new Date(t); d.setHours(0,0,0,0); return d; }
 function ddmm(t){ const d = new Date(t); return `${d.getDate()}.${d.getMonth()+1}`; }
 function hm(ms){ const m = Math.round(ms/60000); return `${Math.floor(m/60)}:${pad(m%60)}`; }
@@ -645,7 +723,7 @@ function sumShift(dir){
   sumAnchor = Math.min(d.getTime(), Date.now());
 }
 function stats(p, from, to){
-  const r = {food:0, pee:0, poop:0, sleep:{n:0,ms:0}, cry:{n:0,ms:0}, crate:{n:0,ms:0}, meds:0, w:{pee:{}, poop:{}}};
+  const r = {food:0, pee:0, poop:0, sleep:{n:0,ms:0}, cry:{n:0,ms:0}, crate:{n:0,ms:0}, pen:{n:0,ms:0}, meds:0, w:{pee:{}, poop:{}}};
   const add = (k, a, b) => { const ov = Math.min(b,to) - Math.max(a,from); if(ov > 0){ r[k].ms += ov; r[k].n++; } };
   for(const e of state.log){
     if(e.p !== p) continue;
@@ -714,12 +792,16 @@ function renderSummary(){
         cols.map(k => cell(k==='pill' ? `${s.meds}/2` : ITEMS[k].dur ? hm(s[k].ms) : String(s[k]))).join('') + `</tr>`;
     }
     h += `<h2>לפי יום</h2><div class="card tblc">` + (rows
-      ? `<table class="tbl"><tr><th></th>${cols.map(k => `<th>${ico(k,'s')}</th>`).join('')}</tr>${rows}</table>`
+      ? `<table class="tbl ${cols.length > 6 ? 'wide' : ''}"><tr><th></th>${cols.map(k => `<th>${ico(k,'s')}</th>`).join('')}</tr>${rows}</table>`
       : `<div class="empty">אין רישומים בתקופה הזו</div>`) + `</div>`;
   } else {
     const ev = state.log.filter(e => e.p===pet && (e.end ? (e.end > from && e.t < to) : (e.t >= from && e.t < to)));
     for(const k of durs){ const s = state[pet][k] && state[pet][k].start; if(s && s < to && now > from) ev.push({p:pet, k, t:s, live:true}); }
     ev.sort((x,y) => y.t - x.t);
+    if(P.cycle){
+      const rs = rounds(pet).filter(r => r.day === dayKey(from)).reverse();
+      if(rs.length) h += `<h2>סבבים<small>לחיצה על שלב לתיקון</small></h2><div class="card rounds">${roundsHTML(pet, rs)}</div>`;
+    }
     h += `<h2>אירועי היום<small>לחיצה על רישום לתיקון או מחיקה</small></h2><div class="card log">` + (ev.length ? ev.map(logRow).join('') : `<div class="empty">אין רישומים ביום הזה</div>`) + `</div>`;
   }
   return h;
@@ -754,6 +836,7 @@ document.getElementById('main').addEventListener('click', e => {
   if(a==='mode'){ sumMode = k; render(); }
   else if(a==='prev' || a==='next'){ sumShift(a==='prev' ? -1 : 1); render(); }
   else if(a==='step') goStep(pet, +k);
+  else if(a==='rstep') openStepSheet(pet, +k);
   else if(a==='pt') tapPoint(pet, k);
   else if(a==='dur') tapDur(pet, k);
   else if(a==='edit') openSheet(pet, k);
@@ -849,8 +932,10 @@ function openSheet(p, k){
       () => { const v=timeVal('tIn'); if(!v) return; close(); setStart(timeToTs(v)); }, setStart);
     sh.querySelector('#del').onclick = () => { close(); commit(`${name} · נמחק`, () => { const x = Object.assign({}, d); delete x.start; state[p][k] = x; }); };
   } else {
-    sheet(`${name} · הוספת ${it.lbl.replace(' אחרונה','').replace(' אחרון','')} שהסתיים`,
-      `<label class="field">התחלה ${timeField("aIn", "")}</label><label class="field">סיום&nbsp; ${timeField("bIn", nowStr())}</label>`,
+    sheet(`${name} · ${it.lbl.replace(' אחרונה','').replace(' אחרון','')} — הוספה`,
+      `<div class="sub" style="margin-bottom:8px">עדיין נמשך? מתי התחיל:</div>` + chips([5,10,15,30,60,120]) +
+      `<div class="sub" style="margin:4px 0 10px">או משהו שכבר הסתיים:</div>
+       <label class="field">התחלה ${timeField("aIn", "")}</label><label class="field">סיום&nbsp; ${timeField("bIn", nowStr())}</label>`,
       cancelBtn, () => {
         const a = timeVal('aIn'), b = timeVal('bIn'); if(!a||!b) return;
         const tb = timeToTs(b); let ta = timeToTs(a); if(ta > tb) ta -= 86400000;
@@ -860,7 +945,7 @@ function openSheet(p, k){
           const cur = state[p][k] || {};
           if(!cur.start && (!cur.lastEnd || tb >= cur.lastEnd)) state[p][k] = {lastStart:ta, lastEnd:tb};
         });
-      });
+      }, ts => tapDur(p, k, ts));
   }
 }
 // Logging a time that is earlier than the current "last" one: ask whether it corrects the last entry

@@ -3,9 +3,9 @@
 A single-page mobile web app (Hebrew, RTL) for tracking two pets:
 
 - **Kochik (קוצ׳יק):** time since last food / pee / poop, plus a daily morning + evening medication checklist (turns red if the morning dose isn't marked by 11:00 or the evening dose by 21:00; resets at midnight).
-- **Kishmish (קישמיש):** time since last food / pee / poop, plus start/stop timers for sleep, crying and crate (shows the live duration, the last duration, and today's total).
+- **Kishmish (קישמיש):** time since last food / pee / poop, plus start/stop timers for sleep, crying, crate and puppy pen (shows the live duration, the last duration, and today's total). These are ongoing states, not moments, and they overlap freely (asleep in the crate, crying in the pen) — except crate and pen, which stop each other (`EXCL`). A timer can be started in the past from its "הוספה" sheet (`tapDur(p, k, at)`).
 - **Routine strip (Kishmish, `cycle:true`):** the trainer's potty-training cycle from `CYCLE` — כלוב → טיול וצרכים → משחק → אוכל → צרכים → back to crate. `goStep()` moves between steps in one undoable commit: entering the crate step starts the crate timer and leaving it stops it, entering the food step logs a meal, play has no timer (the owner found that too much tapping; leaving it only stamps `playEnd`). Using the crate tile directly moves the strip too. The current step is `state.kishmish.cyc = {i, t}`.
-- **Rounds (סבבים):** every step change is appended to `state.kishmish.hist` (`setStep`, last 200). `rounds()` groups them into rounds (a new one starts when the step number doesn't go forward) and `stepResult()` shows per step how long it lasted and what was logged during it — pee / poop with where, or "לא עשתה" (log entry `k:"none"`, the third button on the strip). The last three rounds are listed under the tiles.
+- **Rounds (סבבים):** every step change is appended to `state.kishmish.hist` (`setStep`, last 1500 ≈ a month); this list is the source of truth for the routine and everything else is derived. `rounds()` groups it into rounds — a round starts when she goes into the crate; going back to an earlier step inside a round is a correction, not a new round — and numbers them per day ("סבב 3"). `stepResult()` shows per step how long it lasted and what was logged during it (pee / poop with where, or "לא עשתה" = log entry `k:"none"`), by time window, so fixing a log entry's time moves it between steps by itself. Today's rounds are listed under the tiles and any day's rounds in the summary's day view. Tapping a step opens `openStepSheet`: change its start time (`editStepTime` also moves the crate timer / meal that the routine wrote at that moment), add a pee / poop / nothing at a chosen time, or delete the step.
 - **Take-out reminder:** `pottyDue()` shows "זמן להוציא לצרכים" after waking up, leaving the crate, play or food (the trainer's list) until pee/poop is logged or "לא עשתה" is logged, for at most an hour, and never while she is asleep or in the crate.
 - **Where (pee / poop):** a log entry can carry `w: "out"|"pad"|"floor"` (`WHERE`). Right after logging, the toast offers the three choices (`toastWhere`, optional); any past entry can be changed from its history sheet. Shown next to the entry and on the tile (floor in red) and counted in the summary tiles (`whereLine`).
 - **Colours:** each pet page has its own theme (`.p-kochik` / `.p-kishmish`, set on `<html>` and `<body>`): Kochik is a Maltese (snow white with black buttons and icons, like the nose and eyes), Kishmish a Yorkshire puppy (chestnut-brown buttons and tan icons on cream; black only for text).
@@ -37,8 +37,9 @@ All state lives in one JSON object:
               sleep: { start?: ts, lastStart?: ts, lastEnd?: ts },
               cry:   { start?: ts, lastStart?: ts, lastEnd?: ts },
               crate: { start?: ts, lastStart?: ts, lastEnd?: ts },
+              pen:   { start?: ts, lastStart?: ts, lastEnd?: ts },
               cyc?: { i: 0..4, t: ts }, hist?: [{ i, t }], playEnd?: ts, none?: ts },
-  log: [ { p: "kochik"|"kishmish", k: "food"|"pee"|"poop"|"sleep"|"cry"|"crate"|"none"|"med_am"|"med_pm", t: ts, end?: ts, w?: "out"|"pad"|"floor", by?: "yonatan"|"shai"|"liza" } ]  // capped at 5000 (LOG_MAX)
+  log: [ { p: "kochik"|"kishmish", k: "food"|"pee"|"poop"|"sleep"|"cry"|"crate"|"pen"|"none"|"med_am"|"med_pm", t: ts, end?: ts, w?: "out"|"pad"|"floor", by?: "yonatan"|"shai"|"liza" } ]  // capped at 5000 (LOG_MAX)
 }
 ```
 
