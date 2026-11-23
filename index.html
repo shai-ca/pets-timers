@@ -834,16 +834,22 @@ function tapPoint(p, k, t, sure){
 function tapDur(p, k, at){   // `at`: start a timer that began earlier ("she went in 10 minutes ago and is still there")
   const now = Date.now(), running = !!(V[p][k] && V[p][k].start);
   if(running && !at) commit(`${PETS[p].name} · ${ITEMS[k].stop}`, () => {
-    stopDur(p, k, now);
-    // Out of the crate = awake. Only a sleep from this stay, though: one that has supposedly been running since
-    // yesterday is a leftover, and ending it now would log a 23-hour sleep (this happened on 23.11).
-    if(PETS[p].cycle && k==='crate' && V[p].sleep.start > now - 16*3600000) stopDur(p, 'sleep', now);
+    if(k === 'crate') leaveCrate(p, now); else stopDur(p, k, now);
   });
   else commit(`${PETS[p].name} · ${ITEMS[k].start}`, () => {
     if(running) stopDur(p, k, at);          // starting "earlier" while one is running: close that one first
     const rt = k === 'crate' && retry(p);
     state.log.push(rt && rt.state === 'toCrate' ? {p, k, t: at || now, r: retryMin} : {p, k, t: at || now});   // no `end`: it is running
   });
+}
+// Out of the crate always means awake: however the crate stay ends (its tile, the retry card, "it already
+// ended at…"), a running sleep ends at the same moment. Only a sleep from this stay, though — one that has
+// supposedly been running since yesterday is a leftover, and ending it now would log a 23-hour sleep
+// (this happened on 23.11).
+function leaveCrate(p, t){
+  stopDur(p, 'crate', t);
+  const sl = state.log.filter(e => e.p===p && e.k==='sleep' && e.end == null).sort((x,y) => x.t-y.t)[0];
+  if(sl && sl.t > t - 16*3600000 && sl.t < t) stopDur(p, 'sleep', t);
 }
 // End the running timer of kind k: its entry gets an `end`. If two phones started the same stay, there are
 // two running entries — the earliest is kept as the stay and the others are dropped.
@@ -947,12 +953,12 @@ function retryAct(p, a, k, sure){
     if(open) commit('', () => { find(C).r = m; }, {quiet:true}); else render();
   }
   else if(a === 'rtcrate') tapDur(p, 'crate');                                   // tapDur makes it a retry stay
-  else if(a === 'rtout') commit(`${name} · ${ITEMS.crate.stop}`, () => { stopDur(p, 'crate', now); });
+  else if(a === 'rtout') commit(`${name} · ${ITEMS.crate.stop}`, () => { leaveCrate(p, now); });
   else if(a === 'rtpee' || a === 'rtnone'){
     const kind = a === 'rtpee' ? 'pee' : 'none', d = !sure && recentDouble(p, x => x.k === kind);
     if(d){ askAgain(d, ITEMS[kind].log, () => retryAct(p, a, k, true)); return; }
     const e = {p, k: kind, t: now};
-    commit(`${name} · ${ITEMS[e.k].log}`, () => { if(open) stopDur(p, 'crate', now); state.log.push(e); });
+    commit(`${name} · ${ITEMS[e.k].log}`, () => { if(open) leaveCrate(p, now); state.log.push(e); });
     if(e.k === 'pee' && e.id) whereSheet(e.id);
   }
   else if(a === 'rtstop') commit(`${name} · הניסיון החוזר הסתיים`, () => { find(r.none).x = 1; if(open) delete find(C).r; });
@@ -1776,7 +1782,7 @@ function openSheet(p, k){
     // The timer is running: move its start, or cancel it.
     const setStart = ts => commit(`${name} · שעת ההתחלה עודכנה`, () => { const o = running().sort((x,y) => x.t-y.t); if(o[0]) o[0].t = Math.min(ts, Date.now()); });
     // …or record that it already ended earlier (she woke up a while ago and nobody tapped).
-    const endAt = ts => commit(`${name} · ${it.stop}`, () => { stopDur(p, k, Math.min(ts, Date.now())); });
+    const endAt = ts => commit(`${name} · ${it.stop}`, () => { const t = Math.min(ts, Date.now()); if(k === 'crate') leaveCrate(p, t); else stopDur(p, k, t); });
     sheet(`${name} · ${it.startQ}`, chips([5,10,15,30,60,120,180]) + `<label class="field">או בשעה ${timeField("tIn", clock(start))}</label>
        <div class="sub" style="margin:14px 0 8px">כבר נגמר ולא סימנו? מתי זה נגמר:</div><label class="field">נגמר ב־ ${timeField("eIn", "")}</label>`,
       '<button class="btn danger" id="del">מחיקה</button>',

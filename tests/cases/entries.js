@@ -51,6 +51,13 @@
       seed([{ p:'kishmish', k:'crate', t: now - 30*MIN }, { p:'kishmish', k:'crate', t: now - 28*MIN }]);
       ok('two running entries: the earlier one is the stay', K().crate.start === now - 30*MIN);
       tapDur('kishmish', 'crate'); ok('stopping leaves one stay', logOf('kishmish', 'crate').length === 1 && logOf('kishmish', 'crate')[0].t === now - 30*MIN && !K().crate.start);
+      // leaving the crate always means awake, whichever way the stay ends
+      seed([{ p:'kishmish', k:'crate', t: now - 90*MIN }, { p:'kishmish', k:'sleep', t: now - 80*MIN }]);
+      $q('[data-act=edit][data-k=crate]').click(); sh.querySelector('#eIn').value = clock(now - 20*MIN); sh.querySelector('#ok').click();
+      ok('"the stay already ended at…" also ends the sleep at that time', !K().crate.start && !K().sleep.start && clock(logOf('kishmish', 'sleep')[0].end) === clock(now - 20*MIN) && logOf('kishmish', 'sleep')[0].end === logOf('kishmish', 'crate')[0].end);
+      seed([{ p:'kishmish', k:'none', t: now - 30*MIN }, { p:'kishmish', k:'crate', t: now - 29*MIN, r: 10 }, { p:'kishmish', k:'sleep', t: now - 25*MIN }]);
+      $q('[data-act=rtpee]').click(); close();
+      ok('taking her out from the retry card ends the sleep too', !K().crate.start && !K().sleep.start && !!logOf('kishmish', 'sleep')[0].end);
       // falling asleep, placed relative to going into the crate
       seed([{ p:'kishmish', k:'crate', t: now - 40*MIN }]);
       $q('[data-act=edit][data-k=sleep]').click();
