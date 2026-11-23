@@ -968,6 +968,11 @@ function retry(p){
     if(e.k === 'none'){ if(!N){ if(e.x) return null; N = e; } tries++; }
   }
   if(!N) return null;
+  // No retry when she has already peed in this outing: a "nothing" later in the same round (after the meal,
+  // say) is not a reason to send her back and try again. "This outing" = since she last left an ordinary
+  // crate stay, or the last hour and a half when there was none.
+  const outAt = Math.max(N.t - 90*60000, ...L.filter(e => e.k==='crate' && !isRetryStay(e) && e.end != null && e.end <= N.t).map(e => e.end));
+  if(L.some(e => e.k==='pee' && e.t >= outAt && e.t < N.t)) return null;
   if(L.some(e => e.k==='crate' && !isRetryStay(e) && e.t > N.t)) return null;   // an ordinary crate stay: the retry is over
   const C = L.filter(e => isRetryStay(e) && e.t >= N.t).pop() || null;           // the retry stay after this "nothing"
   if(!(C && C.end == null) && now - Math.max(N.t, C ? C.end : 0) > RETRY.life) return null;

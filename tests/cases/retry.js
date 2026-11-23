@@ -53,6 +53,13 @@
     ok('so after the pee the wheel is on play, not "round done"', cur() === 'משחק' && $q('.rl.nxt').textContent.includes('אוכל'));
     ok('the sleep she fell into in the crate ends when she left it, so no false "take her out" reminder', logOf('kishmish', 'sleep')[0].end === now - 23*MIN && !$q('.duemsg'));
     tapPoint('kishmish', 'food'); ok('and "she ate a little" moves the wheel on to the potty step', cur() === 'צרכים');
+    // she already peed in this outing: a later "nothing" does not start a retry
+    seed([{ p:'kishmish', k:'crate', t: now - 120*MIN, end: now - 40*MIN }, { p:'kishmish', k:'pee', t: now - 35*MIN, w:'gravel' }, { p:'kishmish', k:'food', t: now - 20*MIN }]);
+    tile('none').click();
+    ok('"nothing" after an earlier pee in the same outing: no retry, play stays open, wheel waits on the potty step', !card() && !$q('.card.playc.locked') && cur() === 'צרכים' && logOf('kishmish', 'none').length === 1);
+    tapDur('kishmish', 'crate'); ok('and the crate after it is an ordinary stay and a new round', !logOf('kishmish', 'crate').pop().r && roundStarts('kishmish').length === 2 && cur() === 'כלוב');
+    seed([{ p:'kishmish', k:'pee', t: now - 200*MIN, w:'gravel' }, { p:'kishmish', k:'crate', t: now - 120*MIN, end: now - 10*MIN }]);
+    tile('none').click(); ok('a pee from before the last crate stay does not count: this is a retry', !!card());
     // an old "nothing" does not keep the app in retry forever
     seed([{ p:'kishmish', k:'none', t: now - 190*MIN }]);
     ok('a "nothing" from more than three hours ago no longer counts', !card());
