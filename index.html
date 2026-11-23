@@ -192,6 +192,10 @@
   .nav .when{position:relative;flex:1;text-align:center;font-weight:600;font-size:16.5px;line-height:1.3}
   .nav .when small{display:block;font-weight:400;font-size:12px;color:var(--muted)}
   .nav .when input{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer}
+  .exp{display:flex;align-items:center;gap:8px;margin-top:12px;padding-top:12px;border-top:1px solid var(--line);font-size:12.5px;color:var(--muted)}
+  .exp span{flex:1}
+  .exp .btn{flex:none;padding:8px 14px;font-weight:500}
+  .logtx{width:100%;height:46vh;font:inherit;font-size:13px;line-height:1.5;border:1px solid var(--line);border-radius:12px;padding:10px;direction:rtl;background:var(--bg);color:var(--ink)}
   .tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
   .tiles.two{grid-template-columns:1fr 1fr}
   .tile{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:14px 12px;display:flex;flex-direction:column;gap:1px;min-width:0}
@@ -1167,6 +1171,46 @@ function whereBarsHTML(p, from, to, F){
   return `<h2>${F ? SUM_LBL[F] : 'פיפי וקקי'} — איפה<small>לחיצה על יום לפירוט</small></h2><div class="card wbc"><div class="wb ${few?'few':''}" dir="ltr">${cols}</div>
     <div class="lg">${WHERE_LEGEND.map(([c,l]) => `<span><i class="k sq ${c}"></i>${l}</span>`).join('')}</div></div>`;
 }
+// ---------- the log as text (to paste to the trainer) ----------
+// Every entry of the period with its time, oldest first, a heading per day and a one-line total per day.
+function logText(p, from, to){
+  const P = PETS[p], out = [`${P.name} — יומן`];
+  eachDay(from, to, (d, a, b) => {
+    const ev = entriesIn(p, a, b); if(!ev.length) return;
+    out.push('', `יום ${DOW[d.getDay()]} ${d.getDate()}.${d.getMonth()+1}.${d.getFullYear()}`);
+    for(const e of ev){
+      const it = ITEMS[e.k];
+      const time = e.end ? `${clock(e.t)}–${clock(e.end)}` : e.live ? `${clock(e.t)}–עכשיו` : clock(e.t);
+      const what = (e.live ? it.live : it.log) + (PLAY[e.y] ? ` · ${PLAY[e.y]}` : e.y === 'play' ? ' · במשחק' : '') + (WHERE[e.w] ? ` · ${WHERE[e.w]}` : '')
+        + (e.end ? ` · ${words(e.end - e.t)}` : e.live ? ` · כבר ${words(Date.now() - e.t)}` : '');
+      out.push(`${time}  ${what}`);
+    }
+    const st = stats(p, a, b), tot = [];
+    for(const k of P.items){
+      if(ITEMS[k].dur){ if(st[k].ms) tot.push(`${SUM_LBL[k]} ${words(st[k].ms)} (${st[k].n===1 ? 'פעם אחת' : st[k].n+' פעמים'})`); }
+      else if(st[k]){ const w = st.w[k], wl = w ? ['gravel','out','pad','floor','crate'].filter(x => w[x]).map(x => `${WHERE_SHORT[x]} ${w[x]}`).join(', ') : ''; tot.push(`${SUM_LBL[k]} ${st[k]}${wl ? ' ('+wl+')' : ''}`); }
+    }
+    if(P.meds) tot.push(`תרופות ${st.meds}/2`);
+    if(tot.length) out.push(`סה״כ: ${tot.join(' · ')}`);
+  });
+  return out.length > 1 ? out.join('\n') : '';
+}
+async function exportLog(share){
+  const [from, to] = sumRange(sumMode, sumAnchor), text = logText(pet, from, to);
+  const say = m => { document.getElementById('toastMsg').textContent = m; document.getElementById('toastWhere').innerHTML = ''; lastUndo = null; document.getElementById('undo').hidden = true;
+    const t = document.getElementById('toast'); t.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 3500); };
+  if(!text){ say('אין רישומים בתקופה הזו'); return; }
+  try {
+    if(share && navigator.share){ await navigator.share({text}); return; }
+    await navigator.clipboard.writeText(text); say('היומן הועתק · אפשר להדביק בוואטסאפ');
+  } catch(e){
+    if(e && e.name === 'AbortError') return;
+    // Clipboard refused (older browser, no permission): show the text so it can be selected and copied by hand.
+    sh.innerHTML = `<h3>היומן כטקסט</h3><textarea class="logtx" readonly>${text.replace(/&/g,'&amp;').replace(/</g,'&lt;')}</textarea><div class="foot"><span></span><button class="btn primary" id="cancel">סגירה</button></div>`;
+    sh.querySelector('#cancel').onclick = close; bg.classList.add('show');
+    const ta = sh.querySelector('.logtx'); ta.focus(); ta.select();
+  }
+}
 function renderSummary(){
   const P = PETS[pet], now = Date.now(), [from, to] = sumRange(sumMode, sumAnchor);
   const st = stats(pet, from, to), multi = sumMode !== 'day';
@@ -1191,7 +1235,9 @@ function renderSummary(){
       <button class="arr" data-act="prev" aria-label="הקודם">${ico('chevR')}</button>
       <label class="when">${title}<small>${small} · בחירת תאריך</small><input type="date" id="sumDate" value="${dayKey(sumAnchor)}" max="${dayKey(now)}"></label>
       <button class="arr" data-act="next" aria-label="הבא" ${to > now ? 'disabled' : ''}>${ico('chevL')}</button>
-    </div></div>`;
+    </div>
+    <div class="exp"><span>היומן של התקופה הזו, עם שעות, כטקסט:</span>
+      <button class="btn" data-act="copylog">העתקה</button>${navigator.share ? `<button class="btn" data-act="sharelog">שיתוף</button>` : ''}</div></div>`;
 
   const avg = n => multi && days > 1 ? `<small>ממוצע ${(n/days).toFixed(1).replace('.0','')} ליום</small>` : '';
   // Tapping a tile narrows everything below it (timeline, chart, table, list) to that one kind.
@@ -1274,6 +1320,8 @@ document.getElementById('main').addEventListener('click', e => {
   const b = e.target.closest('button'); if(!b) return;
   const k = b.dataset.k, a = b.dataset.act;
   if(a==='mode'){ sumMode = k; render(); }
+  else if(a==='copylog') exportLog(false);
+  else if(a==='sharelog') exportLog(true);
   else if(a==='filt'){ sumFilter = sumFilter === k ? null : k; render(); }
   else if(a==='prev' || a==='next'){ sumShift(a==='prev' ? -1 : 1); render(); }
   else if(a==='addev') openAddSheet(pet);
@@ -1288,7 +1336,7 @@ document.getElementById('main').addEventListener('click', e => {
   else if(a==='med'){ if(medsOf(pet)[k]) openMedSheet(pet, k); else setMed(pet, k, Date.now()); }
 });
 function showToast(msg, undo){
-  lastUndo = undo;
+  lastUndo = undo; document.getElementById('undo').hidden = false;
   document.getElementById('toastMsg').textContent = msg;
   document.getElementById('toastWhere').innerHTML = '';
   const t = document.getElementById('toast'); t.classList.add('show');
