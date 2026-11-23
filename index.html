@@ -261,6 +261,13 @@
   .card.nowt{position:relative;box-shadow:0 0 0 2px var(--btn)}
   #side{display:flex;flex-direction:column;gap:10px;margin-bottom:10px}
   #side:empty{display:none}
+  /* sleep + crying: two compact tiles side by side under the wheel */
+  .duo{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .duo .card.item{display:flex;flex-direction:column;align-items:stretch;gap:8px;padding:14px}
+  .duo .card.item .ic{width:36px;height:36px;border-radius:11px}
+  .duo .card.item .big{font-size:21px} .duo .card.item .big.txt{font-size:18px}
+  .duo .card.item .go{min-width:0;padding:10px 8px}
+  .duo .card.item > div:nth-child(2){flex:1}
   .wheelhint{text-align:center;margin-top:6px;opacity:.8}
   .grp{display:flex;flex-direction:column;gap:10px;scroll-margin-top:10px}
   @keyframes flash{0%,55%{box-shadow:0 0 0 3px var(--btn)}100%{box-shadow:0 0 0 0 transparent}}
@@ -342,13 +349,13 @@
   }
   /* ---------- tablets and up: each step's tiles in its own panel, panels side by side ---------- */
   @media (min-width:760px){
-    main.grps{grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;grid-template-areas:"crate potty" "rest potty" "play food"}
+    main.grps{grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;grid-template-areas:"crate potty" "food potty" "play play"}
     main.grps > .grp{grid-column:auto;background:color-mix(in srgb,var(--card) 62%,transparent);border:1px solid var(--line);border-radius:26px;padding:16px 16px 18px}
     main.grps > .grp.now{border-color:color-mix(in srgb,var(--btn) 60%,transparent);box-shadow:0 0 0 1px color-mix(in srgb,var(--btn) 60%,transparent), 0 10px 30px -18px color-mix(in srgb,var(--btn) 70%,transparent)}
     main.grps > .grp > h2.sec{margin:0 2px 4px;font-size:15.5px}
     main.grps > .grp .card{box-shadow:none}
     main.grps > .grp .card.nowt{box-shadow:0 0 0 2px var(--btn)}
-    #sec-crate{grid-area:crate} #sec-potty{grid-area:potty} #sec-rest{grid-area:rest} #sec-play{grid-area:play} #sec-food{grid-area:food}
+    #sec-crate{grid-area:crate} #sec-potty{grid-area:potty} #sec-play{grid-area:play} #sec-food{grid-area:food}
     main.grps > .card.log{max-width:none}
     main.grps > h2{margin-top:6px}
     .grp.flash{animation:flash 1.4s ease-out}
@@ -374,7 +381,7 @@
   }
   @media (min-width:1860px){
     .wrap{max-width:1760px}
-    main.grps{grid-template-columns:repeat(3,minmax(0,1fr));grid-template-areas:"crate potty play" "rest potty food"}
+    main.grps{grid-template-columns:repeat(3,minmax(0,1fr));grid-template-areas:"crate potty food" "play potty food"}
   }
 </style>
 </head>
@@ -1123,7 +1130,7 @@ function render(){
 
   // Alerts, the retry card and the wheel live in the side column: on a computer it stays in place while
   // the tiles scroll; on a phone it is simply the top of the page.
-  if(P.cycle) side.innerHTML = alertsHTML(pet) + retryHTML(pet) + cycleHTML(pet);
+  let sideHTML = P.cycle ? alertsHTML(pet) + retryHTML(pet) + cycleHTML(pet) : '';
 
   const tap = P.cycle ? routineTap(pet) : [];
   const tileOf = k => {
@@ -1146,7 +1153,7 @@ function render(){
       if(live){
         lbl = `<span class="dot"></span>${it.live} כבר`;
         big = `<div class="big" data-since="${d.start}">${dur(Date.now()-d.start)}</div>`;
-        sub = `מ־${clock(d.start)}`;
+        sub = `מ־${clock(d.start)}` + (k === 'sleep' && sinceCrate(pet, d.start) != null ? ` · ${sinceCrate(pet, d.start) < 60000 ? 'מיד' : words(sinceCrate(pet, d.start))} אחרי הכניסה לכלוב` : '');
       } else if(d.lastEnd){
         lbl = it.lbl;
         big = `<div class="big txt">${words(d.lastEnd-d.lastStart)}</div>`;
@@ -1158,7 +1165,7 @@ function render(){
       if(over) sub += ` · יותר מ${words(CRATE_MAX)}`;
       h += `<div class="card item ${nowt} ${live?'live':''} ${k==='cry' || over?'cry':''}">
         <div class="ic">${ico(k)}</div>
-        <div><div class="lbl">${lbl}</div>${big}<div class="sub">${sub}</div></div>
+        <div><div class="lbl">${lbl}</div>${big}<div class="sub">${sub}</div>${k === 'sleep' && typicalSleep(pet) ? `<div class="sub hint">${typicalSleep(pet)}</div>` : ''}</div>
         <div class="acts"><button class="go" data-act="dur" data-k="${k}">${live?it.stop:it.start}</button>
           <button class="ghost" data-act="edit" data-k="${k}">${ico(live?'clock':'plus','s')}${live?'שעת התחלה':'הוספה'}</button></div></div>`;
     }
@@ -1176,9 +1183,11 @@ function render(){
     h += sec('3', 'משחק וחופש', tap.includes('play'), playCardHTML(pet, tap.includes('play')) + freeCardHTML(pet), 'play');
     h += sec('4', 'אוכל ושתייה', tap.includes('food'), tileOf('food') +
       `<div class="card slim"><span><b>שתתה מים?</b><small>${lw ? `פעם אחרונה: ${dayLabel(lw)} <bdi dir="ltr">${clock(lw)}</bdi>` : 'עוד לא נרשמה שתייה'}</small></span><button class="btn" data-act="pt" data-k="water">שתתה</button></div>`, 'food');
-    h += sec('', 'שינה ובכי · בכל שלב', false, tileOf('sleep') + tileOf('cry'), 'rest');
+    // Sleep and crying sit right under the wheel, always at hand: in the crate she is either asleep or crying.
+    sideHTML += `<section class="duo" id="sec-rest">${tileOf('sleep')}${tileOf('cry')}</section>`;
   }
 
+  side.innerHTML = sideHTML;
   if(P.cycle){
     const a = sod(Date.now()), b = new Date(a); b.setDate(b.getDate()+1);
     h += `<h2>היום לפי סבבים<small>לחיצה על רישום לתיקון · ימים קודמים בסיכום · <button class="lnk" data-act="addev">הוספת רישום</button></small></h2><div class="card log uni">${groupedHTML(pet, a.getTime(), b.getTime())}</div>`;
@@ -1282,6 +1291,18 @@ function crateOver(p){
   const c = V[p].crate, hr = new Date().getHours();
   return !!(c && c.start) && Date.now() - c.start > CRATE_MAX && hr >= DAY_FROM && hr < DAY_TO;
 }
+// How long after going into the crate something began (a sleep, usually): the crate stay that contains
+// time t, and the gap from its start. Worked out from the list, like everything else.
+function sinceCrate(p, t){
+  const c = state.log.filter(e => e.p===p && e.k==='crate' && e.t <= t && (e.end == null || t <= e.end)).pop();
+  return c ? t - c.t : null;
+}
+const afterCrate = (p, e) => { const d = e.k === 'sleep' ? sinceCrate(p, e.t) : null; return d == null ? '' : ` · נרדמה ${d < 60000 ? 'מיד' : words(d)} אחרי הכניסה לכלוב`; };
+function typicalSleep(p){   // "usually asleep N minutes after going into the crate"
+  const since = Date.now() - 7*86400000, g = [];
+  for(const e of state.log) if(e.p===p && e.k==='sleep' && e.t >= since){ const d = sinceCrate(p, e.t); if(d != null && d <= 2*3600000) g.push(d); }
+  return g.length >= 3 ? `בדרך כלל נרדמת ${words(median(g))} אחרי הכניסה לכלוב` : '';
+}
 // Two numbers worth knowing, from the last 7 days: how often she usually pees (gaps between pees,
 // nights and long breaks left out) and how long after a meal she usually poops. Shown under the tiles
 // once there is enough data to mean something.
@@ -1340,7 +1361,7 @@ function byOf(p, k, t){   // " · name" of whoever logged this event, if known
 }
 function logRow(e){
   const live = isLive(e);
-  return `<div class="r" ${live ? `data-live="${e.k}"` : `data-e="${state.log.indexOf(e)}"`}>${ico(iconOf(e.k),'s')}<span>${live ? ITEMS[e.k].live+' עכשיו' : ITEMS[e.k].log}${e.r ? ' · ניסיון חוזר' : ''}${PLAY[e.y] ? ' · '+PLAY[e.y] : e.y === 'play' ? ' · במשחק' : ''}${whereTag(e.w)}${e.end ? ' · '+words(e.end-e.t) : ''}${USERS[e.by] ? `<i class="by">${USERS[e.by]}</i>` : ''}</span>
+  return `<div class="r" ${live ? `data-live="${e.k}"` : `data-e="${state.log.indexOf(e)}"`}>${ico(iconOf(e.k),'s')}<span>${live ? ITEMS[e.k].live+' עכשיו' : ITEMS[e.k].log}${e.r ? ' · ניסיון חוזר' : ''}${afterCrate(e.p, e)}${PLAY[e.y] ? ' · '+PLAY[e.y] : e.y === 'play' ? ' · במשחק' : ''}${whereTag(e.w)}${e.end ? ' · '+words(e.end-e.t) : ''}${USERS[e.by] ? `<i class="by">${USERS[e.by]}</i>` : ''}</span>
      <time>${dayLabel(e.t)} <bdi dir="ltr">${clock(e.t)}${e.end ? '–'+clock(e.end) : ''}</bdi></time></div>`;
 }
 
@@ -1450,7 +1471,7 @@ function logText(p, from, to){
       const it = ITEMS[e.k];
       const live = isLive(e), time = e.end ? `${clock(e.t)}–${clock(e.end)}` : live ? `${clock(e.t)}–עכשיו` : clock(e.t);
       const what = (live ? it.live : it.log) + (PLAY[e.y] ? ` · ${PLAY[e.y]}` : e.y === 'play' ? ' · במשחק' : '') + (WHERE[e.w] ? ` · ${WHERE[e.w]}` : '')
-        + (e.end ? ` · ${words(e.end - e.t)}` : live ? ` · כבר ${words(Date.now() - e.t)}` : '');
+        + (e.end ? ` · ${words(e.end - e.t)}` : live ? ` · כבר ${words(Date.now() - e.t)}` : '') + afterCrate(p, e);
       out.push(`${time}  ${what}`);
     }
     const st = stats(p, a, b), tot = [];
@@ -1767,13 +1788,25 @@ function openSheet(p, k){
       }, setStart);
     sh.querySelector('#del').onclick = () => { close(); commit(`${name} · נמחק`, () => { const o = running(); state.log = state.log.filter(e => !o.includes(e)); }); };
   } else {
+    // Falling asleep is easiest to place relative to the crate: "about ten minutes after she went in".
+    const cs = k === 'sleep' && V[p].crate.start, afterAt = m => Math.min(cs + m*60000, Date.now());
+    const rel = cs ? `<div class="sub" style="margin-bottom:8px">נכנסה לכלוב ב־<bdi dir="ltr">${clock(cs)}</bdi>. כמה זמן אחרי זה נרדמה?</div>
+      <div class="chips">${[0,5,10,15,20,30].filter(m => cs + m*60000 <= Date.now() + 60000).map(m => `<button data-after="${m}">${m ? 'אחרי ' + m + ' דק׳' : 'מיד'}</button>`).join('')}</div>
+      <label class="field">או אחרי <input type="number" class="kb" id="afterIn" inputmode="numeric" min="0" max="600" placeholder="12" autocomplete="off"> דקות בכלוב</label>
+      <div class="sub" style="margin:14px 0 8px">או לפי השעה:</div>` : '';
     sheet(`${name} · ${it.lbl.replace(' אחרונה','').replace(' אחרון','')} — הוספה`,
-      `<div class="sub" style="margin-bottom:8px">התחיל ועדיין נמשך:</div>` + chips([5,10,15,30,60,120]) +
+      rel + `<div class="sub" style="margin-bottom:8px">התחיל ועדיין נמשך:</div>` + chips([5,10,15,30,60,120]) +
       `<label class="field">או התחלה ב־ ${timeField("aIn", "")}</label><label class="field">סיום&nbsp; ${timeField("bIn", "")}</label>
        <div class="sub">בלי שעת סיום = עדיין נמשך. עם שעת סיום = משהו שכבר נגמר.</div>`,
       cancelBtn, () => {
         // No end time means it is still going on: start the timer from the given time. (The end used to
         // default to "now", which silently logged "in the crate since 10:01" as a finished stay.)
+        const af = sh.querySelector('#afterIn');
+        if(af && af.value.trim() !== ''){
+          const m = Number(af.value);
+          if(!(m >= 0 && m <= 600) || cs + m*60000 > Date.now() + 60000){ af.classList.add('bad'); af.focus(); return; }
+          close(); tapDur(p, k, afterAt(m)); return;
+        }
         const a = timeVal('aIn'); if(!a) return;
         if(!sh.querySelector('#bIn').value.trim()){ close(); tapDur(p, k, timeToTs(a)); return; }
         const b = timeVal('bIn'); if(!b) return;
@@ -1781,6 +1814,7 @@ function openSheet(p, k){
         close();
         commit(`${name} · ${it.log} נוסף`, () => { state.log.push({p, k, t:ta, end:tb}); });
       }, ts => tapDur(p, k, ts));
+    sh.querySelectorAll('[data-after]').forEach(b => b.onclick = () => { close(); tapDur(p, k, afterAt(+b.dataset.after)); });
   }
 }
 // Logging a time that is earlier than the current "last" one: ask whether it corrects the last entry
