@@ -170,6 +170,8 @@
   .card.cyc.due{border-color:color-mix(in srgb,var(--alert) 40%,transparent)}
   .cyc-a{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:12px}
   .cyc-a .go{margin-inline-start:auto}
+  .cyc-a .go.wait{background:none;color:var(--btn);box-shadow:inset 0 0 0 1.5px var(--btn)}
+  .zz{display:flex;align-items:center;gap:8px;margin-top:10px;padding:9px 12px;border-radius:12px;background:var(--ok-soft);color:var(--ok);font-size:13.5px;font-weight:500}
 
   /* ---------- desktop: square tiles in a grid (phones keep the single-column list above) ---------- */
   @media (min-width:760px){
@@ -229,7 +231,6 @@ const ICONS = {
   sleep:'<path d="M19.5 14.3A7.6 7.6 0 0 1 9.7 4.5a7.6 7.6 0 1 0 9.8 9.8Z"/><path d="M16.5 3.5v3M15 5h3"/>',
   cry:'<circle cx="12" cy="12" r="8.5"/><path d="M8.4 10.4q1-.9 2 0M13.6 10.4q1-.9 2 0M9.6 16.2q2.4-1.6 4.8 0"/><path d="M8.2 12.6c.5.8.9 1.4.9 1.9a.9.9 0 0 1-1.8 0c0-.5.4-1.1.9-1.9Z" fill="currentColor" stroke="none"/>',
   crate:'<rect x="3.5" y="6.5" width="17" height="12.5" rx="2.2"/><path d="M8 6.5V19M12 6.5V19M16 6.5V19M9.5 6.5V5a2.5 2.5 0 0 1 5 0v1.5"/>',
-  pen:'<path d="M4.5 8.5V19M9.5 6.5V19M14.5 6.5V19M19.5 8.5V19M2.5 11.5h19M2.5 16h19"/>',
   none:'<circle cx="12" cy="12" r="8.5"/><path d="M6.2 17.8 17.8 6.2"/>',
   pill:'<rect x="2.8" y="8.6" width="18.4" height="6.8" rx="3.4" transform="rotate(-45 12 12)"/><path d="M9.6 9.6l4.8 4.8"/>',
   check:'<path d="M5 12.5l4.2 4.2L19 7"/>',
@@ -245,7 +246,7 @@ document.getElementById('mark').innerHTML = `<svg viewBox="0 0 24 24">${ICONS.pa
 // ---------- model ----------
 const PETS = {
   kochik:   {name:'קוצ׳יק', items:['food','pee','poop'], meds:true},
-  kishmish: {name:'קישמיש', items:['food','pee','poop','sleep','cry','crate','pen'], cycle:true}
+  kishmish: {name:'קישמיש', items:['food','pee','poop','sleep','cry','crate'], cycle:true}
 };
 const ITEMS = {
   food:{lbl:'מאז האוכל האחרון',btn:'אכלה',log:'אכלה'},
@@ -254,7 +255,6 @@ const ITEMS = {
   sleep:{dur:true,lbl:'שינה אחרונה',live:'ישנה',start:'נרדמה',stop:'התעוררה',log:'ישנה',startQ:'מתי נרדמה?'},
   cry:{dur:true,lbl:'בכי אחרון',live:'בוכה',start:'בוכה',stop:'נרגעה',log:'בכתה',startQ:'מתי התחילה לבכות?'},
   crate:{dur:true,lbl:'כלוב אחרון',live:'בכלוב',start:'נכנסה לכלוב',stop:'יצאה מהכלוב',log:'בכלוב',startQ:'מתי נכנסה לכלוב?'},
-  pen:{dur:true,lbl:'גדר אחרונה',live:'בגדר',start:'נכנסה לגדר',stop:'יצאה מהגדר',log:'בגדר',startQ:'מתי נכנסה לגדר?'},
   none:{log:'יצאה ולא עשתה'},   // taken out for potty, nothing happened (logged from the routine strip)
   med_am:{icon:'pill',log:'תרופת בוקר'},
   med_pm:{icon:'pill',log:'תרופת ערב'}
@@ -273,7 +273,8 @@ const CYCLE = [
 const WHERE = {out:'בחוץ', pad:'על הפד', floor:'על הרצפה'};
 const WHERE_SHORT = {out:'בחוץ', pad:'פד', floor:'רצפה'};
 const hasWhere = k => k==='pee' || k==='poop';
-const EXCL = {crate:['pen'], pen:['crate']};   // timers that cannot run together
+const BREAK = -1;   // pseudo step in `hist`: the routine is on hold (vet, a trip…); it ends the round
+const stepName = i => i === BREAK ? 'הפסקה' : CYCLE[i].n;
 const HIST_MAX = 1500;   // step changes kept for the rounds list (about a month)
 const DUE_MAX = 60*60000;   // the "take her out" reminder gives up after an hour
 const iconOf = k => (ITEMS[k] && ITEMS[k].icon) || k;
@@ -426,7 +427,6 @@ function tapDur(p, k, at){   // `at`: start a timer that began earlier ("she wen
   });
   else commit(`${PETS[p].name} · ${ITEMS[k].start}`, () => {
     const t = at || now;
-    for(const o of EXCL[k] || []) stopDur(p, o, t);   // she is in the crate or in the pen, not both
     state[p][k] = Object.assign({}, state[p][k] || {}, {start:t});
     if(PETS[p].cycle && k==='crate') setStep(state[p], 0, t);
   });
@@ -444,12 +444,21 @@ function goStep(p, i){
   if(state[p].cyc && state[p].cyc.i === i && !(st.k && !(state[p][st.k] || {}).start)) return;
   commit(`${PETS[p].name} · ${st.n}`, () => {
     const now = Date.now(), S = state[p];
-    if(st.k !== 'crate') stopDur(p, 'crate', now);
-    if(st.k) for(const o of EXCL[st.k] || []) stopDur(p, o, now);
+    if(st.k !== 'crate'){ stopDur(p, 'crate', now); stopDur(p, 'sleep', now); }
     if(S.cyc && CYCLE[S.cyc.i] && CYCLE[S.cyc.i].play) S.playEnd = now;
     if(st.k && !(S[st.k] || {}).start) S[st.k] = Object.assign({}, S[st.k] || {}, {start:now});
     if(st.food){ S.food = Math.max(S.food || 0, now); state.log.push({p, k:'food', t:now}); }
     setStep(S, i, now);
+  });
+}
+// Put the routine on hold (vet, a trip…). She is out of the crate and awake; the round ends here
+// and the next step that is tapped starts a new round.
+function goBreak(p){
+  commit(`${PETS[p].name} · הפסקה בשגרה`, () => {
+    const now = Date.now(), S = state[p];
+    for(const k of ['crate','sleep']) stopDur(p, k, now);
+    if(S.cyc && CYCLE[S.cyc.i] && CYCLE[S.cyc.i].play) S.playEnd = now;
+    setStep(S, BREAK, now);
   });
 }
 // The current step plus a short history of step changes (`hist`), which is what the rounds list is built from.
@@ -466,6 +475,10 @@ function rounds(p){
   const h = state[p].hist || [], out = [], perDay = {};
   let cur = null;
   h.forEach((s, j) => {
+    if(s.i === BREAK){   // shown as the last row of the round it interrupted; whatever comes next is a new round
+      if(cur){ cur.steps.push({i:BREAK, t:s.t, end: h[j+1] ? h[j+1].t : null, j}); cur.end = s.t; }
+      cur = null; return;
+    }
     if(!CYCLE[s.i]) return;
     if(!cur || s.i === 0){
       const day = dayKey(s.t); perDay[day] = (perDay[day] || 0) + 1;
@@ -481,13 +494,13 @@ function roundName(r){ const dl = dayLabel(r.t); return `סבב ${r.n}${dl==='ה
 function roundsHTML(p, rs){
   return rs.map(r =>
     `<div class="rd"><div class="rd-h"><b>${roundName(r)}</b><span>התחיל ב־<bdi dir="ltr">${clock(r.t)}</bdi> · ${r.end ? 'נמשך '+words(r.end-r.t) : 'עכשיו'}</span></div>
-      <div class="rd-l">${r.steps.map(s => `<button class="${s.end?'':'now'}" data-act="rstep" data-k="${s.j}"><time>${clock(s.t)}</time><i>${CYCLE[s.i].n}</i><span>${stepResult(p, s)}</span></button>`).join('')}</div></div>`).join('');
+      <div class="rd-l">${r.steps.map(s => `<button class="${s.end?'':'now'}" data-act="rstep" data-k="${s.j}"><time>${clock(s.t)}</time><i>${stepName(s.i)}</i><span>${stepResult(p, s)}</span></button>`).join('')}</div></div>`).join('');
 }
 // Move a step's start time (= the end of the step before it), and move along with it whatever the
 // routine itself wrote at that same moment: the crate timer's start / end and the meal of the food step.
 function editStepTime(p, j, nt){
-  commit(`${PETS[p].name} · ${CYCLE[state[p].hist[j].i].n} עודכן`, () => {
-    const S = state[p], h = S.hist[j], old = h.t, st = CYCLE[h.i], prev = S.hist[j-1] && CYCLE[S.hist[j-1].i];
+  commit(`${PETS[p].name} · ${stepName(state[p].hist[j].i)} עודכן`, () => {
+    const S = state[p], h = S.hist[j], old = h.t, st = CYCLE[h.i] || {}, prev = S.hist[j-1] && CYCLE[S.hist[j-1].i];
     h.t = nt;
     if(j === S.hist.length-1) S.cyc = {i:h.i, t:nt};
     if(st.k){
@@ -503,12 +516,13 @@ function editStepTime(p, j, nt){
 // Fix one step of any round: its start time, what happened in it (pee / poop / nothing, at a chosen time),
 // or remove the step. Entries already logged in it are listed and open their own edit sheet.
 function openStepSheet(p, j){
-  const S = state[p], h = (S.hist || [])[j]; if(!h || !CYCLE[h.i]) return;
-  const r = rounds(p).find(x => x.steps.some(s => s.j === j)), s = r.steps.find(x => x.j === j);
+  const S = state[p], h = (S.hist || [])[j]; if(!h || !(CYCLE[h.i] || h.i === BREAK)) return;
+  const r = rounds(p).find(x => x.steps.some(s => s.j === j)); if(!r) return;
+  const s = r.steps.find(x => x.j === j);
   const lo = j > 0 ? S.hist[j-1].t : 0, hi = s.end || Date.now();
   const at = v => { const [hh,mm] = v.split(':').map(Number), d = new Date(h.t); d.setHours(hh,mm,0,0); return d.getTime(); };
   const evs = state.log.filter(e => e.p===p && !ITEMS[e.k].dur && e.t >= s.t && e.t < (s.end || Infinity));
-  sheet(`${PETS[p].name} · ${roundName(r)} · ${CYCLE[h.i].n}`,
+  sheet(`${PETS[p].name} · ${roundName(r)} · ${stepName(h.i)}`,
     `<label class="field">השלב התחיל ב־ ${timeField("tIn", clock(h.t))}</label>
      <div class="sub" style="margin:14px 0 8px">להוסיף מה שקרה בשלב הזה:</div>
      <div class="chips" style="margin-bottom:8px">${['pee','poop','none'].map(k => `<button data-add="${k}">${k==='none' ? 'לא עשתה' : ITEMS[k].log}</button>`).join('')}</div>
@@ -530,15 +544,15 @@ function openStepSheet(p, j){
   sh.querySelectorAll('.r[data-e]').forEach(el => el.onclick = () => openEntrySheet(+el.dataset.e));
   sh.querySelector('#del').onclick = () => {
     close();
-    commit(`${PETS[p].name} · ${CYCLE[h.i].n} נמחק מהסבב`, () => {
+    commit(`${PETS[p].name} · ${stepName(h.i)} נמחק מהסבב`, () => {
       const H = state[p].hist; H.splice(j, 1);
       if(j === H.length){ if(H.length) state[p].cyc = Object.assign({}, H[H.length-1]); else delete state[p].cyc; }
     });
   };
 }
 function stepResult(p, s){
-  const st = CYCLE[s.i], to = s.end || Infinity, parts = [];
-  if(st.k || st.play) parts.push(s.end ? words(s.end - s.t) : 'עכשיו');
+  const st = CYCLE[s.i] || {brk:true}, to = s.end || Infinity, parts = [];
+  if(st.k || st.play || st.brk) parts.push(s.end ? words(s.end - s.t) : 'עכשיו');
   if(st.food) parts.push('אכלה');
   for(const e of state.log){
     if(e.p !== p || e.t < s.t || e.t >= to) continue;
@@ -675,14 +689,21 @@ function render(){
   document.getElementById('main').innerHTML = h;
 }
 function cycleHTML(p){
-  const S = state[p], c = S.cyc && CYCLE[S.cyc.i] ? S.cyc : null, ci = c ? c.i : -1, next = (ci+1) % CYCLE.length;
-  const due = pottyDue(p), potty = due || (c && CYCLE[ci].potty), now = Date.now(), rn = rounds(p).pop();
+  const S = state[p], brk = !!(S.cyc && S.cyc.i === BREAK), c = S.cyc && CYCLE[S.cyc.i] ? S.cyc : null, ci = c ? c.i : -1;
+  // While she sleeps the strip does not push on: the only suggestion is what to do when she wakes up.
+  const asleep = !!(S.sleep && S.sleep.start), next = (ci+1) % CYCLE.length, now = Date.now(), rn = rounds(p).pop();
+  const due = pottyDue(p), potty = !asleep && (due || (c && CYCLE[ci].potty));
+  const head = c ? `${rn ? roundName(rn)+' · ' : ''}${CYCLE[ci].n} · כבר <span data-words="${c.t}">${words(now-c.t)}</span>`
+    : brk ? `בהפסקה · כבר <span data-words="${S.cyc.t}">${words(now-S.cyc.t)}</span>` : 'לחיצה על שלב מתחילה את המעקב';
   return `<div class="card cyc ${due?'due':''}">
-    <div class="cyc-h"><b>השגרה של ${PETS[p].name}</b><small>${c ? `${rn ? roundName(rn)+' · ' : ''}${CYCLE[ci].n} · כבר <span data-words="${c.t}">${words(now-c.t)}</span>` : 'לחיצה על שלב מתחילה את המעקב'}</small></div>
+    <div class="cyc-h"><b>השגרה של ${PETS[p].name}</b><small>${head}</small></div>
     <div class="steps">${CYCLE.map((s,i) => `<button class="${i===ci?'on':''}" data-act="step" data-k="${i}"><i>${i+1}</i>${s.n}</button>`).join('')}</div>
     ${due ? `<div class="duemsg">${ico('pee','s')}<span>זמן להוציא לצרכים · ${due.why}, לפני <span data-words="${due.t}">${words(now-due.t)}</span></span></div>` : ''}
+    ${asleep ? `<div class="zz">${ico('sleep','s')}<span>ישנה מ־<bdi dir="ltr">${clock(S.sleep.start)}</bdi> · נותנים לה לישון</span></div>` : ''}
     <div class="cyc-a">${potty ? `<button class="btn" data-act="pt" data-k="pee">פיפי</button><button class="btn" data-act="pt" data-k="poop">קקי</button><button class="btn" data-act="pt" data-k="none">לא עשתה</button>` : ''}
-      <button class="go" data-act="step" data-k="${next}">הבא: ${CYCLE[next].n}</button></div></div>`;
+      ${brk ? '' : `<button class="ghost" data-act="brk">${ico('none','s')}הפסקה בשגרה</button>`}
+      ${asleep ? `<button class="go wait" data-act="wake">כשתתעורר: ${CYCLE[1].n}</button>`
+               : `<button class="go" data-act="step" data-k="${next}">${brk ? 'חזרה לשגרה' : 'הבא'}: ${CYCLE[next].n}</button>`}</div></div>`;
 }
 function whereTag(w){ return WHERE[w] ? ` · <em class="wh ${w}">${WHERE[w]}</em>` : ''; }
 function whereOf(p, k, t){   // " · where" of the pee / poop logged at t, if it was marked
@@ -703,7 +724,7 @@ let view = 'now', sumMode = 'day', sumAnchor = Date.now();
 const DAY = 86400000;
 const DOW = ['א׳','ב׳','ג׳','ד׳','ה׳','ו׳','ש׳'];
 const MONTHS = ['ינואר','פברואר','מרץ','אפריל','מאי','יוני','יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר'];
-const SUM_LBL = {food:'אוכל', pee:'פיפי', poop:'קקי', sleep:'שינה', cry:'בכי', crate:'כלוב', pen:'גדר'};
+const SUM_LBL = {food:'אוכל', pee:'פיפי', poop:'קקי', sleep:'שינה', cry:'בכי', crate:'כלוב'};
 function sod(t){ const d = new Date(t); d.setHours(0,0,0,0); return d; }
 function ddmm(t){ const d = new Date(t); return `${d.getDate()}.${d.getMonth()+1}`; }
 function hm(ms){ const m = Math.round(ms/60000); return `${Math.floor(m/60)}:${pad(m%60)}`; }
@@ -723,7 +744,7 @@ function sumShift(dir){
   sumAnchor = Math.min(d.getTime(), Date.now());
 }
 function stats(p, from, to){
-  const r = {food:0, pee:0, poop:0, sleep:{n:0,ms:0}, cry:{n:0,ms:0}, crate:{n:0,ms:0}, pen:{n:0,ms:0}, meds:0, w:{pee:{}, poop:{}}};
+  const r = {food:0, pee:0, poop:0, sleep:{n:0,ms:0}, cry:{n:0,ms:0}, crate:{n:0,ms:0}, meds:0, w:{pee:{}, poop:{}}};
   const add = (k, a, b) => { const ov = Math.min(b,to) - Math.max(a,from); if(ov > 0){ r[k].ms += ov; r[k].n++; } };
   for(const e of state.log){
     if(e.p !== p) continue;
@@ -837,6 +858,8 @@ document.getElementById('main').addEventListener('click', e => {
   else if(a==='prev' || a==='next'){ sumShift(a==='prev' ? -1 : 1); render(); }
   else if(a==='step') goStep(pet, +k);
   else if(a==='rstep') openStepSheet(pet, +k);
+  else if(a==='brk') goBreak(pet);
+  else if(a==='wake'){ const c = state[pet].cyc; if(c && c.i === 1) tapDur(pet, 'sleep'); else goStep(pet, 1); }
   else if(a==='pt') tapPoint(pet, k);
   else if(a==='dur') tapDur(pet, k);
   else if(a==='edit') openSheet(pet, k);
@@ -996,10 +1019,13 @@ function openEntrySheet(i){
   const e = state.log[i]; if(!e) return;
   const it = ITEMS[e.k], name = PETS[e.p].name, med = e.k.startsWith('med_'), pt = !it.dur && !med;
   const find = () => state.log.findIndex(x => x.p===e.p && x.k===e.k && x.t===e.t && x.end===e.end);
+  // A stay that was closed by mistake can be turned back into the running timer, if it is the latest one.
+  const canReopen = !!it.dur && !(state[e.p][e.k] || {}).start && !state.log.some(x => x.p===e.p && x.k===e.k && x.end > e.end);
   sheet(`${name} · ${it.log} · ${dayLabel(e.t)} <bdi dir="ltr">${clock(e.t)}</bdi>`,
     pt ? `<label class="field">תיקון השעה ${timeField("tIn", clock(e.t))}</label>` +
          (hasWhere(e.k) ? `<div class="sub" style="margin:14px 0 8px">איפה?</div><div class="chips">${Object.keys(WHERE).map(w => `<button data-w="${w}" class="${e.w===w?'sel':''}">${WHERE[w]}</button>`).join('')}</div>` : '')
-       : `<div class="sub">אפשר למחוק את הרישום הזה.</div>`,
+       : (canReopen ? `<div class="sub" style="margin-bottom:10px">נרשם בטעות כאילו נגמר?</div><div class="chips"><button id="reopen">עדיין נמשך (מ־${clock(e.t)})</button></div>` : '') +
+         `<div class="sub">אפשר למחוק את הרישום הזה.</div>`,
     '<button class="btn danger" id="del">מחיקה</button>',
     () => {
       if(!pt){ close(); return; }
@@ -1019,6 +1045,16 @@ function openEntrySheet(i){
     w = w === b.dataset.w ? undefined : b.dataset.w;
     sh.querySelectorAll('[data-w]').forEach(x => x.classList.toggle('sel', x.dataset.w === w));
   });
+  const ro = sh.querySelector('#reopen');
+  if(ro) ro.onclick = () => {
+    close();
+    commit(`${name} · ${it.live} מ־${clock(e.t)}`, () => {
+      const j = find(); if(j < 0) return;
+      state.log.splice(j, 1); recalc(e.p, e.k);
+      state[e.p][e.k] = Object.assign({}, state[e.p][e.k] || {}, {start:e.t});
+      if(PETS[e.p].cycle && e.k === 'crate' && !(state[e.p].cyc && state[e.p].cyc.i === 0)) setStep(state[e.p], 0, e.t);
+    });
+  };
   sh.querySelector('#del').onclick = () => {
     close();
     commit(`${name} · ${it.log} נמחק`, () => {
