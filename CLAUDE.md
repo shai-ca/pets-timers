@@ -16,6 +16,8 @@ A single-page mobile web app (Hebrew, RTL) for tracking two pets:
 - **Fixing entries:** tapping a history row opens a sheet to change its time or delete it (`openEntrySheet`, `recalc`). Entering a time earlier than the current "last" one asks whether to correct the last entry or add another (`logAt`).
 - **Desktop vs phone:** under 760px it is a single-column list; from 760px up (`@media (min-width:760px)` at the end of the CSS) the cards become 240px square tiles in a grid. With a mouse (`pointer:fine`) time fields are text boxes that accept `935`, `9:35`, `9` and save on Enter (`timeField`, `parseTime`); touch devices keep the native time picker.
 
+- **Self-update:** `selfUpdate()` (end of the script) fetches the published `index.html` uncached when the app comes to the front and every 5 minutes, and reloads if its inline `<script>` or `<style>` text differs from the running one. No version number to bump; it waits for saves, open sheets and the undo toast, and never reloads twice within two minutes.
+
 Every action can be undone from the toast for 6 seconds, and any event can be logged at an earlier time ("שעה אחרת" / "הוספה"). There's a history list per pet.
 
 ## Files

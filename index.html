@@ -956,6 +956,43 @@ document.getElementById('me').onclick = () => openUserSheet();
 
 render(); renderMe();
 if(!me) openUserSheet();
+
+// ---------- self-update ----------
+// GitHub Pages lets browsers keep the page for 10 minutes and a home-screen app can hold it for days.
+// So: fetch the published page (bypassing the cache) when the app comes to the front and every few
+// minutes, and if its script or styles differ from the ones running here, reload. No version number
+// to maintain. The reload waits until nothing is being saved and no sheet or undo toast is open.
+(function selfUpdate(){
+  if(!/^https?:$/.test(location.protocol)) return;
+  const mine = [document.currentScript, document.querySelector('style')].map(el => el ? el.textContent.trim() : '');
+  const KEY = LS_KEY+'-reloaded';
+  let last = 0, pending = false;
+  const busy = () => writing || dirty || bg.classList.contains('show') || document.getElementById('toast').classList.contains('show')
+    || /^(INPUT|TEXTAREA|SELECT)$/.test((document.activeElement || {}).tagName || '');
+  function reload(){
+    if(busy()){ setTimeout(reload, 4000); return; }
+    try { sessionStorage.setItem(KEY, String(Date.now())); } catch(e){}
+    location.replace(location.pathname + '?v=' + Date.now());
+  }
+  async function check(){
+    if(pending || document.hidden || Date.now() - last < 60000) return;
+    last = Date.now();
+    try {
+      // Never reload twice within two minutes, whatever happens (avoids a reload loop).
+      if(Date.now() - (+sessionStorage.getItem(KEY) || 0) < 120000) return;
+      const res = await fetch(location.pathname + '?check=' + Date.now(), {cache:'no-store'});
+      if(!res.ok) return;
+      const html = (await res.text()).replace(/\r\n/g, '\n');
+      if(html.length < 1000 || mine.every(t => html.includes(t))) return;
+      pending = true; reload();
+    } catch(e){}
+  }
+  document.addEventListener('visibilitychange', check);
+  window.addEventListener('pageshow', check);
+  window.addEventListener('focus', check);
+  setInterval(check, 5*60000);
+  setTimeout(check, 3000);
+})();
 </script>
 </body>
 </html>
