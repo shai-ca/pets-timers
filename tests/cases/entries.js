@@ -58,6 +58,24 @@
       seed([{ p:'kishmish', k:'none', t: now - 30*MIN }, { p:'kishmish', k:'crate', t: now - 29*MIN, r: 10 }, { p:'kishmish', k:'sleep', t: now - 25*MIN }]);
       $q('[data-act=rtpee]').click(); close();
       ok('taking her out from the retry card ends the sleep too', !K().crate.start && !K().sleep.start && !!logOf('kishmish', 'sleep')[0].end);
+      // taken out to pee / poop, eating, drinking: none of it happens in the crate or asleep
+      for(const k of ['pee','poop','none','food','water']){
+        seed([{ p:'kishmish', k:'crate', t: now - 60*MIN }, { p:'kishmish', k:'sleep', t: now - 50*MIN }]);
+        tapPoint('kishmish', k); close();
+        ok(`logging "${ITEMS[k].log}" ends the crate stay and the sleep`, !K().crate.start && !K().sleep.start && !!logOf('kishmish', 'crate')[0].end && logOf('kishmish', 'sleep')[0].end === logOf('kishmish', 'crate')[0].end);
+      }
+      seed([{ p:'kishmish', k:'crate', t: now - 60*MIN }, { p:'kishmish', k:'sleep', t: now - 50*MIN }]);
+      tapPoint('kishmish', 'pee', now - 20*MIN); close();
+      ok('an earlier time ends them at that time', logOf('kishmish', 'crate')[0].end === now - 20*MIN && logOf('kishmish', 'sleep')[0].end === now - 20*MIN);
+      seed([{ p:'kishmish', k:'crate', t: now - 60*MIN }, { p:'kishmish', k:'sleep', t: now - 50*MIN }]);
+      tapPoint('kishmish', 'pee', now - 90*MIN); close();
+      ok('an entry from before she went in changes nothing', !!K().crate.start && !!K().sleep.start);
+      seed([{ p:'kishmish', k:'crate', t: now - 60*MIN }, { p:'kishmish', k:'sleep', t: now - 50*MIN }]);
+      tapPoint('kishmish', 'pee'); sh.querySelector('[data-w=crate]').click();
+      ok('…unless the pee is marked "in the crate": then she never left it', !!K().crate.start && !!K().sleep.start && logOf('kishmish', 'pee')[0].w === 'crate' && logOf('kishmish', 'crate').length === 1);
+      seed([{ p:'kishmish', k:'sleep', t: now - 30*MIN }]); tapPoint('kishmish', 'food');
+      ok('eating while "asleep" outside the crate ends the sleep', !K().sleep.start);
+      pet = 'kochik'; seed([]); tapPoint('kochik', 'food'); ok('no such rule for kochik', logOf('kochik', 'food').length === 1); pet = 'kishmish';
       // falling asleep, placed relative to going into the crate
       seed([{ p:'kishmish', k:'crate', t: now - 40*MIN }]);
       $q('[data-act=edit][data-k=sleep]').click();

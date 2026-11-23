@@ -16,8 +16,6 @@
     const C = () => logOf('kishmish', 'crate').filter(e => e.r).pop();
     ok('"into the crate" starts the crate and a 10-minute countdown', card().classList.contains('wait') && C().r === 10 && C().end == null && !!K().crate.start && !!$q('.card.retry [data-until]'));
     ok('a retry stay is not a new round', roundStarts('kishmish').length === 1 && cur() === 'טיול וצרכים');
-    tapPoint('kishmish', 'food'); ok('a meal can be given in the crate during a retry', logOf('kishmish', 'food').length === 1 && !!card());
-    state.log = state.log.filter(e => e.k !== 'food'); use(state);
     $q('[data-act=rtmin][data-k="5"]').click(); ok('the countdown can be shortened while waiting', C().r === 5);
     // the countdown runs out
     logOf('kishmish', 'none')[0].t = now - 7*MIN; C().t = now - 6*MIN; state.log.sort((x, y) => x.t - y.t); use(state); rtSeen = 'wait' + C().id; let buzz = 0; Object.defineProperty(navigator, 'vibrate', { value: () => { buzz++; return true; }, configurable: true });
@@ -35,6 +33,10 @@
     seed([{ p:'kishmish', k:'crate', t: now - 120*MIN, end: now - 5*MIN }, { p:'kishmish', k:'none', t: now - 4*MIN }]);
     tapPoint('kishmish', 'pee'); sh.querySelector('[data-w=pad]').click();
     ok('pee on the pad ends the retry, no free time, counted as a miss', !card() && !$q('.card.slim.free') && $q('#main').textContent.includes('פספוסים 1'));
+    // a meal during the wait: she is out of the crate to eat, the retry goes on
+    seed([{ p:'kishmish', k:'crate', t: now - 120*MIN, end: now - 5*MIN }, { p:'kishmish', k:'none', t: now - 4*MIN }]);
+    $q('[data-act=rtcrate]').click(); tapPoint('kishmish', 'food');
+    ok('a meal is allowed during a retry; eating takes her out of the crate, and the card asks to try again', logOf('kishmish', 'food').length === 1 && !K().crate.start && !!C().end && card().classList.contains('again'));
     // giving up, and leaving her in the crate
     seed([{ p:'kishmish', k:'crate', t: now - 120*MIN, end: now - 5*MIN }, { p:'kishmish', k:'none', t: now - 4*MIN }]);
     $q('[data-act=rtcrate]').click(); $q('[data-act=rtstop]').click();

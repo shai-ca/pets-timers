@@ -828,7 +828,7 @@ function tapPoint(p, k, t, sure){
   if(!t && !sure){ const d = recentDouble(p, e => e.k === k); if(d){ askAgain(d, ITEMS[k].log, () => tapPoint(p, k, undefined, true)); return; } }
   t = t || Date.now();
   const e = {p, k, t};
-  commit(`${PETS[p].name} · ${ITEMS[k].log}`, () => { state.log.push(e); });
+  commit(`${PETS[p].name} · ${ITEMS[k].log}`, () => { impliesOut(p, k, t); state.log.push(e); });
   if(hasWhere(k) && e.id) whereSheet(e.id);
 }
 function tapDur(p, k, at){   // `at`: start a timer that began earlier ("she went in 10 minutes ago and is still there")
@@ -849,7 +849,26 @@ function tapDur(p, k, at){   // `at`: start a timer that began earlier ("she wen
 function leaveCrate(p, t){
   stopDur(p, 'crate', t);
   const sl = state.log.filter(e => e.p===p && e.k==='sleep' && e.end == null).sort((x,y) => x.t-y.t)[0];
-  if(sl && sl.t > t - 16*3600000 && sl.t < t) stopDur(p, 'sleep', t);
+  if(sl && sl.t > t - 16*3600000 && sl.t <= t) stopDur(p, 'sleep', t);
+}
+// Things that can only happen outside the crate and awake: being taken out to pee / poop (also when nothing
+// came of it), eating and drinking — there is nothing inside the crate. Logging one of them at time t while
+// the list says she is in the crate (or asleep) therefore ends that stay (and the sleep) at t.
+const OUT_KINDS = {pee:1, poop:1, none:1, food:1, water:1};
+function impliesOut(p, k, t){
+  if(!PETS[p].cycle || !OUT_KINDS[k]) return;
+  const open = kk => state.log.filter(e => e.p===p && e.k===kk && e.end == null).sort((x,y) => x.t-y.t)[0];
+  const c = open('crate'), sl = open('sleep');
+  if(c && c.t < t) leaveCrate(p, t);
+  else if(sl && sl.t < t && sl.t > t - 16*3600000) stopDur(p, 'sleep', t);
+}
+// The one exception: a pee or poop marked as having happened *in the crate* did not take her out of it.
+// Marking that place puts back the stay (and sleep) that logging the entry had just ended.
+function backInCrate(e){
+  for(const k of ['crate','sleep']){
+    const st = state.log.find(x => x.p===e.p && x.k===k && x.end === e.t);
+    if(st && !state.log.some(x => x.p===e.p && x.k===k && x.t >= e.t)) delete st.end;
+  }
 }
 // End the running timer of kind k: its entry gets an `end`. If two phones started the same stay, there are
 // two running entries — the earliest is kept as the stay and the others are dropped.
@@ -939,7 +958,7 @@ function retryHTML(p){
     : `<p><b>לנסות שוב בחצץ.</b>${open ? ` עברו ${C.r} הדקות.` : ''} מה קרה?</p>
        <div class="rt-a"><button class="go" data-act="rtpee">פיפי</button><button class="btn" data-act="rtnone">לא עשתה</button></div>`;
   return `<div class="card retry ${r.state}">
-    <div class="rt-h"><b>ניסיון חוזר</b><small>${r.tries > 1 ? `ניסיון ${r.tries} · ` : ''}משחק וחופש רק אחרי פיפי · אוכל אפשר גם בכלוב</small></div>
+    <div class="rt-h"><b>ניסיון חוזר</b><small>${r.tries > 1 ? `ניסיון ${r.tries} · ` : ''}משחק וחופש רק אחרי פיפי · אוכל ומים תמיד מותר</small></div>
     <div class="sub" style="margin-bottom:8px">${V[p].water ? `שתתה לאחרונה: ${dayLabel(V[p].water)} <bdi dir="ltr">${clock(V[p].water)}</bdi> (לפני ${words(Date.now() - V[p].water)})` : 'לא נרשמה שתייה. אם היא לא שתתה, ייתכן שאין לה פיפי.'}</div>
     ${body}<button class="lnk rt-x" data-act="rtstop">לסיים את הניסיון החוזר</button></div>`;
 }
@@ -1282,6 +1301,7 @@ function logPlay(p, y, sure){
     state.log.push({p, k:'play', t:now, y});
     // Play with food is a meal too — one meal per play session, however many food games are marked.
     if(PLAY_FOOD[y] && !state.log.some(e => e.p===p && e.k==='food' && e.y==='play' && now - e.t < 30*60000)){
+      impliesOut(p, 'food', now);
       state.log.push({p, k:'food', t:now, y:'play'});
     }
   });
@@ -1290,7 +1310,7 @@ function playCardHTML(p, nowt){
   const last = state.log.filter(e => e.p===p && e.k==='play').pop(), locked = !!retry(p);   // no play until she pees
   return `<div class="card playc ${nowt ? 'nowt' : ''} ${locked ? 'locked' : ''}"><div class="meds-h"><div class="ic">${ico('ball')}</div><b>משחק</b><small>${locked ? 'אחרי פיפי' : last ? `אחרון: ${PLAY[last.y] || ''} · ${dayLabel(last.t)} <bdi dir="ltr">${clock(last.t)}</bdi>` : 'במה שיחקה?'}</small></div>
     <div class="sc-b">${Object.keys(PLAY).map(y => `<button class="btn" data-act="play" data-k="${y}" ${locked ? 'disabled' : ''}>${PLAY[y]}</button>`).join('')}</div>
-    <div class="sub" style="margin-top:8px">${locked ? 'נעול בזמן ניסיון חוזר. אוכל רגיל אפשר לתת מכרטיס האוכל.' : 'קונג, משטח ליקוק ואילוף עם אוכל נרשמים גם כארוחה.'}</div></div>`;
+    <div class="sub" style="margin-top:8px">${locked ? 'נעול בזמן ניסיון חוזר. אוכל רגיל נותנים מכרטיס האוכל.' : 'קונג, משטח ליקוק ואילוף עם אוכל נרשמים גם כארוחה.'}</div></div>`;
 }
 // A crate stay longer than CRATE_MAX is flagged red — in the daytime only, so a night in the crate is not an alarm.
 function crateOver(p){
@@ -1698,7 +1718,7 @@ function whereSheet(id){
     <div class="foot"><span></span><button class="btn" id="cancel">דילוג</button></div>`;
   sh.querySelectorAll('[data-w]').forEach(b => b.onclick = () => {
     close();
-    commit('', () => { const x = find(); if(x) x.w = b.dataset.w; }, {quiet:true});   // the undo toast of the pee itself stays up
+    commit('', () => { const x = find(); if(x){ x.w = b.dataset.w; if(x.w === 'crate') backInCrate(x); } }, {quiet:true});   // the undo toast of the pee itself stays up
   });
   sh.querySelector('#cancel').onclick = close;
   bg.classList.add('show');
@@ -1841,6 +1861,7 @@ function logAt(p, k, ts){
       <button class="btn" id="cancel">ביטול</button></div>`;
   sh.querySelector('#repl').onclick = () => { close(); commit(`${name} · ${ITEMS[k].log} עודכן`, () => {
     state.log = state.log.filter(e => !(e.p===p && e.k===k && e.t > ts));
+    impliesOut(p, k, ts);
     state.log.push({p, k, t:ts});
   }); };
   sh.querySelector('#addb').onclick = () => { close(); tapPoint(p, k, ts); };
@@ -1892,6 +1913,7 @@ function openEntrySheet(i){
       commit(`${name} · ${it.log} עודכן`, () => {
         const x = find(); if(!x) return;
         if(w) x.w = w; else delete x.w;
+        if(w === 'crate' && e.w !== 'crate') backInCrate(x);
         x.t = d.getTime();
       });
     });
