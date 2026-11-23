@@ -688,6 +688,27 @@ function openStepAtSheet(p, i){
     cancelBtn, () => { const v = timeVal('tIn'); if(!v) return; close(); goStep(p, i, timeToTs(v)); },
     ts => goStep(p, i, ts));
 }
+// One step back on the wheel: take back the last move as if it had not been tapped. The step's own
+// crate stay / meal goes with it, and whatever the move had closed (the crate stay or the sleep of the
+// step before, the "play ended" stamp) is running again. Anything logged meanwhile (a pee…) stays.
+function stepBack(p){
+  if(!(state[p].hist || []).length) return;
+  commit(`${PETS[p].name} · חזרה שלב`, () => {
+    const S = state[p], H = S.hist, last = H.pop(), st = CYCLE[last.i] || {};
+    if(st.k){
+      if(S[st.k] && S[st.k].start === last.t) delete S[st.k].start;
+      state.log = state.log.filter(e => !(e.p===p && e.k===st.k && e.t===last.t));
+      recalc(p, st.k);
+    }
+    if(st.food){ state.log = state.log.filter(e => !(e.p===p && e.k==='food' && e.t===last.t && !e.y)); recalc(p, 'food'); }
+    for(const k of ['crate','sleep']){
+      const e = state.log.find(x => x.p===p && x.k===k && x.end===last.t);
+      if(e && !(S[k] && S[k].start)){ state.log = state.log.filter(x => x !== e); recalc(p, k); S[k] = Object.assign({}, S[k] || {}, {start:e.t}); }
+    }
+    if(S.playEnd === last.t) delete S.playEnd;
+    if(H.length) S.cyc = Object.assign({}, H[H.length-1]); else delete S.cyc;
+  });
+}
 // Put the routine on hold (vet, a trip…). She is out of the crate and awake; the round ends here
 // and the next step that is tapped starts a new round.
 function goBreak(p){
@@ -989,6 +1010,7 @@ function cycleHTML(p){
     ${asleep ? `<div class="zz">${ico('sleep','s')}<span>ישנה מ־<bdi dir="ltr">${clock(S.sleep.start)}</bdi> · נותנים לה לישון</span></div>` : ''}
     <div class="cyc-a">${potty ? `<button class="btn" data-act="pt" data-k="pee">פיפי</button><button class="btn" data-act="pt" data-k="poop">קקי</button><button class="btn" data-act="pt" data-k="none">לא עשתה</button>` : ''}
 ${c && CYCLE[ci].play && !inCrate ? Object.keys(PLAY).map(y => `<button class="btn ${playOn(p, y) ? 'sel' : ''}" data-act="play" data-k="${y}">${PLAY[y]}</button>`).join('') : ''}
+      ${(S.hist || []).length ? `<button class="ghost" data-act="back">${ico('chevR','s')}חזרה שלב</button>` : ''}
       ${brk || inCrate ? '' : `<button class="ghost" data-act="brk">${ico('none','s')}הפסקה בשגרה</button>`}
       ${inCrate ? `<span class="sub">בכלוב עד שמסמנים הוצאה</span>` : ''}
       <span class="mainact">${main}<button class="ghost" data-act="stepat" data-k="${inCrate || asleep ? 1 : next}">${ico('clock','s')}שעה אחרת</button></span></div></div>`;
@@ -1258,6 +1280,7 @@ document.getElementById('main').addEventListener('click', e => {
   else if(a==='step') goStep(pet, +k);
   else if(a==='rstep') openStepSheet(pet, +k);
   else if(a==='brk') goBreak(pet);
+  else if(a==='back') stepBack(pet);
   else if(a==='play') togglePlay(pet, k);
   else if(a==='stepat') openStepAtSheet(pet, +k);
   else if(a==='out') goStep(pet, 1);   // out of the crate: stops the crate (and sleep) timer, on to walk + potty
