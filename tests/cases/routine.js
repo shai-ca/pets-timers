@@ -5,7 +5,7 @@
     const cur = () => { const e = $q('.rc b'); return e ? e.textContent : ''; }, nxt = () => $q('.rl.nxt').textContent.replace(/^\d/, '');
     const tags = () => [...document.querySelectorAll('.card.nowt')].map(c => c.querySelector('[data-k]').dataset.k).join();
     const late = Date.now() - midnight() > 200*MIN;
-    ok('empty: the wheel waits; nothing on it can be tapped', routine('kishmish') === null && $n('.sg.cur') === 0 && nxt() === 'כלוב' && $n('.cyc [data-seg]') === 0);
+    ok('empty: the wheel waits; nothing on it can be tapped', routine('kishmish') === null && $n('.sg.cur') === 0 && nxt() === 'כלוב' && $n('.cyc [data-act=step]') === 0);
     ok('tiles: crate, pee, poop, food, sleep, cry + "nothing" row + play card', $n('.card.item') === 6 && !!$q('.card.slim') && !!$q('.card.playc') && !!$q('[data-act=nofood]'));
     ok('start: crate tile tagged, instruction names the button', tags() === 'crate' && $q('.cyc-n').textContent.includes('נכנסה לכלוב'));
     if(late){
@@ -37,6 +37,14 @@
       seed([{ p:'kishmish', k:'crate', t: Date.now() - 130*MIN }]); const hr = new Date().getHours();
       ok('over two hours: red by day only', (!!$q('.sg.cur.over') && !!$q('.card.item.live.cry')) === (hr >= 7 && hr < 22));
     }
+    // the wheel is navigation: a step on it jumps to that step's tiles, and never changes the step
+    seed([{ p:'kishmish', k:'crate', t: Date.now() - 20*MIN }]);
+    let went = ''; Element.prototype.scrollIntoView = function(){ went = this.id; };
+    $q('.rl[data-go=food]').click();
+    ok('tapping "food" on the wheel jumps to the food tiles and flashes them', went === 'sec-food' && $q('#sec-food').classList.contains('flash') && tile('food').closest('.card').classList.contains('flash'));
+    $q('.sg[data-go=play]').dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    ok('a segment works too, and the step itself did not change', went === 'sec-play' && !!K().crate.start && $q('.rc b').textContent === 'כלוב' && state.log.length === 1);
+    ok('wheel, alerts and retry card are in the side column; tiles in the main one', !!$q('#side .cyc') && !$q('#main .cyc') && $n('#main .card.item') === 6 && ['crate','potty','play','food','rest'].every(k => !!$q('#main #sec-' + k)));
     $q('[data-act=help]').click(); ok('help sheet', sh.textContent.includes('מסמנים רק בכרטיסים')); close();
     pet = 'kochik'; render(); ok('kochik: no wheel, no play card, no tags', !$q('.cyc') && !$q('.playc') && $n('.card.item') === 4 && $n('.nowt') === 0);
     done();

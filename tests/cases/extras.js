@@ -15,7 +15,7 @@
     seed([{ p:'kishmish', k:'food', t: now - 3*HOUR }, { p:'kishmish', k:'pee', t: now - 5*HOUR, w:'gravel' }, { p:'kishmish', k:'poop', t: now - 20*HOUR }]);
     ok('nothing alarming: no alerts', $n('.card.alertc') === 0);
     seed([{ p:'kishmish', k:'food', t: now - 3.6*HOUR }]);
-    ok('3.5 hours without food: a prominent alert, first thing on the page', $n('.card.alertc') === 1 && alertText().includes('מאז האוכל האחרון') && alertText().includes('סוכר') && $q('#main').firstElementChild.classList.contains('alertc'));
+    ok('3.5 hours without food: a prominent alert, first thing on the page', $n('.card.alertc') === 1 && alertText().includes('מאז האוכל האחרון') && alertText().includes('סוכר') && $q('#side').firstElementChild.classList.contains('alertc'));
     tapPoint('kishmish', 'food'); ok('a meal clears it', $n('.card.alertc') === 0);
     seed([{ p:'kishmish', k:'food', t: now - MIN }, { p:'kishmish', k:'pee', t: now - 6.2*HOUR, w:'pad' }, { p:'kishmish', k:'poop', t: now - 25*HOUR }]);
     ok('6 hours without a pee while awake, 24 without a poop: "consider calling the vet"', $n('.card.alertc') === 2 && (alertText().match(/לשקול להתקשר לווטרינר/g) || []).length === 2);

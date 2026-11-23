@@ -226,7 +226,8 @@
   /* the routine as a ring: five segments clockwise from the top, the current one filled */
   .steps{position:relative;height:236px;max-width:340px;margin:2px auto 0}
   .ring{position:absolute;left:50%;top:50%;width:200px;height:200px;margin:-100px 0 0 -100px;overflow:visible}
-  .sg{color:var(--seg);fill:currentColor;stroke:currentColor;stroke-width:2.5;stroke-linejoin:round;transition:color .2s}
+  .sg{color:var(--seg);fill:currentColor;stroke:currentColor;stroke-width:2.5;stroke-linejoin:round;transition:color .2s;cursor:pointer}
+  .sg:hover{filter:brightness(.95)}
   .sg.nxt{stroke:var(--btn);stroke-width:2;stroke-dasharray:5 4;animation:nxt 2.4s ease-in-out infinite}
   @keyframes nxt{50%{stroke-opacity:.35}}
   .si.nxt{color:var(--btn)}
@@ -239,7 +240,7 @@
   .rc b{display:block;font-size:17px;font-weight:600;color:var(--ink)}
   .rc span{display:block;font-size:12px;color:var(--muted)}
   .rc .zzi{color:var(--ok);margin-bottom:1px}
-  .steps .rl{position:absolute;transform:translate(-50%,-50%);border:0;background:none;padding:5px 4px;font:inherit;font-size:12.5px;color:var(--muted);white-space:nowrap;cursor:pointer}
+  .steps .rl{border:0;background:none;font:inherit;cursor:pointer;position:absolute;transform:translate(-50%,-50%);border:0;background:none;padding:5px 4px;font:inherit;font-size:12.5px;color:var(--muted);white-space:nowrap;cursor:pointer}
   .steps .rl.r{transform:translate(0,-50%);text-align:left} .steps .rl.l{transform:translate(-100%,-50%);text-align:right}
   .steps .rl.r,.steps .rl.l{max-width:66px;white-space:normal;line-height:1.2}
   .steps .rl i{font-style:normal;opacity:.6;margin-inline-end:4px;font-variant-numeric:tabular-nums}
@@ -258,6 +259,13 @@
   .cyc-n .nx b:not(:first-child){display:inline;font-size:inherit;color:var(--ink)}
   .tagk{background:var(--btn);color:#fff;font-size:11px;font-weight:500;padding:2px 8px;border-radius:8px;white-space:nowrap}
   .card.nowt{position:relative;box-shadow:0 0 0 2px var(--btn)}
+  #side{display:flex;flex-direction:column;gap:10px;margin-bottom:10px}
+  #side:empty{display:none}
+  .wheelhint{text-align:center;margin-top:6px;opacity:.8}
+  h2.sec{scroll-margin-top:14px}
+  @keyframes flash{0%,55%{box-shadow:0 0 0 3px var(--btn)}100%{box-shadow:0 0 0 0 transparent}}
+  .card.flash{animation:flash 1.4s ease-out}
+  h2.sec.flash{color:var(--btn)}
   h2.sec{display:flex;align-items:center;gap:8px;margin:16px 4px 0;font-size:14px;font-weight:600;color:var(--ink);letter-spacing:0}
   h2.sec i{font-style:normal;font-weight:500;font-size:12px;color:var(--muted);background:var(--seg);border-radius:8px;padding:1px 8px;white-space:nowrap}
   h2.sec.now i{background:var(--btn);color:#fff}
@@ -316,13 +324,14 @@
     main > .card.log, main > .card.tblc{max-width:720px}
     main > .card.sumnav{max-width:440px}
     /* routine card: the ring on one side, status and actions beside it */
-    main > .card.cyc{max-width:744px;display:grid;grid-template-columns:300px 1fr;column-gap:28px;align-content:center;padding:20px 24px}
+    #side > .card.cyc{display:grid;grid-template-columns:300px 1fr;column-gap:28px;align-content:center;padding:20px 24px}
     .card.cyc > *{grid-column:2}
     .card.cyc > .steps{grid-column:1;grid-row:1 / span 8;margin:0;align-self:center;width:300px}
     .card.cyc > .cyc-h{align-self:end;margin-bottom:6px}
     .card.cyc > .cyc-h b{font-size:17px}
     .card.cyc > .cyc-n{align-self:start}
-    main > .card.playc, main > .card.slim, main > .card.retry, main > .card.alertc{max-width:744px}
+    main > .card.playc, main > .card.slim{max-width:744px}
+    #side > .card{max-width:744px}
     .tiles, .tiles.two{grid-template-columns:repeat(auto-fill,minmax(170px,190px));gap:14px}
     .tiles .tile{grid-column:auto !important;aspect-ratio:1/1;padding:18px;justify-content:flex-end}
     .tiles .tile .ic{margin-bottom:auto}
@@ -330,6 +339,18 @@
     .log .r[data-e]:hover{background:var(--bg);margin:0 -16px;padding-left:16px;padding-right:16px}
     .bg{align-items:center}
     .sheet{max-width:440px;border-radius:22px;padding-bottom:22px}
+  }
+  /* wide screens: the wheel column sits at the side and stays in view while the tiles scroll */
+  @media (min-width:1000px){
+    .shell{display:flex;align-items:flex-start;gap:24px}
+    #side{flex:none;width:360px;margin:0;position:sticky;top:16px;max-height:calc(100vh - 32px);overflow-y:auto;padding:2px}
+    #side > .card{max-width:none}
+    #side > .card.cyc{display:block;padding:16px}
+    #side > .card.cyc > .steps{width:auto;margin:2px auto 0}
+    #side > .card.cyc > *{grid-column:auto}
+    main{flex:1;min-width:0}
+    h2.sec{scroll-margin-top:20px}
+    main > h2.sec:first-child{margin-top:2px}
   }
 </style>
 </head>
@@ -347,7 +368,7 @@
     <button data-view="now">מעקב</button>
     <button data-view="sum">סיכום</button>
   </div>
-  <main id="main"></main>
+  <div class="shell" id="shell"><aside id="side"></aside><main id="main"></main></div>
 </div>
 <div class="toast" id="toast"><span id="toastMsg"></span><button id="undo">ביטול</button><div class="tw" id="toastWhere"></div></div>
 <div class="bg" id="sheetBg"><div class="sheet" id="sheet"></div></div>
@@ -415,6 +436,7 @@ const DAY_FROM = 7, DAY_TO = 22;   // the red crate flag is only shown between t
 const PLAY = {rope:'חבל', kong:'קונג ממולא', lick:'משטח ליקוק', train:'אילוף עם אוכל'};
 // These kinds are a meal too (she is tiny): the play step then logs one `food` entry, tagged `y:"play"`.
 const PLAY_FOOD = {kong:true, lick:true, train:true};
+const STEP_SEC = ['crate','potty','play','food','potty'];   // which group of tiles each wheel step jumps to
 const STEP_ICON = ['crate','paw','ball','food','pee'];   // one per CYCLE step, drawn on its ring segment
 const DUE_MAX = 60*60000;   // the "take her out" reminder gives up after an hour
 const iconOf = k => (ITEMS[k] && ITEMS[k].icon) || k;
@@ -1057,6 +1079,7 @@ function todayTotal(p, k){
 function render(){
   document.body.className = document.documentElement.className = 'p-'+pet;
   document.querySelectorAll('.seg button').forEach(b => b.classList.toggle('on', b.dataset.pet===pet || b.dataset.view===view));
+  const side = document.getElementById('side'); side.innerHTML = '';
   if(view==='sum'){ document.getElementById('main').innerHTML = renderSummary(); return; }
   const P = PETS[pet], S = V[pet];
   let h = '';
@@ -1073,7 +1096,9 @@ function render(){
       <div class="meds">${slot('am','בוקר',11)}${slot('pm','ערב',21)}</div></div>`;
   }
 
-  if(P.cycle) h += alertsHTML(pet) + retryHTML(pet) + cycleHTML(pet);
+  // Alerts, the retry card and the wheel live in the side column: on a computer it stays in place while
+  // the tiles scroll; on a phone it is simply the top of the page.
+  if(P.cycle) side.innerHTML = alertsHTML(pet) + retryHTML(pet) + cycleHTML(pet);
 
   const tap = P.cycle ? routineTap(pet) : [];
   const tileOf = k => {
@@ -1118,15 +1143,15 @@ function render(){
   else {
     // The tiles are grouped by the routine's steps, in its order; the group to fill in now is marked.
     const rt = retry(pet), ln = S.none, lw = S.water;
-    const sec = (num, title, now, body) => `<h2 class="sec ${now ? 'now' : ''}">${num ? `<i>${num}</i>` : ''}${title}${now ? '<span class="tagk">עכשיו בשגרה</span>' : ''}</h2>` + body;
-    h += sec('1', 'כלוב', tap.includes('crate'), tileOf('crate'));
+    const sec = (num, title, now, body, id) => `<h2 class="sec ${now ? 'now' : ''}" id="sec-${id}">${num ? `<i>${num}</i>` : ''}${title}${now ? '<span class="tagk">עכשיו בשגרה</span>' : ''}</h2>` + body;
+    h += sec('1', 'כלוב', tap.includes('crate'), tileOf('crate'), 'crate');
     // "Went out, nothing happened" is one button in a slim row — it has no timer of its own worth a tile.
     h += sec('2 · 5', 'צרכים', tap.includes('pee') || !!rt, tileOf('pee') + tileOf('poop') +
-      `<div class="card slim ${tap.includes('none') ? 'nowt' : ''}"><span><b>יצאה לצרכים ולא עשתה כלום?</b>${ln ? `<small>פעם אחרונה: ${dayLabel(ln)} <bdi dir="ltr">${clock(ln)}</bdi></small>` : ''}</span><button class="btn" data-act="pt" data-k="none">לא עשתה</button></div>`);
-    h += sec('3', 'משחק וחופש', tap.includes('play'), playCardHTML(pet, tap.includes('play')) + freeCardHTML(pet));
+      `<div class="card slim ${tap.includes('none') ? 'nowt' : ''}"><span><b>יצאה לצרכים ולא עשתה כלום?</b>${ln ? `<small>פעם אחרונה: ${dayLabel(ln)} <bdi dir="ltr">${clock(ln)}</bdi></small>` : ''}</span><button class="btn" data-act="pt" data-k="none">לא עשתה</button></div>`, 'potty');
+    h += sec('3', 'משחק וחופש', tap.includes('play'), playCardHTML(pet, tap.includes('play')) + freeCardHTML(pet), 'play');
     h += sec('4', 'אוכל ושתייה', tap.includes('food'), tileOf('food') +
-      `<div class="card slim"><span><b>שתתה מים?</b><small>${lw ? `פעם אחרונה: ${dayLabel(lw)} <bdi dir="ltr">${clock(lw)}</bdi>` : 'עוד לא נרשמה שתייה'}</small></span><button class="btn" data-act="pt" data-k="water">שתתה</button></div>`);
-    h += sec('', 'שינה ובכי · בכל שלב', false, tileOf('sleep') + tileOf('cry'));
+      `<div class="card slim"><span><b>שתתה מים?</b><small>${lw ? `פעם אחרונה: ${dayLabel(lw)} <bdi dir="ltr">${clock(lw)}</bdi>` : 'עוד לא נרשמה שתייה'}</small></span><button class="btn" data-act="pt" data-k="water">שתתה</button></div>`, 'food');
+    h += sec('', 'שינה ובכי · בכל שלב', false, tileOf('sleep') + tileOf('cry'), 'rest');
   }
 
   if(P.cycle){
@@ -1142,7 +1167,7 @@ function cycleHTML(p){
   const S = V[p], now = Date.now(), rn = roundStarts(p).pop(), r = routine(p);
   const inCrate = !!(S.crate && S.crate.start), over = crateOver(p), asleep = !!(S.sleep && S.sleep.start), due = pottyDue(p);
   const ci = r && !r.brk ? r.i : -1, nx = r ? r.next : 0;
-  // The ring only shows; nothing on it is tappable. Earlier steps of the round are tinted, the current
+  // The ring shows where she is; it cannot change the step. Tapping a step jumps to that step's tiles. Earlier steps of the round are tinted, the current
   // one is filled (red when the crate stay is too long) and the next one has a dashed outline.
   const R = 74, pt = (deg, rr) => [100 + rr*Math.cos(deg*Math.PI/180), 100 + rr*Math.sin(deg*Math.PI/180)].map(v => v.toFixed(1));
   const cls = i => r && r.done ? (i === nx ? 'nxt' : 'done') : `${i === ci ? 'cur' : i < ci ? 'done' : ''} ${i === ci && over ? 'over' : ''} ${i === nx && i !== ci ? 'nxt' : ''}`;
@@ -1150,13 +1175,13 @@ function cycleHTML(p){
   const segs = CYCLE.map((s, i) => {
     const a0 = -90 + i*72 + GAP/2, a1 = a0 + 72 - GAP, [ix,iy] = pt((a0 + a1 + TIP)/2, R);
     const d = `M${pt(a0,RO)}A${RO} ${RO} 0 0 1 ${pt(a1,RO)}L${pt(a1+TIP,R)}L${pt(a1,RI)}A${RI} ${RI} 0 0 0 ${pt(a0,RI)}L${pt(a0+TIP,R)}Z`.replace(/,/g, ' ');
-    return `<path class="sg ${cls(i)}" d="${d}"/>` +
+    return `<path class="sg ${cls(i)}" data-go="${STEP_SEC[i]}" d="${d}"/>` +
       `<svg class="si ${cls(i)}" x="${ix-8.5}" y="${iy-8.5}" width="17" height="17" viewBox="0 0 24 24">${ICONS[STEP_ICON[i]]}</svg>`;
   }).join('');
   const labels = CYCLE.map((s, i) => {
     const ang = -90 + i*72 + 36, cos = Math.cos(ang*Math.PI/180), side = cos > .5 ? 'r' : cos < -.5 ? 'l' : 'm';
     const [dx, dy] = pt(ang, side === 'm' ? 106 : 93);
-    return `<span class="rl ${side} ${i===ci && !(r && r.done) ? 'on' : ''} ${cls(i).includes('nxt') ? 'nxt' : ''}" style="left:calc(50% + ${(dx-100).toFixed(1)}px);top:calc(50% + ${(dy-100).toFixed(1)}px)"><i>${i+1}</i>${s.n}</span>`;
+    return `<button class="rl ${side} ${i===ci && !(r && r.done) ? 'on' : ''} ${cls(i).includes('nxt') ? 'nxt' : ''}" data-go="${STEP_SEC[i]}" style="left:calc(50% + ${(dx-100).toFixed(1)}px);top:calc(50% + ${(dy-100).toFixed(1)}px)"><i>${i+1}</i>${s.n}</button>`;
   }).join('');
   const since = t => `כבר <span data-words="${t}">${words(now-t)}</span>`;
   const centre = (asleep ? ico('sleep','s zzi') : '') + (!r ? `<span>הגלגל מתקדם לבד<br>לפי מה שמסמנים למטה</span>`
@@ -1183,6 +1208,7 @@ function cycleHTML(p){
     <div class="cyc-h"><b>השגרה של ${PETS[p].name}</b><small>${r && !r.brk && rn ? roundName(rn)+' · ' : r && r.brk ? 'בהפסקה · ' : ''}<button class="lnk" data-act="help">איך זה עובד?</button></small></div>
     <div class="steps"><svg class="ring" viewBox="0 0 200 200" aria-hidden="true">${segs}</svg>
       <div class="rc">${centre}</div>${labels}</div>
+    <div class="sub wheelhint">לחיצה על שלב בגלגל מקפיצה לכרטיסים שלו</div>
     ${long3 ? `<div class="duemsg">${ico('pee','s')}<span>עברו ${words(now - S.pee)} מהפיפי האחרון · להוציא לחצץ</span></div>` : ''}
     ${tired ? `<div class="zz">${ico('sleep','s')}<span>ערה כבר ${words(now - awakeSince)} · לכלוב לישון</span></div>` : ''}
     ${over ? `<div class="duemsg">${ico('crate','s')}<span>בכלוב כבר יותר מ${words(CRATE_MAX)} · מ־<bdi dir="ltr">${clock(S.crate.start)}</bdi></span></div>` : ''}
@@ -1195,7 +1221,7 @@ function openHelp(){
   sh.innerHTML = `<h3>איך זה עובד?</h3>
     <div class="help">
       <p><b>מסמנים רק בכרטיסים.</b> בכל כרטיס יש כפתור: נכנסה לכלוב, פיפי, קקי, לא עשתה, אכלה וכו׳.</p>
-      <p><b>הגלגל מתקדם לבד.</b> הוא מראה באיזה שלב של השגרה נמצאים (כלוב ← טיול וצרכים ← משחק ← אוכל ← צרכים) ומה השלב הבא. אי אפשר ללחוץ עליו.</p>
+      <p><b>הגלגל מתקדם לבד.</b> הוא מראה באיזה שלב של השגרה נמצאים (כלוב ← טיול וצרכים ← משחק ← אוכל ← צרכים) ומה השלב הבא. לחיצה על שלב בגלגל מקפיצה לכרטיסים שלו.</p>
       <p><b>״עכשיו בשגרה״.</b> הכרטיסים עם התווית הזו הם מה שצריך לסמן עכשיו כדי להתקדם.</p>
       <p><b>שכחתם לסמן בזמן?</b> ״שעה אחרת״ בכרטיס, ושם בוחרים לפני כמה דקות זה קרה.</p>
       <p><b>טעיתם?</b> ״ביטול״ בפס השחור למטה, או לחיצה על הרישום ברשימה כדי לתקן או למחוק. הגלגל מתעדכן בהתאם.</p>
@@ -1562,7 +1588,17 @@ document.getElementById('main').addEventListener('change', e => {
   const [y,m,d] = e.target.value.split('-').map(Number);
   sumAnchor = Math.min(new Date(y, m-1, d).getTime(), Date.now()); e.target.blur(); render();
 });
-document.getElementById('main').addEventListener('click', e => {
+// Jump to a group of tiles and flash it, so the eye lands on the right place.
+function goSec(key){
+  const h2 = document.getElementById('sec-'+key); if(!h2) return;
+  h2.scrollIntoView({behavior:'smooth', block:'start'});
+  const els = [h2]; for(let n = h2.nextElementSibling; n && n.tagName !== 'H2'; n = n.nextElementSibling) els.push(n);
+  els.forEach(n => { n.classList.remove('flash'); void n.offsetWidth; n.classList.add('flash'); });
+  setTimeout(() => els.forEach(n => n.classList.remove('flash')), 1500);
+}
+document.getElementById('shell').addEventListener('click', e => {
+  const go = e.target.closest('[data-go]');
+  if(go){ goSec(go.dataset.go); return; }
   if(e.target.id === 'sumDate'){ try{ e.target.showPicker(); }catch(_){} return; }
   const ent = e.target.closest('.r[data-e], .d[data-e]');
   if(ent){ openEntrySheet(+ent.dataset.e); return; }

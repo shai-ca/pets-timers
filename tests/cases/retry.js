@@ -7,7 +7,7 @@
     seed([{ p:'kishmish', k:'crate', t: now - 120*MIN, end: now - 5*MIN }, { p:'kishmish', k:'pee', t: now - 130*MIN, w:'gravel' }]);
     ok('no retry card to begin with; play is open', !card() && !$q('.card.playc.locked') && retry('kishmish') === null);
     tile('none').click();
-    ok('"nothing" -> retry card on top, asking to go back to the crate for 10 minutes', !!card() && card().classList.contains('toCrate') && card().textContent.includes('חזרה לכלוב ל־10 דקות') && $q('#main').firstElementChild === card());
+    ok('"nothing" -> retry card on top, asking to go back to the crate for 10 minutes', !!card() && card().classList.contains('toCrate') && card().textContent.includes('חזרה לכלוב ל־10 דקות') && $q('#side').firstElementChild === card());
     ok('play and free time are locked "after a pee"; food stays available', !!$q('.card.playc.locked') && $n('.card.playc [data-act=play]:disabled') === 4 && $q('.card.slim.locked').textContent.includes('אחרי פיפי') && !tile('food').disabled);
     ok('the wheel stays on the potty step', cur() === 'טיול וצרכים' && $q('.cyc-n').textContent.includes('ניסיון חוזר') && $n('.card.nowt') === 0);
     $q('[data-act=rtmin][data-k="8"]').click();
