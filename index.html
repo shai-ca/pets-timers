@@ -91,6 +91,13 @@
   .empty{color:var(--faint);font-size:14px;padding:14px 0;text-align:center}
 
   .toast{position:fixed;left:50%;transform:translate(-50%,20px);opacity:0;pointer-events:none;bottom:calc(env(safe-area-inset-bottom) + 20px);background:var(--ink);color:#fff;border-radius:14px;padding:8px 8px 8px 14px;display:flex;align-items:center;gap:10px;font-size:14px;box-shadow:0 8px 24px rgba(0,0,0,.18);transition:all .2s;white-space:nowrap;padding-right:14px}
+  .toast{flex-wrap:wrap;justify-content:space-between}
+  .toast .tw{flex-basis:100%;display:flex;gap:6px;padding-bottom:2px}
+  .toast .tw:empty{display:none}
+  .toast .tw button{flex:1}
+  .toast .tw button.sel{background:#fff;color:var(--ink)}
+  .wh{font-style:normal}
+  .wh.floor{color:var(--alert);font-weight:500}
   .toast.show{opacity:1;transform:translate(-50%,0);pointer-events:auto}
   .toast button{background:rgba(255,255,255,.14);color:#fff;border:0;border-radius:9px;padding:7px 12px;font:inherit;font-weight:500;cursor:pointer}
 
@@ -196,7 +203,7 @@
   </div>
   <main id="main"></main>
 </div>
-<div class="toast" id="toast"><span id="toastMsg"></span><button id="undo">ביטול</button></div>
+<div class="toast" id="toast"><span id="toastMsg"></span><button id="undo">ביטול</button><div class="tw" id="toastWhere"></div></div>
 <div class="bg" id="sheetBg"><div class="sheet" id="sheet"></div></div>
 
 <script>
@@ -244,6 +251,10 @@ const CYCLE = [
   {n:'אוכל', food:true},
   {n:'צרכים', potty:true}
 ];
+// Where a pee / poop happened; stored as `w` on the log entry (optional).
+const WHERE = {out:'בחוץ', pad:'על הפד', floor:'על הרצפה'};
+const WHERE_SHORT = {out:'בחוץ', pad:'פד', floor:'רצפה'};
+const hasWhere = k => k==='pee' || k==='poop';
 const DUE_MAX = 60*60000;   // the "take her out" reminder gives up after an hour
 const iconOf = k => (ITEMS[k] && ITEMS[k].icon) || k;
 const LOG_MAX = 5000, LS_KEY = 'pets-timers-v1';
@@ -384,6 +395,7 @@ function tapPoint(p, k, t){
     state[p][k] = (typeof cur==='number' && cur > t) ? cur : t;
     state.log.push({p,k,t});
   });
+  if(hasWhere(k)) toastWhere(p, k, t);
 }
 function tapDur(p, k){
   const now = Date.now(), d = state[p][k] || {};
@@ -503,7 +515,7 @@ function render(){
         <div class="ic">${ico(k)}</div>
         <div><div class="lbl">${it.lbl}</div>
           <div class="big ${t?'':'none'}" ${t?`data-since="${t}"`:''}>${t ? dur(Date.now()-t) : '–'}</div>
-          <div class="sub">${t ? `${dayLabel(t)} ב־${clock(t)}${byOf(pet,k,t)}` : 'עוד לא נרשם'}</div></div>
+          <div class="sub">${t ? `${dayLabel(t)} ב־${clock(t)}${whereOf(pet,k,t)}${byOf(pet,k,t)}` : 'עוד לא נרשם'}</div></div>
         <div class="acts"><button class="go" data-act="pt" data-k="${k}">${it.btn}</button>
           <button class="ghost" data-act="edit" data-k="${k}">${ico('clock','s')}שעה אחרת</button></div></div>`;
     } else {
@@ -542,12 +554,17 @@ function cycleHTML(p){
     <div class="cyc-a">${potty ? `<button class="btn" data-act="pt" data-k="pee">פיפי</button><button class="btn" data-act="pt" data-k="poop">קקי</button>` : ''}${due ? `<button class="btn" data-act="nopotty">לא עשתה</button>` : ''}
       <button class="go" data-act="step" data-k="${next}">הבא: ${CYCLE[next].n}</button></div></div>`;
 }
+function whereTag(w){ return WHERE[w] ? ` · <em class="wh ${w}">${WHERE[w]}</em>` : ''; }
+function whereOf(p, k, t){   // " · where" of the pee / poop logged at t, if it was marked
+  for(let i = state.log.length-1; i >= 0; i--){ const e = state.log[i]; if(e.p===p && e.k===k && e.t===t) return whereTag(e.w); }
+  return '';
+}
 function byOf(p, k, t){   // " · name" of whoever logged this event, if known
   for(let i = state.log.length-1; i >= 0; i--){ const e = state.log[i]; if(e.p===p && e.k===k && e.t===t) return USERS[e.by] ? ' · '+USERS[e.by] : ''; }
   return '';
 }
 function logRow(e){
-  return `<div class="r" ${e.live ? '' : `data-e="${state.log.indexOf(e)}"`}>${ico(iconOf(e.k),'s')}<span>${e.live ? ITEMS[e.k].live+' עכשיו' : ITEMS[e.k].log}${e.end ? ' · '+words(e.end-e.t) : ''}${USERS[e.by] ? `<i class="by">${USERS[e.by]}</i>` : ''}</span>
+  return `<div class="r" ${e.live ? '' : `data-e="${state.log.indexOf(e)}"`}>${ico(iconOf(e.k),'s')}<span>${e.live ? ITEMS[e.k].live+' עכשיו' : ITEMS[e.k].log}${whereTag(e.w)}${e.end ? ' · '+words(e.end-e.t) : ''}${USERS[e.by] ? `<i class="by">${USERS[e.by]}</i>` : ''}</span>
      <time>${dayLabel(e.t)} <bdi dir="ltr">${clock(e.t)}${e.end ? '–'+clock(e.end) : ''}</bdi></time></div>`;
 }
 
@@ -576,17 +593,21 @@ function sumShift(dir){
   sumAnchor = Math.min(d.getTime(), Date.now());
 }
 function stats(p, from, to){
-  const r = {food:0, pee:0, poop:0, sleep:{n:0,ms:0}, cry:{n:0,ms:0}, crate:{n:0,ms:0}, meds:0};
+  const r = {food:0, pee:0, poop:0, sleep:{n:0,ms:0}, cry:{n:0,ms:0}, crate:{n:0,ms:0}, meds:0, w:{pee:{}, poop:{}}};
   const add = (k, a, b) => { const ov = Math.min(b,to) - Math.max(a,from); if(ov > 0){ r[k].ms += ov; r[k].n++; } };
   for(const e of state.log){
     if(e.p !== p) continue;
     if(ITEMS[e.k].dur){ if(e.end) add(e.k, e.t, e.end); }
-    else if(typeof r[e.k]==='number' && e.t >= from && e.t < to) r[e.k]++;
+    else if(typeof r[e.k]==='number' && e.t >= from && e.t < to){ r[e.k]++; if(WHERE[e.w] && r.w[e.k]) r.w[e.k][e.w] = (r.w[e.k][e.w] || 0) + 1; }
   }
   for(const k of PETS[p].items) if(ITEMS[k].dur && state[p][k] && state[p][k].start) add(k, state[p][k].start, Date.now());
   const meds = state[p].meds || {};
   for(const d = new Date(from); d.getTime() < to; d.setDate(d.getDate()+1)){ const m = meds[dayKey(d)] || {}; r.meds += (m.am?1:0) + (m.pm?1:0); }
   return r;
+}
+function whereLine(c){   // "רצפה 1 · פד 2" under the pee / poop tiles
+  const parts = ['floor','pad','out'].filter(w => c && c[w]).map(w => `<em class="wh ${w}">${WHERE_SHORT[w]} ${c[w]}</em>`);
+  return parts.length ? `<small>${parts.join(' · ')}</small>` : '';
 }
 function renderSummary(){
   const P = PETS[pet], now = Date.now(), [from, to] = sumRange(sumMode, sumAnchor);
@@ -616,7 +637,7 @@ function renderSummary(){
 
   const avg = n => multi && days > 1 ? `<small>ממוצע ${(n/days).toFixed(1).replace('.0','')} ליום</small>` : '';
   h += `<div class="tiles">` + ['food','pee','poop'].map(k =>
-    `<div class="tile"><div class="ic">${ico(k)}</div><b>${st[k]}</b><span>${SUM_LBL[k]}</span>${avg(st[k])}</div>`).join('') + `</div>`;
+    `<div class="tile"><div class="ic">${ico(k)}</div><b>${st[k]}</b><span>${SUM_LBL[k]}</span>${avg(st[k])}${whereLine(st.w[k])}</div>`).join('') + `</div>`;
   const durs = P.items.filter(k => ITEMS[k].dur);
   if(durs.length) h += `<div class="tiles two">` + durs.map(k =>
     `<div class="tile"><div class="ic">${ico(k)}</div><b class="t">${st[k].ms ? words(st[k].ms) : '–'}</b>
@@ -690,8 +711,23 @@ document.getElementById('main').addEventListener('click', e => {
 function showToast(msg, before){
   lastUndo = before;
   document.getElementById('toastMsg').textContent = msg;
+  document.getElementById('toastWhere').innerHTML = '';
   const t = document.getElementById('toast'); t.classList.add('show');
   clearTimeout(toastTimer); toastTimer = setTimeout(()=>{ t.classList.remove('show'); lastUndo=null; }, 6000);
+}
+// Right after a pee / poop is logged the toast also offers "where" — optional, one tap, no extra screen.
+function toastWhere(p, k, t){
+  const find = () => state.log.find(e => e.p===p && e.k===k && e.t===t);
+  const box = document.getElementById('toastWhere'), toast = document.getElementById('toast');
+  if(!find() || !toast.classList.contains('show')) return;
+  const draw = () => { const e = find() || {}; box.innerHTML = Object.keys(WHERE).map(w => `<button data-w="${w}" class="${e.w===w?'sel':''}">${WHERE[w]}</button>`).join(''); };
+  const hold = ms => { clearTimeout(toastTimer); toastTimer = setTimeout(() => { toast.classList.remove('show'); lastUndo = null; }, ms); };
+  draw(); hold(9000);
+  box.onclick = ev => {
+    const b = ev.target.closest('[data-w]'), e = find(); if(!b || !e) return;
+    if(e.w === b.dataset.w) delete e.w; else e.w = b.dataset.w;
+    render(); push(); draw(); hold(2500);
+  };
 }
 document.getElementById('undo').onclick = () => {
   if(!lastUndo) return;
@@ -821,7 +857,8 @@ function openEntrySheet(i){
   const it = ITEMS[e.k], name = PETS[e.p].name, med = e.k.startsWith('med_'), pt = !it.dur && !med;
   const find = () => state.log.findIndex(x => x.p===e.p && x.k===e.k && x.t===e.t && x.end===e.end);
   sheet(`${name} · ${it.log} · ${dayLabel(e.t)} <bdi dir="ltr">${clock(e.t)}</bdi>`,
-    pt ? `<label class="field">תיקון השעה ${timeField("tIn", clock(e.t))}</label>`
+    pt ? `<label class="field">תיקון השעה ${timeField("tIn", clock(e.t))}</label>` +
+         (hasWhere(e.k) ? `<div class="sub" style="margin:14px 0 8px">איפה?</div><div class="chips">${Object.keys(WHERE).map(w => `<button data-w="${w}" class="${e.w===w?'sel':''}">${WHERE[w]}</button>`).join('')}</div>` : '')
        : `<div class="sub">אפשר למחוק את הרישום הזה.</div>`,
     '<button class="btn danger" id="del">מחיקה</button>',
     () => {
@@ -829,9 +866,19 @@ function openEntrySheet(i){
       const v = timeVal('tIn'); if(!v) return;
       const [hh,mm] = v.split(':').map(Number), d = new Date(e.t); d.setHours(hh,mm,0,0);
       close();
-      if(d.getTime() === e.t) return;
-      commit(`${name} · ${it.log} עודכן`, () => { const j = find(); if(j < 0) return; state.log[j].t = d.getTime(); recalc(e.p, e.k); });
+      if(d.getTime() === e.t && w === e.w) return;
+      commit(`${name} · ${it.log} עודכן`, () => {
+        const j = find(); if(j < 0) return;
+        const x = state.log[j];
+        if(w) x.w = w; else delete x.w;
+        if(d.getTime() !== x.t){ x.t = d.getTime(); recalc(e.p, e.k); }
+      });
     });
+  let w = e.w;
+  sh.querySelectorAll('[data-w]').forEach(b => b.onclick = () => {
+    w = w === b.dataset.w ? undefined : b.dataset.w;
+    sh.querySelectorAll('[data-w]').forEach(x => x.classList.toggle('sel', x.dataset.w === w));
+  });
   sh.querySelector('#del').onclick = () => {
     close();
     commit(`${name} · ${it.log} נמחק`, () => {

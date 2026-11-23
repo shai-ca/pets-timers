@@ -6,6 +6,7 @@ A single-page mobile web app (Hebrew, RTL) for tracking two pets:
 - **Kishmish (קישמיש):** time since last food / pee / poop, plus start/stop timers for sleep, crying and crate (shows the live duration, the last duration, and today's total).
 - **Routine strip (Kishmish, `cycle:true`):** the trainer's potty-training cycle from `CYCLE` — כלוב → טיול וצרכים → משחק → אוכל → צרכים → back to crate. `goStep()` moves between steps in one undoable commit: entering the crate step starts the crate timer and leaving it stops it, entering the food step logs a meal, play has no timer (the owner found that too much tapping; leaving it only stamps `playEnd`). Using the crate tile directly moves the strip too. The current step is `state.kishmish.cyc = {i, t}`.
 - **Take-out reminder:** `pottyDue()` shows "זמן להוציא לצרכים" after waking up, leaving the crate, play or food (the trainer's list) until pee/poop is logged or "לא עשתה" is tapped (`state.kishmish.out`), for at most an hour, and never while she is asleep or in the crate.
+- **Where (pee / poop):** a log entry can carry `w: "out"|"pad"|"floor"` (`WHERE`). Right after logging, the toast offers the three choices (`toastWhere`, optional); any past entry can be changed from its history sheet. Shown next to the entry and on the tile (floor in red) and counted in the summary tiles (`whereLine`).
 - **Colours:** each pet page has its own theme (`.p-kochik` / `.p-kishmish`, set on `<html>` and `<body>`): Kochik is a Maltese (snow white and silver), Kishmish a Yorkshire puppy (black buttons on tan).
 
 - **Summary (סיכום):** a second view per pet with day / week / month totals, navigable by date (arrows or a date picker). Week and month show per-day averages and a per-day table; tapping a row opens that day. Weeks start on Sunday. Computed from `log` in `renderSummary()` / `stats()`.
@@ -32,7 +33,7 @@ All state lives in one JSON object:
               cry:   { start?: ts, lastStart?: ts, lastEnd?: ts },
               crate: { start?: ts, lastStart?: ts, lastEnd?: ts },
               cyc?: { i: 0..4, t: ts }, playEnd?: ts, out?: ts },
-  log: [ { p: "kochik"|"kishmish", k: "food"|"pee"|"poop"|"sleep"|"cry"|"crate"|"med_am"|"med_pm", t: ts, end?: ts, by?: "yonatan"|"shai"|"liza" } ]  // capped at 5000 (LOG_MAX)
+  log: [ { p: "kochik"|"kishmish", k: "food"|"pee"|"poop"|"sleep"|"cry"|"crate"|"med_am"|"med_pm", t: ts, end?: ts, w?: "out"|"pad"|"floor", by?: "yonatan"|"shai"|"liza" } ]  // capped at 5000 (LOG_MAX)
 }
 ```
 
