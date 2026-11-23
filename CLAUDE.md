@@ -22,6 +22,8 @@ Every action can be undone from the toast for 6 seconds, and any event can be lo
 
 - `index.html` — the whole app: HTML, CSS, and JS in one file, no build step. The icons are hand-drawn inline SVGs in the `ICONS` object. Font: Heebo from Google Fonts.
 
+- `icon.svg`, `icon-192.png`, `apple-touch-icon.png` (180px) — the favicon and the iPhone home-screen icon: the paw from `ICONS.paw` on a white / tan diagonal (one half per dog). The PNGs are renders of `icon.svg`; redo them if it changes.
+
 ## Data
 
 All state lives in one JSON object:
