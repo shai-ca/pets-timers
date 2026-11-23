@@ -62,6 +62,15 @@
     const napNow = S.doc.log.find(e => e.id === 'nap');
     ok('a stale phone cannot stretch a sleep that was already ended', napNow.end === now - 22*HOUR && S.doc.log.find(e => e.id === 'cr').end > now - MIN);
     ok('and it shows the true last sleep itself afterwards', K().sleep.lastEnd === now - 22*HOUR && !K().sleep.start);
+    // (seen in real use) one phone ends a sleep "now"; another then records that she was out 7 minutes earlier
+    onServer(S.read()); await wait();
+    S.doc.log.push({ id:'nap2', p:'kishmish', k:'sleep', t: now - 30*MIN, by:'shai' });
+    const late2 = { state: norm(S.read()) }; late2.base = clone(late2.state);
+    S.doc.log.find(e => e.id === 'nap2').end = now;                                   // phone A: "woke up" just now
+    use(late2.state, late2.base);
+    commit('', () => { state.log.find(e => e.id === 'nap2').end = now - 7*MIN; });   // phone B, saved afterwards: she was already up 7 minutes ago
+    await wait();
+    ok('when two phones end the same timer, the earlier end wins', S.doc.log.find(e => e.id === 'nap2').end === now - 7*MIN);
     ok('the server document carries the version', S.doc.v === SCHEMA);
     done();
   } catch(e){ crashed(e); }

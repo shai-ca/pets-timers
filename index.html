@@ -599,9 +599,10 @@ function patch(d, onto){   // returns a new state: `onto` with the changes `d` a
     const x = s.log.find(e => e.id === c.id);
     if(!x) continue;                       // someone deleted it meanwhile: the deletion stands
     for(const k of Object.keys(c.set)){
-      // Ending a timer that someone else has already ended: their end stands. (A phone that had not synced
-      // for a day once "ended" a sleep that was long over, and logged it as 23 hours.)
-      if(k === 'end' && c.wasOpen && x.end != null) continue;
+      // Two phones ended the same timer: the earlier end is the true one. (A phone that had not synced for a
+      // day once "ended" a sleep that was long over and logged it as 23 hours; and an end entered late as
+      // "ten minutes ago" must beat an end tapped "now" on another phone in between.)
+      if(k === 'end' && c.wasOpen && x.end != null){ x.end = Math.min(x.end, c.set.end); continue; }
       x[k] = clone(c.set[k]);
     }
     for(const k of c.del) delete x[k];
