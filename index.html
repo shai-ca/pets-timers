@@ -210,11 +210,25 @@
   .cyc-h{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:10px}
   .cyc-h b{font-weight:600;font-size:15px}
   .cyc-h small{font-size:12.5px;color:var(--muted)}
-  .steps{display:flex;flex-wrap:wrap;gap:6px}
-  .steps button{border:1px solid var(--line);background:var(--bg);border-radius:10px;padding:7px 10px;font:inherit;font-size:13px;color:var(--muted);cursor:pointer}
-  .steps button i{font-style:normal;opacity:.55;margin-inline-end:5px;font-variant-numeric:tabular-nums}
-  .steps button:disabled{opacity:.4;cursor:default}
-  .steps button.on{background:var(--btn);border-color:var(--btn);color:#fff;font-weight:500}
+  /* the routine as a ring: five segments clockwise from the top, the current one filled */
+  .steps{position:relative;height:236px;max-width:340px;margin:2px auto 0}
+  .ring{position:absolute;left:50%;top:50%;width:200px;height:200px;margin:-100px 0 0 -100px;overflow:visible}
+  .sg{fill:none;stroke:var(--seg);stroke-width:26;cursor:pointer;transition:stroke .2s}
+  .sg.done{stroke:color-mix(in srgb,var(--btn) 32%,var(--card))}
+  .sg.cur{stroke:var(--btn)} .sg.cur.over{stroke:var(--alert)}
+  .sg.lock{cursor:default;opacity:.55}
+  .si{fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round;color:var(--muted);pointer-events:none}
+  .si.done{color:var(--btn)} .si.cur{color:#fff} .si.lock{opacity:.55}
+  .rc{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:114px;text-align:center;pointer-events:none;line-height:1.3}
+  .rc b{display:block;font-size:17px;font-weight:600;color:var(--ink)}
+  .rc span{display:block;font-size:12px;color:var(--muted)}
+  .rc .zzi{color:var(--ok);margin-bottom:1px}
+  .steps button.rl{position:absolute;transform:translate(-50%,-50%);border:0;background:none;padding:5px 4px;font:inherit;font-size:12.5px;color:var(--muted);white-space:nowrap;cursor:pointer}
+  .steps button.rl.r{transform:translate(0,-50%);text-align:left} .steps button.rl.l{transform:translate(-100%,-50%);text-align:right}
+  .steps button.rl.r,.steps button.rl.l{max-width:66px;white-space:normal;line-height:1.2}
+  .steps button.rl i{font-style:normal;opacity:.6;margin-inline-end:4px;font-variant-numeric:tabular-nums}
+  .steps button.rl:disabled{opacity:.45;cursor:default}
+  .steps button.rl.on{color:var(--ink);font-weight:600}
   .duemsg{display:flex;align-items:center;gap:8px;margin-top:10px;padding:9px 12px;border-radius:12px;background:var(--alert-soft);color:var(--alert);font-size:13.5px;font-weight:500}
   .card.cyc.due{border-color:color-mix(in srgb,var(--alert) 40%,transparent)}
   .cyc-a{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:12px}
@@ -242,7 +256,13 @@
     main > h2{margin-top:14px}
     main > .card.log, main > .card.tblc, main > .card.rounds{max-width:720px}
     main > .card.sumnav{max-width:440px}
-    main > .card.cyc{max-width:744px}
+    /* routine card: the ring on one side, status and actions beside it */
+    main > .card.cyc{max-width:744px;display:grid;grid-template-columns:300px 1fr;column-gap:28px;align-content:center;padding:20px 24px}
+    .card.cyc > *{grid-column:2}
+    .card.cyc > .steps{grid-column:1;grid-row:1 / span 8;margin:0;align-self:center;width:300px}
+    .card.cyc > .cyc-h{align-self:end;margin-bottom:6px}
+    .card.cyc > .cyc-h b{font-size:17px}
+    .card.cyc > .cyc-a{align-self:start}
     .tiles, .tiles.two{grid-template-columns:repeat(auto-fill,minmax(170px,190px));gap:14px}
     .tiles .tile{grid-column:auto !important;aspect-ratio:1/1;padding:18px;justify-content:flex-end}
     .tiles .tile .ic{margin-bottom:auto}
@@ -283,6 +303,7 @@ const ICONS = {
   cry:'<circle cx="12" cy="12" r="8.5"/><path d="M8.4 10.4q1-.9 2 0M13.6 10.4q1-.9 2 0M9.6 16.2q2.4-1.6 4.8 0"/><path d="M8.2 12.6c.5.8.9 1.4.9 1.9a.9.9 0 0 1-1.8 0c0-.5.4-1.1.9-1.9Z" fill="currentColor" stroke="none"/>',
   crate:'<rect x="3.5" y="6.5" width="17" height="12.5" rx="2.2"/><path d="M8 6.5V19M12 6.5V19M16 6.5V19M9.5 6.5V5a2.5 2.5 0 0 1 5 0v1.5"/>',
   none:'<circle cx="12" cy="12" r="8.5"/><path d="M6.2 17.8 17.8 6.2"/>',
+  ball:'<circle cx="12" cy="12" r="8.3"/><path d="M5 8.3c3.7 1 6.2 4.2 6 11.8M19 8.3c-3.7 1-6.2 4.2-6 11.8"/>',
   pill:'<rect x="2.8" y="8.6" width="18.4" height="6.8" rx="3.4" transform="rotate(-45 12 12)"/><path d="M9.6 9.6l4.8 4.8"/>',
   check:'<path d="M5 12.5l4.2 4.2L19 7"/>',
   clock:'<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>',
@@ -331,6 +352,7 @@ const DAY_FROM = 7, DAY_TO = 22;   // the red crate flag is only shown between t
 const BREAK = -1;   // pseudo step in `hist`: the routine is on hold (vet, a trip…); it ends the round
 const stepName = i => i === BREAK ? 'הפסקה' : CYCLE[i].n;
 const HIST_MAX = 1500;   // step changes kept for the rounds list (about a month)
+const STEP_ICON = ['crate','paw','ball','food','pee'];   // one per CYCLE step, drawn on its ring segment
 const DUE_MAX = 60*60000;   // the "take her out" reminder gives up after an hour
 const iconOf = k => (ITEMS[k] && ITEMS[k].icon) || k;
 const LOG_MAX = 5000, LS_KEY = 'pets-timers-v1';
@@ -926,14 +948,31 @@ function cycleHTML(p){
   // While she sleeps the strip does not push on: the only suggestion is what to do when she wakes up.
   const asleep = !!(S.sleep && S.sleep.start), next = (ci+1) % CYCLE.length;
   const due = pottyDue(p), potty = !asleep && !inCrate && (due || (c && CYCLE[ci].potty));
-  const head = c ? `${rn ? roundName(rn)+' · ' : ''}${CYCLE[ci].n}${inCrate ? ` מ־<bdi dir="ltr">${clock(c.t)}</bdi>` : ''} · כבר <span data-words="${c.t}">${words(now-c.t)}</span>`
-    : brk ? `בהפסקה · כבר <span data-words="${S.cyc.t}">${words(now-S.cyc.t)}</span>` : 'לחיצה על שלב מתחילה את המעקב';
+  // The ring: five segments clockwise from the top; earlier steps of the round are tinted, the current
+  // one is filled (red once the crate stay is too long). Segments and their labels both jump to a step.
+  const R = 74, pt = (deg, r) => [100 + r*Math.cos(deg*Math.PI/180), 100 + r*Math.sin(deg*Math.PI/180)].map(v => v.toFixed(1));
+  const cls = i => `${i === ci ? 'cur' : i < ci ? 'done' : ''} ${i === ci && over ? 'over' : ''} ${inCrate && i !== 0 ? 'lock' : ''}`;
+  const segs = CYCLE.map((s, i) => {
+    const a0 = -90 + i*72 + 3.5, [x1,y1] = pt(a0, R), [x2,y2] = pt(a0 + 65, R), [ix,iy] = pt(a0 + 32.5, R);
+    return `<path class="sg ${cls(i)}" data-seg="${i}" d="M${x1} ${y1}A${R} ${R} 0 0 1 ${x2} ${y2}"/>` +
+      `<svg class="si ${cls(i)}" x="${ix-8.5}" y="${iy-8.5}" width="17" height="17" viewBox="0 0 24 24">${ICONS[STEP_ICON[i]]}</svg>`;
+  }).join('');
+  const labels = CYCLE.map((s, i) => {
+    // Labels sit just outside the ring: side ones are anchored by their inner edge so they never cover it.
+    const ang = -90 + i*72 + 36, cos = Math.cos(ang*Math.PI/180), side = cos > .5 ? 'r' : cos < -.5 ? 'l' : 'm';
+    const [dx, dy] = pt(ang, side === 'm' ? 106 : 93);
+    return `<button class="rl ${side} ${i===ci?'on':''}" data-act="step" data-k="${i}" style="left:calc(50% + ${(dx-100).toFixed(1)}px);top:calc(50% + ${(dy-100).toFixed(1)}px)" ${inCrate && i!==0 ? 'disabled' : ''}><i>${i+1}</i>${s.n}</button>`;
+  }).join('');
+  const since = t => `כבר <span data-words="${t}">${words(now-t)}</span>`;
+  const centre = (asleep ? ico('sleep','s zzi') : '') + (c ? `<b>${CYCLE[ci].n}</b><span>${since(c.t)}</span>${inCrate ? `<span>מ־<bdi dir="ltr">${clock(c.t)}</bdi></span>` : ''}`
+    : brk ? `<b>הפסקה</b><span>${since(S.cyc.t)}</span>` : `<span>לחיצה על שלב<br>מתחילה את המעקב</span>`);
   const main = inCrate ? `<button class="go ${asleep?'wait':''}" data-act="out">הוצאתי אותה מהכלוב</button>`
     : asleep ? `<button class="go wait" data-act="wake">כשתתעורר: ${CYCLE[1].n}</button>`
     : `<button class="go" data-act="step" data-k="${next}">${brk ? 'חזרה לשגרה' : 'הבא'}: ${CYCLE[next].n}</button>`;
   return `<div class="card cyc ${due||over?'due':''}">
-    <div class="cyc-h"><b>השגרה של ${PETS[p].name}</b><small>${head}</small></div>
-    <div class="steps">${CYCLE.map((s,i) => `<button class="${i===ci?'on':''}" data-act="step" data-k="${i}" ${inCrate && i!==0 ? 'disabled' : ''}><i>${i+1}</i>${s.n}</button>`).join('')}</div>
+    <div class="cyc-h"><b>השגרה של ${PETS[p].name}</b><small>${c && rn ? roundName(rn) : brk ? 'בהפסקה' : ''}</small></div>
+    <div class="steps"><svg class="ring" viewBox="0 0 200 200" aria-hidden="true">${segs}</svg>
+      <div class="rc">${centre}</div>${labels}</div>
     ${over ? `<div class="duemsg">${ico('crate','s')}<span>בכלוב כבר יותר מ${words(CRATE_MAX)} · מ־<bdi dir="ltr">${clock(S.crate.start)}</bdi></span></div>` : ''}
     ${due ? `<div class="duemsg">${ico('pee','s')}<span>זמן להוציא לצרכים · ${due.why}, לפני <span data-words="${due.t}">${words(now-due.t)}</span></span></div>` : ''}
     ${asleep ? `<div class="zz">${ico('sleep','s')}<span>ישנה מ־<bdi dir="ltr">${clock(S.sleep.start)}</bdi> · נותנים לה לישון</span></div>` : ''}
@@ -1181,6 +1220,8 @@ document.getElementById('main').addEventListener('click', e => {
   if(ent){ openEntrySheet(+ent.dataset.e); return; }
   const row = e.target.closest('[data-day]');
   if(row){ sumMode = 'day'; sumAnchor = +row.dataset.day; render(); window.scrollTo(0,0); return; }
+  const sg = e.target.closest('[data-seg]');
+  if(sg){ if(!sg.classList.contains('lock')) goStep(pet, +sg.dataset.seg); return; }
   const b = e.target.closest('button'); if(!b) return;
   const k = b.dataset.k, a = b.dataset.act;
   if(a==='mode'){ sumMode = k; render(); }
