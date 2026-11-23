@@ -99,6 +99,38 @@
   .toast .tw:empty{display:none}
   .toast .tw button{flex:1;padding-left:9px;padding-right:9px}
   .toast .tw button.sel{background:#fff;color:var(--ink)}
+  .lnk{border:0;background:none;padding:0;font:inherit;color:var(--acc);text-decoration:underline;cursor:pointer}
+  .sub.hint{margin-top:2px;opacity:.85}
+  .chips.where button{flex:1 1 40%;padding:14px 10px;font-size:16px;font-weight:500}
+  /* charts: status colours for "where" (validated for colour-blind separation), neutral bands */
+  .out{--c:#0ca30c} .pad{--c:#fab219} .acc{--c:#d03b3b} .unk{--c:#8a857d}
+  .tl{padding:12px 14px}
+  .tl-row{display:grid;grid-template-columns:62px 1fr;align-items:center;gap:8px;padding:3px 0}
+  .tl-d{font-size:12px;color:var(--muted);white-space:nowrap}
+  .tl-t{position:relative;height:30px;background:var(--bg);border-radius:6px}
+  .tl-t .g{position:absolute;top:0;bottom:0;width:1px;background:var(--line)}
+  .tl-t .b{position:absolute;border-radius:4px}
+  .b.crate{top:5px;bottom:5px;background:#dcc9b2}
+  .b.sleep{top:11px;bottom:11px;background:#8f8aa6}
+  .tl-t .f{position:absolute;top:4px;bottom:4px;width:2px;margin-left:-1px;border-radius:1px;background:var(--ink);opacity:.5}
+  .tl-t .d{position:absolute;top:50%;width:13px;height:13px;margin:-6.5px 0 0 -6.5px;padding:0;border:2px solid var(--card);border-radius:50%;background:var(--c);cursor:pointer}
+  .tl-t .d.poop{border-radius:3px}
+  .tl-t .d::after{content:"";position:absolute;inset:-9px -5px}
+  .tl-x{position:relative;height:14px;font-size:10.5px;color:var(--faint);font-variant-numeric:tabular-nums}
+  .tl-x span{position:absolute;transform:translateX(-50%)} .tl-x span:first-child{transform:none} .tl-x span:last-child{transform:translateX(-100%)}
+  .lg{display:flex;flex-wrap:wrap;gap:4px 14px;margin-top:10px;font-size:12px;color:var(--muted)}
+  .lg span{display:inline-flex;align-items:center;gap:5px}
+  .lg .k{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--c)}
+  .lg .k.poop,.lg .k.sq{border-radius:2px}
+  .lg .k.f{width:2px;height:11px;border-radius:1px;background:var(--ink);opacity:.5}
+  .lg .k.b{width:16px;height:8px;border-radius:3px} .lg .k.b.crate{background:#dcc9b2} .lg .k.b.sleep{background:#8f8aa6}
+  .wbc{padding:14px}
+  .wb{display:flex;align-items:stretch;gap:2px;height:150px}
+  .wb.few{gap:10px}
+  .wb-c{flex:1;min-width:0;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:2px;border:0;background:none;padding:0;font:inherit;cursor:pointer}
+  .wb-c i{width:100%;max-width:30px;border-radius:3px;background:var(--c)}
+  .wb-c .n{font-size:11.5px;font-weight:500;color:var(--ink);font-variant-numeric:tabular-nums;margin-bottom:1px}
+  .wb-c em{width:100%;height:20px;padding-top:4px;border-top:1px solid var(--faint);font-style:normal;font-size:11px;color:var(--muted);text-align:center;white-space:nowrap}
   .wh{font-style:normal}
   .wh.no{color:var(--muted)}
   .wh.floor,.wh.crate{color:var(--alert);font-weight:500}
@@ -571,7 +603,7 @@ function tapPoint(p, k, t){
     state[p][k] = (typeof cur==='number' && cur > t) ? cur : t;
     state.log.push({p,k,t});
   });
-  if(hasWhere(k)) toastWhere(p, k, t);
+  if(hasWhere(k)) whereSheet(p, k, t);
 }
 function tapDur(p, k, at){   // `at`: start a timer that began earlier ("she went in 10 minutes ago and is still there")
   const now = Date.now(), d = state[p][k] || {};
@@ -828,7 +860,8 @@ function render(){
         <div class="ic">${ico(k)}</div>
         <div><div class="lbl">${it.lbl}</div>
           <div class="big ${t?'':'none'}" ${t?`data-since="${t}"`:''}>${t ? dur(Date.now()-t) : '–'}</div>
-          <div class="sub">${t ? `${dayLabel(t)} ב־${clock(t)}${whereOf(pet,k,t)}${byOf(pet,k,t)}` : 'עוד לא נרשם'}</div></div>
+          <div class="sub">${t ? `${dayLabel(t)} ב־${clock(t)}${whereOf(pet,k,t) || (hasWhere(k) ? ` · <button class="lnk" data-act="where" data-k="${k}">איפה?</button>` : '')}${byOf(pet,k,t)}` : 'עוד לא נרשם'}</div>
+          ${P.cycle && typical(pet,k) ? `<div class="sub hint">${typical(pet,k)}</div>` : ''}</div>
         <div class="acts"><button class="go" data-act="pt" data-k="${k}">${it.btn}</button>
           <button class="ghost" data-act="edit" data-k="${k}">${ico('clock','s')}שעה אחרת</button></div></div>`;
     } else {
@@ -897,6 +930,24 @@ function crateOver(p){
   const c = state[p].crate, hr = new Date().getHours();
   return !!(c && c.start) && Date.now() - c.start > CRATE_MAX && hr >= DAY_FROM && hr < DAY_TO;
 }
+// Two numbers worth knowing, from the last 7 days: how often she usually pees (gaps between pees,
+// nights and long breaks left out) and how long after a meal she usually poops. Shown under the tiles
+// once there is enough data to mean something.
+function median(a){ const s = a.slice().sort((x,y) => x-y), m = s.length >> 1; return s.length % 2 ? s[m] : (s[m-1]+s[m])/2; }
+function typical(p, k){
+  const since = Date.now() - 7*86400000, ev = kk => state.log.filter(e => e.p===p && e.k===kk && e.t >= since).map(e => e.t), g = [];
+  if(k === 'pee'){
+    const t = ev('pee');
+    for(let i = 1; i < t.length; i++){ const d = t[i]-t[i-1]; if(d >= 10*60000 && d <= 5*3600000) g.push(d); }
+    return g.length >= 4 ? `בדרך כלל כל ${words(median(g))}` : '';
+  }
+  if(k === 'poop'){
+    const f = ev('food'), pp = ev('poop');
+    for(const m of f){ const n = pp.find(x => x > m); if(n && n-m <= 3*3600000 && !f.some(x => x > m && x < n)) g.push(n-m); }
+    return g.length >= 3 ? `בדרך כלל ${words(median(g))} אחרי אוכל` : '';
+  }
+  return '';
+}
 function whereTag(w){ return WHERE[w] ? ` · <em class="wh ${w}">${WHERE[w]}</em>` : ''; }
 function whereOf(p, k, t){   // " · where" of the pee / poop logged at t, if it was marked
   for(let i = state.log.length-1; i >= 0; i--){ const e = state.log[i]; if(e.p===p && e.k===k && e.t===t) return whereTag(e.w); }
@@ -952,6 +1003,59 @@ function whereLine(c){   // "רצפה 1 · פד 2" under the pee / poop tiles
   const parts = ['floor','crate','pad','out'].filter(w => c && c[w]).map(w => `<em class="wh ${w}">${WHERE_SHORT[w]} ${c[w]}</em>`);
   return parts.length ? `<small>${parts.join(' · ')}</small>` : '';
 }
+// ---------- charts (summary view) ----------
+// Colour says where a pee / poop happened and is the same in both charts: green outside, amber on the
+// pad, red for an accident (floor or crate), grey when it was not marked. Shape says what it was
+// (round = pee, square = poop). Every colour is also named in the legend, never colour alone.
+const whereCls = w => w==='out' ? 'out' : w==='pad' ? 'pad' : (w==='floor' || w==='crate') ? 'acc' : 'unk';
+const WHERE_LEGEND = [['out','בחוץ'], ['pad','על הפד'], ['acc','תאונה (רצפה / כלוב)'], ['unk','לא סומן']];
+function eachDay(from, to, fn){ const now = Date.now(); for(const d = new Date(from); d.getTime() < to && d.getTime() <= now; d.setDate(d.getDate()+1)){ const b = new Date(d); b.setDate(b.getDate()+1); fn(d, d.getTime(), b.getTime()); } }
+// One bar per day, midnight to midnight (left to right): crate and sleep as bands, meals as ticks,
+// every pee / poop as a dot. Tapping a dot opens that entry for fixing.
+function timelineHTML(p, from, to){
+  const now = Date.now(), rows = [], bands = ['crate','sleep'].filter(k => PETS[p].items.includes(k));
+  eachDay(from, to, (d, a, b) => {
+    const pct = t => (Math.max(0, Math.min(1, (t-a)/(b-a)))*100).toFixed(2);
+    let m = [25,50,75].map(x => `<i class="g" style="left:${x}%"></i>`).join('');
+    for(const k of bands){
+      const spans = state.log.filter(e => e.p===p && e.k===k && e.end && e.end > a && e.t < b).map(e => [e.t, e.end]);
+      const live = state[p][k] && state[p][k].start; if(live && live < b && now > a) spans.push([live, now]);
+      for(const [x, y] of spans) m += `<i class="b ${k}" style="left:${pct(x)}%;width:${Math.max(.5, pct(y)-pct(x)).toFixed(2)}%" title="${SUM_LBL[k]} ${clock(x)}–${clock(y)}"></i>`;
+    }
+    state.log.forEach((e, i) => {
+      if(e.p !== p || e.t < a || e.t >= b) return;
+      if(e.k === 'food') m += `<i class="f" style="left:${pct(e.t)}%" title="אוכל ${clock(e.t)}"></i>`;
+      else if(hasWhere(e.k)){ const tip = `${ITEMS[e.k].log} ${clock(e.t)}${WHERE[e.w] ? ' · '+WHERE[e.w] : ' · לא סומן איפה'}`; m += `<button class="d ${e.k} ${whereCls(e.w)}" data-e="${i}" style="left:${pct(e.t)}%" title="${tip}" aria-label="${tip}"></button>`; }
+    });
+    rows.push(`<div class="tl-row"><span class="tl-d">${DOW[d.getDay()]} · <bdi dir="ltr">${ddmm(a)}</bdi></span><div class="tl-t" dir="ltr">${m}</div></div>`);
+  });
+  if(!rows.length) return '';
+  const axis = `<div class="tl-row"><span></span><div class="tl-x" dir="ltr">${[0,6,12,18,24].map(hh => `<span style="left:${hh/24*100}%">${pad(hh)}:00</span>`).join('')}</div></div>`;
+  const legend = `<div class="lg"><span><i class="k pee unk"></i>פיפי</span><span><i class="k poop unk"></i>קקי</span><span><i class="k f"></i>אוכל</span>${bands.map(k => `<span><i class="k b ${k}"></i>${SUM_LBL[k]}</span>`).join('')}</div>
+    <div class="lg">${WHERE_LEGEND.map(([c,l]) => `<span><i class="k pee ${c}"></i>${l}</span>`).join('')}</div>`;
+  return `<h2>ציר זמן<small>לחיצה על נקודה לתיקון</small></h2><div class="card tl">${axis}${rows.join('')}${legend}</div>`;
+}
+// One stacked column per day: how many pees + poops were outside, on the pad, or accidents.
+// Accidents sit on the baseline so their trend is the easiest thing to read. Tapping a day opens it.
+function whereBarsHTML(p, from, to){
+  const days = []; let max = 0, any = 0;
+  eachDay(from, to, (d, a, b) => {
+    const c = {out:0, pad:0, acc:0, unk:0};
+    for(const e of state.log) if(e.p===p && hasWhere(e.k) && e.t >= a && e.t < b) c[whereCls(e.w)]++;
+    const n = c.out + c.pad + c.acc + c.unk; max = Math.max(max, n); any += n;
+    days.push({d:new Date(d), a, c, n});
+  });
+  if(!any) return '';
+  const few = days.length <= 8, H = 110, unit = H / Math.max(max, 4);
+  const cols = days.map(x => {
+    const tip = `${DOW[x.d.getDay()]} ${ddmm(x.a)} · ` + (WHERE_LEGEND.filter(([c]) => x.c[c]).map(([c,l]) => `${l} ${x.c[c]}`).join(' · ') || 'אין רישומים');
+    const lbl = few ? DOW[x.d.getDay()] : (x.d.getDate() === 1 || x.d.getDate() % 5 === 0 ? x.d.getDate() : '');
+    return `<button class="wb-c" data-day="${x.a}" title="${tip}" aria-label="${tip}">${few && x.n ? `<span class="n">${x.n}</span>` : ''}
+      ${['unk','out','pad','acc'].filter(c => x.c[c]).map(c => `<i class="${c}" style="height:${Math.max(3, x.c[c]*unit - 2).toFixed(1)}px"></i>`).join('')}<em>${lbl}</em></button>`;
+  }).join('');
+  return `<h2>פיפי וקקי — איפה<small>לחיצה על יום לפירוט</small></h2><div class="card wbc"><div class="wb ${few?'few':''}" dir="ltr">${cols}</div>
+    <div class="lg">${WHERE_LEGEND.map(([c,l]) => `<span><i class="k sq ${c}"></i>${l}</span>`).join('')}</div></div>`;
+}
 function renderSummary(){
   const P = PETS[pet], now = Date.now(), [from, to] = sumRange(sumMode, sumAnchor);
   const st = stats(pet, from, to), multi = sumMode !== 'day';
@@ -993,6 +1097,9 @@ function renderSummary(){
       : [['am','בוקר'],['pm','ערב']].map(([s,l]) =>
         `<div class="tile"><div class="ic">${ico('pill')}</div><b class="t">${m[s] ? 'ניתנה ב־'+clock(m[s]) : 'לא ניתנה'}</b><span>תרופת ${l}${m[s] ? byOf(pet,'med_'+s,m[s]) : ''}</span></div>`).join('')) + `</div>`;
   }
+
+  if(sumMode !== 'month') h += timelineHTML(pet, from, to);
+  if(multi) h += whereBarsHTML(pet, from, to);
 
   if(multi){
     const cols = P.items.concat(P.meds ? ['pill'] : []);
@@ -1040,9 +1147,9 @@ document.getElementById('main').addEventListener('change', e => {
 });
 document.getElementById('main').addEventListener('click', e => {
   if(e.target.id === 'sumDate'){ try{ e.target.showPicker(); }catch(_){} return; }
-  const ent = e.target.closest('.r[data-e]');
+  const ent = e.target.closest('.r[data-e], .d[data-e]');
   if(ent){ openEntrySheet(+ent.dataset.e); return; }
-  const row = e.target.closest('tr[data-day]');
+  const row = e.target.closest('[data-day]');
   if(row){ sumMode = 'day'; sumAnchor = +row.dataset.day; render(); window.scrollTo(0,0); return; }
   const b = e.target.closest('button'); if(!b) return;
   const k = b.dataset.k, a = b.dataset.act;
@@ -1054,6 +1161,7 @@ document.getElementById('main').addEventListener('click', e => {
   else if(a==='stepat') openStepAtSheet(pet, +k);
   else if(a==='out') goStep(pet, 1);   // out of the crate: stops the crate (and sleep) timer, on to walk + potty
   else if(a==='wake'){ const c = state[pet].cyc; if(c && c.i === 1) tapDur(pet, 'sleep'); else goStep(pet, 1); }
+  else if(a==='where') whereSheet(pet, k, state[pet][k]);
   else if(a==='pt') tapPoint(pet, k);
   else if(a==='dur') tapDur(pet, k);
   else if(a==='edit') openSheet(pet, k);
@@ -1066,19 +1174,17 @@ function showToast(msg, undo){
   const t = document.getElementById('toast'); t.classList.add('show');
   clearTimeout(toastTimer); toastTimer = setTimeout(()=>{ t.classList.remove('show'); lastUndo=null; }, 6000);
 }
-// Right after a pee / poop is logged the toast also offers "where" — optional, one tap, no extra screen.
-function toastWhere(p, k, t){
+// Right after a pee / poop is logged, ask where it happened (the charts depend on it). The entry is
+// already saved with its time; this only adds `w`. "דילוג" leaves it unmarked, and the tile then shows "איפה?".
+function whereSheet(p, k, t){
   const find = () => state.log.find(e => e.p===p && e.k===k && e.t===t);
-  const box = document.getElementById('toastWhere'), toast = document.getElementById('toast');
-  if(!find() || !toast.classList.contains('show')) return;
-  const draw = () => { const e = find() || {}; box.innerHTML = Object.keys(WHERE).map(w => `<button data-w="${w}" class="${e.w===w?'sel':''}">${WHERE[w]}</button>`).join(''); };
-  const hold = ms => { clearTimeout(toastTimer); toastTimer = setTimeout(() => { toast.classList.remove('show'); lastUndo = null; }, ms); };
-  draw(); hold(9000);
-  box.onclick = ev => {
-    const b = ev.target.closest('[data-w]'), e = find(); if(!b || !e) return;
-    if(e.w === b.dataset.w) delete e.w; else e.w = b.dataset.w;
-    render(); push(); draw(); hold(2500);
-  };
+  const e = find(); if(!e) return;
+  sh.innerHTML = `<h3>${PETS[p].name} · ${ITEMS[k].log} · <bdi dir="ltr">${clock(t)}</bdi> — איפה?</h3>
+    <div class="chips where">${Object.keys(WHERE).map(w => `<button data-w="${w}" class="${e.w===w?'sel':''}">${WHERE[w]}</button>`).join('')}</div>
+    <div class="foot"><span></span><button class="btn" id="cancel">דילוג</button></div>`;
+  sh.querySelectorAll('[data-w]').forEach(b => b.onclick = () => { const x = find(); close(); if(!x) return; x.w = b.dataset.w; render(); push(); });
+  sh.querySelector('#cancel').onclick = close;
+  bg.classList.add('show');
 }
 document.getElementById('undo').onclick = () => {
   if(!lastUndo) return;
