@@ -97,10 +97,11 @@
   .toast{flex-wrap:wrap;justify-content:space-between}
   .toast .tw{flex-basis:100%;display:flex;gap:6px;padding-bottom:2px}
   .toast .tw:empty{display:none}
-  .toast .tw button{flex:1}
+  .toast .tw button{flex:1;padding-left:9px;padding-right:9px}
   .toast .tw button.sel{background:#fff;color:var(--ink)}
   .wh{font-style:normal}
   .wh.no{color:var(--muted)}
+  .wh.floor,.wh.crate{color:var(--alert);font-weight:500}
   .rounds{padding:4px 16px}
   .rd{padding:12px 0;border-bottom:1px solid var(--line)} .rd:last-child{border-bottom:0}
   .rd-h{font-size:12.5px;color:var(--muted);margin-bottom:8px;display:flex;justify-content:space-between;align-items:baseline}
@@ -128,6 +129,14 @@
   .btn.primary{background:var(--ink);color:#fff;border-color:var(--ink);padding:10px 22px}
   .btn.danger{color:var(--alert);background:#fff}
 
+  .gate{position:fixed;inset:0;z-index:20;background:var(--bg);display:flex;align-items:center;justify-content:center;padding:24px}
+  .gate[hidden]{display:none}
+  .gate .box{max-width:340px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:12px}
+  .gate .mark{width:56px;height:56px;border-radius:17px} .gate .mark svg{width:30px;height:30px}
+  .gate h2{margin:6px 0 0;font-size:20px;font-weight:600;color:var(--ink);letter-spacing:0}
+  .gate p{margin:0;font-size:14.5px;line-height:1.55;color:var(--muted)}
+  .gate .btn.primary{font-size:16px;padding:13px 26px;border-radius:14px;margin-top:8px}
+  .gate .ghost{margin-top:2px;font-size:13.5px}
   .hr{display:flex;align-items:center;gap:10px}
   .me{border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:10px;padding:5px 10px;font:inherit;font-size:12.5px;font-weight:500;cursor:pointer;white-space:nowrap}
   .by{font-style:normal;color:var(--muted);font-size:12px;margin-inline-start:6px}
@@ -223,6 +232,7 @@
 </div>
 <div class="toast" id="toast"><span id="toastMsg"></span><button id="undo">ביטול</button><div class="tw" id="toastWhere"></div></div>
 <div class="bg" id="sheetBg"><div class="sheet" id="sheet"></div></div>
+<div class="gate" id="gate" hidden></div>
 
 <script>
 // ---------- icons ----------
@@ -272,8 +282,8 @@ const CYCLE = [
   {n:'צרכים', potty:true}
 ];
 // Where a pee / poop happened; stored as `w` on the log entry (optional).
-const WHERE = {out:'בחוץ', pad:'על הפד', floor:'על הרצפה'};
-const WHERE_SHORT = {out:'בחוץ', pad:'פד', floor:'רצפה'};
+const WHERE = {out:'בחוץ', pad:'על הפד', floor:'על הרצפה', crate:'בכלוב'};   // floor and crate are accidents (shown in red)
+const WHERE_SHORT = {out:'בחוץ', pad:'פד', floor:'רצפה', crate:'כלוב'};
 const hasWhere = k => k==='pee' || k==='poop';
 const CRATE_MAX = 2*3600000;   // a crate stay longer than this turns red (tile and strip)
 const DAY_FROM = 7, DAY_TO = 22;   // the red crate flag is only shown between these hours
@@ -355,9 +365,29 @@ function patch(d, onto){   // returns a new state: `onto` with the changes `d` a
 function onServer(data){
   if(writing) return;   // the save in flight reads the server itself and merges
   const server = norm(data), mine = diff(base, state);
+  const local = state;
   base = server; state = noDiff(mine) ? clone(server) : patch(mine, server);
+  const found = salvage(local);
   saveLocal(); render();
-  if(noDiff(mine)) setSync('מסונכרן','on'); else push();
+  if(noDiff(mine) && !found) setSync('מסונכרן','on'); else push();
+}
+// Once per device, on its first contact with the server: entries this person logged here in the last
+// two days that the server does not have (the phone was signed out or not allowed, or an old version
+// of the app overwrote them) are added back, so they are sent with the next save.
+function salvage(local){
+  try { if(!me || localStorage.getItem(LS_KEY+'-salvaged')) return 0; localStorage.setItem(LS_KEY+'-salvaged', '1'); } catch(e){ return 0; }
+  const have = new Set(state.log.map(logKey)), since = Date.now() - 2*86400000;
+  const lost = local.log.filter(e => e.by === me && e.t >= since && !have.has(logKey(e)));
+  for(const e of clone(lost)){
+    state.log.push(e);
+    if(e.k.startsWith('med_')){
+      const meds = state[e.p].meds = state[e.p].meds || {}, day = meds[dayKey(e.t)] = meds[dayKey(e.t)] || {};
+      if(!day[e.k.slice(4)]) day[e.k.slice(4)] = e.t;
+    }
+  }
+  state.log.sort((x,y) => x.t-y.t);
+  for(const e of lost) if(!e.k.startsWith('med_')) recalc(e.p, e.k);
+  return lost.length;
 }
 
 // One-time import of the state copied from the old claude.ai artifact on 22.11.2026 (only into an
@@ -416,6 +446,36 @@ const FIREBASE_CONFIG = {
   messagingSenderId: "638712299148",
   appId: "1:638712299148:web:43c5a48342dc731caf45a9"
 };
+// ---------- sign-in gate ----------
+// The app is unusable until this device is signed in with a Google account that the Firestore rules
+// allow. The allowed emails live only in the rules (Firebase console), never in this public repo; the
+// app learns the answer from the server: the first document read succeeds or is refused.
+// A device that was allowed before (its email is remembered in localStorage) opens straight away, so
+// the app still works with no connection; a sign-out or a refusal locks it again.
+const AUTH_KEY = LS_KEY+'-authok';
+let authOk = null;
+try { authOk = localStorage.getItem(AUTH_KEY); } catch(e){}
+function setGate(mode, email){
+  const g = document.getElementById('gate');
+  if(mode === 'off'){ g.hidden = true; return; }
+  const paw = `<div class="mark"><svg viewBox="0 0 24 24">${ICONS.paw}</svg></div><h2>קוצ׳יק וקישמיש</h2>`;
+  const body = {
+    loading: `<p>בודק הרשאה…</p>`,
+    login:   `<p>כדי להשתמש באפליקציה צריך להתחבר עם חשבון Google מורשה.</p><button class="btn primary" id="gIn">התחברות עם Google</button>`,
+    denied:  `<p>החשבון <bdi dir="ltr">${email || ''}</bdi> לא נמצא ברשימת המורשים.</p><p>אפשר להתחבר עם חשבון אחר, או לבקש שיוסיפו את המייל הזה.</p>
+              <button class="btn primary" id="gOut">החלפת חשבון</button><button class="ghost" id="gRetry">הוסיפו אותי · לנסות שוב</button>`,
+    offline: `<p>אין חיבור לאינטרנט, ובמכשיר הזה עוד לא התחברו. צריך חיבור כדי להתחבר בפעם הראשונה.</p><button class="btn primary" id="gRetry">לנסות שוב</button>`
+  }[mode];
+  g.innerHTML = `<div class="box">${paw}${body}</div>`; g.hidden = false;
+  const on = (id, fn) => { const b = g.querySelector('#'+id); if(b) b.onclick = fn; };
+  on('gIn', () => document.getElementById('sync').click());
+  on('gOut', () => fb && fb.signOut());
+  on('gRetry', () => location.reload());
+}
+function allow(email){ authOk = email; try { localStorage.setItem(AUTH_KEY, email); } catch(e){} setGate('off'); }
+function lock(mode, email){ authOk = null; try { localStorage.removeItem(AUTH_KEY); } catch(e){} setGate(mode, email); }
+if(FIREBASE_CONFIG && !authOk) setGate('loading');
+
 const FB_CDN = 'https://www.gstatic.com/firebasejs/10.14.1/';
 let fb = null;   // { auth, signIn(), signOut() } once Firebase has loaded
 
@@ -425,7 +485,7 @@ let fb = null;   // { auth, signIn(), signOut() } once Firebase has loaded
   try {
     const mods = await Promise.all(['app','auth','firestore'].map(m => import(`${FB_CDN}firebase-${m}.js`)));
     app = mods[0].initializeApp(FIREBASE_CONFIG); A = mods[1]; F = mods[2];
-  } catch(e){ setSync('אין חיבור','err'); return; }
+  } catch(e){ setSync('אין חיבור','err'); if(!authOk) setGate('offline'); return; }
 
   const auth = A.getAuth(app);
   let store;
@@ -442,8 +502,9 @@ let fb = null;   // { auth, signIn(), signOut() } once Firebase has loaded
   A.onAuthStateChanged(auth, user => {
     if(unsub){ unsub(); unsub = null; }
     clearTimeout(t); clearTimeout(retryTimer); ref = null; writing = dirty = false;
-    if(!user){ setSync('התחברות','login'); return; }
+    if(!user){ setSync('התחברות','login'); lock('login'); return; }
     setSync('טוען…');
+    if(authOk !== user.email) setGate('loading');   // a different account: wait for the server's answer
     ref = {
       merge: fn => F.runTransaction(store, async tx => {
         const snap = await tx.get(docRef);
@@ -458,12 +519,14 @@ let fb = null;   // { auth, signIn(), signOut() } once Firebase has loaded
       if(!snap.metadata.fromCache) clearTimeout(t);
       // Only what really came from the server counts; the offline copy is this device's own localStorage.
       if(snap.metadata.fromCache || snap.metadata.hasPendingWrites) return;
+      allow(user.email);   // the server answered: this account is on the list
       if(snap.exists()) onServer(snap.data());
       else if(state.log.length){ base = blank(); push(); }   // first device ever: create the document
       else setSync('מסונכרן','on');
     }, err => {
       clearTimeout(t); ref = null;
-      if(err && err.code==='permission-denied') setSync('אין הרשאה','err'); else setSync('נשמר במכשיר');
+      if(err && err.code==='permission-denied'){ setSync('אין הרשאה','err'); lock('denied', user.email); }
+      else { setSync('נשמר במכשיר'); if(authOk !== user.email) setGate('offline'); }
     });
   });
 })();
@@ -886,7 +949,7 @@ function stats(p, from, to){
   return r;
 }
 function whereLine(c){   // "רצפה 1 · פד 2" under the pee / poop tiles
-  const parts = ['floor','pad','out'].filter(w => c && c[w]).map(w => `<em class="wh ${w}">${WHERE_SHORT[w]} ${c[w]}</em>`);
+  const parts = ['floor','crate','pad','out'].filter(w => c && c[w]).map(w => `<em class="wh ${w}">${WHERE_SHORT[w]} ${c[w]}</em>`);
   return parts.length ? `<small>${parts.join(' · ')}</small>` : '';
 }
 function renderSummary(){
