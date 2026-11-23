@@ -329,6 +329,7 @@ const ITEMS = {
   cry:{dur:true,lbl:'בכי אחרון',live:'בוכה',start:'בוכה',stop:'נרגעה',log:'בכתה',startQ:'מתי התחילה לבכות?'},
   crate:{dur:true,lbl:'כלוב אחרון',live:'בכלוב',start:'נכנסה לכלוב',stop:'יצאה מהכלוב',log:'בכלוב',startQ:'מתי נכנסה לכלוב?'},
   none:{log:'יצאה ולא עשתה'},
+  nofood:{icon:'food',log:'לא אכלה'},   // offered food in the routine's food step and did not eat
   play:{icon:'ball',log:'משחק'},   // what kind of play it was (`y`), logged from the routine's play step   // taken out for potty, nothing happened (logged from the routine strip)
   med_am:{icon:'pill',log:'תרופת בוקר'},
   med_pm:{icon:'pill',log:'תרופת ערב'}
@@ -700,7 +701,7 @@ function stepBack(p){
       state.log = state.log.filter(e => !(e.p===p && e.k===st.k && e.t===last.t));
       recalc(p, st.k);
     }
-    if(st.food){ state.log = state.log.filter(e => !(e.p===p && e.k==='food' && e.t===last.t && !e.y)); recalc(p, 'food'); }
+    if(st.food){ state.log = state.log.filter(e => !(e.p===p && ((e.k==='food' && e.t===last.t && !e.y) || (e.k==='nofood' && e.t >= last.t)))); recalc(p, 'food'); }
     for(const k of ['crate','sleep']){
       const e = state.log.find(x => x.p===p && x.k===k && x.end===last.t);
       if(e && !(S[k] && S[k].start)){ state.log = state.log.filter(x => x !== e); recalc(p, k); S[k] = Object.assign({}, S[k] || {}, {start:e.t}); }
@@ -827,7 +828,7 @@ function openStepSheet(p, j){
 function stepResult(p, s){
   const st = CYCLE[s.i] || {brk:true}, to = s.end || Infinity, parts = [];
   if(st.k || st.play || st.brk) parts.push(s.end ? words(s.end - s.t) : 'עכשיו');
-  if(st.food) parts.push('אכלה');
+  if(st.food) parts.push(state.log.some(e => e.p===p && e.k==='nofood' && e.t >= s.t && e.t < to) ? '<em class="wh no">לא אכלה</em>' : 'אכלה');
   for(const e of state.log){
     if(e.p !== p || e.t < s.t || e.t >= to) continue;
     if(hasWhere(e.k)) parts.push(ITEMS[e.k].log + (WHERE[e.w] ? ` <em class="wh ${e.w}">${WHERE_SHORT[e.w]}</em>` : ''));
@@ -842,10 +843,13 @@ function stepResult(p, s){
 function pottyDue(p){
   const S = state[p], c = [];
   if((S.sleep && S.sleep.start) || (S.crate && S.crate.start)) return null;
+  // In the routine, potty has its own step right after play and food — no nagging during those two.
+  const cur = S.cyc && CYCLE[S.cyc.i];
+  if(cur && (cur.play || cur.food)) return null;
   if(S.sleep && S.sleep.lastEnd) c.push([S.sleep.lastEnd, 'אחרי שינה']);
   if(S.crate && S.crate.lastEnd) c.push([S.crate.lastEnd, 'אחרי יציאה מהכלוב']);
+  if(typeof S.food === 'number') c.push([S.food, 'אחרי אוכל']);   // before play: on a tie the meal is the reason shown
   if(S.playEnd) c.push([S.playEnd, 'אחרי משחק']);
-  if(typeof S.food === 'number') c.push([S.food, 'אחרי אוכל']);
   c.sort((a,b) => b[0]-a[0]);
   if(!c.length) return null;
   const done = Math.max(S.pee || 0, S.poop || 0, S.none || 0, S.out || 0);
@@ -1009,11 +1013,28 @@ function cycleHTML(p){
     ${due ? `<div class="duemsg">${ico('pee','s')}<span>זמן להוציא לצרכים · ${due.why}, לפני <span data-words="${due.t}">${words(now-due.t)}</span></span></div>` : ''}
     ${asleep ? `<div class="zz">${ico('sleep','s')}<span>ישנה מ־<bdi dir="ltr">${clock(S.sleep.start)}</bdi> · נותנים לה לישון</span></div>` : ''}
     <div class="cyc-a">${potty ? `<button class="btn" data-act="pt" data-k="pee">פיפי</button><button class="btn" data-act="pt" data-k="poop">קקי</button><button class="btn" data-act="pt" data-k="none">לא עשתה</button>` : ''}
-${c && CYCLE[ci].play && !inCrate ? Object.keys(PLAY).map(y => `<button class="btn ${playOn(p, y) ? 'sel' : ''}" data-act="play" data-k="${y}">${PLAY[y]}</button>`).join('') : ''}
+${c && CYCLE[ci].food && !inCrate ? `<button class="btn ${noFood(p) ? 'sel' : ''}" data-act="nofood">לא אכלה</button>` : ''}${c && CYCLE[ci].play && !inCrate ? Object.keys(PLAY).map(y => `<button class="btn ${playOn(p, y) ? 'sel' : ''}" data-act="play" data-k="${y}">${PLAY[y]}</button>`).join('') : ''}
       ${(S.hist || []).length ? `<button class="ghost" data-act="back">${ico('chevR','s')}חזרה שלב</button>` : ''}
       ${brk || inCrate ? '' : `<button class="ghost" data-act="brk">${ico('none','s')}הפסקה בשגרה</button>`}
       ${inCrate ? `<span class="sub">בכלוב עד שמסמנים הוצאה</span>` : ''}
       <span class="mainact">${main}<button class="ghost" data-act="stepat" data-k="${inCrate || asleep ? 1 : next}">${ico('clock','s')}שעה אחרת</button></span></div></div>`;
+}
+// The food step logs a meal by itself; "לא אכלה" takes that meal back and records that she was offered
+// food and did not eat. Tapping it again restores the meal.
+function noFood(p){ const c = state[p].cyc; return c ? state.log.find(e => e.p===p && e.k==='nofood' && e.t >= c.t) : null; }
+function toggleNoFood(p){
+  const had = noFood(p);
+  commit(`${PETS[p].name} · ${had ? 'אכלה' : 'לא אכלה'}`, () => {
+    const t0 = state[p].cyc.t;
+    if(had){
+      state.log = state.log.filter(e => e !== had);
+      if(!state.log.some(e => e.p===p && e.k==='food' && e.t===t0)) state.log.push({p, k:'food', t:t0});
+    } else {
+      state.log = state.log.filter(e => !(e.p===p && e.k==='food' && e.t===t0 && !e.y));
+      state.log.push({p, k:'nofood', t:Math.max(Date.now(), t0)});
+    }
+    recalc(p, 'food');
+  });
 }
 // The play step: mark what kind of play it was. Tapping a kind again takes it back.
 function playEntry(p, y){ const c = state[p].cyc; return c ? state.log.find(e => e.p===p && e.k==='play' && e.y===y && e.t >= c.t) : null; }
@@ -1282,6 +1303,7 @@ document.getElementById('main').addEventListener('click', e => {
   else if(a==='brk') goBreak(pet);
   else if(a==='back') stepBack(pet);
   else if(a==='play') togglePlay(pet, k);
+  else if(a==='nofood') toggleNoFood(pet);
   else if(a==='stepat') openStepAtSheet(pet, +k);
   else if(a==='out') goStep(pet, 1);   // out of the crate: stops the crate (and sleep) timer, on to walk + potty
   else if(a==='wake'){ const c = state[pet].cyc; if(c && c.i === 1) tapDur(pet, 'sleep'); else goStep(pet, 1); }
