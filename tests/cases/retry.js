@@ -35,7 +35,7 @@
     ok('pee on the pad ends the retry, no free time, counted as a miss', !card() && !$q('.card.slim.free') && $q('#main').textContent.includes('פספוסים 1'));
     // a meal during the wait: she is out of the crate to eat, the retry goes on
     seed([{ p:'kishmish', k:'crate', t: now - 120*MIN, end: now - 5*MIN }, { p:'kishmish', k:'none', t: now - 4*MIN }]);
-    $q('[data-act=rtcrate]').click(); tapPoint('kishmish', 'food');
+    $q('[data-act=rtcrate]').click(); C().t = now - 2*MIN; state.log.sort((x, y) => x.t - y.t); use(state); tapPoint('kishmish', 'food');
     ok('a meal is allowed during a retry; eating takes her out of the crate, and the card asks to try again', logOf('kishmish', 'food').length === 1 && !K().crate.start && !!C().end && card().classList.contains('again'));
     // giving up, and leaving her in the crate
     seed([{ p:'kishmish', k:'crate', t: now - 120*MIN, end: now - 5*MIN }, { p:'kishmish', k:'none', t: now - 4*MIN }]);
