@@ -1225,6 +1225,7 @@ function openEntrySheet(i){
       if(!pt){ close(); return; }
       const v = timeVal('tIn'); if(!v) return;
       const [hh,mm] = v.split(':').map(Number), d = new Date(e.t); d.setHours(hh,mm,0,0);
+      if(d.getTime() > Date.now() + 60000){ sh.querySelector('#tIn').classList.add('bad'); return; }   // not in the future
       close();
       if(d.getTime() === e.t && w === e.w) return;
       commit(`${name} · ${it.log} עודכן`, () => {
