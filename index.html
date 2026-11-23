@@ -882,7 +882,7 @@ function render(){
           ${it.slow ? `<div class="big txt ${t?'':'none'}">${t ? wordsLong(Date.now()-t) : '–'}</div>`
                     : `<div class="big ${t?'':'none'}" ${t?`data-since="${t}"`:''}>${t ? dur(Date.now()-t) : '–'}</div>`}
           <div class="sub">${t ? `${dayLabel(t)} ב־${clock(t)}${whereOf(pet,k,t) || (hasWhere(k) ? ` · <button class="lnk" data-act="where" data-k="${k}">איפה?</button>` : '')}${byOf(pet,k,t)}` : 'עוד לא נרשם'}</div>
-          ${P.cycle && typical(pet,k) ? `<div class="sub hint">${typical(pet,k)}</div>` : ''}${it.note ? `<div class="sub hint">${it.note}</div>` : ''}</div>
+          ${todayWhere(pet,k) ? `<div class="sub hint">${todayWhere(pet,k)}</div>` : ''}${P.cycle && typical(pet,k) ? `<div class="sub hint">${typical(pet,k)}</div>` : ''}${it.note ? `<div class="sub hint">${it.note}</div>` : ''}</div>
         <div class="acts"><button class="go" data-act="pt" data-k="${k}">${it.btn}</button>
           <button class="ghost" data-act="edit" data-k="${k}">${ico('clock','s')}שעה אחרת</button></div></div>`;
     } else {
@@ -1032,6 +1032,15 @@ function typical(p, k){
     return g.length >= 3 ? `בדרך כלל ${words(median(g))} אחרי אוכל` : '';
   }
   return '';
+}
+// "היום: חצץ 2 · פד 1" on the pee / poop tiles — today's count by place, best place first.
+function todayWhere(p, k){
+  if(!hasWhere(k)) return '';
+  const a = sod(Date.now()).getTime(), c = {}; let none = 0;
+  for(const e of state.log) if(e.p===p && e.k===k && e.t >= a){ if(WHERE[e.w]) c[e.w] = (c[e.w] || 0) + 1; else none++; }
+  const parts = whereKeys(p).filter(w => c[w]).map(w => `<em class="wh ${w}">${WHERE_SHORT[w]} ${c[w]}</em>`);
+  if(none) parts.push(`<em class="wh no">לא סומן ${none}</em>`);
+  return parts.length ? 'היום: ' + parts.join(' · ') : '';
 }
 function whereTag(w){ return WHERE[w] ? ` · <em class="wh ${w}">${WHERE[w]}</em>` : ''; }
 function whereOf(p, k, t){   // " · where" of the pee / poop logged at t, if it was marked
