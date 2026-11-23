@@ -50,6 +50,18 @@
     S.doc.log.push({ id:'x5', p:'kochik', k:'pee', t: now, by:'yonatan' });
     tapDur('kishmish', 'crate'); await wait();
     ok('a timer and another pet\'s entry merge', S.doc.log.some(e => e.k === 'crate' && e.end) && !K().crate.start && S.doc.log.some(e => e.id === 'x5'));
+    // The real bug of 23.11: a phone that had not synced still thinks a sleep from yesterday is running.
+    // Someone ended that sleep long ago. When the stale phone ends it "now", the earlier end must stand.
+    const nap = { id:'nap', p:'kishmish', k:'sleep', t: now - 23*HOUR, by:'shai' };
+    const stalePhone = { state: norm({ v:2, log: clone(S.doc.log).concat([clone(nap)]) }) }; stalePhone.base = clone(stalePhone.state);
+    S.doc.log.push(Object.assign(clone(nap), { end: now - 22*HOUR }));               // ended yesterday, on another phone
+    S.doc.log.push({ id:'cr', p:'kishmish', k:'crate', t: now - 2*HOUR });
+    stalePhone.state.log.push({ id:'cr', p:'kishmish', k:'crate', t: now - 2*HOUR }); stalePhone.base = clone(stalePhone.state);
+    use(stalePhone.state, stalePhone.base);
+    tapDur('kishmish', 'crate'); await wait();                                       // "out of the crate" also ends the sleep it believes is running
+    const napNow = S.doc.log.find(e => e.id === 'nap');
+    ok('a stale phone cannot stretch a sleep that was already ended', napNow.end === now - 22*HOUR && S.doc.log.find(e => e.id === 'cr').end > now - MIN);
+    ok('and it shows the true last sleep itself afterwards', K().sleep.lastEnd === now - 22*HOUR && !K().sleep.start);
     ok('the server document carries the version', S.doc.v === SCHEMA);
     done();
   } catch(e){ crashed(e); }

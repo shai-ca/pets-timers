@@ -490,21 +490,39 @@ function canon(v){   // JSON with sorted keys: equal data compares equal whateve
   if(isObj(v)) return '{' + Object.keys(v).filter(k => v[k] !== undefined).sort().map(k => JSON.stringify(k) + ':' + canon(v[k])).join(',') + '}';
   return JSON.stringify(v === undefined ? null : v);
 }
-function diff(a, b){   // what changed in the list from a to b: ids that went away or changed, entries that are new or changed
-  const d = {rem:[], add:[]};
-  const A = new Map(a.log.map(e => [e.id, canon(e)])), B = new Map(b.log.map(e => [e.id, e]));
-  for(const [id, c] of A) if(!B.has(id) || canon(B.get(id)) !== c) d.rem.push(id);
-  for(const [id, e] of B) if(A.get(id) !== canon(e)) d.add.push(e);
+function diff(a, b){   // what changed in the list from a to b, entry by entry
+  const d = {rem:[], add:[], chg:[]};
+  const A = new Map(a.log.map(e => [e.id, e])), B = new Map(b.log.map(e => [e.id, e]));
+  for(const id of A.keys()) if(!B.has(id)) d.rem.push(id);
+  for(const [id, e] of B){
+    const o = A.get(id);
+    if(!o){ d.add.push(e); continue; }
+    if(canon(o) === canon(e)) continue;
+    // A changed entry is sent as the fields that changed, so it can be merged with someone else's change to it.
+    const c = {id, set:{}, del:[], wasOpen: o.end == null};
+    for(const k of Object.keys(e)) if(canon(o[k]) !== canon(e[k])) c.set[k] = e[k];
+    for(const k of Object.keys(o)) if(!(k in e)) c.del.push(k);
+    d.chg.push(c);
+  }
   return d;
 }
-const noDiff = d => !d.rem.length && !d.add.length;
+const noDiff = d => !d.rem.length && !d.add.length && !d.chg.length;
 function patch(d, onto){   // returns a new state: `onto` with the changes `d` applied
   const s = norm(onto);
-  if(d.rem.length || d.add.length){
-    const gone = new Set(d.rem.concat(d.add.map(e => e.id)));
-    s.log = s.log.filter(e => !gone.has(e.id)).concat(clone(d.add));
-    s.log.sort((x,y) => x.t-y.t); s.log = s.log.slice(-LOG_MAX);
+  if(d.rem.length){ const gone = new Set(d.rem); s.log = s.log.filter(e => !gone.has(e.id)); }
+  for(const c of d.chg){
+    const x = s.log.find(e => e.id === c.id);
+    if(!x) continue;                       // someone deleted it meanwhile: the deletion stands
+    for(const k of Object.keys(c.set)){
+      // Ending a timer that someone else has already ended: their end stands. (A phone that had not synced
+      // for a day once "ended" a sleep that was long over, and logged it as 23 hours.)
+      if(k === 'end' && c.wasOpen && x.end != null) continue;
+      x[k] = clone(c.set[k]);
+    }
+    for(const k of c.del) delete x[k];
   }
+  if(d.add.length){ const ids = new Set(d.add.map(e => e.id)); s.log = s.log.filter(e => !ids.has(e.id)).concat(clone(d.add)); }
+  s.log.sort((x,y) => x.t-y.t); s.log = s.log.slice(-LOG_MAX);
   return s;
 }
 if(OLD_HOST){ if(noDiff(diff(base, state))) forward(); else setTimeout(forward, 8000); }
@@ -737,7 +755,9 @@ function tapDur(p, k, at){   // `at`: start a timer that began earlier ("she wen
   const now = Date.now(), running = !!(V[p][k] && V[p][k].start);
   if(running && !at) commit(`${PETS[p].name} · ${ITEMS[k].stop}`, () => {
     stopDur(p, k, now);
-    if(PETS[p].cycle && k==='crate') stopDur(p, 'sleep', now);   // out of the crate = awake
+    // Out of the crate = awake. Only a sleep from this stay, though: one that has supposedly been running since
+    // yesterday is a leftover, and ending it now would log a 23-hour sleep (this happened on 23.11).
+    if(PETS[p].cycle && k==='crate' && V[p].sleep.start > now - 16*3600000) stopDur(p, 'sleep', now);
   });
   else commit(`${PETS[p].name} · ${ITEMS[k].start}`, () => {
     if(running) stopDur(p, k, at);          // starting "earlier" while one is running: close that one first

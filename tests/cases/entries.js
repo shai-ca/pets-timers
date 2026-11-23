@@ -51,6 +51,9 @@
       seed([{ p:'kishmish', k:'crate', t: now - 30*MIN }, { p:'kishmish', k:'crate', t: now - 28*MIN }]);
       ok('two running entries: the earlier one is the stay', K().crate.start === now - 30*MIN);
       tapDur('kishmish', 'crate'); ok('stopping leaves one stay', logOf('kishmish', 'crate').length === 1 && logOf('kishmish', 'crate')[0].t === now - 30*MIN && !K().crate.start);
+      seed([{ p:'kishmish', k:'sleep', t: now - 23*HOUR }, { p:'kishmish', k:'crate', t: now - HOUR }]);
+      tapDur('kishmish', 'crate');
+      ok('leaving the crate does not "end" a sleep left running since yesterday', logOf('kishmish', 'sleep')[0].end == null && !!logOf('kishmish', 'crate')[0].end);
       // add a missed entry
       $q('[data-act=addev]').click(); sh.querySelector('[data-kind=none]').click(); type('12'); sh.querySelector('#ok').click();
       ok('added "went out, nothing" 12 minutes ago', near(K().none, now - 12*MIN));
