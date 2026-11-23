@@ -576,11 +576,14 @@ function allow(email){ authOk = email; try { localStorage.setItem(AUTH_KEY, emai
 function lock(mode, email){ authOk = null; try { localStorage.removeItem(AUTH_KEY); } catch(e){} setGate(mode, email); }
 if(FIREBASE_CONFIG && !authOk) setGate('loading');
 
-// When the app is served from the Firebase project's own domain (pets-timers.web.app), Google sign-in can
-// stay on one site from start to finish: the sign-in handler lives on the same domain, so a full-page
-// redirect works on every phone. On other hosts (GitHub Pages) the handler is on a different site and the
-// pop-up flow is the only option — it fails on some Android phones with "missing initial state".
-const SAME_SITE_AUTH = /\.(web\.app|firebaseapp\.com)$/.test(location.hostname);
+// When the app is served from the Firebase project's own domain (pets-timers.firebaseapp.com), Google
+// sign-in can stay on one site from start to finish: the sign-in handler lives on the same domain, so a
+// full-page redirect works on every phone. On other hosts (GitHub Pages) the handler is on a different
+// site and the pop-up flow is the only option — it fails on some Android phones with "missing initial state".
+// It has to be firebaseapp.com exactly: that is the only return address Google has on file for this project
+// (web.app gives "redirect_uri_mismatch"), so the web.app address simply forwards there.
+if(/\.web\.app$/.test(location.hostname)) location.replace('https://' + location.hostname.replace(/\.web\.app$/, '.firebaseapp.com') + location.pathname);
+const SAME_SITE_AUTH = /\.firebaseapp\.com$/.test(location.hostname);
 if(FIREBASE_CONFIG && SAME_SITE_AUTH) FIREBASE_CONFIG.authDomain = location.hostname;
 const FB_CDN = 'https://www.gstatic.com/firebasejs/10.14.1/';
 let fb = null;   // { auth, signIn(), signOut() } once Firebase has loaded
