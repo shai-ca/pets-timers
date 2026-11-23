@@ -3,7 +3,10 @@
 A single-page mobile web app (Hebrew, RTL) for tracking two pets:
 
 - **Kochik (קוצ׳יק):** time since last food / pee / poop, plus a daily morning + evening medication checklist (turns red if the morning dose isn't marked by 11:00 or the evening dose by 21:00; resets at midnight).
-- **Kishmish (קישמיש):** time since last food / pee / poop, plus start/stop timers for sleep and crying (shows the live duration, the last duration, and today's total).
+- **Kishmish (קישמיש):** time since last food / pee / poop, plus start/stop timers for sleep, crying and crate (shows the live duration, the last duration, and today's total).
+- **Routine strip (Kishmish, `cycle:true`):** the trainer's potty-training cycle from `CYCLE` — כלוב → טיול וצרכים → משחק → אוכל → צרכים → back to crate. `goStep()` moves between steps in one undoable commit: entering the crate step starts the crate timer and leaving it stops it, entering the food step logs a meal, play has no timer (the owner found that too much tapping; leaving it only stamps `playEnd`). Using the crate tile directly moves the strip too. The current step is `state.kishmish.cyc = {i, t}`.
+- **Take-out reminder:** `pottyDue()` shows "זמן להוציא לצרכים" after waking up, leaving the crate, play or food (the trainer's list) until pee/poop is logged or "לא עשתה" is tapped (`state.kishmish.out`), for at most an hour, and never while she is asleep or in the crate.
+- **Colours:** each pet page has its own theme (`.p-kochik` / `.p-kishmish`, set on `<html>` and `<body>`): Kochik is a Maltese (snow white and silver), Kishmish a Yorkshire puppy (black buttons on tan).
 
 - **Summary (סיכום):** a second view per pet with day / week / month totals, navigable by date (arrows or a date picker). Week and month show per-day averages and a per-day table; tapping a row opens that day. Weeks start on Sunday. Computed from `log` in `renderSummary()` / `stats()`.
 - **Who did it:** each device picks a user once (יונתן / שי / ליזה, the `USERS` object; stored in localStorage `pets-timers-v1-user`, changeable from the header chip). `commit()` stamps `by` on every new log entry and the name is shown next to events. This is self-declared per device, not tied to the Google account.
@@ -26,8 +29,10 @@ All state lives in one JSON object:
   kochik:   { food: ts, pee: ts, poop: ts, meds: { "YYYY-MM-DD": { am: ts, pm: ts } } },
   kishmish: { food: ts, pee: ts, poop: ts,
               sleep: { start?: ts, lastStart?: ts, lastEnd?: ts },
-              cry:   { start?: ts, lastStart?: ts, lastEnd?: ts } },
-  log: [ { p: "kochik"|"kishmish", k: "food"|"pee"|"poop"|"sleep"|"cry"|"med_am"|"med_pm", t: ts, end?: ts, by?: "yonatan"|"shai"|"liza" } ]  // capped at 5000 (LOG_MAX)
+              cry:   { start?: ts, lastStart?: ts, lastEnd?: ts },
+              crate: { start?: ts, lastStart?: ts, lastEnd?: ts },
+              cyc?: { i: 0..4, t: ts }, playEnd?: ts, out?: ts },
+  log: [ { p: "kochik"|"kishmish", k: "food"|"pee"|"poop"|"sleep"|"cry"|"crate"|"med_am"|"med_pm", t: ts, end?: ts, by?: "yonatan"|"shai"|"liza" } ]  // capped at 5000 (LOG_MAX)
 }
 ```
 

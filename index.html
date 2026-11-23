@@ -9,15 +9,20 @@
 <style>
   :root{
     --bg:#f6f4f1; --card:#fff; --ink:#24201d; --muted:#8c847c; --faint:#b9b2aa; --line:#ece7e1;
-    --kochik:#c4683b; --kochik-soft:#f8ece5;
-    --kishmish:#6a5ec6; --kishmish-soft:#eeecfa;
+    --kochik:#66727f; --kochik-soft:#edf0f3;      /* Maltese: snow white and silver */
+    --kishmish:#a8672d; --kishmish-soft:#f6e6d2;  /* Yorkshire puppy: black and tan */
+    --seg:#ebe7e1; --btn:var(--acc);
     --ok:#2f8a66; --ok-soft:#e7f4ee; --alert:#c64d68; --alert-soft:#fbeaee;
     --acc:var(--kishmish); --acc-soft:var(--kishmish-soft);
   }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
   html,body{margin:0;background:var(--bg);color:var(--ink);font-family:Heebo,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
   body{padding:calc(env(safe-area-inset-top) + 18px) 16px calc(env(safe-area-inset-bottom) + 96px)}
-  body.p-kochik{--acc:var(--kochik);--acc-soft:var(--kochik-soft)}
+  /* Per-pet theme; the class is set on <html> and <body> by render(). */
+  .p-kochik{--acc:var(--kochik);--acc-soft:var(--kochik-soft);
+    --bg:#f5f6f8; --card:#fff; --ink:#23272c; --muted:#858c94; --faint:#b6bcc3; --line:#e6e9ed; --seg:#e8ebef}
+  .p-kishmish{--acc:var(--kishmish);--acc-soft:var(--kishmish-soft);
+    --bg:#f5ede3; --card:#fffbf6; --ink:#1d1713; --muted:#8b7a69; --faint:#c2b3a2; --line:#eadecf; --seg:#eadfd1; --btn:#221a15}
   .wrap{max-width:520px;margin:0 auto}
   svg.i{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;flex:none}
   svg.i.s{width:16px;height:16px}
@@ -33,7 +38,7 @@
   .sync i{width:7px;height:7px;border-radius:50%;background:var(--faint)}
   .sync.on i{background:var(--ok)} .sync.err i{background:var(--alert)}
 
-  .seg{display:flex;background:#ebe7e1;border-radius:14px;padding:4px;margin-bottom:16px}
+  .seg{display:flex;background:var(--seg);border-radius:14px;padding:4px;margin-bottom:16px}
   .seg button{flex:1;border:0;background:none;border-radius:11px;padding:10px;font:inherit;font-size:15.5px;font-weight:500;color:var(--muted);cursor:pointer;transition:all .15s}
   .seg button.on{background:#fff;color:var(--ink);box-shadow:0 1px 3px rgba(40,30,20,.1)}
   .seg button.on[data-pet=kochik]{color:var(--kochik)} .seg button.on[data-pet=kishmish]{color:var(--kishmish)}
@@ -48,7 +53,7 @@
   .big.none{color:var(--faint)}
   .sub{font-size:12.5px;color:var(--muted)}
   .acts{display:flex;flex-direction:column;align-items:stretch;gap:4px}
-  .go{border:0;border-radius:12px;padding:10px 16px;font:inherit;font-weight:500;font-size:14.5px;color:#fff;background:var(--acc);cursor:pointer;white-space:nowrap;min-width:108px}
+  .go{border:0;border-radius:12px;padding:10px 16px;font:inherit;font-weight:500;font-size:14.5px;color:#fff;background:var(--btn);cursor:pointer;white-space:nowrap;min-width:108px}
   .go:active{transform:scale(.97)}
   .ghost{border:0;background:none;color:var(--muted);font:inherit;font-size:12.5px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:4px;padding:4px}
   .card.live{border-color:color-mix(in srgb,var(--ok) 40%,transparent);background:linear-gradient(0deg,var(--ok-soft),var(--ok-soft))}
@@ -133,6 +138,18 @@
   .tbl tr[data-day]{cursor:pointer}
   .tbl .z{color:var(--faint)}
 
+  .cyc-h{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:10px}
+  .cyc-h b{font-weight:600;font-size:15px}
+  .cyc-h small{font-size:12.5px;color:var(--muted)}
+  .steps{display:flex;flex-wrap:wrap;gap:6px}
+  .steps button{border:1px solid var(--line);background:var(--bg);border-radius:10px;padding:7px 10px;font:inherit;font-size:13px;color:var(--muted);cursor:pointer}
+  .steps button i{font-style:normal;opacity:.55;margin-inline-end:5px;font-variant-numeric:tabular-nums}
+  .steps button.on{background:var(--btn);border-color:var(--btn);color:#fff;font-weight:500}
+  .duemsg{display:flex;align-items:center;gap:8px;margin-top:10px;padding:9px 12px;border-radius:12px;background:var(--alert-soft);color:var(--alert);font-size:13.5px;font-weight:500}
+  .card.cyc.due{border-color:color-mix(in srgb,var(--alert) 40%,transparent)}
+  .cyc-a{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:12px}
+  .cyc-a .go{margin-inline-start:auto}
+
   /* ---------- desktop: square tiles in a grid (phones keep the single-column list above) ---------- */
   @media (min-width:760px){
     body{padding-top:36px}
@@ -152,6 +169,7 @@
     main > h2{margin-top:14px}
     main > .card.log, main > .card.tblc{max-width:720px}
     main > .card.sumnav{max-width:440px}
+    main > .card.cyc{max-width:744px}
     .tiles, .tiles.two{grid-template-columns:repeat(auto-fill,minmax(170px,190px));gap:14px}
     .tiles .tile{grid-column:auto !important;aspect-ratio:1/1;padding:18px;justify-content:flex-end}
     .tiles .tile .ic{margin-bottom:auto}
@@ -189,6 +207,7 @@ const ICONS = {
   poop:'<path d="M6.8 19.5h10.4a2.6 2.6 0 0 0 .5-5.15A2.4 2.4 0 0 0 15.4 10h-.2a2.8 2.8 0 0 0-2.6-4.9c-.1 1.2-.9 2.1-2 2.5A2.4 2.4 0 0 0 8.6 10h-.1a2.4 2.4 0 0 0-2.2 4.35A2.6 2.6 0 0 0 6.8 19.5Z"/><path d="M8.6 14.4h6.8M10 10h4"/>',
   sleep:'<path d="M19.5 14.3A7.6 7.6 0 0 1 9.7 4.5a7.6 7.6 0 1 0 9.8 9.8Z"/><path d="M16.5 3.5v3M15 5h3"/>',
   cry:'<circle cx="12" cy="12" r="8.5"/><path d="M8.4 10.4q1-.9 2 0M13.6 10.4q1-.9 2 0M9.6 16.2q2.4-1.6 4.8 0"/><path d="M8.2 12.6c.5.8.9 1.4.9 1.9a.9.9 0 0 1-1.8 0c0-.5.4-1.1.9-1.9Z" fill="currentColor" stroke="none"/>',
+  crate:'<rect x="3.5" y="6.5" width="17" height="12.5" rx="2.2"/><path d="M8 6.5V19M12 6.5V19M16 6.5V19M9.5 6.5V5a2.5 2.5 0 0 1 5 0v1.5"/>',
   pill:'<rect x="2.8" y="8.6" width="18.4" height="6.8" rx="3.4" transform="rotate(-45 12 12)"/><path d="M9.6 9.6l4.8 4.8"/>',
   check:'<path d="M5 12.5l4.2 4.2L19 7"/>',
   clock:'<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>',
@@ -203,7 +222,7 @@ document.getElementById('mark').innerHTML = `<svg viewBox="0 0 24 24">${ICONS.pa
 // ---------- model ----------
 const PETS = {
   kochik:   {name:'קוצ׳יק', items:['food','pee','poop'], meds:true},
-  kishmish: {name:'קישמיש', items:['food','pee','poop','sleep','cry']}
+  kishmish: {name:'קישמיש', items:['food','pee','poop','sleep','cry','crate'], cycle:true}
 };
 const ITEMS = {
   food:{lbl:'מאז האוכל האחרון',btn:'אכלה',log:'אכלה'},
@@ -211,9 +230,21 @@ const ITEMS = {
   poop:{lbl:'מאז הקקי האחרון',btn:'קקי',log:'קקי'},
   sleep:{dur:true,lbl:'שינה אחרונה',live:'ישנה',start:'נרדמה',stop:'התעוררה',log:'ישנה',startQ:'מתי נרדמה?'},
   cry:{dur:true,lbl:'בכי אחרון',live:'בוכה',start:'בוכה',stop:'נרגעה',log:'בכתה',startQ:'מתי התחילה לבכות?'},
+  crate:{dur:true,lbl:'כלוב אחרון',live:'בכלוב',start:'נכנסה לכלוב',stop:'יצאה מהכלוב',log:'בכלוב',startQ:'מתי נכנסה לכלוב?'},
   med_am:{icon:'pill',log:'תרופת בוקר'},
   med_pm:{icon:'pill',log:'תרופת ערב'}
 };
+// The trainer's potty-training routine for pets with `cycle:true`: crate → walk + potty → play → food → potty → crate.
+// `k` = the timer that the step owns (started on entering, stopped on leaving); `food` logs a meal on entering;
+// `play` has no timer (too much tapping) — leaving the step just stamps `playEnd` for the take-out reminder.
+const CYCLE = [
+  {n:'כלוב', k:'crate'},
+  {n:'טיול וצרכים', potty:true},
+  {n:'משחק', play:true},
+  {n:'אוכל', food:true},
+  {n:'צרכים', potty:true}
+];
+const DUE_MAX = 60*60000;   // the "take her out" reminder gives up after an hour
 const iconOf = k => (ITEMS[k] && ITEMS[k].icon) || k;
 const LOG_MAX = 5000, LS_KEY = 'pets-timers-v1';
 
@@ -361,6 +392,41 @@ function tapDur(p, k){
     state.log.push({p,k,t:d.start,end:now});
   });
   else commit(`${PETS[p].name} · ${ITEMS[k].start}`, () => { state[p][k] = Object.assign({}, d, {start:now}); });
+  // Keep the routine strip in step with the crate timer when it is used directly:
+  // entering the crate = step 1, leaving it = "walk + potty".
+  if(PETS[p].cycle && k==='crate' && state[p][k] !== d) state[p].cyc = {i: d.start ? 1 : 0, t:now};
+}
+// Move the routine to step i: stop the crate timer if the crate step is being left, start the new step's
+// timer, and log a meal when entering the food step. One commit, so the toast undoes all of it.
+function goStep(p, i){
+  const st = CYCLE[i]; if(!st) return;
+  if(state[p].cyc && state[p].cyc.i === i) return;
+  commit(`${PETS[p].name} · ${st.n}`, () => {
+    const now = Date.now(), S = state[p];
+    for(const k of ['crate']){
+      const d = S[k] || {};
+      if(d.start && st.k !== k){ S[k] = {lastStart:d.start, lastEnd:now}; state.log.push({p, k, t:d.start, end:now}); }
+    }
+    if(S.cyc && CYCLE[S.cyc.i] && CYCLE[S.cyc.i].play) S.playEnd = now;
+    if(st.k && !(S[st.k] || {}).start) S[st.k] = Object.assign({}, S[st.k] || {}, {start:now});
+    if(st.food){ S.food = Math.max(S.food || 0, now); state.log.push({p, k:'food', t:now}); }
+    S.cyc = {i, t:now};
+  });
+}
+// When a puppy needs to go out (trainer's list): after waking up, leaving the crate, playing or eating.
+// Returns the latest such moment if nothing (pee, poop, or "went out, nothing") was logged since.
+function pottyDue(p){
+  const S = state[p], c = [];
+  if((S.sleep && S.sleep.start) || (S.crate && S.crate.start)) return null;
+  if(S.sleep && S.sleep.lastEnd) c.push([S.sleep.lastEnd, 'אחרי שינה']);
+  if(S.crate && S.crate.lastEnd) c.push([S.crate.lastEnd, 'אחרי יציאה מהכלוב']);
+  if(S.playEnd) c.push([S.playEnd, 'אחרי משחק']);
+  if(typeof S.food === 'number') c.push([S.food, 'אחרי אוכל']);
+  c.sort((a,b) => b[0]-a[0]);
+  if(!c.length) return null;
+  const done = Math.max(S.pee || 0, S.poop || 0, S.out || 0);
+  if(done >= c[0][0] || Date.now() - c[0][0] > DUE_MAX) return null;
+  return {t:c[0][0], why:c[0][1]};
 }
 function dayKey(t){ const d=new Date(t); return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`; }
 function medsOf(p){ return ((state[p].meds||{})[dayKey(Date.now())]) || {}; }
@@ -409,7 +475,7 @@ function todayTotal(p, k){
 
 // ---------- render ----------
 function render(){
-  document.body.className = 'p-'+pet;
+  document.body.className = document.documentElement.className = 'p-'+pet;
   document.querySelectorAll('.seg button').forEach(b => b.classList.toggle('on', b.dataset.pet===pet || b.dataset.view===view));
   if(view==='sum'){ document.getElementById('main').innerHTML = renderSummary(); return; }
   const P = PETS[pet], S = state[pet];
@@ -426,6 +492,8 @@ function render(){
     h += `<div class="card medc"><div class="meds-h"><div class="ic">${ico('pill')}</div><b>תרופות היום</b></div>
       <div class="meds">${slot('am','בוקר',11)}${slot('pm','ערב',21)}</div></div>`;
   }
+
+  if(P.cycle) h += cycleHTML(pet);
 
   for(const k of P.items){
     const it = ITEMS[k];
@@ -464,6 +532,16 @@ function render(){
   h += `<h2>היסטוריה<small>לחיצה על רישום לתיקון או מחיקה</small></h2><div class="card log">` + (items.length ? items.map(logRow).join('') : `<div class="empty">אין עדיין רישומים</div>`) + `</div>`;
   document.getElementById('main').innerHTML = h;
 }
+function cycleHTML(p){
+  const S = state[p], c = S.cyc && CYCLE[S.cyc.i] ? S.cyc : null, ci = c ? c.i : -1, next = (ci+1) % CYCLE.length;
+  const due = pottyDue(p), potty = due || (c && CYCLE[ci].potty), now = Date.now();
+  return `<div class="card cyc ${due?'due':''}">
+    <div class="cyc-h"><b>השגרה של ${PETS[p].name}</b><small>${c ? `${CYCLE[ci].n} · כבר <span data-words="${c.t}">${words(now-c.t)}</span>` : 'לחיצה על שלב מתחילה את המעקב'}</small></div>
+    <div class="steps">${CYCLE.map((s,i) => `<button class="${i===ci?'on':''}" data-act="step" data-k="${i}"><i>${i+1}</i>${s.n}</button>`).join('')}</div>
+    ${due ? `<div class="duemsg">${ico('pee','s')}<span>זמן להוציא לצרכים · ${due.why}, לפני <span data-words="${due.t}">${words(now-due.t)}</span></span></div>` : ''}
+    <div class="cyc-a">${potty ? `<button class="btn" data-act="pt" data-k="pee">פיפי</button><button class="btn" data-act="pt" data-k="poop">קקי</button>` : ''}${due ? `<button class="btn" data-act="nopotty">לא עשתה</button>` : ''}
+      <button class="go" data-act="step" data-k="${next}">הבא: ${CYCLE[next].n}</button></div></div>`;
+}
 function byOf(p, k, t){   // " · name" of whoever logged this event, if known
   for(let i = state.log.length-1; i >= 0; i--){ const e = state.log[i]; if(e.p===p && e.k===k && e.t===t) return USERS[e.by] ? ' · '+USERS[e.by] : ''; }
   return '';
@@ -478,7 +556,7 @@ let view = 'now', sumMode = 'day', sumAnchor = Date.now();
 const DAY = 86400000;
 const DOW = ['א׳','ב׳','ג׳','ד׳','ה׳','ו׳','ש׳'];
 const MONTHS = ['ינואר','פברואר','מרץ','אפריל','מאי','יוני','יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר'];
-const SUM_LBL = {food:'אוכל', pee:'פיפי', poop:'קקי', sleep:'שינה', cry:'בכי'};
+const SUM_LBL = {food:'אוכל', pee:'פיפי', poop:'קקי', sleep:'שינה', cry:'בכי', crate:'כלוב'};
 function sod(t){ const d = new Date(t); d.setHours(0,0,0,0); return d; }
 function ddmm(t){ const d = new Date(t); return `${d.getDate()}.${d.getMonth()+1}`; }
 function hm(ms){ const m = Math.round(ms/60000); return `${Math.floor(m/60)}:${pad(m%60)}`; }
@@ -498,7 +576,7 @@ function sumShift(dir){
   sumAnchor = Math.min(d.getTime(), Date.now());
 }
 function stats(p, from, to){
-  const r = {food:0, pee:0, poop:0, sleep:{n:0,ms:0}, cry:{n:0,ms:0}, meds:0};
+  const r = {food:0, pee:0, poop:0, sleep:{n:0,ms:0}, cry:{n:0,ms:0}, crate:{n:0,ms:0}, meds:0};
   const add = (k, a, b) => { const ov = Math.min(b,to) - Math.max(a,from); if(ov > 0){ r[k].ms += ov; r[k].n++; } };
   for(const e of state.log){
     if(e.p !== p) continue;
@@ -602,6 +680,8 @@ document.getElementById('main').addEventListener('click', e => {
   const k = b.dataset.k, a = b.dataset.act;
   if(a==='mode'){ sumMode = k; render(); }
   else if(a==='prev' || a==='next'){ sumShift(a==='prev' ? -1 : 1); render(); }
+  else if(a==='step') goStep(pet, +k);
+  else if(a==='nopotty') commit(`${PETS[pet].name} · יצאה, לא עשתה`, () => { state[pet].out = Date.now(); });
   else if(a==='pt') tapPoint(pet, k);
   else if(a==='dur') tapDur(pet, k);
   else if(a==='edit') openSheet(pet, k);
