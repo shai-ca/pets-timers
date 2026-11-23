@@ -18,7 +18,7 @@
     view = 'sum'; sumMode = 'week'; sumAnchor = now - 24*HOUR; render();
     const dots = $n('.tl-t .d');
     ok('week: timeline with dots, bands and meal ticks; where chart', dots > 10 && $n('.tl-t .b.crate') > 0 && $n('.tl-t .f') > 0 && $n('.wb-c') >= 1 && !!$q('.tl-t .d.pee.out'));
-    $q('.tl-t .d').click(); ok('tapping a dot opens that entry', bg.classList.contains('show') && sh.querySelectorAll('[data-w]').length === 5); close();
+    $q('.tl-t .d').click(); ok('tapping a dot opens that entry', bg.classList.contains('show') && sh.querySelectorAll('[data-w]').length === 4); close();
     $q('.tile[data-k=pee]').click();
     ok('filter on pee: only pee everywhere', !!$q('.tile.on[data-k=pee]') && $n('.tl-t .d.poop') === 0 && $n('.tl-t .b') === 0 && $n('.tbl th') === 2 && [...document.querySelectorAll('.card.log .r')].every(r => r.textContent.includes('פיפי')));
     $q('.tile[data-k=crate]').click();

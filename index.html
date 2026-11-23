@@ -434,7 +434,7 @@ document.getElementById('mark').innerHTML = `<svg viewBox="0 0 24 24">${ICONS.pa
 // ---------- model ----------
 const PETS = {
   kochik:   {name:'קוצ׳יק', items:['food','pee','poop','gel'], meds:true, where:['out','balcony','home','pad']},   // Kochik is an adult: outside is the norm, the balcony or indoors happen sometimes
-  kishmish: {name:'קישמיש', items:['crate','pee','poop','food','sleep','cry'], cycle:true, where:['gravel','pad','floor','crate','out']}
+  kishmish: {name:'קישמיש', items:['crate','pee','poop','food','sleep','cry'], cycle:true, where:['gravel','pad','floor','out']}   // not "in the crate": she does not go there (the owner's working assumption)
 };
 const ITEMS = {
   food:{lbl:'מאז האוכל האחרון',btn:'אכלה',log:'אכלה'},
@@ -863,14 +863,6 @@ function impliesOut(p, k, t){
   const c = open('crate'), sl = open('sleep');
   if(c && c.t < t) leaveCrate(p, t);
   else if(sl && sl.t < t && sl.t > t - 16*3600000) stopDur(p, 'sleep', t);
-}
-// The one exception: a pee or poop marked as having happened *in the crate* did not take her out of it.
-// Marking that place puts back the stay (and sleep) that logging the entry had just ended.
-function backInCrate(e){
-  for(const k of ['crate','sleep']){
-    const st = state.log.find(x => x.p===e.p && x.k===k && x.end === e.t);
-    if(st && !state.log.some(x => x.p===e.p && x.k===k && x.t >= e.t)) delete st.end;
-  }
 }
 // End the running timer of kind k: its entry gets an `end`. If two phones started the same stay, there are
 // two running entries — the earliest is kept as the stay and the others are dropped.
@@ -1744,7 +1736,7 @@ function whereSheet(id){
     <div class="foot"><span></span><button class="btn" id="cancel">דילוג</button></div>`;
   sh.querySelectorAll('[data-w]').forEach(b => b.onclick = () => {
     close();
-    commit('', () => { const x = find(); if(x){ x.w = b.dataset.w; if(x.w === 'crate') backInCrate(x); } }, {quiet:true});   // the undo toast of the pee itself stays up
+    commit('', () => { const x = find(); if(x) x.w = b.dataset.w; }, {quiet:true});   // the undo toast of the pee itself stays up
   });
   sh.querySelector('#cancel').onclick = close;
   bg.classList.add('show');
@@ -1939,7 +1931,6 @@ function openEntrySheet(i){
       commit(`${name} · ${it.log} עודכן`, () => {
         const x = find(); if(!x) return;
         if(w) x.w = w; else delete x.w;
-        if(w === 'crate' && e.w !== 'crate') backInCrate(x);
         x.t = d.getTime();
       });
     });

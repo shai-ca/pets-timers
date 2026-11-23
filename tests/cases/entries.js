@@ -5,7 +5,7 @@
     const now = Date.now(), near = (a, b) => Math.abs(a - b) < 3000, late = now - midnight() > 200*MIN;
     const type = v => { const a = sh.querySelector('#agoIn'); a.value = v; a.dispatchEvent(new Event('input', { bubbles: true })); };
     tapPoint('kishmish', 'pee');
-    ok('after a pee the app asks where: gravel first, 5 choices', bg.classList.contains('show') && [...sh.querySelectorAll('[data-w]')].map(b => b.dataset.w).join() === 'gravel,pad,floor,crate,out');
+    ok('after a pee the app asks where: gravel first, no "in the crate"', bg.classList.contains('show') && [...sh.querySelectorAll('[data-w]')].map(b => b.dataset.w).join() === 'gravel,pad,floor,out');
     sh.querySelector('#cancel').click();
     ok('skipped -> the tile offers "where?"', !logOf('kishmish', 'pee')[0].w && !!$q('[data-act=where][data-k=pee]'));
     $q('[data-act=where][data-k=pee]').click(); sh.querySelector('[data-w=pad]').click();
@@ -70,9 +70,6 @@
       seed([{ p:'kishmish', k:'crate', t: now - 60*MIN }, { p:'kishmish', k:'sleep', t: now - 50*MIN }]);
       tapPoint('kishmish', 'pee', now - 90*MIN); close();
       ok('an entry from before she went in changes nothing', !!K().crate.start && !!K().sleep.start);
-      seed([{ p:'kishmish', k:'crate', t: now - 60*MIN }, { p:'kishmish', k:'sleep', t: now - 50*MIN }]);
-      tapPoint('kishmish', 'pee'); sh.querySelector('[data-w=crate]').click();
-      ok('…unless the pee is marked "in the crate": then she never left it', !!K().crate.start && !!K().sleep.start && logOf('kishmish', 'pee')[0].w === 'crate' && logOf('kishmish', 'crate').length === 1);
       seed([{ p:'kishmish', k:'sleep', t: now - 30*MIN }]); tapPoint('kishmish', 'food');
       ok('eating while "asleep" outside the crate ends the sleep', !K().sleep.start);
       pet = 'kochik'; seed([]); tapPoint('kochik', 'food'); ok('no such rule for kochik', logOf('kochik', 'food').length === 1); pet = 'kishmish';
