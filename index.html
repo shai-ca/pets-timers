@@ -990,7 +990,10 @@ function retryAct(p, a, k, sure, t){
     commit(`${name} · ${ITEMS[e.k].log}`, () => { if(open) leaveCrate(p, now); state.log.push(e); });
     if(e.k === 'pee' && e.id) whereSheet(e.id);
   }
-  else if(a === 'rtstop') commit(`${name} · הניסיון החוזר הסתיים`, () => { find(r.none).x = 1; if(open) delete find(C).r; });
+  else if(a === 'rtstop') commit(`${name} · הניסיון החוזר הסתיים`, () => {
+    find(r.none).x = 1;
+    for(const e of state.log) if(e.p===p && e.k==='crate' && e.r && e.end == null) delete e.r;   // any running retry stay becomes an ordinary one
+  });
 }
 // Free time after a pee in the right place; locked while a retry is on.
 function freeCardHTML(p){

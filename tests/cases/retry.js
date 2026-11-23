@@ -41,6 +41,10 @@
     seed([{ p:'kishmish', k:'crate', t: now - 120*MIN, end: now - 5*MIN }, { p:'kishmish', k:'none', t: now - 4*MIN }]);
     $q('[data-act=rtcrate]').click(); $q('[data-act=rtstop]').click();
     ok('"end the retry": the card goes, the stay becomes an ordinary crate stay (a new round)', !card() && !C() && !!K().crate.start && roundStarts('kishmish').length === 2 && cur() === 'כלוב');
+    // (seen in real use) a retry stay left running from before the latest "nothing": ending the retry clears its mark too
+    seed([{ p:'kishmish', k:'none', t: now - 20*MIN }, { p:'kishmish', k:'crate', t: now - 18*MIN, r: 10 }, { p:'kishmish', k:'none', t: now - 13*MIN }]);
+    $q('[data-act=rtstop]').click();
+    ok('ending the retry un-marks a running retry stay even when it began before the last "nothing"', !card() && !logOf('kishmish', 'crate')[0].r && !!K().crate.start);
     // an old "nothing" does not keep the app in retry forever
     seed([{ p:'kishmish', k:'none', t: now - 190*MIN }]);
     ok('a "nothing" from more than three hours ago no longer counts', !card());
