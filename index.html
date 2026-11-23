@@ -165,11 +165,13 @@
   .steps{display:flex;flex-wrap:wrap;gap:6px}
   .steps button{border:1px solid var(--line);background:var(--bg);border-radius:10px;padding:7px 10px;font:inherit;font-size:13px;color:var(--muted);cursor:pointer}
   .steps button i{font-style:normal;opacity:.55;margin-inline-end:5px;font-variant-numeric:tabular-nums}
+  .steps button:disabled{opacity:.4;cursor:default}
   .steps button.on{background:var(--btn);border-color:var(--btn);color:#fff;font-weight:500}
   .duemsg{display:flex;align-items:center;gap:8px;margin-top:10px;padding:9px 12px;border-radius:12px;background:var(--alert-soft);color:var(--alert);font-size:13.5px;font-weight:500}
   .card.cyc.due{border-color:color-mix(in srgb,var(--alert) 40%,transparent)}
   .cyc-a{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:12px}
-  .cyc-a .go{margin-inline-start:auto}
+  .cyc-a .mainact{margin-inline-start:auto;display:flex;flex-direction:column;align-items:stretch;gap:4px}
+  .cyc-a .sub{flex:1;min-width:0}
   .cyc-a .go.wait{background:none;color:var(--btn);box-shadow:inset 0 0 0 1.5px var(--btn)}
   .zz{display:flex;align-items:center;gap:8px;margin-top:10px;padding:9px 12px;border-radius:12px;background:var(--ok-soft);color:var(--ok);font-size:13.5px;font-weight:500}
 
@@ -273,6 +275,8 @@ const CYCLE = [
 const WHERE = {out:'בחוץ', pad:'על הפד', floor:'על הרצפה'};
 const WHERE_SHORT = {out:'בחוץ', pad:'פד', floor:'רצפה'};
 const hasWhere = k => k==='pee' || k==='poop';
+const CRATE_MAX = 2*3600000;   // a crate stay longer than this turns red (tile and strip)
+const DAY_FROM = 7, DAY_TO = 22;   // the red crate flag is only shown between these hours
 const BREAK = -1;   // pseudo step in `hist`: the routine is on hold (vet, a trip…); it ends the round
 const stepName = i => i === BREAK ? 'הפסקה' : CYCLE[i].n;
 const HIST_MAX = 1500;   // step changes kept for the rounds list (about a month)
@@ -422,8 +426,8 @@ function tapDur(p, k, at){   // `at`: start a timer that began earlier ("she wen
   const now = Date.now(), d = state[p][k] || {};
   if(d.start && !at) commit(`${PETS[p].name} · ${ITEMS[k].stop}`, () => {
     stopDur(p, k, now);
-    // Keep the routine strip in step with the crate tile: leaving the crate = "walk + potty".
-    if(PETS[p].cycle && k==='crate') setStep(state[p], 1, now);
+    // Keep the routine strip in step with the crate tile: leaving the crate = awake, on to "walk + potty".
+    if(PETS[p].cycle && k==='crate'){ stopDur(p, 'sleep', now); if(!(state[p].cyc && state[p].cyc.i === 1)) setStep(state[p], 1, now); }
   });
   else commit(`${PETS[p].name} · ${ITEMS[k].start}`, () => {
     const t = at || now;
@@ -439,17 +443,30 @@ function stopDur(p, k, t){
 }
 // Move the routine to step i: stop the crate timer if the crate step is being left, start the new step's
 // timer, and log a meal when entering the food step. One commit, so the toast undoes all of it.
-function goStep(p, i){
+function goStep(p, i, at){   // `at`: the step really began earlier (forgot to tap at the time)
   const st = CYCLE[i]; if(!st) return;
-  if(state[p].cyc && state[p].cyc.i === i && !(st.k && !(state[p][st.k] || {}).start)) return;
+  const S0 = state[p], same = !!(S0.cyc && S0.cyc.i === i), crateOn = !!(S0.crate && S0.crate.start);
+  // Tapping the step she is already in does nothing — unless the crate timer disagrees with the step
+  // (crate step but no timer, or another step while the timer still runs); then the tap puts it right.
+  if(same && (i === 0 ? crateOn : !crateOn)) return;
   commit(`${PETS[p].name} · ${st.n}`, () => {
-    const now = Date.now(), S = state[p];
+    const S = state[p], h = S.hist || [];
+    // Never earlier than the previous step or than the moment she went into the crate, never in the future.
+    const now = Math.min(Date.now(), Math.max(at || Date.now(), h.length ? h[h.length-1].t : 0, (S.crate && S.crate.start) || 0));
     if(st.k !== 'crate'){ stopDur(p, 'crate', now); stopDur(p, 'sleep', now); }
-    if(S.cyc && CYCLE[S.cyc.i] && CYCLE[S.cyc.i].play) S.playEnd = now;
+    if(S.cyc && CYCLE[S.cyc.i] && CYCLE[S.cyc.i].play && !same) S.playEnd = now;
     if(st.k && !(S[st.k] || {}).start) S[st.k] = Object.assign({}, S[st.k] || {}, {start:now});
     if(st.food){ S.food = Math.max(S.food || 0, now); state.log.push({p, k:'food', t:now}); }
-    setStep(S, i, now);
+    if(!same || i === 0) setStep(S, i, now);
   });
+}
+// "The step began earlier": pick how long ago or a time, then move the routine there at that time.
+function openStepAtSheet(p, i){
+  const inCrate = !!(state[p].crate && state[p].crate.start);
+  sheet(`${PETS[p].name} · ${inCrate && i === 1 ? 'יצאה מהכלוב' : CYCLE[i].n} — מתי?`,
+    chips([5,10,15,30,60]) + `<label class="field">או בשעה ${timeField("tIn", nowStr())}</label>`,
+    cancelBtn, () => { const v = timeVal('tIn'); if(!v) return; close(); goStep(p, i, timeToTs(v)); },
+    ts => goStep(p, i, ts));
 }
 // Put the routine on hold (vet, a trip…). She is out of the crate and awake; the round ends here
 // and the next step that is tapped starts a new round.
@@ -545,8 +562,16 @@ function openStepSheet(p, j){
   sh.querySelector('#del').onclick = () => {
     close();
     commit(`${PETS[p].name} · ${stepName(h.i)} נמחק מהסבב`, () => {
-      const H = state[p].hist; H.splice(j, 1);
-      if(j === H.length){ if(H.length) state[p].cyc = Object.assign({}, H[H.length-1]); else delete state[p].cyc; }
+      const H = state[p].hist, st = CYCLE[h.i] || {}, S = state[p];
+      H.splice(j, 1);
+      if(j === H.length){ if(H.length) S.cyc = Object.assign({}, H[H.length-1]); else delete S.cyc; }
+      // Take along what the routine itself wrote for this step: the crate stay or the meal that began with it.
+      const k = st.k || (st.food ? 'food' : null);
+      if(k){
+        if(st.k && S[k] && S[k].start === h.t) delete S[k].start;
+        state.log = state.log.filter(e => !(e.p===p && e.k===k && e.t===h.t));
+        recalc(p, k);
+      }
     });
   };
 }
@@ -669,7 +694,9 @@ function render(){
       } else { lbl = it.lbl; big = `<div class="big none">–</div>`; sub = 'עוד לא נרשם'; }
       const cur = live ? Date.now()-d.start : (d.lastEnd ? d.lastEnd-d.lastStart : 0);
       if(tt > cur + 60000) sub += ` · סה״כ היום <span data-total="${k}">${words(tt)}</span>`;
-      h += `<div class="card item ${live?'live':''} ${k==='cry'?'cry':''}">
+      const over = k==='crate' && crateOver(pet);
+      if(over) sub += ` · יותר מ${words(CRATE_MAX)}`;
+      h += `<div class="card item ${live?'live':''} ${k==='cry' || over?'cry':''}">
         <div class="ic">${ico(k)}</div>
         <div><div class="lbl">${lbl}</div>${big}<div class="sub">${sub}</div></div>
         <div class="acts"><button class="go" data-act="dur" data-k="${k}">${live?it.stop:it.start}</button>
@@ -689,21 +716,35 @@ function render(){
   document.getElementById('main').innerHTML = h;
 }
 function cycleHTML(p){
-  const S = state[p], brk = !!(S.cyc && S.cyc.i === BREAK), c = S.cyc && CYCLE[S.cyc.i] ? S.cyc : null, ci = c ? c.i : -1;
+  const S = state[p], brk = !!(S.cyc && S.cyc.i === BREAK), now = Date.now(), rn = rounds(p).pop();
+  // Being in the crate is a state that only ends when someone marks that she was taken out: while the
+  // crate timer runs the strip shows the crate step, the other steps are locked, and the one way on is
+  // the explicit "הוצאתי אותה מהכלוב" button (or the same button on the crate tile).
+  const inCrate = !!(S.crate && S.crate.start), over = crateOver(p);
+  const c = inCrate ? {i:0, t:S.crate.start} : (S.cyc && CYCLE[S.cyc.i] ? S.cyc : null), ci = c ? c.i : -1;
   // While she sleeps the strip does not push on: the only suggestion is what to do when she wakes up.
-  const asleep = !!(S.sleep && S.sleep.start), next = (ci+1) % CYCLE.length, now = Date.now(), rn = rounds(p).pop();
-  const due = pottyDue(p), potty = !asleep && (due || (c && CYCLE[ci].potty));
-  const head = c ? `${rn ? roundName(rn)+' · ' : ''}${CYCLE[ci].n} · כבר <span data-words="${c.t}">${words(now-c.t)}</span>`
+  const asleep = !!(S.sleep && S.sleep.start), next = (ci+1) % CYCLE.length;
+  const due = pottyDue(p), potty = !asleep && !inCrate && (due || (c && CYCLE[ci].potty));
+  const head = c ? `${rn ? roundName(rn)+' · ' : ''}${CYCLE[ci].n}${inCrate ? ` מ־<bdi dir="ltr">${clock(c.t)}</bdi>` : ''} · כבר <span data-words="${c.t}">${words(now-c.t)}</span>`
     : brk ? `בהפסקה · כבר <span data-words="${S.cyc.t}">${words(now-S.cyc.t)}</span>` : 'לחיצה על שלב מתחילה את המעקב';
-  return `<div class="card cyc ${due?'due':''}">
+  const main = inCrate ? `<button class="go ${asleep?'wait':''}" data-act="out">הוצאתי אותה מהכלוב</button>`
+    : asleep ? `<button class="go wait" data-act="wake">כשתתעורר: ${CYCLE[1].n}</button>`
+    : `<button class="go" data-act="step" data-k="${next}">${brk ? 'חזרה לשגרה' : 'הבא'}: ${CYCLE[next].n}</button>`;
+  return `<div class="card cyc ${due||over?'due':''}">
     <div class="cyc-h"><b>השגרה של ${PETS[p].name}</b><small>${head}</small></div>
-    <div class="steps">${CYCLE.map((s,i) => `<button class="${i===ci?'on':''}" data-act="step" data-k="${i}"><i>${i+1}</i>${s.n}</button>`).join('')}</div>
+    <div class="steps">${CYCLE.map((s,i) => `<button class="${i===ci?'on':''}" data-act="step" data-k="${i}" ${inCrate && i!==0 ? 'disabled' : ''}><i>${i+1}</i>${s.n}</button>`).join('')}</div>
+    ${over ? `<div class="duemsg">${ico('crate','s')}<span>בכלוב כבר יותר מ${words(CRATE_MAX)} · מ־<bdi dir="ltr">${clock(S.crate.start)}</bdi></span></div>` : ''}
     ${due ? `<div class="duemsg">${ico('pee','s')}<span>זמן להוציא לצרכים · ${due.why}, לפני <span data-words="${due.t}">${words(now-due.t)}</span></span></div>` : ''}
     ${asleep ? `<div class="zz">${ico('sleep','s')}<span>ישנה מ־<bdi dir="ltr">${clock(S.sleep.start)}</bdi> · נותנים לה לישון</span></div>` : ''}
     <div class="cyc-a">${potty ? `<button class="btn" data-act="pt" data-k="pee">פיפי</button><button class="btn" data-act="pt" data-k="poop">קקי</button><button class="btn" data-act="pt" data-k="none">לא עשתה</button>` : ''}
-      ${brk ? '' : `<button class="ghost" data-act="brk">${ico('none','s')}הפסקה בשגרה</button>`}
-      ${asleep ? `<button class="go wait" data-act="wake">כשתתעורר: ${CYCLE[1].n}</button>`
-               : `<button class="go" data-act="step" data-k="${next}">${brk ? 'חזרה לשגרה' : 'הבא'}: ${CYCLE[next].n}</button>`}</div></div>`;
+      ${brk || inCrate ? '' : `<button class="ghost" data-act="brk">${ico('none','s')}הפסקה בשגרה</button>`}
+      ${inCrate ? `<span class="sub">בכלוב עד שמסמנים הוצאה</span>` : ''}
+      <span class="mainact">${main}<button class="ghost" data-act="stepat" data-k="${inCrate || asleep ? 1 : next}">${ico('clock','s')}שעה אחרת</button></span></div></div>`;
+}
+// A crate stay longer than CRATE_MAX is flagged red — in the daytime only, so a night in the crate is not an alarm.
+function crateOver(p){
+  const c = state[p].crate, hr = new Date().getHours();
+  return !!(c && c.start) && Date.now() - c.start > CRATE_MAX && hr >= DAY_FROM && hr < DAY_TO;
 }
 function whereTag(w){ return WHERE[w] ? ` · <em class="wh ${w}">${WHERE[w]}</em>` : ''; }
 function whereOf(p, k, t){   // " · where" of the pee / poop logged at t, if it was marked
@@ -859,6 +900,8 @@ document.getElementById('main').addEventListener('click', e => {
   else if(a==='step') goStep(pet, +k);
   else if(a==='rstep') openStepSheet(pet, +k);
   else if(a==='brk') goBreak(pet);
+  else if(a==='stepat') openStepAtSheet(pet, +k);
+  else if(a==='out') goStep(pet, 1);   // out of the crate: stops the crate (and sleep) timer, on to walk + potty
   else if(a==='wake'){ const c = state[pet].cyc; if(c && c.i === 1) tapDur(pet, 'sleep'); else goStep(pet, 1); }
   else if(a==='pt') tapPoint(pet, k);
   else if(a==='dur') tapDur(pet, k);
@@ -1052,7 +1095,11 @@ function openEntrySheet(i){
       const j = find(); if(j < 0) return;
       state.log.splice(j, 1); recalc(e.p, e.k);
       state[e.p][e.k] = Object.assign({}, state[e.p][e.k] || {}, {start:e.t});
-      if(PETS[e.p].cycle && e.k === 'crate' && !(state[e.p].cyc && state[e.p].cyc.i === 0)) setStep(state[e.p], 0, e.t);
+      if(PETS[e.p].cycle && e.k === 'crate'){
+        const S = state[e.p], H = S.hist || [];
+        if(H.length >= 2 && H[H.length-1].t === e.end && H[H.length-2].i === 0){ H.pop(); S.cyc = Object.assign({}, H[H.length-1]); }   // undo the "out" step
+        else if(!(S.cyc && S.cyc.i === 0)) setStep(S, 0, e.t);
+      }
     });
   };
   sh.querySelector('#del').onclick = () => {
