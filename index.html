@@ -262,10 +262,10 @@
   #side{display:flex;flex-direction:column;gap:10px;margin-bottom:10px}
   #side:empty{display:none}
   .wheelhint{text-align:center;margin-top:6px;opacity:.8}
-  h2.sec{scroll-margin-top:14px}
+  .grp{display:flex;flex-direction:column;gap:10px;scroll-margin-top:10px}
   @keyframes flash{0%,55%{box-shadow:0 0 0 3px var(--btn)}100%{box-shadow:0 0 0 0 transparent}}
   .card.flash{animation:flash 1.4s ease-out}
-  h2.sec.flash{color:var(--btn)}
+  .grp.flash > h2.sec{color:var(--btn)}
   h2.sec{display:flex;align-items:center;gap:8px;margin:16px 4px 0;font-size:14px;font-weight:600;color:var(--ink);letter-spacing:0}
   h2.sec i{font-style:normal;font-weight:500;font-size:12px;color:var(--muted);background:var(--seg);border-radius:8px;padding:1px 8px;white-space:nowrap}
   h2.sec.now i{background:var(--btn);color:#fff}
@@ -340,17 +340,41 @@
     .bg{align-items:center}
     .sheet{max-width:440px;border-radius:22px;padding-bottom:22px}
   }
-  /* wide screens: the wheel column sits at the side and stays in view while the tiles scroll */
+  /* ---------- tablets and up: each step's tiles in its own panel, panels side by side ---------- */
+  @media (min-width:760px){
+    main.grps{grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;grid-template-areas:"crate potty" "rest potty" "play food"}
+    main.grps > .grp{grid-column:auto;background:color-mix(in srgb,var(--card) 62%,transparent);border:1px solid var(--line);border-radius:26px;padding:16px 16px 18px}
+    main.grps > .grp.now{border-color:color-mix(in srgb,var(--btn) 60%,transparent);box-shadow:0 0 0 1px color-mix(in srgb,var(--btn) 60%,transparent), 0 10px 30px -18px color-mix(in srgb,var(--btn) 70%,transparent)}
+    main.grps > .grp > h2.sec{margin:0 2px 4px;font-size:15.5px}
+    main.grps > .grp .card{box-shadow:none}
+    main.grps > .grp .card.nowt{box-shadow:0 0 0 2px var(--btn)}
+    #sec-crate{grid-area:crate} #sec-potty{grid-area:potty} #sec-rest{grid-area:rest} #sec-play{grid-area:play} #sec-food{grid-area:food}
+    main.grps > .card.log{max-width:none}
+    main.grps > h2{margin-top:6px}
+    .grp.flash{animation:flash 1.4s ease-out}
+  }
+  /* ---------- wide screens: one top bar, the wheel column at the side staying in view, content filling the rest ---------- */
   @media (min-width:1000px){
-    .shell{display:flex;align-items:flex-start;gap:24px}
-    #side{flex:none;width:360px;margin:0;position:sticky;top:16px;max-height:calc(100vh - 32px);overflow-y:auto;padding:2px}
+    body{padding:28px 32px 96px}
+    .wrap{max-width:1480px;display:grid;grid-template-columns:auto minmax(260px,340px) minmax(200px,260px) 1fr auto;align-items:center;column-gap:18px;row-gap:22px}
+    header{display:contents}
+    .brand{grid-column:1;grid-row:1}
+    .wrap > .seg{grid-column:2;grid-row:1;margin:0;max-width:none}
+    .wrap > .seg.sm{grid-column:3;grid-row:1;margin:0}
+    .hr{grid-column:5;grid-row:1;justify-self:end}
+    .shell{grid-column:1/-1;display:flex;align-items:flex-start;gap:28px}
+    #side{flex:none;width:384px;margin:0;position:sticky;top:20px;max-height:calc(100vh - 40px);overflow-y:auto;padding:3px;scrollbar-width:thin}
     #side > .card{max-width:none}
-    #side > .card.cyc{display:block;padding:16px}
-    #side > .card.cyc > .steps{width:auto;margin:2px auto 0}
+    #side > .card.cyc{display:block;padding:20px 18px 18px;border-radius:26px}
+    #side > .card.cyc > .steps{width:auto;margin:6px auto 2px;transform:scale(1.08);transform-origin:center}
     #side > .card.cyc > *{grid-column:auto}
     main{flex:1;min-width:0}
-    h2.sec{scroll-margin-top:20px}
-    main > h2.sec:first-child{margin-top:2px}
+    main.grps{gap:18px}
+    .grp{scroll-margin-top:20px}
+  }
+  @media (min-width:1860px){
+    .wrap{max-width:1760px}
+    main.grps{grid-template-columns:repeat(3,minmax(0,1fr));grid-template-areas:"crate potty play" "rest potty food"}
   }
 </style>
 </head>
@@ -1080,6 +1104,7 @@ function render(){
   document.body.className = document.documentElement.className = 'p-'+pet;
   document.querySelectorAll('.seg button').forEach(b => b.classList.toggle('on', b.dataset.pet===pet || b.dataset.view===view));
   const side = document.getElementById('side'); side.innerHTML = '';
+  document.getElementById('main').className = view === 'now' && PETS[pet].cycle ? 'grps' : '';
   if(view==='sum'){ document.getElementById('main').innerHTML = renderSummary(); return; }
   const P = PETS[pet], S = V[pet];
   let h = '';
@@ -1143,7 +1168,7 @@ function render(){
   else {
     // The tiles are grouped by the routine's steps, in its order; the group to fill in now is marked.
     const rt = retry(pet), ln = S.none, lw = S.water;
-    const sec = (num, title, now, body, id) => `<h2 class="sec ${now ? 'now' : ''}" id="sec-${id}">${num ? `<i>${num}</i>` : ''}${title}${now ? '<span class="tagk">עכשיו בשגרה</span>' : ''}</h2>` + body;
+    const sec = (num, title, now, body, id) => `<section class="grp ${now ? 'now' : ''}" id="sec-${id}"><h2 class="sec ${now ? 'now' : ''}">${num ? `<i>${num}</i>` : ''}${title}${now ? '<span class="tagk">עכשיו בשגרה</span>' : ''}</h2>${body}</section>`;
     h += sec('1', 'כלוב', tap.includes('crate'), tileOf('crate'), 'crate');
     // "Went out, nothing happened" is one button in a slim row — it has no timer of its own worth a tile.
     h += sec('2 · 5', 'צרכים', tap.includes('pee') || !!rt, tileOf('pee') + tileOf('poop') +
@@ -1590,9 +1615,9 @@ document.getElementById('main').addEventListener('change', e => {
 });
 // Jump to a group of tiles and flash it, so the eye lands on the right place.
 function goSec(key){
-  const h2 = document.getElementById('sec-'+key); if(!h2) return;
-  h2.scrollIntoView({behavior:'smooth', block:'start'});
-  const els = [h2]; for(let n = h2.nextElementSibling; n && n.tagName !== 'H2'; n = n.nextElementSibling) els.push(n);
+  const sec = document.getElementById('sec-'+key); if(!sec) return;
+  sec.scrollIntoView({behavior:'smooth', block:'start'});
+  const els = [sec].concat([...sec.querySelectorAll('.card')]);
   els.forEach(n => { n.classList.remove('flash'); void n.offsetWidth; n.classList.add('flash'); });
   setTimeout(() => els.forEach(n => n.classList.remove('flash')), 1500);
 }
