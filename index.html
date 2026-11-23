@@ -933,11 +933,15 @@ function openSheet(p, k){
     sh.querySelector('#del').onclick = () => { close(); commit(`${name} · נמחק`, () => { const x = Object.assign({}, d); delete x.start; state[p][k] = x; }); };
   } else {
     sheet(`${name} · ${it.lbl.replace(' אחרונה','').replace(' אחרון','')} — הוספה`,
-      `<div class="sub" style="margin-bottom:8px">עדיין נמשך? מתי התחיל:</div>` + chips([5,10,15,30,60,120]) +
-      `<div class="sub" style="margin:4px 0 10px">או משהו שכבר הסתיים:</div>
-       <label class="field">התחלה ${timeField("aIn", "")}</label><label class="field">סיום&nbsp; ${timeField("bIn", nowStr())}</label>`,
+      `<div class="sub" style="margin-bottom:8px">התחיל ועדיין נמשך:</div>` + chips([5,10,15,30,60,120]) +
+      `<label class="field">או התחלה ב־ ${timeField("aIn", "")}</label><label class="field">סיום&nbsp; ${timeField("bIn", "")}</label>
+       <div class="sub">בלי שעת סיום = עדיין נמשך. עם שעת סיום = משהו שכבר נגמר.</div>`,
       cancelBtn, () => {
-        const a = timeVal('aIn'), b = timeVal('bIn'); if(!a||!b) return;
+        // No end time means it is still going on: start the live timer from the given time. (The end used to
+        // default to "now", which silently logged "in the crate since 10:01" as a finished stay.)
+        const a = timeVal('aIn'); if(!a) return;
+        if(!sh.querySelector('#bIn').value.trim()){ close(); tapDur(p, k, timeToTs(a)); return; }
+        const b = timeVal('bIn'); if(!b) return;
         const tb = timeToTs(b); let ta = timeToTs(a); if(ta > tb) ta -= 86400000;
         close();
         commit(`${name} · ${it.log} נוסף`, () => {
