@@ -10,7 +10,9 @@
       ".firebase/**",
       "**/node_modules/**",
       "CLAUDE.md",
-      "firestore.rules"
+      "firestore.rules",
+      "tests/**",
+      "deploy.sh"
     ],
     "headers": [
       {

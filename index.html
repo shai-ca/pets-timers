@@ -137,7 +137,7 @@
   .wb-c em{width:100%;height:20px;padding-top:4px;border-top:1px solid var(--faint);font-style:normal;font-size:11px;color:var(--muted);text-align:center;white-space:nowrap}
   .wh{font-style:normal}
   .wh.no{color:var(--muted)}
-  .wh.floor,.wh.crate{color:var(--alert);font-weight:500}
+  .wh.floor,.wh.crate,.wh.home{color:var(--alert);font-weight:500}
   .rd{padding:12px 0;border-bottom:1px solid var(--line)} .rd:last-child{border-bottom:0}
   .rd-h{font-size:12.5px;color:var(--muted);margin-bottom:8px;display:flex;justify-content:space-between;align-items:baseline}
   .rd-h b{font-size:14px;font-weight:600;color:var(--ink)}
@@ -354,7 +354,7 @@ document.getElementById('mark').innerHTML = `<svg viewBox="0 0 24 24">${ICONS.pa
 
 // ---------- model ----------
 const PETS = {
-  kochik:   {name:'קוצ׳יק', items:['food','pee','poop','gel'], meds:true, where:['out','gravel','pad','floor']},
+  kochik:   {name:'קוצ׳יק', items:['food','pee','poop','gel'], meds:true, where:['out','balcony','home','pad']},   // Kochik is an adult: outside is the norm, the balcony or indoors happen sometimes
   kishmish: {name:'קישמיש', items:['crate','pee','poop','food','sleep','cry'], cycle:true, where:['gravel','pad','floor','crate','out']}
 };
 const ITEMS = {
@@ -378,10 +378,10 @@ const ITEMS = {
 // The app works out the current step from the log (see `routine()`); these are just the five names.
 const CYCLE = [{n:'כלוב'}, {n:'טיול וצרכים'}, {n:'משחק'}, {n:'אוכל'}, {n:'צרכים'}];
 // Where a pee / poop happened; stored as `w` on the log entry (optional).
-const WHERE = {out:'בחוץ', gravel:'על החצץ במרפסת', pad:'על הפד', floor:'על הרצפה', crate:'בכלוב'};   // floor and crate are accidents (shown in red)
+const WHERE = {out:'בחוץ', gravel:'על החצץ במרפסת', balcony:'במרפסת', pad:'על הפד', home:'בבית', floor:'על הרצפה', crate:'בכלוב'};   // floor and crate are accidents (shown in red)
 // The choices offered per pet, best place first. Kishmish is not vaccinated yet and does not go outside: her target is the gravel on the balcony.
 const whereKeys = p => PETS[p].where || Object.keys(WHERE);
-const WHERE_SHORT = {out:'בחוץ', gravel:'חצץ', pad:'פד', floor:'רצפה', crate:'כלוב'};
+const WHERE_SHORT = {out:'בחוץ', gravel:'חצץ', balcony:'מרפסת', pad:'פד', home:'בית', floor:'רצפה', crate:'כלוב'};
 const hasWhere = k => k==='pee' || k==='poop';
 const CRATE_MAX = 2*3600000;   // a crate stay longer than this turns red (tile and strip)
 const DAY_FROM = 7, DAY_TO = 22;   // the red crate flag is only shown between these hours
@@ -392,151 +392,158 @@ const PLAY_FOOD = {kong:true, lick:true, train:true};
 const STEP_ICON = ['crate','paw','ball','food','pee'];   // one per CYCLE step, drawn on its ring segment
 const DUE_MAX = 60*60000;   // the "take her out" reminder gives up after an hour
 const iconOf = k => (ITEMS[k] && ITEMS[k].icon) || k;
-const LOG_MAX = 5000, LS_KEY = 'pets-timers-v1';
+const LOG_MAX = 5000, LS_KEY = 'pets-timers-v1', LS_DATA = 'pets-timers-v2';
+const SCHEMA = 2;   // version of the saved data; see `norm()` and the Firestore rule
 
 const USERS = {yonatan:'יונתן', shai:'שי', liza:'ליזה'};   // who is using this device; stamped on every log entry as `by`
 let me = null;
 let state = blank(), pet = 'kishmish';
+let V = null;   // everything the screen shows about the pets, computed from `state.log` by `derive`; never saved
 let ref = null, writing = false, dirty = false, lastUndo = null, toastTimer = null;
 
-function blank(){ return {kochik:{}, kishmish:{}, log:[]}; }
+function blank(){ return {v:SCHEMA, log:[]}; }
 function clone(o){ return JSON.parse(JSON.stringify(o)); }
-function norm(s){
+// THE RULE: the saved data is one list of entries (`state.log`) and nothing else that matters. Last
+// times, running timers, the medication checklist, rounds, the wheel — all of it is computed from the list
+// (`derive`, `routine`, `roundStarts`…) every time it is shown. Earlier versions also saved some of those
+// as separate numbers, and a phone holding older information could overwrite them: a tile said "last pee
+// 22 hours ago" while the list had today's. Do not add saved state that the list could tell you.
+//
+// An entry: { id, p, k, t, end?, w?, y?, by? }. A timer kind (crate / sleep / cry) with no `end` is running.
+// `id` is the entry's identity for syncing; changing its time or place keeps the id.
+const isLive = e => !!ITEMS[e.k].dur && e.end == null;
+const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+function norm(s){   // any saved or received data -> the current shape (also upgrades version-1 data)
   const b = blank();
-  if(!s || typeof s!=='object') return b;
-  for(const p of Object.keys(PETS)) b[p] = (s[p] && typeof s[p]==='object') ? clone(s[p]) : {};
-  b.log = Array.isArray(s.log) ? clone(s.log).filter(e => e && ITEMS[e.k] && PETS[e.p]) : [];
-  return relast(b);
-}
-// The "last time" values on the tiles (last pee, last meal, last finished crate stay…) are only a cache
-// of the log. They used to be kept as separate numbers, and a phone holding older information could
-// overwrite them when it synced — the tile then said "last pee 22 hours ago" while the list had today's.
-// So they are recomputed from the log every time the state is loaded, merged or changed. Only a running
-// timer's `start` is real stored state (it has no log entry yet); the medication checklist is separate.
-function relast(s){
-  for(const p of Object.keys(PETS)){
-    const S = s[p], seen = {};
-    for(const e of s.log){
-      if(e.p !== p || e.k.startsWith('med_')) continue;
-      if(ITEMS[e.k].dur){ if(e.end && !(seen[e.k] && seen[e.k].lastEnd >= e.end)) seen[e.k] = {lastStart:e.t, lastEnd:e.end}; }
-      else if(!(seen[e.k] >= e.t)) seen[e.k] = e.t;
-    }
-    for(const k of Object.keys(ITEMS)){
-      if(k.startsWith('med_')) continue;
-      if(ITEMS[k].dur){
-        const n = Object.assign({}, seen[k] || {}); if(S[k] && S[k].start) n.start = S[k].start;
-        if(Object.keys(n).length) S[k] = n; else delete S[k];
-      } else if(seen[k] != null) S[k] = seen[k]; else delete S[k];
+  if(!s || typeof s !== 'object') return b;
+  b.log = Array.isArray(s.log) ? clone(s.log).filter(e => e && ITEMS[e.k] && PETS[e.p] && typeof e.t === 'number') : [];
+  if(s.legacy) b.legacy = clone(s.legacy);
+  if(!(s.v >= 2)){
+    // Version 1 kept a pet object next to the list. It is preserved untouched under `legacy` (nothing reads
+    // it), and the one fact that only lived there — a running timer's start — becomes an entry.
+    b.legacy = {};
+    for(const p of Object.keys(PETS)){
+      if(!s[p] || typeof s[p] !== 'object') continue;
+      b.legacy[p] = clone(s[p]);
+      for(const k of Object.keys(ITEMS)){ const st = ITEMS[k].dur && s[p][k] && s[p][k].start; if(typeof st === 'number') b.log.push({p, k, t:st}); }
     }
   }
-  return s;
+  // Entries from before ids existed get one worked out from their content, so every phone arrives at the same id.
+  const seen = new Set();
+  b.log = b.log.filter(e => { if(!e.id) e.id = `m:${e.p}|${e.k}|${e.t}${e.end != null ? '|'+e.end : ''}`; if(seen.has(e.id)) return false; seen.add(e.id); return true; });
+  b.log.sort((x,y) => x.t-y.t);
+  return b;
 }
+// What the tiles and the checklist read, for each pet: the last time of every point kind, and for every
+// timer kind `{start?, lastStart?, lastEnd?}` (`start` = running, from the earliest entry without an end),
+// plus `meds[day][slot]` from the medication entries.
+function derive(s){
+  const v = {};
+  for(const p of Object.keys(PETS)){
+    const S = v[p] = {meds:{}};
+    for(const k of Object.keys(ITEMS)) if(ITEMS[k].dur) S[k] = {};
+    for(const e of s.log){
+      if(e.p !== p) continue;
+      if(e.k.startsWith('med_')){ const m = S.meds[dayKey(e.t)] = S.meds[dayKey(e.t)] || {}, sl = e.k.slice(4); if(!(m[sl] >= e.t)) m[sl] = e.t; }
+      else if(ITEMS[e.k].dur){
+        const c = S[e.k] = S[e.k] || {};
+        if(e.end == null){ if(!(c.start <= e.t)) c.start = e.t; }
+        else if(!(c.lastEnd >= e.end)){ c.lastStart = e.t; c.lastEnd = e.end; }
+      } else if(!(S[e.k] >= e.t)) S[e.k] = e.t;
+    }
+  }
+  return v;
+}
+function setState(s){ state = s; V = derive(state); }
+setState(state);
 
 // ---------- persistence ----------
-try { const ls = localStorage.getItem(LS_KEY); if(ls) state = norm(JSON.parse(ls)); } catch(e){}
+// `base` is the last list this device knows the server has. Only the difference between `base` and `state`
+// — what was changed here — is ever sent, and it is applied on top of whatever the server holds at that
+// moment (see `push`). Both are saved together in one localStorage write, so they cannot get out of step.
+let base = null;
+try {
+  const d = JSON.parse(localStorage.getItem(LS_DATA) || 'null');
+  if(d && d.state){ setState(norm(d.state)); base = norm(d.base); }
+  else {   // first run of this version: take over what version 1 left (its keys stay as a backup)
+    const s1 = localStorage.getItem(LS_KEY), b1 = localStorage.getItem(LS_KEY+'-base');
+    if(s1) setState(norm(JSON.parse(s1)));
+    if(b1) base = norm(JSON.parse(b1));
+  }
+} catch(e){}
+if(!base) base = clone(state);
 try { const p = localStorage.getItem(LS_KEY+'-tab'); if(p && PETS[p]) pet = p; } catch(e){}
 try { const u = localStorage.getItem(LS_KEY+'-user'); if(USERS[u]) me = u; } catch(e){}
-function saveLocal(){ try{ localStorage.setItem(LS_KEY, JSON.stringify(state)); localStorage.setItem(LS_KEY+'-base', JSON.stringify(base)); }catch(e){} }
+function saveLocal(){ try{ localStorage.setItem(LS_DATA, JSON.stringify({state, base})); }catch(e){} }
+
+// ONE ADDRESS. The app lives at pets-timers.firebaseapp.com (sign-in is same-site there, and there is one
+// build to keep current). The old GitHub Pages address only forwards: at once when this phone has nothing
+// unsent, otherwise after its changes went out (see `push`) or after a few seconds at most.
+const CANON = 'https://pets-timers.firebaseapp.com/';
+const OLD_HOST = /\.github\.io$/.test(location.hostname);
+function forward(){ if(OLD_HOST) location.replace(CANON); }
 
 // ---------- merging (so one phone never overwrites what another phone wrote) ----------
-// `base` is the last state this device knows the server has. Only the difference between `base` and
-// `state` — what was changed here — is ever sent, and it is applied on top of whatever the server holds
-// at that moment. Pet objects are compared field by field (arrays such as `hist` as a whole); the log is
-// compared entry by entry, keyed by pet + kind + time.
-let base = null;
-try { const b = localStorage.getItem(LS_KEY+'-base'); if(b) base = norm(JSON.parse(b)); } catch(e){}
 const isObj = v => !!v && typeof v === 'object' && !Array.isArray(v);
 function canon(v){   // JSON with sorted keys: equal data compares equal whatever order the keys came back in
   if(Array.isArray(v)) return '[' + v.map(canon).join(',') + ']';
   if(isObj(v)) return '{' + Object.keys(v).filter(k => v[k] !== undefined).sort().map(k => JSON.stringify(k) + ':' + canon(v[k])).join(',') + '}';
   return JSON.stringify(v === undefined ? null : v);
 }
-const logKey = e => `${e.p}|${e.k}|${e.t}`;
-function diff(a, b){
-  const d = {set:[], del:[], rem:[], add:[]};
-  const walk = (x, y, path) => {
-    for(const k of new Set(Object.keys(x || {}).concat(Object.keys(y || {})))){
-      const u = x ? x[k] : undefined, v = y ? y[k] : undefined;
-      if(u === undefined && v === undefined) continue;
-      if(u !== undefined && v !== undefined && canon(u) === canon(v)) continue;
-      const at = path.concat(k);
-      if(v === undefined) d.del.push(at);
-      else if(isObj(u) && isObj(v)) walk(u, v, at);
-      else d.set.push([at, v]);
-    }
-  };
-  for(const pt of Object.keys(PETS)) walk(a[pt], b[pt], [pt]);
-  const A = new Map(a.log.map(e => [logKey(e), canon(e)])), B = new Map(b.log.map(e => [logKey(e), e]));
-  for(const [k, c] of A) if(!B.has(k) || canon(B.get(k)) !== c) d.rem.push(k);
-  for(const [k, e] of B) if(A.get(k) !== canon(e)) d.add.push(e);
+function diff(a, b){   // what changed in the list from a to b: ids that went away or changed, entries that are new or changed
+  const d = {rem:[], add:[]};
+  const A = new Map(a.log.map(e => [e.id, canon(e)])), B = new Map(b.log.map(e => [e.id, e]));
+  for(const [id, c] of A) if(!B.has(id) || canon(B.get(id)) !== c) d.rem.push(id);
+  for(const [id, e] of B) if(A.get(id) !== canon(e)) d.add.push(e);
   return d;
 }
-const noDiff = d => !d.set.length && !d.del.length && !d.rem.length && !d.add.length;
+const noDiff = d => !d.rem.length && !d.add.length;
 function patch(d, onto){   // returns a new state: `onto` with the changes `d` applied
   const s = norm(onto);
-  for(const path of d.del){ let o = s; for(const k of path.slice(0,-1)){ o = isObj(o) ? o[k] : undefined; } if(isObj(o)) delete o[path[path.length-1]]; }
-  for(const [path, v] of d.set){ let o = s; for(const k of path.slice(0,-1)){ if(!isObj(o[k])) o[k] = {}; o = o[k]; } o[path[path.length-1]] = clone(v); }
   if(d.rem.length || d.add.length){
-    const gone = new Set(d.rem.concat(d.add.map(logKey)));
-    s.log = s.log.filter(e => !gone.has(logKey(e))).concat(clone(d.add));
+    const gone = new Set(d.rem.concat(d.add.map(e => e.id)));
+    s.log = s.log.filter(e => !gone.has(e.id)).concat(clone(d.add));
     s.log.sort((x,y) => x.t-y.t); s.log = s.log.slice(-LOG_MAX);
   }
-  return relast(s);
+  return s;
 }
+if(OLD_HOST){ if(noDiff(diff(base, state))) forward(); else setTimeout(forward, 8000); }
 // What the server holds has arrived (live update, or a fresh read when the app comes back to the front):
 // take it as the new base and keep on top of it anything changed here that has not been sent yet.
 function onServer(data){
   if(writing) return;   // the save in flight reads the server itself and merges
-  const server = norm(data), mine = diff(base, state);
-  const local = state;
-  base = server; state = noDiff(mine) ? clone(server) : patch(mine, server);
+  if(data && data.v > SCHEMA){ outdated(); return; }
+  const server = norm(data), mine = diff(base, state), local = state;
+  base = server; setState(noDiff(mine) ? clone(server) : patch(mine, server));
   const found = salvage(local);
   saveLocal(); render();
   if(noDiff(mine) && !found) setSync('מסונכרן','on'); else push();
+}
+// The data on the server was written by a newer version of the app than this page: stop saving (this
+// page could damage what it does not understand) and load the new version.
+let stale = false;
+function outdated(){
+  if(stale) return; stale = true; setSync('מתעדכן…','err');
+  try { if(Date.now() - (+sessionStorage.getItem(LS_KEY+'-reloaded') || 0) < 120000) return; sessionStorage.setItem(LS_KEY+'-reloaded', String(Date.now())); } catch(e){}
+  location.replace(location.pathname + '?v=' + Date.now());
 }
 // Once per device, on its first contact with the server: entries this person logged here in the last
 // two days that the server does not have (the phone was signed out or not allowed, or an old version
 // of the app overwrote them) are added back, so they are sent with the next save.
 function salvage(local){
   try { if(!me || localStorage.getItem(LS_KEY+'-salvaged')) return 0; localStorage.setItem(LS_KEY+'-salvaged', '1'); } catch(e){ return 0; }
-  const have = new Set(state.log.map(logKey)), since = Date.now() - 2*86400000;
-  const lost = local.log.filter(e => e.by === me && e.t >= since && !have.has(logKey(e)));
-  for(const e of clone(lost)){
-    state.log.push(e);
-    if(e.k.startsWith('med_')){
-      const meds = state[e.p].meds = state[e.p].meds || {}, day = meds[dayKey(e.t)] = meds[dayKey(e.t)] || {};
-      if(!day[e.k.slice(4)]) day[e.k.slice(4)] = e.t;
-    }
-  }
-  state.log.sort((x,y) => x.t-y.t);
-  for(const e of lost) if(!e.k.startsWith('med_')) recalc(e.p, e.k);
+  const have = new Set(state.log.map(e => e.id)), since = Date.now() - 2*86400000;
+  const lost = local.log.filter(e => e.by === me && e.t >= since && !have.has(e.id));
+  if(lost.length){ state.log = state.log.concat(clone(lost)).sort((x,y) => x.t-y.t); setState(state); }
   return lost.length;
 }
 
-// One-time import of the state copied from the old claude.ai artifact on 22.11.2026 (only into an
-// empty app, only for two days after that). Safe to delete.
-(function seed(){
-  const at = (h,m) => new Date(2026,10,22,h,m).getTime();
-  try {
-    if(state.log.length || Object.keys(state.kochik).length || Object.keys(state.kishmish).length) return;
-    if(localStorage.getItem(LS_KEY+'-seed') || Date.now() > at(19,36) + 2*86400000) return;
-    localStorage.setItem(LS_KEY+'-seed','1');
-  } catch(e){ return; }
-  state = norm({
-    kochik:   {food:at(17,0)},
-    kishmish: {food:at(18,15), pee:at(19,20), sleep:{start:at(19,16)}},
-    log: [{p:'kochik',k:'food',t:at(17,0)}, {p:'kishmish',k:'food',t:at(18,15)},
-          {p:'kishmish',k:'pee',t:at(19,15)}, {p:'kishmish',k:'pee',t:at(19,20)}]
-  });
-  saveLocal();
-})();
-if(!base) base = clone(state);
 function setSync(t, cls=''){ const s=document.getElementById('sync'); s.className='sync '+cls; s.querySelector('span').textContent=t; }
 
 let retryTimer = null;
 async function push(){
   saveLocal();
-  if(!ref) return;
+  if(!ref || stale) return;
   if(writing){ dirty = true; return; }
   clearTimeout(retryTimer);
   const sent = clone(state), mine = diff(base, sent);
@@ -544,14 +551,19 @@ async function push(){
   writing = true; setSync('שומר…');
   try {
     // One transaction: read what the server has right now, put only this device's changes on top, write.
-    const merged = norm(await ref.merge((server, exists) => exists ? patch(mine, server) : sent));
+    const merged = norm(await ref.merge((server, exists) => {
+      if(exists && server.v > SCHEMA) throw {code:'outdated'};
+      return exists ? patch(mine, server) : sent;
+    }));
     const later = diff(sent, state);          // taps made while the save was on its way
-    base = merged; state = noDiff(later) ? clone(merged) : patch(later, merged);
+    base = merged; setState(noDiff(later) ? clone(merged) : patch(later, merged));
     if(!noDiff(later)) dirty = true;
     saveLocal(); render(); setSync('מסונכרן','on');
+    if(!dirty) forward();
   } catch(e){
     // Nothing is lost: the changes stay on this device (state vs. base) and are sent again later.
-    if(e && e.code === 'permission-denied') setSync('אין הרשאה','err');
+    if(e && e.code === 'outdated') outdated();
+    else if(e && e.code === 'permission-denied') setSync('אין הרשאה','err');
     else { setSync('ממתין לחיבור','err'); retryTimer = setTimeout(push, 20000); }
   }
   writing = false;
@@ -569,6 +581,15 @@ const FIREBASE_CONFIG = {
   messagingSenderId: "638712299148",
   appId: "1:638712299148:web:43c5a48342dc731caf45a9"
 };
+// When the app is served from the Firebase project's own domain (pets-timers.firebaseapp.com), Google
+// sign-in can stay on one site from start to finish: the sign-in handler lives on the same domain, so a
+// full-page redirect works on every phone. On other hosts (GitHub Pages) the handler is on a different
+// site and the pop-up flow is the only option — it fails on some Android phones with "missing initial state".
+// It has to be firebaseapp.com exactly: that is the only return address Google has on file for this project
+// (web.app gives "redirect_uri_mismatch"), so the web.app address simply forwards there.
+if(/\.web\.app$/.test(location.hostname)) location.replace('https://' + location.hostname.replace(/\.web\.app$/, '.firebaseapp.com') + location.pathname);
+const SAME_SITE_AUTH = /\.firebaseapp\.com$/.test(location.hostname);
+if(FIREBASE_CONFIG && SAME_SITE_AUTH) FIREBASE_CONFIG.authDomain = location.hostname;
 // ---------- sign-in gate ----------
 // The app is unusable until this device is signed in with a Google account that the Firestore rules
 // allow. The allowed emails live only in the rules (Firebase console), never in this public repo; the
@@ -588,7 +609,8 @@ function setGate(mode, email){
     loading: `<p>בודק הרשאה…</p>`,
     login:   `<p>כדי להשתמש באפליקציה צריך להתחבר עם חשבון Google מורשה.</p>
               ${IN_APP ? `<p class="gerr">נראה שהדף נפתח מתוך אפליקציה אחרת (למשל וואטסאפ). התחברות עם Google לא עובדת שם.<br>לוחצים על ⋮ למעלה ובוחרים <b>״פתיחה ב־Chrome״</b>, ומתחברים שם.</p>` : ''}
-              <button class="btn primary" id="gIn">התחברות עם Google</button><p class="gerr" id="gErr" hidden></p>`,
+              <button class="btn primary" id="gIn">התחברות עם Google</button><p class="gerr" id="gErr" hidden></p>
+              ${SAME_SITE_AUTH ? `<button class="ghost" id="gAlt">לא מצליחים להתחבר? ניסיון בדרך אחרת</button>` : ''}`,
     denied:  `<p>החשבון <bdi dir="ltr">${email || ''}</bdi> לא נמצא ברשימת המורשים.</p><p>אפשר להתחבר עם חשבון אחר, או לבקש שיוסיפו את המייל הזה.</p>
               <button class="btn primary" id="gOut">החלפת חשבון</button><button class="ghost" id="gRetry">הוסיפו אותי · לנסות שוב</button>`,
     offline: `<p>אין חיבור לאינטרנט, ובמכשיר הזה עוד לא התחברו. צריך חיבור כדי להתחבר בפעם הראשונה.</p><button class="btn primary" id="gRetry">לנסות שוב</button>`
@@ -597,21 +619,13 @@ function setGate(mode, email){
   const on = (id, fn) => { const b = g.querySelector('#'+id); if(b) b.onclick = fn; };
   on('gIn', () => document.getElementById('sync').click());
   on('gOut', () => fb && fb.signOut());
+  on('gAlt', () => { if(fb){ gateError(''); fb.signInPopup().catch(e => gateError(`ההתחברות לא הצליחה${e && e.code ? ' ('+e.code.replace('auth/','')+')' : ''}.`)); } });
   on('gRetry', () => location.reload());
 }
 function allow(email){ authOk = email; try { localStorage.setItem(AUTH_KEY, email); } catch(e){} setGate('off'); }
 function lock(mode, email){ authOk = null; try { localStorage.removeItem(AUTH_KEY); } catch(e){} setGate(mode, email); }
 if(FIREBASE_CONFIG && !authOk) setGate('loading');
 
-// When the app is served from the Firebase project's own domain (pets-timers.firebaseapp.com), Google
-// sign-in can stay on one site from start to finish: the sign-in handler lives on the same domain, so a
-// full-page redirect works on every phone. On other hosts (GitHub Pages) the handler is on a different
-// site and the pop-up flow is the only option — it fails on some Android phones with "missing initial state".
-// It has to be firebaseapp.com exactly: that is the only return address Google has on file for this project
-// (web.app gives "redirect_uri_mismatch"), so the web.app address simply forwards there.
-if(/\.web\.app$/.test(location.hostname)) location.replace('https://' + location.hostname.replace(/\.web\.app$/, '.firebaseapp.com') + location.pathname);
-const SAME_SITE_AUTH = /\.firebaseapp\.com$/.test(location.hostname);
-if(FIREBASE_CONFIG && SAME_SITE_AUTH) FIREBASE_CONFIG.authDomain = location.hostname;
 const FB_CDN = 'https://www.gstatic.com/firebasejs/10.14.1/';
 let fb = null;   // { auth, signIn(), signOut() } once Firebase has loaded
 
@@ -631,6 +645,7 @@ let fb = null;   // { auth, signIn(), signOut() } once Firebase has loaded
   fb = {
     auth,
     signIn: () => SAME_SITE_AUTH ? A.signInWithRedirect(auth, new A.GoogleAuthProvider()) : A.signInWithPopup(auth, new A.GoogleAuthProvider()),
+    signInPopup: () => A.signInWithPopup(auth, new A.GoogleAuthProvider()),   // fallback offered on the lock screen
     signOut: () => A.signOut(auth)
   };
 
@@ -698,42 +713,44 @@ document.getElementById('sync').onclick = async () => {
 };
 
 // ---------- actions ----------
-function commit(msg, mutate){
-  if(!me){ openUserSheet(() => commit(msg, mutate)); return; }
-  const before = clone(state), old = new Set(state.log);
+// The one way to change anything. `mutate` edits `state.log`; the rest follows from it.
+// opts.quiet: no undo toast (for small follow-ups such as marking where a pee was).
+function commit(msg, mutate, opts){
+  if(!me){ openUserSheet(() => commit(msg, mutate, opts)); return; }
+  const before = clone(state);
   mutate();
-  for(const e of state.log) if(!old.has(e) && !e.by) e.by = me;
+  for(const e of state.log){ if(!e.id){ e.id = newId(); if(!e.by) e.by = me; } }
   state.log.sort((x,y)=>x.t-y.t);
   state.log = state.log.slice(-LOG_MAX);
-  relast(state);
+  setState(state);
   const after = clone(state);
-  render(); push(); showToast(msg, {before, after});
+  render(); push();
+  if(!(opts && opts.quiet)) showToast(msg, {before, after});
 }
 function tapPoint(p, k, t){
   t = t || Date.now();
-  commit(`${PETS[p].name} · ${ITEMS[k].log}`, () => {
-    const cur = state[p][k];
-    state[p][k] = (typeof cur==='number' && cur > t) ? cur : t;
-    state.log.push({p,k,t});
-  });
-  if(hasWhere(k)) whereSheet(p, k, t);
+  const e = {p, k, t};
+  commit(`${PETS[p].name} · ${ITEMS[k].log}`, () => { state.log.push(e); });
+  if(hasWhere(k) && e.id) whereSheet(e.id);
 }
 function tapDur(p, k, at){   // `at`: start a timer that began earlier ("she went in 10 minutes ago and is still there")
-  const now = Date.now(), d = state[p][k] || {};
-  if(d.start && !at) commit(`${PETS[p].name} · ${ITEMS[k].stop}`, () => {
+  const now = Date.now(), running = !!(V[p][k] && V[p][k].start);
+  if(running && !at) commit(`${PETS[p].name} · ${ITEMS[k].stop}`, () => {
     stopDur(p, k, now);
     if(PETS[p].cycle && k==='crate') stopDur(p, 'sleep', now);   // out of the crate = awake
   });
   else commit(`${PETS[p].name} · ${ITEMS[k].start}`, () => {
-    const t = at || now;
-    state[p][k] = Object.assign({}, state[p][k] || {}, {start:t});
+    if(running) stopDur(p, k, at);          // starting "earlier" while one is running: close that one first
+    state.log.push({p, k, t: at || now});   // no `end`: it is running
   });
 }
+// End the running timer of kind k: its entry gets an `end`. If two phones started the same stay, there are
+// two running entries — the earliest is kept as the stay and the others are dropped.
 function stopDur(p, k, t){
-  const d = state[p][k] || {}; if(!d.start) return;
-  const end = Math.max(t, d.start);
-  state[p][k] = {lastStart:d.start, lastEnd:end};
-  state.log.push({p, k, t:d.start, end});
+  const open = state.log.filter(e => e.p===p && e.k===k && e.end == null).sort((x,y) => x.t-y.t);
+  if(!open.length) return;
+  open[0].end = Math.max(t, open[0].t + 1);
+  if(open.length > 1) state.log = state.log.filter(e => !open.slice(1).includes(e));
 }
 // The tiles that move the routine on right now — they get a "עכשיו בשגרה" tag, so someone opening the
 // app for the first time can see what to press without knowing how the wheel works.
@@ -756,10 +773,10 @@ function goBreak(p){
 //   a pee / poop / "nothing" after that meal        → round done      (next: crate)
 // Only entries since she last left the crate count (or since midnight when there is no stay yet today).
 function routine(p){
-  const S = state[p], now = Date.now(), day0 = sod(now).getTime();
+  const S = V[p], now = Date.now(), day0 = sod(now).getTime();
   if(S.crate && S.crate.start) return {i:0, t:S.crate.start, next:1};
   const out = S.crate && S.crate.lastEnd >= day0 ? S.crate.lastEnd : 0, base = out || day0;
-  const ev = state.log.filter(e => e.p===p && e.t >= base && !e.end);
+  const ev = state.log.filter(e => e.p===p && e.t >= base && !ITEMS[e.k].dur);
   const isP = e => e.k==='pee' || e.k==='poop' || e.k==='none', isM = e => e.k==='food' || e.k==='nofood';
   const last = ev[ev.length-1];
   if(last && last.k === 'brk') return {brk:true, t:last.t, next:0};
@@ -775,8 +792,7 @@ function routine(p){
 // the main screen and the day view in the summary all read this one list, so the tiles, the history and
 // the rounds cannot disagree. Numbered per day. (`hist` only remembers the wheel's moves for "חזרה שלב".)
 function roundStarts(p){
-  const ts = state.log.filter(e => e.p===p && e.k==='crate').map(e => e.t), live = state[p].crate && state[p].crate.start;
-  if(live) ts.push(live);
+  const ts = state.log.filter(e => e.p===p && e.k==='crate').map(e => e.t);   // finished stays and the running one
   ts.sort((x,y) => x-y);
   const out = [], perDay = {};
   for(const t of ts){
@@ -790,9 +806,7 @@ function roundStarts(p){
 function roundName(r){ const dl = dayLabel(r.t); return `סבב ${r.n}${dl==='היום' ? '' : ' · '+dl}`; }
 // One pet's entries in [from, to), oldest first, with the running timers as rows of their own.
 function entriesIn(p, from, to){
-  const ev = state.log.filter(e => e.p===p && e.t >= from && e.t < to);
-  for(const k of PETS[p].items){ const st = ITEMS[k].dur && state[p][k] && state[p][k].start; if(st && st >= from && st < to) ev.push({p, k, t:st, live:true}); }
-  return ev.sort((x,y) => x.t - y.t);
+  return state.log.filter(e => e.p===p && e.t >= from && e.t < to).sort((x,y) => x.t - y.t);
 }
 // A day's entries grouped by round: newest round first, the entries inside a round in the order they happened.
 function groupedHTML(p, from, to){
@@ -817,7 +831,7 @@ function openAddSheet(p){
 // When a puppy needs to go out (trainer's list): after waking up, leaving the crate, playing or eating.
 // Returns the latest such moment if nothing (pee, poop, or "went out, nothing") was logged since.
 function pottyDue(p){
-  const S = state[p], c = [];
+  const S = V[p], c = [];
   if((S.sleep && S.sleep.start) || (S.crate && S.crate.start)) return null;
   if(S.sleep && S.sleep.lastEnd) c.push([S.sleep.lastEnd, 'אחרי שינה']);
   if(S.crate && S.crate.lastEnd) c.push([S.crate.lastEnd, 'אחרי יציאה מהכלוב']);
@@ -831,18 +845,13 @@ function pottyDue(p){
   return {t:c[0][0], why:c[0][1]};
 }
 function dayKey(t){ const d=new Date(t); return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`; }
-function medsOf(p){ return ((state[p].meds||{})[dayKey(Date.now())]) || {}; }
-function setMed(p, slot, ts){
+function medsOf(p){ return V[p].meds[dayKey(Date.now())] || {}; }
+function setMed(p, slot, ts){   // the checklist is just today's medication entries
   const k = 'med_'+slot;
   commit(`${PETS[p].name} · ${ITEMS[k].log}${ts?'':' בוטלה'}`, () => {
     const day = dayKey(Date.now());
-    const meds = Object.assign({}, state[p].meds || {});
-    const cur = Object.assign({}, meds[day] || {});
     state.log = state.log.filter(e => !(e.p===p && e.k===k && dayKey(e.t)===day));
-    if(ts){ cur[slot] = ts; state.log.push({p,k,t:ts}); } else delete cur[slot];
-    meds[day] = cur;
-    const keys = Object.keys(meds).sort(); while(keys.length > 60) delete meds[keys.shift()];
-    state[p].meds = meds;
+    if(ts) state.log.push({p, k, t:ts});
   });
 }
 
@@ -874,11 +883,9 @@ function dayLabel(t){
   return `${d.getDate()}.${d.getMonth()+1}`;
 }
 function todayTotal(p, k){
-  const s = new Date(); s.setHours(0,0,0,0); const s0 = s.getTime();
+  const s = new Date(); s.setHours(0,0,0,0); const s0 = s.getTime(), now = Date.now();
   let tot = 0;
-  for(const e of state.log) if(e.p===p && e.k===k && e.end && e.end > s0) tot += e.end - Math.max(e.t, s0);
-  const live = state[p][k] && state[p][k].start;
-  if(live) tot += Date.now() - Math.max(live, s0);
+  for(const e of state.log) if(e.p===p && e.k===k){ const end = e.end == null ? now : e.end; if(end > s0) tot += end - Math.max(e.t, s0); }
   return tot;
 }
 
@@ -887,7 +894,7 @@ function render(){
   document.body.className = document.documentElement.className = 'p-'+pet;
   document.querySelectorAll('.seg button').forEach(b => b.classList.toggle('on', b.dataset.pet===pet || b.dataset.view===view));
   if(view==='sum'){ document.getElementById('main').innerHTML = renderSummary(); return; }
-  const P = PETS[pet], S = state[pet];
+  const P = PETS[pet], S = V[pet];
   let h = '';
 
   if(P.meds){
@@ -959,7 +966,7 @@ function render(){
   document.getElementById('main').innerHTML = h;
 }
 function cycleHTML(p){
-  const S = state[p], now = Date.now(), rn = roundStarts(p).pop(), r = routine(p);
+  const S = V[p], now = Date.now(), rn = roundStarts(p).pop(), r = routine(p);
   const inCrate = !!(S.crate && S.crate.start), over = crateOver(p), asleep = !!(S.sleep && S.sleep.start), due = pottyDue(p);
   const ci = r && !r.brk ? r.i : -1, nx = r ? r.next : 0;
   // The ring only shows; nothing on it is tappable. Earlier steps of the round are tinted, the current
@@ -1024,7 +1031,7 @@ function logPlay(p, y){
     state.log.push({p, k:'play', t:now, y});
     // Play with food is a meal too — one meal per play session, however many food games are marked.
     if(PLAY_FOOD[y] && !state.log.some(e => e.p===p && e.k==='food' && e.y==='play' && now - e.t < 30*60000)){
-      state.log.push({p, k:'food', t:now, y:'play'}); state[p].food = Math.max(state[p].food || 0, now);
+      state.log.push({p, k:'food', t:now, y:'play'});
     }
   });
 }
@@ -1036,7 +1043,7 @@ function playCardHTML(p, nowt){
 }
 // A crate stay longer than CRATE_MAX is flagged red — in the daytime only, so a night in the crate is not an alarm.
 function crateOver(p){
-  const c = state[p].crate, hr = new Date().getHours();
+  const c = V[p].crate, hr = new Date().getHours();
   return !!(c && c.start) && Date.now() - c.start > CRATE_MAX && hr >= DAY_FROM && hr < DAY_TO;
 }
 // Two numbers worth knowing, from the last 7 days: how often she usually pees (gaps between pees,
@@ -1063,7 +1070,7 @@ function typical(p, k){
 // `state`: "soon" before the window, "now" inside it, "late" after it.
 function quantile(sorted, q){ const i = (sorted.length-1)*q, lo = Math.floor(i), hi = Math.ceil(i); return sorted[lo] + (sorted[hi]-sorted[lo])*(i-lo); }
 function peeForecast(p){
-  const last = state[p].pee, g = peeGaps(p).sort((x,y) => x-y);
+  const last = V[p].pee, g = peeGaps(p).sort((x,y) => x-y);
   if(typeof last !== 'number' || g.length < 4) return null;
   const from = last + quantile(g, .25), to = last + quantile(g, .75), now = Date.now();
   return {from, to, state: now < from ? 'soon' : now <= to ? 'now' : 'late'};
@@ -1071,7 +1078,7 @@ function peeForecast(p){
 function forecastLine(p){
   const f = peeForecast(p); if(!f) return '';
   const span = `<bdi dir="ltr">${clock(f.from)}–${clock(f.to)}</bdi>`;
-  const quiet = (state[p].sleep && state[p].sleep.start) || (state[p].crate && state[p].crate.start);   // asleep or in the crate: no alarm colours
+  const quiet = (V[p].sleep && V[p].sleep.start) || (V[p].crate && V[p].crate.start);   // asleep or in the crate: no alarm colours
   if(f.state === 'soon') return `<div class="sub fc">הפיפי הבא צפוי בין ${span}</div>`;
   if(f.state === 'now') return `<div class="sub fc ${quiet ? '' : 'now'}"><i></i>הפיפי הבא צפוי עכשיו · עד <bdi dir="ltr">${clock(f.to)}</bdi></div>`;
   return `<div class="sub fc ${quiet ? '' : 'late'}"><i></i>הפיפי היה צפוי עד <bdi dir="ltr">${clock(f.to)}</bdi></div>`;
@@ -1095,7 +1102,8 @@ function byOf(p, k, t){   // " · name" of whoever logged this event, if known
   return '';
 }
 function logRow(e){
-  return `<div class="r" ${e.live ? `data-live="${e.k}"` : `data-e="${state.log.indexOf(e)}"`}>${ico(iconOf(e.k),'s')}<span>${e.live ? ITEMS[e.k].live+' עכשיו' : ITEMS[e.k].log}${PLAY[e.y] ? ' · '+PLAY[e.y] : e.y === 'play' ? ' · במשחק' : ''}${whereTag(e.w)}${e.end ? ' · '+words(e.end-e.t) : ''}${USERS[e.by] ? `<i class="by">${USERS[e.by]}</i>` : ''}</span>
+  const live = isLive(e);
+  return `<div class="r" ${live ? `data-live="${e.k}"` : `data-e="${state.log.indexOf(e)}"`}>${ico(iconOf(e.k),'s')}<span>${live ? ITEMS[e.k].live+' עכשיו' : ITEMS[e.k].log}${PLAY[e.y] ? ' · '+PLAY[e.y] : e.y === 'play' ? ' · במשחק' : ''}${whereTag(e.w)}${e.end ? ' · '+words(e.end-e.t) : ''}${USERS[e.by] ? `<i class="by">${USERS[e.by]}</i>` : ''}</span>
      <time>${dayLabel(e.t)} <bdi dir="ltr">${clock(e.t)}${e.end ? '–'+clock(e.end) : ''}</bdi></time></div>`;
 }
 
@@ -1129,24 +1137,23 @@ function stats(p, from, to){
   const add = (k, a, b) => { const ov = Math.min(b,to) - Math.max(a,from); if(ov > 0){ r[k].ms += ov; r[k].n++; } };
   for(const e of state.log){
     if(e.p !== p) continue;
-    if(ITEMS[e.k].dur){ if(e.end) add(e.k, e.t, e.end); }
+    if(ITEMS[e.k].dur) add(e.k, e.t, e.end == null ? Date.now() : e.end);
     else if(typeof r[e.k]==='number' && e.t >= from && e.t < to){ r[e.k]++; if(WHERE[e.w] && r.w[e.k]) r.w[e.k][e.w] = (r.w[e.k][e.w] || 0) + 1; }
   }
-  for(const k of PETS[p].items) if(ITEMS[k].dur && state[p][k] && state[p][k].start) add(k, state[p][k].start, Date.now());
-  const meds = state[p].meds || {};
+  const meds = V[p].meds;
   for(const d = new Date(from); d.getTime() < to; d.setDate(d.getDate()+1)){ const m = meds[dayKey(d)] || {}; r.meds += (m.am?1:0) + (m.pm?1:0); }
   return r;
 }
 function whereLine(c){   // "רצפה 1 · פד 2" under the pee / poop tiles
-  const parts = ['floor','crate','pad','gravel','out'].filter(w => c && c[w]).map(w => `<em class="wh ${w}">${WHERE_SHORT[w]} ${c[w]}</em>`);
+  const parts = ['home','floor','crate','pad','balcony','gravel','out'].filter(w => c && c[w]).map(w => `<em class="wh ${w}">${WHERE_SHORT[w]} ${c[w]}</em>`);
   return parts.length ? `<small>${parts.join(' · ')}</small>` : '';
 }
 // ---------- charts (summary view) ----------
 // Colour says where a pee / poop happened and is the same in both charts: green outside, amber on the
 // pad, red for an accident (floor or crate); the balcony gravel counts as outside, grey when it was not marked. Shape says what it was
 // (round = pee, square = poop). Every colour is also named in the legend, never colour alone.
-const whereCls = w => (w==='out' || w==='gravel') ? 'out' : w==='pad' ? 'pad' : (w==='floor' || w==='crate') ? 'acc' : 'unk';
-const WHERE_LEGEND = [['out','בחוץ / על החצץ'], ['pad','על הפד'], ['acc','תאונה (רצפה / כלוב)'], ['unk','לא סומן']];
+const whereCls = w => (w==='out' || w==='gravel') ? 'out' : (w==='pad' || w==='balcony') ? 'pad' : (w==='floor' || w==='crate' || w==='home') ? 'acc' : 'unk';
+const WHERE_LEGEND = [['out','בחוץ / על החצץ'], ['pad','על הפד / במרפסת'], ['acc','בבית (רצפה / כלוב)'], ['unk','לא סומן']];
 function eachDay(from, to, fn){ const now = Date.now(); for(const d = new Date(from); d.getTime() < to && d.getTime() <= now; d.setDate(d.getDate()+1)){ const b = new Date(d); b.setDate(b.getDate()+1); fn(d, d.getTime(), b.getTime()); } }
 // One bar per day, midnight to midnight (left to right): crate and sleep as bands, meals as ticks,
 // every pee / poop as a dot. Tapping a dot opens that entry for fixing.
@@ -1157,8 +1164,7 @@ function timelineHTML(p, from, to, F){   // F: only this kind (optional)
     const pct = t => (Math.max(0, Math.min(1, (t-a)/(b-a)))*100).toFixed(2);
     let m = [25,50,75].map(x => `<i class="g" style="left:${x}%"></i>`).join('');
     for(const k of bands){
-      const spans = state.log.filter(e => e.p===p && e.k===k && e.end && e.end > a && e.t < b).map(e => [e.t, e.end]);
-      const live = state[p][k] && state[p][k].start; if(live && live < b && now > a) spans.push([live, now]);
+      const spans = state.log.filter(e => e.p===p && e.k===k).map(e => [e.t, e.end == null ? now : e.end]).filter(([x, y]) => y > a && x < b);
       for(const [x, y] of spans) m += `<i class="b ${k}" style="left:${pct(x)}%;width:${Math.max(.5, pct(y)-pct(x)).toFixed(2)}%" title="${SUM_LBL[k]} ${clock(x)}–${clock(y)}"></i>`;
     }
     state.log.forEach((e, i) => {
@@ -1205,15 +1211,15 @@ function logText(p, from, to){
     out.push('', `יום ${DOW[d.getDay()]} ${d.getDate()}.${d.getMonth()+1}.${d.getFullYear()}`);
     for(const e of ev){
       const it = ITEMS[e.k];
-      const time = e.end ? `${clock(e.t)}–${clock(e.end)}` : e.live ? `${clock(e.t)}–עכשיו` : clock(e.t);
-      const what = (e.live ? it.live : it.log) + (PLAY[e.y] ? ` · ${PLAY[e.y]}` : e.y === 'play' ? ' · במשחק' : '') + (WHERE[e.w] ? ` · ${WHERE[e.w]}` : '')
-        + (e.end ? ` · ${words(e.end - e.t)}` : e.live ? ` · כבר ${words(Date.now() - e.t)}` : '');
+      const live = isLive(e), time = e.end ? `${clock(e.t)}–${clock(e.end)}` : live ? `${clock(e.t)}–עכשיו` : clock(e.t);
+      const what = (live ? it.live : it.log) + (PLAY[e.y] ? ` · ${PLAY[e.y]}` : e.y === 'play' ? ' · במשחק' : '') + (WHERE[e.w] ? ` · ${WHERE[e.w]}` : '')
+        + (e.end ? ` · ${words(e.end - e.t)}` : live ? ` · כבר ${words(Date.now() - e.t)}` : '');
       out.push(`${time}  ${what}`);
     }
     const st = stats(p, a, b), tot = [];
     for(const k of P.items){
       if(ITEMS[k].dur){ if(st[k].ms) tot.push(`${SUM_LBL[k]} ${words(st[k].ms)} (${st[k].n===1 ? 'פעם אחת' : st[k].n+' פעמים'})`); }
-      else if(st[k]){ const w = st.w[k], wl = w ? ['gravel','out','pad','floor','crate'].filter(x => w[x]).map(x => `${WHERE_SHORT[x]} ${w[x]}`).join(', ') : ''; tot.push(`${SUM_LBL[k]} ${st[k]}${wl ? ' ('+wl+')' : ''}`); }
+      else if(st[k]){ const w = st.w[k], wl = w ? ['gravel','out','balcony','pad','home','floor','crate'].filter(x => w[x]).map(x => `${WHERE_SHORT[x]} ${w[x]}`).join(', ') : ''; tot.push(`${SUM_LBL[k]} ${st[k]}${wl ? ' ('+wl+')' : ''}`); }
     }
     if(P.meds) tot.push(`תרופות ${st.meds}/2`);
     if(tot.length) out.push(`סה״כ: ${tot.join(' · ')}`);
@@ -1277,7 +1283,7 @@ function renderSummary(){
       <span>${SUM_LBL[k]} · ${st[k].n===1 ? 'פעם אחת' : st[k].n+' פעמים'}</span>
       ${multi && days > 1 && st[k].ms ? `<small>ממוצע ${words(st[k].ms/days)} ליום</small>` : ''}</button>`).join('') + `</div>`;
   if(P.meds && !F){
-    const m = (state[pet].meds || {})[dayKey(from)] || {};
+    const m = V[pet].meds[dayKey(from)] || {};
     h += `<div class="tiles two">` + (multi
       ? `<div class="tile" style="grid-column:1/-1"><div class="ic">${ico('pill')}</div><b><bdi dir="ltr">${st.meds}/${days*2}</bdi></b><span>תרופות שניתנו</span></div>`
       : [['am','בוקר'],['pm','ערב']].map(([s,l]) =>
@@ -1287,7 +1293,7 @@ function renderSummary(){
   if(sumMode !== 'month') h += timelineHTML(pet, from, to, F);
   if(multi) h += whereBarsHTML(pet, from, to, F);
 
-  const evAll = state.log.filter(e => e.p===pet && (!F || e.k===F) && (e.end ? (e.end > from && e.t < to) : (e.t >= from && e.t < to)));
+  const evAll = state.log.filter(e => e.p===pet && (!F || e.k===F) && (ITEMS[e.k].dur ? ((e.end == null ? now : e.end) > from && e.t < to) : (e.t >= from && e.t < to)));
 
   if(multi){
     const cols = F ? [F] : P.items.concat(P.meds ? ['pill'] : []);
@@ -1308,7 +1314,6 @@ function renderSummary(){
     }
   } else {
     const ev = evAll;
-    for(const k of durs.filter(k => !F || k===F)){ const s = state[pet][k] && state[pet][k].start; if(s && s < to && now > from) ev.push({p:pet, k, t:s, live:true}); }
     ev.sort((x,y) => y.t - x.t);
     if(P.cycle && !F) h += `<h2>לפי סבבים<small>לחיצה על רישום לתיקון או מחיקה</small></h2><div class="card log uni">${groupedHTML(pet, from, to)}</div>`;
     else h += `<h2>אירועי היום<small>לחיצה על רישום לתיקון או מחיקה</small></h2><div class="card log">` + (ev.length ? ev.map(logRow).join('') : `<div class="empty">אין רישומים ביום הזה</div>`) + `</div>`;
@@ -1354,7 +1359,7 @@ document.getElementById('main').addEventListener('click', e => {
   else if(a==='help') openHelp();
   else if(a==='play') logPlay(pet, k);
   else if(a==='nofood') logNoFood(pet);
-  else if(a==='where') whereSheet(pet, k, state[pet][k]);
+  else if(a==='where'){ const e = state.log.filter(x => x.p===pet && x.k===k).pop(); if(e) whereSheet(e.id); }
   else if(a==='pt') tapPoint(pet, k);
   else if(a==='dur') tapDur(pet, k);
   else if(a==='edit') openSheet(pet, k);
@@ -1369,19 +1374,22 @@ function showToast(msg, undo){
 }
 // Right after a pee / poop is logged, ask where it happened (the charts depend on it). The entry is
 // already saved with its time; this only adds `w`. "דילוג" leaves it unmarked, and the tile then shows "איפה?".
-function whereSheet(p, k, t){
-  const find = () => state.log.find(e => e.p===p && e.k===k && e.t===t);
+function whereSheet(id){
+  const find = () => state.log.find(e => e.id === id);
   const e = find(); if(!e) return;
-  sh.innerHTML = `<h3>${PETS[p].name} · ${ITEMS[k].log} · <bdi dir="ltr">${clock(t)}</bdi> — איפה?</h3>
-    <div class="chips where">${whereKeys(p).map(w => `<button data-w="${w}" class="${e.w===w?'sel':''}">${WHERE[w]}</button>`).join('')}</div>
+  sh.innerHTML = `<h3>${PETS[e.p].name} · ${ITEMS[e.k].log} · <bdi dir="ltr">${clock(e.t)}</bdi> — איפה?</h3>
+    <div class="chips where">${whereKeys(e.p).map(w => `<button data-w="${w}" class="${e.w===w?'sel':''}">${WHERE[w]}</button>`).join('')}</div>
     <div class="foot"><span></span><button class="btn" id="cancel">דילוג</button></div>`;
-  sh.querySelectorAll('[data-w]').forEach(b => b.onclick = () => { const x = find(); close(); if(!x) return; x.w = b.dataset.w; render(); push(); });
+  sh.querySelectorAll('[data-w]').forEach(b => b.onclick = () => {
+    close();
+    commit('', () => { const x = find(); if(x) x.w = b.dataset.w; }, {quiet:true});   // the undo toast of the pee itself stays up
+  });
   sh.querySelector('#cancel').onclick = close;
   bg.classList.add('show');
 }
 document.getElementById('undo').onclick = () => {
   if(!lastUndo) return;
-  state = patch(diff(lastUndo.after, lastUndo.before), state); lastUndo = null;   // reverse just this change
+  setState(patch(diff(lastUndo.after, lastUndo.before), state)); lastUndo = null;   // reverse just this change
   document.getElementById('toast').classList.remove('show');
   render(); push();
 };
@@ -1448,42 +1456,40 @@ function sheet(title, body, footL, onOk, onChip){
 const cancelBtn = '<button class="btn" id="cancel">ביטול</button>';
 
 function openSheet(p, k){
-  const it = ITEMS[k], name = PETS[p].name, d = state[p][k] || {};
+  const it = ITEMS[k], name = PETS[p].name, start = V[p][k] && V[p][k].start;
+  const running = () => state.log.filter(e => e.p===p && e.k===k && e.end == null);
   if(!it.dur){
     sheet(`${name} · ${it.log} — מתי?`, chips([5,10,15,30,60,120,180]) + `<label class="field">או בשעה ${timeField("tIn", nowStr())}</label>`,
       cancelBtn, () => { const v=timeVal('tIn'); if(!v) return; close(); logAt(p,k,timeToTs(v)); },
       ts => logAt(p,k,ts));
-  } else if(d.start){
-    const setStart = ts => commit(`${name} · שעת ההתחלה עודכנה`, () => { state[p][k] = Object.assign({}, d, {start:ts}); });
-    sheet(`${name} · ${it.startQ}`, chips([5,10,15,30,60,120,180]) + `<label class="field">או בשעה ${timeField("tIn", clock(d.start))}</label>`,
+  } else if(start){
+    // The timer is running: move its start, or cancel it.
+    const setStart = ts => commit(`${name} · שעת ההתחלה עודכנה`, () => { const o = running().sort((x,y) => x.t-y.t); if(o[0]) o[0].t = Math.min(ts, Date.now()); });
+    sheet(`${name} · ${it.startQ}`, chips([5,10,15,30,60,120,180]) + `<label class="field">או בשעה ${timeField("tIn", clock(start))}</label>`,
       '<button class="btn danger" id="del">מחיקה</button>',
       () => { const v=timeVal('tIn'); if(!v) return; close(); setStart(timeToTs(v)); }, setStart);
-    sh.querySelector('#del').onclick = () => { close(); commit(`${name} · נמחק`, () => { const x = Object.assign({}, d); delete x.start; state[p][k] = x; }); };
+    sh.querySelector('#del').onclick = () => { close(); commit(`${name} · נמחק`, () => { const o = running(); state.log = state.log.filter(e => !o.includes(e)); }); };
   } else {
     sheet(`${name} · ${it.lbl.replace(' אחרונה','').replace(' אחרון','')} — הוספה`,
       `<div class="sub" style="margin-bottom:8px">התחיל ועדיין נמשך:</div>` + chips([5,10,15,30,60,120]) +
       `<label class="field">או התחלה ב־ ${timeField("aIn", "")}</label><label class="field">סיום&nbsp; ${timeField("bIn", "")}</label>
        <div class="sub">בלי שעת סיום = עדיין נמשך. עם שעת סיום = משהו שכבר נגמר.</div>`,
       cancelBtn, () => {
-        // No end time means it is still going on: start the live timer from the given time. (The end used to
+        // No end time means it is still going on: start the timer from the given time. (The end used to
         // default to "now", which silently logged "in the crate since 10:01" as a finished stay.)
         const a = timeVal('aIn'); if(!a) return;
         if(!sh.querySelector('#bIn').value.trim()){ close(); tapDur(p, k, timeToTs(a)); return; }
         const b = timeVal('bIn'); if(!b) return;
-        const tb = timeToTs(b); let ta = timeToTs(a); if(ta > tb) ta -= 86400000;
+        const tb = timeToTs(b); let ta = timeToTs(a); if(ta >= tb) ta -= 86400000;
         close();
-        commit(`${name} · ${it.log} נוסף`, () => {
-          state.log.push({p,k,t:ta,end:tb});
-          const cur = state[p][k] || {};
-          if(!cur.start && (!cur.lastEnd || tb >= cur.lastEnd)) state[p][k] = {lastStart:ta, lastEnd:tb};
-        });
+        commit(`${name} · ${it.log} נוסף`, () => { state.log.push({p, k, t:ta, end:tb}); });
       }, ts => tapDur(p, k, ts));
   }
 }
 // Logging a time that is earlier than the current "last" one: ask whether it corrects the last entry
 // or is an additional, earlier event. (Silently adding it left the timer unchanged, which looked broken.)
 function logAt(p, k, ts){
-  const cur = state[p][k];
+  const cur = V[p][k];
   if(typeof cur !== 'number' || ts >= cur){ tapPoint(p, k, ts); return; }
   const name = PETS[p].name, what = SUM_LBL[k], when = t => `${dayLabel(t)} ב־<bdi dir="ltr">${clock(t)}</bdi>`;
   sh.innerHTML = `<h3>${name} · כבר רשום ${what} מאוחר יותר</h3>
@@ -1494,7 +1500,7 @@ function logAt(p, k, ts){
       <button class="btn" id="cancel">ביטול</button></div>`;
   sh.querySelector('#repl').onclick = () => { close(); commit(`${name} · ${ITEMS[k].log} עודכן`, () => {
     state.log = state.log.filter(e => !(e.p===p && e.k===k && e.t > ts));
-    state.log.push({p, k, t:ts}); state[p][k] = ts;
+    state.log.push({p, k, t:ts});
   }); };
   sh.querySelector('#addb').onclick = () => { close(); tapPoint(p, k, ts); };
   sh.querySelector('#cancel').onclick = close;
@@ -1509,23 +1515,14 @@ function openMedSheet(p, slot){
   sh.querySelector('#del').onclick = () => { close(); setMed(p, slot, null); };
 }
 
-// Fix or delete one history entry, then rebuild the "last time" values from what is left in the log.
-function recalc(p, k){
-  const es = state.log.filter(e => e.p===p && e.k===k);
-  if(ITEMS[k].dur){
-    const cur = state[p][k] || {}, last = es.filter(e => e.end).sort((a,b) => a.end-b.end).pop(), n = {};
-    if(cur.start) n.start = cur.start;
-    if(last){ n.lastStart = last.t; n.lastEnd = last.end; }
-    state[p][k] = n;
-  } else if(es.length) state[p][k] = Math.max(...es.map(e => e.t));
-  else delete state[p][k];
-}
+// Fix or delete one entry. The tiles follow by themselves, because they are computed from the list.
 function openEntrySheet(i){
   const e = state.log[i]; if(!e) return;
+  if(isLive(e)){ openSheet(e.p, e.k); return; }   // a running timer is edited from its own sheet
   const it = ITEMS[e.k], name = PETS[e.p].name, med = e.k.startsWith('med_'), pt = !it.dur && !med;
-  const find = () => state.log.findIndex(x => x.p===e.p && x.k===e.k && x.t===e.t && x.end===e.end);
+  const find = () => state.log.find(x => x.id === e.id);
   // A stay that was closed by mistake can be turned back into the running timer, if it is the latest one.
-  const canReopen = !!it.dur && !(state[e.p][e.k] || {}).start && !state.log.some(x => x.p===e.p && x.k===e.k && x.end > e.end);
+  const canReopen = !!it.dur && !(V[e.p][e.k] || {}).start && !state.log.some(x => x.p===e.p && x.k===e.k && x.end > e.end);
   sheet(`${name} · ${it.log} · ${dayLabel(e.t)} <bdi dir="ltr">${clock(e.t)}</bdi>`,
     pt ? `<label class="field">תיקון השעה ${timeField("tIn", clock(e.t))}</label>` +
          (hasWhere(e.k) ? `<div class="sub" style="margin:14px 0 8px">איפה?</div><div class="chips">${whereKeys(e.p).map(w => `<button data-w="${w}" class="${e.w===w?'sel':''}">${WHERE[w]}</button>`).join('')}</div>` : '')
@@ -1541,7 +1538,7 @@ function openEntrySheet(i){
         if(tb <= ta || tb > Date.now() + 60000){ sh.querySelector('#bIn').classList.add('bad'); return; }
         close();
         if(ta === e.t && tb === e.end) return;
-        commit(`${name} · ${it.log} עודכן`, () => { const j = find(); if(j < 0) return; state.log[j].t = ta; state.log[j].end = tb; recalc(e.p, e.k); });
+        commit(`${name} · ${it.log} עודכן`, () => { const x = find(); if(x){ x.t = ta; x.end = tb; } });
         return;
       }
       if(!pt){ close(); return; }
@@ -1552,10 +1549,9 @@ function openEntrySheet(i){
       close();
       if(d.getTime() === e.t && w === e.w) return;
       commit(`${name} · ${it.log} עודכן`, () => {
-        const j = find(); if(j < 0) return;
-        const x = state.log[j];
+        const x = find(); if(!x) return;
         if(w) x.w = w; else delete x.w;
-        if(d.getTime() !== x.t){ x.t = d.getTime(); recalc(e.p, e.k); }
+        x.t = d.getTime();
       });
     });
   let w = e.w;
@@ -1566,20 +1562,11 @@ function openEntrySheet(i){
   const ro = sh.querySelector('#reopen');
   if(ro) ro.onclick = () => {
     close();
-    commit(`${name} · ${it.live} מ־${clock(e.t)}`, () => {
-      const j = find(); if(j < 0) return;
-      state.log.splice(j, 1); recalc(e.p, e.k);
-      state[e.p][e.k] = Object.assign({}, state[e.p][e.k] || {}, {start:e.t});
-    });
+    commit(`${name} · ${it.live} מ־${clock(e.t)}`, () => { const x = find(); if(x) delete x.end; });   // no end = running again
   };
   sh.querySelector('#del').onclick = () => {
     close();
-    commit(`${name} · ${it.log} נמחק`, () => {
-      const j = find(); if(j < 0) return;
-      state.log.splice(j, 1);
-      if(med){ const day = (state[e.p].meds || {})[dayKey(e.t)]; if(day) delete day[e.k.slice(4)]; }
-      else recalc(e.p, e.k);
-    });
+    commit(`${name} · ${it.log} נמחק`, () => { state.log = state.log.filter(x => x.id !== e.id); });
   };
 }
 

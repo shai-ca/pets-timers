@@ -4,9 +4,15 @@ service cloud.firestore {
     // The whole app lives in one document. Only the listed Google accounts may read or write it.
     // Replace the placeholders in the Firebase console (Firestore → Rules); keep real emails out of this public repo.
     match /state/main {
-      allow read, write: if request.auth != null
+      allow read: if request.auth != null
         && request.auth.token.email_verified == true
         && request.auth.token.email in ['FIRST_PERSON@gmail.com', 'SECOND_PERSON@gmail.com'];
+      // Writes must carry the current data version (`SCHEMA` in index.html). A phone still running an older
+      // build of the app is refused here instead of saving its out-of-date copy over everyone's data.
+      allow write: if request.auth != null
+        && request.auth.token.email_verified == true
+        && request.auth.token.email in ['FIRST_PERSON@gmail.com', 'SECOND_PERSON@gmail.com']
+        && request.resource.data.v == 2;
     }
   }
 }
