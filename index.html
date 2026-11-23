@@ -159,6 +159,7 @@
   .field input.kb{width:5.5em;text-align:center;font-variant-numeric:tabular-nums}
   .field input.bad{border-color:var(--alert);background:var(--alert-soft)}
   .foot{display:flex;gap:8px;margin-top:18px;justify-content:space-between}
+  .cyc-a .btn.sel{background:var(--btn);border-color:var(--btn);color:#fff}
   .btn.primary{background:var(--ink);color:#fff;border-color:var(--ink);padding:10px 22px}
   .btn.danger{color:var(--alert);background:#fff}
 
@@ -327,7 +328,8 @@ const ITEMS = {
   sleep:{dur:true,lbl:'שינה אחרונה',live:'ישנה',start:'נרדמה',stop:'התעוררה',log:'ישנה',startQ:'מתי נרדמה?'},
   cry:{dur:true,lbl:'בכי אחרון',live:'בוכה',start:'בוכה',stop:'נרגעה',log:'בכתה',startQ:'מתי התחילה לבכות?'},
   crate:{dur:true,lbl:'כלוב אחרון',live:'בכלוב',start:'נכנסה לכלוב',stop:'יצאה מהכלוב',log:'בכלוב',startQ:'מתי נכנסה לכלוב?'},
-  none:{log:'יצאה ולא עשתה'},   // taken out for potty, nothing happened (logged from the routine strip)
+  none:{log:'יצאה ולא עשתה'},
+  play:{icon:'ball',log:'משחק'},   // what kind of play it was (`y`), logged from the routine's play step   // taken out for potty, nothing happened (logged from the routine strip)
   med_am:{icon:'pill',log:'תרופת בוקר'},
   med_pm:{icon:'pill',log:'תרופת ערב'}
 };
@@ -352,6 +354,8 @@ const DAY_FROM = 7, DAY_TO = 22;   // the red crate flag is only shown between t
 const BREAK = -1;   // pseudo step in `hist`: the routine is on hold (vet, a trip…); it ends the round
 const stepName = i => i === BREAK ? 'הפסקה' : CYCLE[i].n;
 const HIST_MAX = 1500;   // step changes kept for the rounds list (about a month)
+// Kinds of play, stored as `y` on a `play` log entry. Several can be marked in one play step.
+const PLAY = {rope:'חבל', kong:'קונג ממולא', train:'אילוף עם אוכל'};
 const STEP_ICON = ['crate','paw','ball','food','pee'];   // one per CYCLE step, drawn on its ring segment
 const DUE_MAX = 60*60000;   // the "take her out" reminder gives up after an hour
 const iconOf = k => (ITEMS[k] && ITEMS[k].icon) || k;
@@ -805,6 +809,7 @@ function stepResult(p, s){
     if(e.p !== p || e.t < s.t || e.t >= to) continue;
     if(hasWhere(e.k)) parts.push(ITEMS[e.k].log + (WHERE[e.w] ? ` <em class="wh ${e.w}">${WHERE_SHORT[e.w]}</em>` : ''));
     else if(e.k === 'none') parts.push('<em class="wh no">לא עשתה</em>');
+    else if(e.k === 'play' && PLAY[e.y]) parts.push(PLAY[e.y]);
   }
   if(st.potty && !parts.length) parts.push(s.end ? '<em class="wh no">לא נרשם</em>' : '…');
   return parts.join(', ');
@@ -981,9 +986,20 @@ function cycleHTML(p){
     ${due ? `<div class="duemsg">${ico('pee','s')}<span>זמן להוציא לצרכים · ${due.why}, לפני <span data-words="${due.t}">${words(now-due.t)}</span></span></div>` : ''}
     ${asleep ? `<div class="zz">${ico('sleep','s')}<span>ישנה מ־<bdi dir="ltr">${clock(S.sleep.start)}</bdi> · נותנים לה לישון</span></div>` : ''}
     <div class="cyc-a">${potty ? `<button class="btn" data-act="pt" data-k="pee">פיפי</button><button class="btn" data-act="pt" data-k="poop">קקי</button><button class="btn" data-act="pt" data-k="none">לא עשתה</button>` : ''}
+${c && CYCLE[ci].play && !inCrate ? Object.keys(PLAY).map(y => `<button class="btn ${playOn(p, y) ? 'sel' : ''}" data-act="play" data-k="${y}">${PLAY[y]}</button>`).join('') : ''}
       ${brk || inCrate ? '' : `<button class="ghost" data-act="brk">${ico('none','s')}הפסקה בשגרה</button>`}
       ${inCrate ? `<span class="sub">בכלוב עד שמסמנים הוצאה</span>` : ''}
       <span class="mainact">${main}<button class="ghost" data-act="stepat" data-k="${inCrate || asleep ? 1 : next}">${ico('clock','s')}שעה אחרת</button></span></div></div>`;
+}
+// The play step: mark what kind of play it was. Tapping a kind again takes it back.
+function playEntry(p, y){ const c = state[p].cyc; return c ? state.log.find(e => e.p===p && e.k==='play' && e.y===y && e.t >= c.t) : null; }
+const playOn = (p, y) => !!playEntry(p, y);
+function togglePlay(p, y){
+  const had = playEntry(p, y);
+  commit(`${PETS[p].name} · משחק · ${PLAY[y]}${had ? ' בוטל' : ''}`, () => {
+    if(had) state.log = state.log.filter(e => !(e.p===p && e.k==='play' && e.y===y && e.t===had.t));
+    else state.log.push({p, k:'play', t:Date.now(), y});
+  });
 }
 // A crate stay longer than CRATE_MAX is flagged red — in the daytime only, so a night in the crate is not an alarm.
 function crateOver(p){
@@ -1018,7 +1034,7 @@ function byOf(p, k, t){   // " · name" of whoever logged this event, if known
   return '';
 }
 function logRow(e){
-  return `<div class="r" ${e.live ? '' : `data-e="${state.log.indexOf(e)}"`}>${ico(iconOf(e.k),'s')}<span>${e.live ? ITEMS[e.k].live+' עכשיו' : ITEMS[e.k].log}${whereTag(e.w)}${e.end ? ' · '+words(e.end-e.t) : ''}${USERS[e.by] ? `<i class="by">${USERS[e.by]}</i>` : ''}</span>
+  return `<div class="r" ${e.live ? '' : `data-e="${state.log.indexOf(e)}"`}>${ico(iconOf(e.k),'s')}<span>${e.live ? ITEMS[e.k].live+' עכשיו' : ITEMS[e.k].log}${PLAY[e.y] ? ' · '+PLAY[e.y] : ''}${whereTag(e.w)}${e.end ? ' · '+words(e.end-e.t) : ''}${USERS[e.by] ? `<i class="by">${USERS[e.by]}</i>` : ''}</span>
      <time>${dayLabel(e.t)} <bdi dir="ltr">${clock(e.t)}${e.end ? '–'+clock(e.end) : ''}</bdi></time></div>`;
 }
 
@@ -1234,6 +1250,7 @@ document.getElementById('main').addEventListener('click', e => {
   else if(a==='step') goStep(pet, +k);
   else if(a==='rstep') openStepSheet(pet, +k);
   else if(a==='brk') goBreak(pet);
+  else if(a==='play') togglePlay(pet, k);
   else if(a==='stepat') openStepAtSheet(pet, +k);
   else if(a==='out') goStep(pet, 1);   // out of the crate: stops the crate (and sleep) timer, on to walk + potty
   else if(a==='wake'){ const c = state[pet].cyc; if(c && c.i === 1) tapDur(pet, 'sleep'); else goStep(pet, 1); }
