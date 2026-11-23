@@ -23,7 +23,8 @@
     ok('time is up: alert, and the card asks to try again on the gravel', buzz === 1 && card().classList.contains('again') && card().textContent.includes('לנסות שוב בחצץ') && !!$q('[data-act=rtpee]') && !!$q('[data-act=rtnone]'));
     $q('[data-act=rtnone]').click();
     ok('"nothing" again: the stay is closed and we are back at step 1, counted as attempt 2', card().classList.contains('toCrate') && C().end != null && !K().crate.start && card().textContent.includes('ניסיון 2') && logOf('kishmish', 'none').length === 2);
-    $q('[data-act=rtcrate]').click(); $q('[data-act=rtout]').click();
+    $q('[data-act=rtcrate]').click(); C().t = now - 3*MIN; logOf('kishmish', 'none').forEach((e, i) => { e.t = now - (9 - i*5)*MIN; }); state.log.sort((x, y) => x.t - y.t); use(state); render();
+    $q('[data-act=rtout]').click();
     ok('taken out early: straight to "try again"', card().classList.contains('again') && !K().crate.start);
     $q('[data-act=rtpee]').click();
     ok('a pee asks where', bg.classList.contains('show') && !!sh.querySelector('[data-w=gravel]'));
