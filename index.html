@@ -406,7 +406,30 @@ function norm(s){
   if(!s || typeof s!=='object') return b;
   for(const p of Object.keys(PETS)) b[p] = (s[p] && typeof s[p]==='object') ? clone(s[p]) : {};
   b.log = Array.isArray(s.log) ? clone(s.log).filter(e => e && ITEMS[e.k] && PETS[e.p]) : [];
-  return b;
+  return relast(b);
+}
+// The "last time" values on the tiles (last pee, last meal, last finished crate stay…) are only a cache
+// of the log. They used to be kept as separate numbers, and a phone holding older information could
+// overwrite them when it synced — the tile then said "last pee 22 hours ago" while the list had today's.
+// So they are recomputed from the log every time the state is loaded, merged or changed. Only a running
+// timer's `start` is real stored state (it has no log entry yet); the medication checklist is separate.
+function relast(s){
+  for(const p of Object.keys(PETS)){
+    const S = s[p], seen = {};
+    for(const e of s.log){
+      if(e.p !== p || e.k.startsWith('med_')) continue;
+      if(ITEMS[e.k].dur){ if(e.end && !(seen[e.k] && seen[e.k].lastEnd >= e.end)) seen[e.k] = {lastStart:e.t, lastEnd:e.end}; }
+      else if(!(seen[e.k] >= e.t)) seen[e.k] = e.t;
+    }
+    for(const k of Object.keys(ITEMS)){
+      if(k.startsWith('med_')) continue;
+      if(ITEMS[k].dur){
+        const n = Object.assign({}, seen[k] || {}); if(S[k] && S[k].start) n.start = S[k].start;
+        if(Object.keys(n).length) S[k] = n; else delete S[k];
+      } else if(seen[k] != null) S[k] = seen[k]; else delete S[k];
+    }
+  }
+  return s;
 }
 
 // ---------- persistence ----------
@@ -458,7 +481,7 @@ function patch(d, onto){   // returns a new state: `onto` with the changes `d` a
     s.log = s.log.filter(e => !gone.has(logKey(e))).concat(clone(d.add));
     s.log.sort((x,y) => x.t-y.t); s.log = s.log.slice(-LOG_MAX);
   }
-  return s;
+  return relast(s);
 }
 // What the server holds has arrived (live update, or a fresh read when the app comes back to the front):
 // take it as the new base and keep on top of it anything changed here that has not been sent yet.
@@ -682,6 +705,7 @@ function commit(msg, mutate){
   for(const e of state.log) if(!old.has(e) && !e.by) e.by = me;
   state.log.sort((x,y)=>x.t-y.t);
   state.log = state.log.slice(-LOG_MAX);
+  relast(state);
   const after = clone(state);
   render(); push(); showToast(msg, {before, after});
 }
@@ -740,7 +764,8 @@ function routine(p){
   const last = ev[ev.length-1];
   if(last && last.k === 'brk') return {brk:true, t:last.t, next:0};
   const meal = ev.filter(isM).pop();
-  if(meal){ const after = ev.find(e => isP(e) && e.t > meal.t); return after ? {i:4, t:after.t, done:true, next:0} : {i:4, t:meal.t, next:0}; }
+  // "After the meal" is judged by position in the log, which is kept in time order.
+  if(meal){ const mi = ev.indexOf(meal), after = ev.find((e, j) => isP(e) && j > mi); return after ? {i:4, t:after.t, done:true, next:0} : {i:4, t:meal.t, next:0}; }
   const first = ev.find(isP);
   if(first) return {i:2, t:first.t, next:3};
   return out ? {i:1, t:out, next:2} : null;
