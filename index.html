@@ -948,7 +948,8 @@ function askAgain(e, label, yes){
 // Like everything else this is worked out from the list, nothing is stored on the side:
 //   - retry mode is on when the latest of {pee, "nothing"} is a "nothing" (not dismissed: `x`), no ordinary
 //     crate stay began after it, and it is recent or its retry crate stay is still open;
-//   - a retry crate stay is a crate entry with `r` = the countdown in minutes; it does not start a new round;
+//   - a retry crate stay is a crate entry with `r` = the countdown in minutes (it starts a round like any other
+//     crate entry — the owner expects every entry into the crate to begin a new cycle);
 //   - a pee ends the mode. On the gravel (or outside) it starts free time; on the pad it counts as a miss.
 const RETRY = {def:10, opts:[5,8,10,12,15], life:3*3600000, slack:20};
 // A retry stay is a short wait. One that ran far past its countdown (she fell asleep in there, say) is just a
@@ -1052,10 +1053,9 @@ function goBreak(p){
 // Only entries since she last left the crate count (or since midnight when there is no stay yet today).
 function routine(p){
   const S = V[p], now = Date.now(), day0 = sod(now).getTime(), rt = retry(p);
-  const inRetryCrate = !!(rt && rt.crate && rt.crate.end == null);
-  if(S.crate.start && !inRetryCrate) return {i:0, t:S.crate.start, next:1};
-  // "since she last left the crate" means an ordinary stay; the short retry stays do not count
-  const lastOut = Math.max(0, ...state.log.filter(e => e.p===p && e.k==='crate' && !isRetryStay(e) && e.end != null).map(e => e.end));
+  // Going into the crate is always step 1 and always starts a round — also the short wait of a retry.
+  if(S.crate.start) return {i:0, t:S.crate.start, next:1, retry:!!rt};
+  const lastOut = Math.max(0, ...state.log.filter(e => e.p===p && e.k==='crate' && e.end != null).map(e => e.end));
   const out = lastOut >= day0 ? lastOut : 0, base = out || day0;
   const ev = state.log.filter(e => e.p===p && e.t >= base && !ITEMS[e.k].dur);
   const went = e => e.k==='pee' || e.k==='poop', isM = e => e.k==='food' || e.k==='nofood';
@@ -1066,14 +1066,14 @@ function routine(p){
   if(meal){ const mi = ev.indexOf(meal), after = ev.find((e, j) => went(e) && j > mi); return after ? {i:4, t:after.t, done:true, next:0} : {i:4, t:meal.t, next:0, retry:!!rt}; }
   const first = ev.find(went);
   if(first) return {i:2, t:first.t, next:3};
-  return out || rt ? {i:1, t: rt ? rt.none.t : out, next:2, retry:!!rt} : null;
+  return out || rt ? {i:1, t: out || rt.none.t, next:2, retry:!!rt} : null;
 }
 // Rounds are a view of the log, not separate data: a round begins each time she goes into the crate
 // (a crate entry in the log, or the running crate timer). The wheel's round number, the grouped list on
 // the main screen and the day view in the summary all read this one list, so the tiles, the history and
 // the rounds cannot disagree. Numbered per day. (`hist` only remembers the wheel's moves for "חזרה שלב".)
 function roundStarts(p){
-  const ts = state.log.filter(e => e.p===p && e.k==='crate' && !isRetryStay(e)).map(e => e.t);   // finished stays and the running one; not the short retry stays
+  const ts = state.log.filter(e => e.p===p && e.k==='crate').map(e => e.t);   // every crate entry: finished stays, the running one, and retry waits
   ts.sort((x,y) => x-y);
   const out = [], perDay = {};
   for(const t of ts){

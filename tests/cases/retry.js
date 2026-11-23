@@ -15,7 +15,7 @@
     $q('[data-act=rtmin][data-k="10"]').click(); $q('[data-act=rtcrate]').click();
     const C = () => logOf('kishmish', 'crate').filter(e => e.r).pop();
     ok('"into the crate" starts the crate and a 10-minute countdown', card().classList.contains('wait') && C().r === 10 && C().end == null && !!K().crate.start && !!$q('.card.retry [data-until]'));
-    ok('a retry stay is not a new round', roundStarts('kishmish').length === 1 && cur() === 'טיול וצרכים');
+    ok('going back into the crate starts a new round, like every crate entry; the wheel shows the crate', roundStarts('kishmish').length === 2 && cur() === 'כלוב' && $q('.cyc-h small').textContent.includes('סבב 2') && $q('.cyc-n').textContent.includes('ניסיון חוזר'));
     $q('[data-act=rtmin][data-k="5"]').click(); ok('the countdown can be shortened while waiting', C().r === 5);
     // the countdown runs out
     logOf('kishmish', 'none')[0].t = now - 7*MIN; C().t = now - 6*MIN; state.log.sort((x, y) => x.t - y.t); use(state); rtSeen = 'wait' + C().id; let buzz = 0; Object.defineProperty(navigator, 'vibrate', { value: () => { buzz++; return true; }, configurable: true });
@@ -40,7 +40,7 @@
     // giving up, and leaving her in the crate
     seed([{ p:'kishmish', k:'crate', t: now - 120*MIN, end: now - 5*MIN }, { p:'kishmish', k:'none', t: now - 4*MIN }]);
     $q('[data-act=rtcrate]').click(); $q('[data-act=rtstop]').click();
-    ok('"end the retry": the card goes, the stay becomes an ordinary crate stay (a new round)', !card() && !C() && !!K().crate.start && roundStarts('kishmish').length === 2 && cur() === 'כלוב');
+    ok('"end the retry": the card goes, the stay becomes an ordinary crate stay', !card() && !C() && !!K().crate.start && roundStarts('kishmish').length === 2 && cur() === 'כלוב' && !$q('.cyc-n').textContent.includes('ניסיון חוזר'));
     // (seen in real use) a retry stay left running from before the latest "nothing": ending the retry clears its mark too
     seed([{ p:'kishmish', k:'none', t: now - 20*MIN }, { p:'kishmish', k:'crate', t: now - 18*MIN, r: 10 }, { p:'kishmish', k:'none', t: now - 13*MIN }]);
     $q('[data-act=rtstop]').click();
