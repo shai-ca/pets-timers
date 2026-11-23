@@ -45,6 +45,14 @@
     seed([{ p:'kishmish', k:'none', t: now - 20*MIN }, { p:'kishmish', k:'crate', t: now - 18*MIN, r: 10 }, { p:'kishmish', k:'none', t: now - 13*MIN }]);
     $q('[data-act=rtstop]').click();
     ok('ending the retry un-marks a running retry stay even when it began before the last "nothing"', !card() && !logOf('kishmish', 'crate')[0].r && !!K().crate.start);
+    // (the evening of 23.11) the "10-minute" wait became a 44-minute stay with a sleep; then water, a pee on the gravel, play
+    seed([{ p:'kishmish', k:'crate', t: now - 100*MIN, end: now - 75*MIN }, { p:'kishmish', k:'food', t: now - 70*MIN }, { p:'kishmish', k:'none', t: now - 70*MIN },
+          { p:'kishmish', k:'crate', t: now - 68*MIN, r: 10, end: now - 23*MIN }, { p:'kishmish', k:'none', t: now - 63*MIN, x: 1 },
+          { p:'kishmish', k:'sleep', t: now - 48*MIN, end: now - 16*MIN }, { p:'kishmish', k:'water', t: now - 23*MIN }, { p:'kishmish', k:'pee', t: now - 19*MIN, w:'gravel' }, { p:'kishmish', k:'play', t: now - 16*MIN, y:'rope' }]);
+    ok('a "retry" stay that ran 45 minutes is an ordinary crate stay: it starts a round', roundStarts('kishmish').length === 2 && !$q('.uni').textContent.includes('ניסיון חוזר'));
+    ok('so after the pee the wheel is on play, not "round done"', cur() === 'משחק' && $q('.rl.nxt').textContent.includes('אוכל'));
+    ok('the sleep she fell into in the crate ends when she left it, so no false "take her out" reminder', logOf('kishmish', 'sleep')[0].end === now - 23*MIN && !$q('.duemsg'));
+    tapPoint('kishmish', 'food'); ok('and "she ate a little" moves the wheel on to the potty step', cur() === 'צרכים');
     // an old "nothing" does not keep the app in retry forever
     seed([{ p:'kishmish', k:'none', t: now - 190*MIN }]);
     ok('a "nothing" from more than three hours ago no longer counts', !card());

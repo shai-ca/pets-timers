@@ -517,6 +517,7 @@ function norm(s){   // any saved or received data -> the current shape (also upg
   const seen = new Set();
   b.log = b.log.filter(e => { if(!e.id) e.id = `m:${e.p}|${e.k}|${e.t}${e.end != null ? '|'+e.end : ''}`; if(seen.has(e.id)) return false; seen.add(e.id); return true; });
   b.log.sort((x,y) => x.t-y.t);
+  enforce(b.log);
   return b;
 }
 // What the tiles and the checklist read, for each pet: the last time of every point kind, and for every
@@ -538,6 +539,21 @@ function derive(s){
     }
   }
   return v;
+}
+// "Out of the crate means awake" is a fact about the list, not just something done at tap time: a sleep that
+// began inside a crate stay cannot run past that stay's end — whoever logged what, on which phone, in which
+// order. Applied whenever a list is loaded, merged or changed; it changes nothing when already true.
+function enforce(log){
+  for(const p of Object.keys(PETS)){
+    if(!PETS[p].cycle) continue;
+    const stays = log.filter(e => e.p===p && e.k==='crate' && e.end != null);
+    for(const sl of log){
+      if(sl.p !== p || sl.k !== 'sleep') continue;
+      let end = 0; for(const c of stays) if(c.t <= sl.t && sl.t < c.end && c.end > end) end = c.end;   // the longest stay she fell asleep in
+      if(end && (sl.end == null || sl.end > end)) sl.end = end;
+    }
+  }
+  return log;
 }
 function setState(s){ state = s; V = derive(state); }
 setState(state);
@@ -609,6 +625,7 @@ function patch(d, onto){   // returns a new state: `onto` with the changes `d` a
   }
   if(d.add.length){ const ids = new Set(d.add.map(e => e.id)); s.log = s.log.filter(e => !ids.has(e.id)).concat(clone(d.add)); }
   s.log.sort((x,y) => x.t-y.t); s.log = s.log.slice(-LOG_MAX);
+  enforce(s.log);
   return s;
 }
 if(OLD_HOST){ if(noDiff(diff(base, state))) forward(); else setTimeout(forward, 8000); }
@@ -826,6 +843,7 @@ function commit(msg, mutate, opts){
   for(const e of state.log){ if(!e.id){ e.id = newId(); if(!e.by) e.by = me; } }
   state.log.sort((x,y)=>x.t-y.t);
   state.log = state.log.slice(-LOG_MAX);
+  enforce(state.log);
   setState(state);
   const after = clone(state);
   render(); push();
@@ -932,7 +950,10 @@ function askAgain(e, label, yes){
 //     crate stay began after it, and it is recent or its retry crate stay is still open;
 //   - a retry crate stay is a crate entry with `r` = the countdown in minutes; it does not start a new round;
 //   - a pee ends the mode. On the gravel (or outside) it starts free time; on the pad it counts as a miss.
-const RETRY = {def:10, opts:[5,8,10,12,15], life:3*3600000};
+const RETRY = {def:10, opts:[5,8,10,12,15], life:3*3600000, slack:20};
+// A retry stay is a short wait. One that ran far past its countdown (she fell asleep in there, say) is just a
+// crate stay: it starts a round and ends the retry, whatever mark it carries.
+const isRetryStay = e => e.k === 'crate' && !!e.r && ((e.end == null ? Date.now() : e.end) - e.t) <= (e.r + RETRY.slack)*60000;
 const FREE = {min:15, max:20};      // minutes of freedom after a pee in the right place
 let retryMin = RETRY.def;
 try { const m = +localStorage.getItem(LS_KEY+'-retrymin'); if(m >= 5 && m <= 15) retryMin = m; } catch(e){}
@@ -946,8 +967,8 @@ function retry(p){
     if(e.k === 'none'){ if(!N){ if(e.x) return null; N = e; } tries++; }
   }
   if(!N) return null;
-  if(L.some(e => e.k==='crate' && !e.r && e.t > N.t)) return null;          // an ordinary crate stay: the retry is over
-  const C = L.filter(e => e.k==='crate' && e.r && e.t >= N.t).pop() || null;  // the retry stay after this "nothing"
+  if(L.some(e => e.k==='crate' && !isRetryStay(e) && e.t > N.t)) return null;   // an ordinary crate stay: the retry is over
+  const C = L.filter(e => isRetryStay(e) && e.t >= N.t).pop() || null;           // the retry stay after this "nothing"
   if(!(C && C.end == null) && now - Math.max(N.t, C ? C.end : 0) > RETRY.life) return null;
   const until = C ? C.t + C.r*60000 : 0;
   return {none:N, crate:C, tries, until, state: !C ? 'toCrate' : C.end != null ? 'again' : now >= until ? 'again' : 'wait'};
@@ -1034,7 +1055,7 @@ function routine(p){
   const inRetryCrate = !!(rt && rt.crate && rt.crate.end == null);
   if(S.crate.start && !inRetryCrate) return {i:0, t:S.crate.start, next:1};
   // "since she last left the crate" means an ordinary stay; the short retry stays do not count
-  const lastOut = Math.max(0, ...state.log.filter(e => e.p===p && e.k==='crate' && !e.r && e.end != null).map(e => e.end));
+  const lastOut = Math.max(0, ...state.log.filter(e => e.p===p && e.k==='crate' && !isRetryStay(e) && e.end != null).map(e => e.end));
   const out = lastOut >= day0 ? lastOut : 0, base = out || day0;
   const ev = state.log.filter(e => e.p===p && e.t >= base && !ITEMS[e.k].dur);
   const went = e => e.k==='pee' || e.k==='poop', isM = e => e.k==='food' || e.k==='nofood';
@@ -1052,7 +1073,7 @@ function routine(p){
 // the main screen and the day view in the summary all read this one list, so the tiles, the history and
 // the rounds cannot disagree. Numbered per day. (`hist` only remembers the wheel's moves for "חזרה שלב".)
 function roundStarts(p){
-  const ts = state.log.filter(e => e.p===p && e.k==='crate' && !e.r).map(e => e.t);   // finished stays and the running one; not the short retry stays
+  const ts = state.log.filter(e => e.p===p && e.k==='crate' && !isRetryStay(e)).map(e => e.t);   // finished stays and the running one; not the short retry stays
   ts.sort((x,y) => x-y);
   const out = [], perDay = {};
   for(const t of ts){
@@ -1268,7 +1289,7 @@ function cycleHTML(p){
   // What moves the wheel on: always something on the tiles below.
   // Plain instructions for whoever is holding the phone: what is happening and what to press below.
   const nm = PETS[p].name;
-  const awakeSince = Math.max(S.sleep.lastEnd || 0, ...state.log.filter(e => e.p===p && e.k==='crate' && !e.r && e.end != null).map(e => e.end));
+  const awakeSince = Math.max(S.sleep.lastEnd || 0, ...state.log.filter(e => e.p===p && e.k==='crate' && !isRetryStay(e) && e.end != null).map(e => e.end));
   const awake = !asleep && !S.crate.start;
   // Two more of the trainer's reminders: awake for an hour -> crate to sleep; three hours since a pee -> gravel.
   const tired = awake && awakeSince >= sod(now).getTime() && now - awakeSince >= 60*60000;
@@ -1410,7 +1431,7 @@ function byOf(p, k, t){   // " · name" of whoever logged this event, if known
 }
 function logRow(e){
   const live = isLive(e);
-  return `<div class="r" ${live ? `data-live="${e.k}"` : `data-e="${state.log.indexOf(e)}"`}>${ico(iconOf(e.k),'s')}<span>${live ? ITEMS[e.k].live+' עכשיו' : ITEMS[e.k].log}${e.r ? ' · ניסיון חוזר' : ''}${typeTag(e.q)}${afterCrate(e.p, e)}${PLAY[e.y] ? ' · '+PLAY[e.y] : e.y === 'play' ? ' · במשחק' : ''}${whereTag(e.w)}${e.end ? ' · '+words(e.end-e.t) : ''}${USERS[e.by] ? `<i class="by">${USERS[e.by]}</i>` : ''}</span>
+  return `<div class="r" ${live ? `data-live="${e.k}"` : `data-e="${state.log.indexOf(e)}"`}>${ico(iconOf(e.k),'s')}<span>${live ? ITEMS[e.k].live+' עכשיו' : ITEMS[e.k].log}${isRetryStay(e) ? ' · ניסיון חוזר' : ''}${typeTag(e.q)}${afterCrate(e.p, e)}${PLAY[e.y] ? ' · '+PLAY[e.y] : e.y === 'play' ? ' · במשחק' : ''}${whereTag(e.w)}${e.end ? ' · '+words(e.end-e.t) : ''}${USERS[e.by] ? `<i class="by">${USERS[e.by]}</i>` : ''}</span>
      <time>${dayLabel(e.t)} <bdi dir="ltr">${clock(e.t)}${e.end ? '–'+clock(e.end) : ''}</bdi></time></div>`;
 }
 

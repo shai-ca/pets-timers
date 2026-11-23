@@ -22,6 +22,8 @@
     // once it is version 2, the old pet objects are never read again, even though they stay in the document
     const again = norm(Object.assign(clone(a), { legacy: { kishmish: { crate: { start: 12345 } } } }));
     ok('legacy objects are not read back', again.log.filter(e => e.k === 'crate' && e.end == null).length === 1);
+    const fixed = norm({ v:2, log:[{ p:'kishmish', k:'crate', t: 1000, end: 5000 }, { p:'kishmish', k:'crate', t: 1000, end: 9000 }, { p:'kishmish', k:'sleep', t: 2000, end: 12000 }, { p:'kishmish', k:'sleep', t: 9000, end: 20000 }, { p:'kochik', k:'food', t: 3000 }] });
+    ok('a sleep begun in a crate stay is cut at that stay\'s end (the longest one), others untouched; and it is stable', fixed.log.find(e => e.k === 'sleep' && e.t === 2000).end === 9000 && fixed.log.find(e => e.k === 'sleep' && e.t === 9000).end === 20000 && canon(norm(clone(fixed))) === canon(fixed));
     tapDur('kishmish', 'crate'); await wait();
     ok('stopping the migrated timer makes one finished stay', !K().crate.start && logOf('kishmish', 'crate').filter(e => e.t === now - 40*MIN && e.end).length === 1);
     done();
