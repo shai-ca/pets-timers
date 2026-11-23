@@ -303,7 +303,62 @@ function norm(s){
 try { const ls = localStorage.getItem(LS_KEY); if(ls) state = norm(JSON.parse(ls)); } catch(e){}
 try { const p = localStorage.getItem(LS_KEY+'-tab'); if(p && PETS[p]) pet = p; } catch(e){}
 try { const u = localStorage.getItem(LS_KEY+'-user'); if(USERS[u]) me = u; } catch(e){}
-function saveLocal(){ try{ localStorage.setItem(LS_KEY, JSON.stringify(state)); }catch(e){} }
+function saveLocal(){ try{ localStorage.setItem(LS_KEY, JSON.stringify(state)); localStorage.setItem(LS_KEY+'-base', JSON.stringify(base)); }catch(e){} }
+
+// ---------- merging (so one phone never overwrites what another phone wrote) ----------
+// `base` is the last state this device knows the server has. Only the difference between `base` and
+// `state` — what was changed here — is ever sent, and it is applied on top of whatever the server holds
+// at that moment. Pet objects are compared field by field (arrays such as `hist` as a whole); the log is
+// compared entry by entry, keyed by pet + kind + time.
+let base = null;
+try { const b = localStorage.getItem(LS_KEY+'-base'); if(b) base = norm(JSON.parse(b)); } catch(e){}
+const isObj = v => !!v && typeof v === 'object' && !Array.isArray(v);
+function canon(v){   // JSON with sorted keys: equal data compares equal whatever order the keys came back in
+  if(Array.isArray(v)) return '[' + v.map(canon).join(',') + ']';
+  if(isObj(v)) return '{' + Object.keys(v).filter(k => v[k] !== undefined).sort().map(k => JSON.stringify(k) + ':' + canon(v[k])).join(',') + '}';
+  return JSON.stringify(v === undefined ? null : v);
+}
+const logKey = e => `${e.p}|${e.k}|${e.t}`;
+function diff(a, b){
+  const d = {set:[], del:[], rem:[], add:[]};
+  const walk = (x, y, path) => {
+    for(const k of new Set(Object.keys(x || {}).concat(Object.keys(y || {})))){
+      const u = x ? x[k] : undefined, v = y ? y[k] : undefined;
+      if(u === undefined && v === undefined) continue;
+      if(u !== undefined && v !== undefined && canon(u) === canon(v)) continue;
+      const at = path.concat(k);
+      if(v === undefined) d.del.push(at);
+      else if(isObj(u) && isObj(v)) walk(u, v, at);
+      else d.set.push([at, v]);
+    }
+  };
+  for(const pt of Object.keys(PETS)) walk(a[pt], b[pt], [pt]);
+  const A = new Map(a.log.map(e => [logKey(e), canon(e)])), B = new Map(b.log.map(e => [logKey(e), e]));
+  for(const [k, c] of A) if(!B.has(k) || canon(B.get(k)) !== c) d.rem.push(k);
+  for(const [k, e] of B) if(A.get(k) !== canon(e)) d.add.push(e);
+  return d;
+}
+const noDiff = d => !d.set.length && !d.del.length && !d.rem.length && !d.add.length;
+function patch(d, onto){   // returns a new state: `onto` with the changes `d` applied
+  const s = norm(onto);
+  for(const path of d.del){ let o = s; for(const k of path.slice(0,-1)){ o = isObj(o) ? o[k] : undefined; } if(isObj(o)) delete o[path[path.length-1]]; }
+  for(const [path, v] of d.set){ let o = s; for(const k of path.slice(0,-1)){ if(!isObj(o[k])) o[k] = {}; o = o[k]; } o[path[path.length-1]] = clone(v); }
+  if(d.rem.length || d.add.length){
+    const gone = new Set(d.rem.concat(d.add.map(logKey)));
+    s.log = s.log.filter(e => !gone.has(logKey(e))).concat(clone(d.add));
+    s.log.sort((x,y) => x.t-y.t); s.log = s.log.slice(-LOG_MAX);
+  }
+  return s;
+}
+// What the server holds has arrived (live update, or a fresh read when the app comes back to the front):
+// take it as the new base and keep on top of it anything changed here that has not been sent yet.
+function onServer(data){
+  if(writing) return;   // the save in flight reads the server itself and merges
+  const server = norm(data), mine = diff(base, state);
+  base = server; state = noDiff(mine) ? clone(server) : patch(mine, server);
+  saveLocal(); render();
+  if(noDiff(mine)) setSync('מסונכרן','on'); else push();
+}
 
 // One-time import of the state copied from the old claude.ai artifact on 22.11.2026 (only into an
 // empty app, only for two days after that). Safe to delete.
@@ -322,15 +377,30 @@ function saveLocal(){ try{ localStorage.setItem(LS_KEY, JSON.stringify(state)); 
   });
   saveLocal();
 })();
+if(!base) base = clone(state);
 function setSync(t, cls=''){ const s=document.getElementById('sync'); s.className='sync '+cls; s.querySelector('span').textContent=t; }
 
+let retryTimer = null;
 async function push(){
   saveLocal();
   if(!ref) return;
   if(writing){ dirty = true; return; }
+  clearTimeout(retryTimer);
+  const sent = clone(state), mine = diff(base, sent);
+  if(noDiff(mine)){ setSync('מסונכרן','on'); return; }
   writing = true; setSync('שומר…');
-  try { await ref.set(clone(state)); setSync('מסונכרן','on'); }
-  catch(e){ setSync(e && e.code==='permission-denied' ? 'אין הרשאה' : 'השמירה נכשלה','err'); }
+  try {
+    // One transaction: read what the server has right now, put only this device's changes on top, write.
+    const merged = norm(await ref.merge((server, exists) => exists ? patch(mine, server) : sent));
+    const later = diff(sent, state);          // taps made while the save was on its way
+    base = merged; state = noDiff(later) ? clone(merged) : patch(later, merged);
+    if(!noDiff(later)) dirty = true;
+    saveLocal(); render(); setSync('מסונכרן','on');
+  } catch(e){
+    // Nothing is lost: the changes stay on this device (state vs. base) and are sent again later.
+    if(e && e.code === 'permission-denied') setSync('אין הרשאה','err');
+    else { setSync('ממתין לחיבור','err'); retryTimer = setTimeout(push, 20000); }
+  }
   writing = false;
   if(dirty){ dirty = false; push(); }
 }
@@ -371,25 +441,42 @@ let fb = null;   // { auth, signIn(), signOut() } once Firebase has loaded
   let unsub = null, t = null;
   A.onAuthStateChanged(auth, user => {
     if(unsub){ unsub(); unsub = null; }
-    clearTimeout(t); ref = null; writing = dirty = false;
+    clearTimeout(t); clearTimeout(retryTimer); ref = null; writing = dirty = false;
     if(!user){ setSync('התחברות','login'); return; }
     setSync('טוען…');
-    ref = { set: d => F.setDoc(docRef, d) };
+    ref = {
+      merge: fn => F.runTransaction(store, async tx => {
+        const snap = await tx.get(docRef);
+        const merged = clone(fn(snap.exists() ? snap.data() : null, snap.exists()));
+        tx.set(docRef, merged);
+        return merged;
+      }),
+      fresh: () => F.getDocFromServer(docRef).then(snap => { if(snap.exists()) onServer(snap.data()); })
+    };
     t = setTimeout(()=>setSync('אין חיבור','err'), 10000);
     unsub = F.onSnapshot(docRef, {includeMetadataChanges:true}, snap => {
       if(!snap.metadata.fromCache) clearTimeout(t);
-      if(snap.exists()){
-        if(!writing && !dirty && !snap.metadata.hasPendingWrites){ state = norm(snap.data()); saveLocal(); render(); }
-        if(!snap.metadata.fromCache && !writing) setSync('מסונכרן','on');
-      } else if(!snap.metadata.fromCache){
-        if(state.log.length) push(); else setSync('מסונכרן','on');
-      }
+      // Only what really came from the server counts; the offline copy is this device's own localStorage.
+      if(snap.metadata.fromCache || snap.metadata.hasPendingWrites) return;
+      if(snap.exists()) onServer(snap.data());
+      else if(state.log.length){ base = blank(); push(); }   // first device ever: create the document
+      else setSync('מסונכרן','on');
     }, err => {
       clearTimeout(t); ref = null;
       if(err && err.code==='permission-denied') setSync('אין הרשאה','err'); else setSync('נשמר במכשיר');
     });
   });
 })();
+
+// Phones pause the live connection in the background. Coming back to the front: read the server now
+// (do not wait for the listener to wake up) and send anything that is still waiting here.
+function resync(){
+  if(document.hidden || !ref || writing) return;
+  ref.fresh().catch(() => {}).then(() => { if(ref && !writing && !noDiff(diff(base, state))) push(); });
+}
+document.addEventListener('visibilitychange', resync);
+window.addEventListener('pageshow', resync);
+window.addEventListener('online', resync);
 
 document.getElementById('sync').onclick = async () => {
   if(!fb) return;
@@ -411,7 +498,8 @@ function commit(msg, mutate){
   for(const e of state.log) if(!old.has(e) && !e.by) e.by = me;
   state.log.sort((x,y)=>x.t-y.t);
   state.log = state.log.slice(-LOG_MAX);
-  render(); push(); showToast(msg, before);
+  const after = clone(state);
+  render(); push(); showToast(msg, {before, after});
 }
 function tapPoint(p, k, t){
   t = t || Date.now();
@@ -908,8 +996,8 @@ document.getElementById('main').addEventListener('click', e => {
   else if(a==='edit') openSheet(pet, k);
   else if(a==='med'){ if(medsOf(pet)[k]) openMedSheet(pet, k); else setMed(pet, k, Date.now()); }
 });
-function showToast(msg, before){
-  lastUndo = before;
+function showToast(msg, undo){
+  lastUndo = undo;
   document.getElementById('toastMsg').textContent = msg;
   document.getElementById('toastWhere').innerHTML = '';
   const t = document.getElementById('toast'); t.classList.add('show');
@@ -931,7 +1019,7 @@ function toastWhere(p, k, t){
 }
 document.getElementById('undo').onclick = () => {
   if(!lastUndo) return;
-  state = lastUndo; lastUndo = null;
+  state = patch(diff(lastUndo.after, lastUndo.before), state); lastUndo = null;   // reverse just this change
   document.getElementById('toast').classList.remove('show');
   render(); push();
 };
