@@ -104,6 +104,8 @@
   .sub.fc{margin-top:3px;color:var(--ink);font-weight:500}
   .sub.fc i{display:none;width:8px;height:8px;border-radius:50%;margin-inline-end:6px;vertical-align:baseline}
   .sub.fc.now i{display:inline-block;background:#fab219} .sub.fc.late i{display:inline-block;background:#d03b3b}
+  .chips.when [data-m="0"]{flex-basis:100%;background:var(--btn);border-color:var(--btn);color:#fff;font-size:17px;font-weight:600;padding:15px}
+  .chips.when button{flex:1 1 28%;padding:11px 8px}
   .chips.mini{margin:2px 0 10px;gap:6px} .chips.mini button{padding:6px 10px;font-size:13px}
   .chips.where button{flex:1 1 40%;padding:14px 10px;font-size:16px;font-weight:500}
   /* charts: status colours for "where" (validated for colour-blind separation), neutral bands */
@@ -895,6 +897,22 @@ function alertsHTML(p){
   return alerts(p).map(a => `<div class="card alertc"><div class="ic">${ico(a.k)}</div><span><b>${a.text}</b><small>${a.hint}</small></span></div>`).join('');
 }
 
+// ---------- "when?" ----------
+// Every logging button first asks when it happened: "עכשיו" (one big button), a few "X minutes ago"
+// buttons, any number of minutes, or a clock time. The owner is with the puppy when things happen and
+// often cannot tap at that very minute. `go(ts)` gets a time, or nothing for "now".
+let ASK_WHEN = true;
+function askWhen(title, go){
+  if(!ASK_WHEN){ go(); return; }
+  sheet(title, chips([0,5,10,15,20,30,60]).replace('class="chips"', 'class="chips when"') + `<label class="field">או בשעה ${timeField("tIn", nowStr())}</label>`,
+    cancelBtn, () => { const v = timeVal('tIn'); if(!v) return; close(); const ts = timeToTs(v); go(Date.now() - ts < 60000 ? undefined : ts); },
+    ts => go(Date.now() - ts < 1000 ? undefined : ts));
+}
+function endDurAt(p, k, ts){   // "woke up / came out 10 minutes ago"
+  const t = Math.min(ts, Date.now());
+  commit(`${PETS[p].name} · ${ITEMS[k].stop}`, () => { if(k === 'crate') leaveCrate(p, t); else stopDur(p, k, t); });
+}
+
 // ---------- no accidental doubles ----------
 // Tapping the same button twice within two minutes asks first. (On 23.11 the same entries were logged
 // twice at 15:54 and at 16:00.) Entries given an explicit time ("שעה אחרת") are not checked.
@@ -962,19 +980,19 @@ function retryHTML(p){
     <div class="sub" style="margin-bottom:8px">${V[p].water ? `שתתה לאחרונה: ${dayLabel(V[p].water)} <bdi dir="ltr">${clock(V[p].water)}</bdi> (לפני ${words(Date.now() - V[p].water)})` : 'לא נרשמה שתייה. אם היא לא שתתה, ייתכן שאין לה פיפי.'}</div>
     ${body}<button class="lnk rt-x" data-act="rtstop">לסיים את הניסיון החוזר</button></div>`;
 }
-function retryAct(p, a, k, sure){
+function retryAct(p, a, k, sure, t){
   const r = retry(p); if(!r) return;
-  const C = r.crate, open = C && C.end == null, now = Date.now(), name = PETS[p].name;
+  const C = r.crate, open = C && C.end == null, now = t || Date.now(), name = PETS[p].name;
   const find = e => state.log.find(x => x.id === e.id);
   if(a === 'rtmin'){
     const m = +k; if(!(m >= 5 && m <= 15)) return;
     retryMin = m; try { localStorage.setItem(LS_KEY+'-retrymin', String(m)); } catch(e){}
     if(open) commit('', () => { find(C).r = m; }, {quiet:true}); else render();
   }
-  else if(a === 'rtcrate') tapDur(p, 'crate');                                   // tapDur makes it a retry stay
+  else if(a === 'rtcrate') tapDur(p, 'crate', t);                                // tapDur makes it a retry stay
   else if(a === 'rtout') commit(`${name} · ${ITEMS.crate.stop}`, () => { leaveCrate(p, now); });
   else if(a === 'rtpee' || a === 'rtnone'){
-    const kind = a === 'rtpee' ? 'pee' : 'none', d = !sure && recentDouble(p, x => x.k === kind);
+    const kind = a === 'rtpee' ? 'pee' : 'none', d = !sure && !t && recentDouble(p, x => x.k === kind);
     if(d){ askAgain(d, ITEMS[kind].log, () => retryAct(p, a, k, true)); return; }
     const e = {p, k: kind, t: now};
     commit(`${name} · ${ITEMS[e.k].log}`, () => { if(open) leaveCrate(p, now); state.log.push(e); });
@@ -1290,14 +1308,14 @@ function openHelp(){
   bg.classList.add('show');
 }
 // Things that are logged from the tiles, not from the wheel.
-function logNoFood(p, sure){
-  if(!sure){ const d = recentDouble(p, e => e.k === 'nofood'); if(d){ askAgain(d, ITEMS.nofood.log, () => logNoFood(p, true)); return; } }
-  commit(`${PETS[p].name} · לא אכלה`, () => { state.log.push({p, k:'nofood', t:Date.now()}); });
+function logNoFood(p, sure, t){
+  if(!sure && !t){ const d = recentDouble(p, e => e.k === 'nofood'); if(d){ askAgain(d, ITEMS.nofood.log, () => logNoFood(p, true)); return; } }
+  commit(`${PETS[p].name} · לא אכלה`, () => { state.log.push({p, k:'nofood', t: t || Date.now()}); });
 }
-function logPlay(p, y, sure){
-  if(!sure){ const d = recentDouble(p, e => e.k === 'play' && e.y === y); if(d){ askAgain(d, 'משחק · ' + PLAY[y], () => logPlay(p, y, true)); return; } }
+function logPlay(p, y, sure, t){
+  if(!sure && !t){ const d = recentDouble(p, e => e.k === 'play' && e.y === y); if(d){ askAgain(d, 'משחק · ' + PLAY[y], () => logPlay(p, y, true)); return; } }
   commit(`${PETS[p].name} · משחק · ${PLAY[y]}`, () => {
-    const now = Date.now();
+    const now = t || Date.now();
     state.log.push({p, k:'play', t:now, y});
     // Play with food is a meal too — one meal per play session, however many food games are marked.
     if(PLAY_FOOD[y] && !state.log.some(e => e.p===p && e.k==='food' && e.y==='play' && now - e.t < 30*60000)){
@@ -1691,13 +1709,21 @@ document.getElementById('shell').addEventListener('click', e => {
     view = 'sum'; sumMode = 'day'; sumFilter = null; sumAnchor = d.getTime(); render(); window.scrollTo(0, 0);
   }
   else if(a==='brk') goBreak(pet);
-  else if(a && a.startsWith('rt')) retryAct(pet, a, k);
+  else if(a === 'rtmin' || a === 'rtstop') retryAct(pet, a, k);
+  else if(a && a.startsWith('rt')) askWhen(`${PETS[pet].name} · ${b.textContent.trim()} — מתי?`, ts => retryAct(pet, a, k, false, ts));
   else if(a==='help') openHelp();
-  else if(a==='play') logPlay(pet, k);
-  else if(a==='nofood') logNoFood(pet);
+  else if(a==='play') askWhen(`${PETS[pet].name} · משחק · ${PLAY[k]} — מתי?`, ts => logPlay(pet, k, false, ts));
+  else if(a==='nofood') askWhen(`${PETS[pet].name} · לא אכלה — מתי?`, ts => logNoFood(pet, false, ts));
   else if(a==='where'){ const e = state.log.filter(x => x.p===pet && x.k===k).pop(); if(e) whereSheet(e.id); }
-  else if(a==='pt') tapPoint(pet, k);
-  else if(a==='dur') tapDur(pet, k);
+  else if(a==='pt'){
+    const ask = () => askWhen(`${PETS[pet].name} · ${ITEMS[k].log} — מתי?`, ts => tapPoint(pet, k, ts, true));
+    const d = recentDouble(pet, e => e.k === k);
+    if(d) askAgain(d, ITEMS[k].log, ask); else ask();
+  }
+  else if(a==='dur'){
+    const running = !!V[pet][k].start;
+    askWhen(`${PETS[pet].name} · ${running ? ITEMS[k].stop : ITEMS[k].start} — מתי?`, ts => running ? (ts ? endDurAt(pet, k, ts) : tapDur(pet, k)) : tapDur(pet, k, ts));
+  }
   else if(a==='edit') openSheet(pet, k);
   else if(a==='med'){ if(medsOf(pet)[k]) openMedSheet(pet, k); else setMed(pet, k, Date.now()); }
 });
