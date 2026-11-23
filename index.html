@@ -631,7 +631,7 @@ function timeToTs(v){
 }
 const ago = m => Date.now() - m*60000;
 const nowStr = () => clock(Date.now());
-const chips = (list) => `<div class="chips">${list.map(m=>`<button data-m="${m}">${m===0?'עכשיו':'לפני '+(m===60?'שעה':m+' דק׳')}</button>`).join('')}</div>`;
+const chips = (list) => `<div class="chips">${list.map(m=>`<button data-m="${m}">${m===0?'עכשיו':'לפני '+(m===60?'שעה':m===120?'שעתיים':m%60===0?(m/60)+' שעות':m+' דק׳')}</button>`).join('')}</div>`;
 
 // Time entry: phones keep the native time wheel; with a mouse and keyboard it is a plain text box that
 // accepts 935, 9:35, 09.35, "9 35" or just 9, and Enter saves.
@@ -672,12 +672,12 @@ const cancelBtn = '<button class="btn" id="cancel">ביטול</button>';
 function openSheet(p, k){
   const it = ITEMS[k], name = PETS[p].name, d = state[p][k] || {};
   if(!it.dur){
-    sheet(`${name} · ${it.log} — מתי?`, chips([5,10,15,30,60]) + `<label class="field">או בשעה ${timeField("tIn", nowStr())}</label>`,
+    sheet(`${name} · ${it.log} — מתי?`, chips([5,10,15,30,60,120,180]) + `<label class="field">או בשעה ${timeField("tIn", nowStr())}</label>`,
       cancelBtn, () => { const v=timeVal('tIn'); if(!v) return; close(); logAt(p,k,timeToTs(v)); },
       ts => logAt(p,k,ts));
   } else if(d.start){
     const setStart = ts => commit(`${name} · שעת ההתחלה עודכנה`, () => { state[p][k] = Object.assign({}, d, {start:ts}); });
-    sheet(`${name} · ${it.startQ}`, chips([5,10,15,30,60]) + `<label class="field">או בשעה ${timeField("tIn", clock(d.start))}</label>`,
+    sheet(`${name} · ${it.startQ}`, chips([5,10,15,30,60,120,180]) + `<label class="field">או בשעה ${timeField("tIn", clock(d.start))}</label>`,
       '<button class="btn danger" id="del">מחיקה</button>',
       () => { const v=timeVal('tIn'); if(!v) return; close(); setStart(timeToTs(v)); }, setStart);
     sh.querySelector('#del').onclick = () => { close(); commit(`${name} · נמחק`, () => { const x = Object.assign({}, d); delete x.start; state[p][k] = x; }); };
