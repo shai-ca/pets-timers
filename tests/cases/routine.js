@@ -45,6 +45,10 @@
     $q('.sg[data-go=play]').dispatchEvent(new MouseEvent('click', { bubbles: true }));
     ok('a segment works too, and the step itself did not change', went === 'sec-play' && !!K().crate.start && $q('.rc b').textContent === 'כלוב' && state.log.length === 1);
     ok('wheel, then sleep and crying, are in the side column; the step tiles in the main one', !!$q('#side .cyc') && !$q('#main .cyc') && $n('#side #sec-rest .card.item') === 2 && $q('#side .cyc').nextElementSibling.id === 'sec-rest' && $n('#main .card.item') === 4 && ['crate','potty','play','food'].every(k => !!$q('#main #sec-' + k)));
+    pet = 'kishmish'; view = 'now'; seed([{ p:'kishmish', k:'pee', t: midnight() - 3*HOUR, w:'gravel' }]);
+    $q('[data-act=prevdays]').click();
+    ok('"previous days" opens yesterday in the summary', view === 'sum' && sumMode === 'day' && dayKey(sumAnchor) === dayKey(midnight() - HOUR) && $q('.card.log').textContent.includes('פיפי') && $q('.seg.sm .on').dataset.view === 'sum');
+    view = 'now'; render();
     $q('[data-act=help]').click(); ok('help sheet', sh.textContent.includes('מסמנים רק בכרטיסים')); close();
     pet = 'kochik'; render(); ok('kochik: no wheel, no play card, no tags', !$q('.cyc') && !$q('.playc') && $n('.card.item') === 4 && $n('.nowt') === 0);
     done();

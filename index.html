@@ -1190,7 +1190,7 @@ function render(){
   side.innerHTML = sideHTML;
   if(P.cycle){
     const a = sod(Date.now()), b = new Date(a); b.setDate(b.getDate()+1);
-    h += `<h2>היום לפי סבבים<small>לחיצה על רישום לתיקון · ימים קודמים בסיכום · <button class="lnk" data-act="addev">הוספת רישום</button></small></h2><div class="card log uni">${groupedHTML(pet, a.getTime(), b.getTime())}</div>`;
+    h += `<h2>היום לפי סבבים<small>לחיצה על רישום לתיקון · <button class="lnk" data-act="prevdays">ימים קודמים</button> · <button class="lnk" data-act="addev">הוספת רישום</button></small></h2><div class="card log uni">${groupedHTML(pet, a.getTime(), b.getTime())}</div>`;
   } else {
     const items = state.log.filter(e => e.p===pet).slice(-25).reverse();
     h += `<h2>היסטוריה<small>לחיצה על רישום לתיקון או מחיקה</small></h2><div class="card log">` + (items.length ? items.map(logRow).join('') : `<div class="empty">אין עדיין רישומים</div>`) + `</div>`;
@@ -1660,6 +1660,10 @@ document.getElementById('shell').addEventListener('click', e => {
   else if(a==='filt'){ sumFilter = sumFilter === k ? null : k; render(); }
   else if(a==='prev' || a==='next'){ sumShift(a==='prev' ? -1 : 1); render(); }
   else if(a==='addev') openAddSheet(pet);
+  else if(a==='prevdays'){   // yesterday's list, in the summary's day view (the arrows there go further back)
+    const d = sod(Date.now()); d.setDate(d.getDate() - 1);
+    view = 'sum'; sumMode = 'day'; sumFilter = null; sumAnchor = d.getTime(); render(); window.scrollTo(0, 0);
+  }
   else if(a==='brk') goBreak(pet);
   else if(a && a.startsWith('rt')) retryAct(pet, a, k);
   else if(a==='help') openHelp();
