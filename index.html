@@ -356,6 +356,8 @@ const stepName = i => i === BREAK ? 'הפסקה' : CYCLE[i].n;
 const HIST_MAX = 1500;   // step changes kept for the rounds list (about a month)
 // Kinds of play, stored as `y` on a `play` log entry. Several can be marked in one play step.
 const PLAY = {rope:'חבל', kong:'קונג ממולא', train:'אילוף עם אוכל'};
+// These kinds are a meal too (she is tiny): the play step then logs one `food` entry, tagged `y:"play"`.
+const PLAY_FOOD = {kong:true, train:true};
 const STEP_ICON = ['crate','paw','ball','food','pee'];   // one per CYCLE step, drawn on its ring segment
 const DUE_MAX = 60*60000;   // the "take her out" reminder gives up after an hour
 const iconOf = k => (ITEMS[k] && ITEMS[k].icon) || k;
@@ -997,8 +999,14 @@ const playOn = (p, y) => !!playEntry(p, y);
 function togglePlay(p, y){
   const had = playEntry(p, y);
   commit(`${PETS[p].name} · משחק · ${PLAY[y]}${had ? ' בוטל' : ''}`, () => {
+    const now = Date.now(), since = state[p].cyc.t;
     if(had) state.log = state.log.filter(e => !(e.p===p && e.k==='play' && e.y===y && e.t===had.t));
-    else state.log.push({p, k:'play', t:Date.now(), y});
+    else state.log.push({p, k:'play', t:now, y});
+    // One meal per play step while any food kind is marked; it goes away with the last of them.
+    const fed = state.log.some(e => e.p===p && e.k==='play' && PLAY_FOOD[e.y] && e.t >= since);
+    const meal = state.log.find(e => e.p===p && e.k==='food' && e.y==='play' && e.t >= since);
+    if(fed && !meal){ state.log.push({p, k:'food', t:now, y:'play'}); state[p].food = Math.max(state[p].food || 0, now); }
+    if(!fed && meal){ state.log = state.log.filter(e => e !== meal); recalc(p, 'food'); }
   });
 }
 // A crate stay longer than CRATE_MAX is flagged red — in the daytime only, so a night in the crate is not an alarm.
@@ -1034,7 +1042,7 @@ function byOf(p, k, t){   // " · name" of whoever logged this event, if known
   return '';
 }
 function logRow(e){
-  return `<div class="r" ${e.live ? '' : `data-e="${state.log.indexOf(e)}"`}>${ico(iconOf(e.k),'s')}<span>${e.live ? ITEMS[e.k].live+' עכשיו' : ITEMS[e.k].log}${PLAY[e.y] ? ' · '+PLAY[e.y] : ''}${whereTag(e.w)}${e.end ? ' · '+words(e.end-e.t) : ''}${USERS[e.by] ? `<i class="by">${USERS[e.by]}</i>` : ''}</span>
+  return `<div class="r" ${e.live ? '' : `data-e="${state.log.indexOf(e)}"`}>${ico(iconOf(e.k),'s')}<span>${e.live ? ITEMS[e.k].live+' עכשיו' : ITEMS[e.k].log}${PLAY[e.y] ? ' · '+PLAY[e.y] : e.y === 'play' ? ' · במשחק' : ''}${whereTag(e.w)}${e.end ? ' · '+words(e.end-e.t) : ''}${USERS[e.by] ? `<i class="by">${USERS[e.by]}</i>` : ''}</span>
      <time>${dayLabel(e.t)} <bdi dir="ltr">${clock(e.t)}${e.end ? '–'+clock(e.end) : ''}</bdi></time></div>`;
 }
 
