@@ -177,6 +177,8 @@
   .gate p{margin:0;font-size:14.5px;line-height:1.55;color:var(--muted)}
   .gate .btn.primary{font-size:16px;padding:13px 26px;border-radius:14px;margin-top:8px}
   .gate .ghost{margin-top:2px;font-size:13.5px}
+  .gate .gerr{color:var(--alert);background:var(--alert-soft);border-radius:12px;padding:10px 12px;font-size:13.5px;text-align:right}
+  .gate .gerr[hidden]{display:none}
   .hr{display:flex;align-items:center;gap:10px}
   .me{border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:10px;padding:5px 10px;font:inherit;font-size:12.5px;font-weight:500;cursor:pointer;white-space:nowrap}
   .by{font-style:normal;color:var(--muted);font-size:12px;margin-inline-start:6px}
@@ -247,6 +249,18 @@
   .cyc-n .nx{font-size:13px;color:var(--muted);line-height:1.4}
   .cyc-n .nx b{display:block;font-size:15px;font-weight:600;color:var(--ink)}
   .cyc-n .ghost{flex:none}
+  .cyc-n .nx b{font-weight:600}
+  .cyc-n .nx > b:first-child{margin-bottom:2px}
+  .cyc-n .nx b:not(:first-child){display:inline;font-size:inherit;color:var(--ink)}
+  .tagk,.card.nowt::before{background:var(--btn);color:#fff;font-size:11px;font-weight:500;padding:2px 8px;border-radius:8px;white-space:nowrap}
+  .card.nowt{position:relative;box-shadow:0 0 0 2px var(--btn)}
+  .card.nowt::before{content:"עכשיו בשגרה";position:absolute;top:-10px;inset-inline-start:14px}
+  .card.slim{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 16px}
+  .card.slim b{display:block;font-size:14px;font-weight:500}
+  .card.slim small{display:block;font-size:12px;color:var(--muted);margin-top:1px}
+  .card.slim .btn{flex:none;font-weight:500;padding:9px 16px}
+  .help p{margin:0 0 12px;font-size:14.5px;line-height:1.55;color:var(--muted)} .help b{color:var(--ink)}
+  .cyc-h .lnk{font-size:inherit}
   .playc .meds-h small{margin-inline-start:auto;font-size:12.5px;color:var(--muted)}
   .cyc-a{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:12px}
   .cyc-a .mainact{margin-inline-start:auto;display:flex;flex-direction:column;align-items:stretch;gap:4px}
@@ -280,7 +294,7 @@
     .card.cyc > .cyc-h{align-self:end;margin-bottom:6px}
     .card.cyc > .cyc-h b{font-size:17px}
     .card.cyc > .cyc-n{align-self:start}
-    main > .card.playc{max-width:744px}
+    main > .card.playc, main > .card.slim{max-width:744px}
     .tiles, .tiles.two{grid-template-columns:repeat(auto-fill,minmax(170px,190px));gap:14px}
     .tiles .tile{grid-column:auto !important;aspect-ratio:1/1;padding:18px;justify-content:flex-end}
     .tiles .tile .ic{margin-bottom:auto}
@@ -337,7 +351,7 @@ document.getElementById('mark').innerHTML = `<svg viewBox="0 0 24 24">${ICONS.pa
 // ---------- model ----------
 const PETS = {
   kochik:   {name:'קוצ׳יק', items:['food','pee','poop','gel'], meds:true, where:['out','gravel','pad','floor']},
-  kishmish: {name:'קישמיש', items:['crate','pee','poop','none','food','sleep','cry'], cycle:true, where:['gravel','pad','floor','crate','out']}
+  kishmish: {name:'קישמיש', items:['crate','pee','poop','food','sleep','cry'], cycle:true, where:['gravel','pad','floor','crate','out']}
 };
 const ITEMS = {
   food:{lbl:'מאז האוכל האחרון',btn:'אכלה',log:'אכלה'},
@@ -349,7 +363,7 @@ const ITEMS = {
   sleep:{dur:true,lbl:'שינה אחרונה',live:'ישנה',start:'נרדמה',stop:'התעוררה',log:'ישנה',startQ:'מתי נרדמה?'},
   cry:{dur:true,lbl:'בכי אחרון',live:'בוכה',start:'בוכה',stop:'נרגעה',log:'בכתה',startQ:'מתי התחילה לבכות?'},
   crate:{dur:true,lbl:'כלוב אחרון',live:'בכלוב',start:'נכנסה לכלוב',stop:'יצאה מהכלוב',log:'בכלוב',startQ:'מתי נכנסה לכלוב?'},
-  none:{lbl:'מאז שיצאה ולא עשתה',btn:'לא עשתה',log:'יצאה ולא עשתה'},
+  none:{log:'יצאה ולא עשתה'},   // went out for potty and nothing happened; logged from the slim row under the poop tile
   brk:{icon:'none',log:'הפסקה בשגרה'},
   nofood:{icon:'food',log:'לא אכלה'},   // offered food in the routine's food step and did not eat
   play:{icon:'ball',log:'משחק'},   // what kind of play it was (`y`), logged from the routine's play step   // taken out for potty, nothing happened (logged from the routine strip)
@@ -535,6 +549,8 @@ const FIREBASE_CONFIG = {
 // A device that was allowed before (its email is remembered in localStorage) opens straight away, so
 // the app still works with no connection; a sign-out or a refusal locks it again.
 const AUTH_KEY = LS_KEY+'-authok';
+// A page opened inside another app (WhatsApp, Facebook…) runs in an embedded browser where Google refuses to sign in.
+const IN_APP = /; wv\)|FBAN|FBAV|FB_IAB|Instagram|WhatsApp|Line\//.test(navigator.userAgent);
 let authOk = null;
 try { authOk = localStorage.getItem(AUTH_KEY); } catch(e){}
 function setGate(mode, email){
@@ -543,7 +559,9 @@ function setGate(mode, email){
   const paw = `<div class="mark"><svg viewBox="0 0 24 24">${ICONS.paw}</svg></div><h2>קוצ׳יק וקישמיש</h2>`;
   const body = {
     loading: `<p>בודק הרשאה…</p>`,
-    login:   `<p>כדי להשתמש באפליקציה צריך להתחבר עם חשבון Google מורשה.</p><button class="btn primary" id="gIn">התחברות עם Google</button>`,
+    login:   `<p>כדי להשתמש באפליקציה צריך להתחבר עם חשבון Google מורשה.</p>
+              ${IN_APP ? `<p class="gerr">נראה שהדף נפתח מתוך אפליקציה אחרת (למשל וואטסאפ). התחברות עם Google לא עובדת שם.<br>לוחצים על ⋮ למעלה ובוחרים <b>״פתיחה ב־Chrome״</b>, ומתחברים שם.</p>` : ''}
+              <button class="btn primary" id="gIn">התחברות עם Google</button><p class="gerr" id="gErr" hidden></p>`,
     denied:  `<p>החשבון <bdi dir="ltr">${email || ''}</bdi> לא נמצא ברשימת המורשים.</p><p>אפשר להתחבר עם חשבון אחר, או לבקש שיוסיפו את המייל הזה.</p>
               <button class="btn primary" id="gOut">החלפת חשבון</button><button class="ghost" id="gRetry">הוסיפו אותי · לנסות שוב</button>`,
     offline: `<p>אין חיבור לאינטרנט, ובמכשיר הזה עוד לא התחברו. צריך חיבור כדי להתחבר בפעם הראשונה.</p><button class="btn primary" id="gRetry">לנסות שוב</button>`
@@ -558,6 +576,12 @@ function allow(email){ authOk = email; try { localStorage.setItem(AUTH_KEY, emai
 function lock(mode, email){ authOk = null; try { localStorage.removeItem(AUTH_KEY); } catch(e){} setGate(mode, email); }
 if(FIREBASE_CONFIG && !authOk) setGate('loading');
 
+// When the app is served from the Firebase project's own domain (pets-timers.web.app), Google sign-in can
+// stay on one site from start to finish: the sign-in handler lives on the same domain, so a full-page
+// redirect works on every phone. On other hosts (GitHub Pages) the handler is on a different site and the
+// pop-up flow is the only option — it fails on some Android phones with "missing initial state".
+const SAME_SITE_AUTH = /\.(web\.app|firebaseapp\.com)$/.test(location.hostname);
+if(FIREBASE_CONFIG && SAME_SITE_AUTH) FIREBASE_CONFIG.authDomain = location.hostname;
 const FB_CDN = 'https://www.gstatic.com/firebasejs/10.14.1/';
 let fb = null;   // { auth, signIn(), signOut() } once Firebase has loaded
 
@@ -576,10 +600,11 @@ let fb = null;   // { auth, signIn(), signOut() } once Firebase has loaded
   const docRef = F.doc(store, 'state', 'main');
   fb = {
     auth,
-    signIn: () => A.signInWithPopup(auth, new A.GoogleAuthProvider()),
+    signIn: () => SAME_SITE_AUTH ? A.signInWithRedirect(auth, new A.GoogleAuthProvider()) : A.signInWithPopup(auth, new A.GoogleAuthProvider()),
     signOut: () => A.signOut(auth)
   };
 
+  if(SAME_SITE_AUTH) A.getRedirectResult(auth).catch(e => gateError(`ההתחברות לא הצליחה${e && e.code ? ' ('+e.code.replace('auth/','')+')' : ''}. לוחצים שוב.`));
   let unsub = null, t = null;
   A.onAuthStateChanged(auth, user => {
     if(unsub){ unsub(); unsub = null; }
@@ -623,13 +648,20 @@ document.addEventListener('visibilitychange', resync);
 window.addEventListener('pageshow', resync);
 window.addEventListener('online', resync);
 
+function gateError(msg){ const el = document.getElementById('gErr'); if(el){ el.textContent = msg; el.hidden = !msg; } }
 document.getElementById('sync').onclick = async () => {
-  if(!fb) return;
+  if(!fb){ gateError('האפליקציה עוד נטענת, או שאין חיבור לאינטרנט. מחכים כמה שניות ולוחצים שוב.'); return; }
   const u = fb.auth.currentUser;
   if(u){ if(confirm(`להתנתק מ־${u.email}?`)) fb.signOut(); return; }
-  try { await fb.signIn(); }
+  try { gateError(''); await fb.signIn(); }
   catch(e){
-    if(e && (e.code==='auth/popup-closed-by-user' || e.code==='auth/cancelled-popup-request')) return;
+    // Say what happened on the lock screen itself — a sign-in that silently does nothing is the worst case.
+    const code = (e && e.code) || '';
+    gateError(code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request' ? 'חלון ההתחברות נסגר לפני שההתחברות הושלמה. לוחצים שוב, בוחרים את החשבון ומחכים שהחלון ייסגר לבד.'
+      : code === 'auth/popup-blocked' ? 'הדפדפן חסם את חלון ההתחברות. מאשרים ״חלונות קופצים״ לאתר הזה ולוחצים שוב.'
+      : code === 'auth/network-request-failed' ? 'אין חיבור לאינטרנט. בודקים את החיבור ולוחצים שוב.'
+      : `ההתחברות לא הצליחה${code ? ' ('+code.replace('auth/','')+')' : ''}. פותחים את האתר ב־Chrome רגיל (לא מתוך וואטסאפ) ומנסים שוב.`);
+    if(code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request') return;
     setSync('ההתחברות נכשלה','err');
     setTimeout(() => { if(!fb.auth.currentUser) setSync('התחברות','login'); }, 3000);
   }
@@ -671,6 +703,14 @@ function stopDur(p, k, t){
   const end = Math.max(t, d.start);
   state[p][k] = {lastStart:d.start, lastEnd:end};
   state.log.push({p, k, t:d.start, end});
+}
+// The tiles that move the routine on right now — they get a "עכשיו בשגרה" tag, so someone opening the
+// app for the first time can see what to press without knowing how the wheel works.
+function routineTap(p){
+  const r = routine(p);
+  if(!r || r.done) return ['crate'];
+  if(r.brk) return [];
+  return r.i === 0 ? ['crate'] : r.i === 2 ? ['play','food'] : ['pee','poop','none'];
 }
 // Put the routine on hold (vet, a trip…): just an entry in the log. Whatever is logged next resumes it.
 function goBreak(p){
@@ -832,12 +872,18 @@ function render(){
 
   if(P.cycle) h += cycleHTML(pet);
 
+  const tap = P.cycle ? routineTap(pet) : [];
   for(const k of P.items){
-    const it = ITEMS[k];
-    if(P.cycle && k === 'food') h += playCardHTML(pet);   // play sits between potty and food, as in the routine
+    const it = ITEMS[k], nowt = tap.includes(k) ? 'nowt' : '';
+    if(P.cycle && k === 'food'){
+      // "Went out, nothing happened" is one button in a slim row — it has no timer of its own worth a tile.
+      const ln = S.none;
+      h += `<div class="card slim ${tap.includes('none') ? 'nowt' : ''}"><span><b>יצאה לצרכים ולא עשתה כלום?</b>${ln ? `<small>פעם אחרונה: ${dayLabel(ln)} <bdi dir="ltr">${clock(ln)}</bdi></small>` : ''}</span><button class="btn" data-act="pt" data-k="none">לא עשתה</button></div>`;
+      h += playCardHTML(pet, tap.includes('play'));
+    }   // play sits between potty and food, as in the routine
     if(!it.dur){
       const t = S[k];
-      h += `<div class="card item">
+      h += `<div class="card item ${nowt}">
         <div class="ic">${ico(k)}</div>
         <div><div class="lbl">${it.lbl}</div>
           ${it.slow ? `<div class="big txt ${t?'':'none'}">${t ? wordsLong(Date.now()-t) : '–'}</div>`
@@ -863,7 +909,7 @@ function render(){
       if(tt > cur + 60000) sub += ` · סה״כ היום <span data-total="${k}">${words(tt)}</span>`;
       const over = k==='crate' && crateOver(pet);
       if(over) sub += ` · יותר מ${words(CRATE_MAX)}`;
-      h += `<div class="card item ${live?'live':''} ${k==='cry' || over?'cry':''}">
+      h += `<div class="card item ${nowt} ${live?'live':''} ${k==='cry' || over?'cry':''}">
         <div class="ic">${ico(k)}</div>
         <div><div class="lbl">${lbl}</div>${big}<div class="sub">${sub}</div></div>
         <div class="acts"><button class="go" data-act="dur" data-k="${k}">${live?it.stop:it.start}</button>
@@ -906,21 +952,37 @@ function cycleHTML(p){
     : r.done ? `<b>הסבב הושלם</b><span>${since(r.t)}</span>`
     : `<b>${CYCLE[ci].n}</b><span>${since(r.t)}</span>${inCrate ? `<span>מ־<bdi dir="ltr">${clock(r.t)}</bdi></span>` : ''}`);
   // What moves the wheel on: always something on the tiles below.
-  const how = !r ? 'מתחילים ב״נכנסה לכלוב״ בכרטיס הכלוב' : r.brk ? 'כל רישום חדש מחזיר לשגרה'
-    : r.done ? 'מסמנים ״נכנסה לכלוב״ כשהיא חוזרת לכלוב'
-    : ci === 0 ? 'כשמוציאים אותה: ״יצאה מהכלוב״ בכרטיס הכלוב'
-    : ci === 1 ? 'אחרי שמסמנים פיפי, קקי או ״לא עשתה״'
-    : ci === 2 ? 'כשהיא אוכלת: ״אכלה״ (או משחק עם אוכל)'
-    : 'אחרי שמסמנים פיפי, קקי או ״לא עשתה״';
+  // Plain instructions for whoever is holding the phone: what is happening and what to press below.
+  const nm = PETS[p].name;
+  const what = !r ? `כש${nm} נכנסת לכלוב, לוחצים <b>״נכנסה לכלוב״</b> בכרטיס הכלוב למטה.`
+    : r.brk ? `בהפסקה. כל דבר שמסמנים למטה מחזיר את ${nm} לשגרה.`
+    : r.done ? `הסבב הושלם. כש${nm} חוזרת לכלוב, לוחצים <b>״נכנסה לכלוב״</b>.`
+    : ci === 0 ? `${nm} בכלוב. כשמוציאים אותה, לוחצים <b>״יצאה מהכלוב״</b> בכרטיס הכלוב.`
+    : ci === 1 ? `מוציאים את ${nm} לצרכים, ואז לוחצים למטה מה קרה: <b>פיפי</b>, <b>קקי</b> או <b>״לא עשתה״</b>.`
+    : ci === 2 ? `זמן משחק. אפשר לסמן במה שיחקה. כש${nm} אוכלת, לוחצים <b>״אכלה״</b>.`
+    : `אחרי האוכל מוציאים שוב לצרכים, ואז לוחצים <b>פיפי</b>, <b>קקי</b> או <b>״לא עשתה״</b>.`;
   return `<div class="card cyc ${due||over?'due':''}">
-    <div class="cyc-h"><b>השגרה של ${PETS[p].name}</b><small>${r && !r.brk && rn ? roundName(rn) : r && r.brk ? 'בהפסקה' : ''}</small></div>
+    <div class="cyc-h"><b>השגרה של ${PETS[p].name}</b><small>${r && !r.brk && rn ? roundName(rn)+' · ' : r && r.brk ? 'בהפסקה · ' : ''}<button class="lnk" data-act="help">איך זה עובד?</button></small></div>
     <div class="steps"><svg class="ring" viewBox="0 0 200 200" aria-hidden="true">${segs}</svg>
       <div class="rc">${centre}</div>${labels}</div>
     ${over ? `<div class="duemsg">${ico('crate','s')}<span>בכלוב כבר יותר מ${words(CRATE_MAX)} · מ־<bdi dir="ltr">${clock(S.crate.start)}</bdi></span></div>` : ''}
     ${due ? `<div class="duemsg">${ico('pee','s')}<span>זמן להוציא לצרכים · ${due.why}, לפני <span data-words="${due.t}">${words(now-due.t)}</span></span></div>` : ''}
     ${asleep ? `<div class="zz">${ico('sleep','s')}<span>ישנה מ־<bdi dir="ltr">${clock(S.sleep.start)}</bdi> · נותנים לה לישון</span></div>` : ''}
-    <div class="cyc-n"><span class="nx"><b>הבא: ${CYCLE[nx].n}</b>${how}</span>
+    <div class="cyc-n"><span class="nx"><b>מה עושים עכשיו?</b>${what}${routineTap(p).length ? ` הכרטיסים עם התווית <span class="tagk">עכשיו בשגרה</span> הם אלה.` : ''}</span>
       ${r && !r.brk && !inCrate ? `<button class="ghost" data-act="brk">${ico('none','s')}הפסקה בשגרה</button>` : ''}</div></div>`;
+}
+function openHelp(){
+  sh.innerHTML = `<h3>איך זה עובד?</h3>
+    <div class="help">
+      <p><b>מסמנים רק בכרטיסים.</b> בכל כרטיס יש כפתור: נכנסה לכלוב, פיפי, קקי, לא עשתה, אכלה וכו׳.</p>
+      <p><b>הגלגל מתקדם לבד.</b> הוא מראה באיזה שלב של השגרה נמצאים (כלוב ← טיול וצרכים ← משחק ← אוכל ← צרכים) ומה השלב הבא. אי אפשר ללחוץ עליו.</p>
+      <p><b>״עכשיו בשגרה״.</b> הכרטיסים עם התווית הזו הם מה שצריך לסמן עכשיו כדי להתקדם.</p>
+      <p><b>שכחתם לסמן בזמן?</b> ״שעה אחרת״ בכרטיס, ושם בוחרים לפני כמה דקות זה קרה.</p>
+      <p><b>טעיתם?</b> ״ביטול״ בפס השחור למטה, או לחיצה על הרישום ברשימה כדי לתקן או למחוק. הגלגל מתעדכן בהתאם.</p>
+    </div>
+    <div class="foot"><span></span><button class="btn primary" id="cancel">הבנתי</button></div>`;
+  sh.querySelector('#cancel').onclick = close;
+  bg.classList.add('show');
 }
 // Things that are logged from the tiles, not from the wheel.
 function logNoFood(p){ commit(`${PETS[p].name} · לא אכלה`, () => { state.log.push({p, k:'nofood', t:Date.now()}); }); }
@@ -934,9 +996,9 @@ function logPlay(p, y){
     }
   });
 }
-function playCardHTML(p){
+function playCardHTML(p, nowt){
   const last = state.log.filter(e => e.p===p && e.k==='play').pop();
-  return `<div class="card playc"><div class="meds-h"><div class="ic">${ico('ball')}</div><b>משחק</b><small>${last ? `אחרון: ${PLAY[last.y] || ''} · ${dayLabel(last.t)} <bdi dir="ltr">${clock(last.t)}</bdi>` : 'במה שיחקה?'}</small></div>
+  return `<div class="card playc ${nowt ? 'nowt' : ''}"><div class="meds-h"><div class="ic">${ico('ball')}</div><b>משחק</b><small>${last ? `אחרון: ${PLAY[last.y] || ''} · ${dayLabel(last.t)} <bdi dir="ltr">${clock(last.t)}</bdi>` : 'במה שיחקה?'}</small></div>
     <div class="sc-b">${Object.keys(PLAY).map(y => `<button class="btn" data-act="play" data-k="${y}">${PLAY[y]}</button>`).join('')}</div>
     <div class="sub" style="margin-top:8px">קונג, משטח ליקוק ואילוף עם אוכל נרשמים גם כארוחה.</div></div>`;
 }
@@ -1213,6 +1275,7 @@ document.getElementById('main').addEventListener('click', e => {
   else if(a==='prev' || a==='next'){ sumShift(a==='prev' ? -1 : 1); render(); }
   else if(a==='addev') openAddSheet(pet);
   else if(a==='brk') goBreak(pet);
+  else if(a==='help') openHelp();
   else if(a==='play') logPlay(pet, k);
   else if(a==='nofood') logNoFood(pet);
   else if(a==='where') whereSheet(pet, k, state[pet][k]);
