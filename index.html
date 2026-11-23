@@ -220,7 +220,10 @@
   /* the routine as a ring: five segments clockwise from the top, the current one filled */
   .steps{position:relative;height:236px;max-width:340px;margin:2px auto 0}
   .ring{position:absolute;left:50%;top:50%;width:200px;height:200px;margin:-100px 0 0 -100px;overflow:visible}
-  .sg{color:var(--seg);fill:currentColor;stroke:currentColor;stroke-width:2.5;stroke-linejoin:round;cursor:pointer;transition:color .2s}
+  .sg{color:var(--seg);fill:currentColor;stroke:currentColor;stroke-width:2.5;stroke-linejoin:round;transition:color .2s}
+  .sg.nxt{stroke:var(--btn);stroke-width:2;stroke-dasharray:5 4;animation:nxt 2.4s ease-in-out infinite}
+  @keyframes nxt{50%{stroke-opacity:.35}}
+  .si.nxt{color:var(--btn)}
   .sg.done{color:color-mix(in srgb,var(--btn) 32%,var(--card))}
   .sg.cur{color:var(--btn)} .sg.cur.over{color:var(--alert)}
   .sg.lock{cursor:default;opacity:.55}
@@ -230,14 +233,21 @@
   .rc b{display:block;font-size:17px;font-weight:600;color:var(--ink)}
   .rc span{display:block;font-size:12px;color:var(--muted)}
   .rc .zzi{color:var(--ok);margin-bottom:1px}
-  .steps button.rl{position:absolute;transform:translate(-50%,-50%);border:0;background:none;padding:5px 4px;font:inherit;font-size:12.5px;color:var(--muted);white-space:nowrap;cursor:pointer}
-  .steps button.rl.r{transform:translate(0,-50%);text-align:left} .steps button.rl.l{transform:translate(-100%,-50%);text-align:right}
-  .steps button.rl.r,.steps button.rl.l{max-width:66px;white-space:normal;line-height:1.2}
-  .steps button.rl i{font-style:normal;opacity:.6;margin-inline-end:4px;font-variant-numeric:tabular-nums}
-  .steps button.rl:disabled{opacity:.45;cursor:default}
-  .steps button.rl.on{color:var(--ink);font-weight:600}
+  .steps .rl{position:absolute;transform:translate(-50%,-50%);border:0;background:none;padding:5px 4px;font:inherit;font-size:12.5px;color:var(--muted);white-space:nowrap;cursor:pointer}
+  .steps .rl.r{transform:translate(0,-50%);text-align:left} .steps .rl.l{transform:translate(-100%,-50%);text-align:right}
+  .steps .rl.r,.steps .rl.l{max-width:66px;white-space:normal;line-height:1.2}
+  .steps .rl i{font-style:normal;opacity:.6;margin-inline-end:4px;font-variant-numeric:tabular-nums}
+  .steps .rl:disabled{opacity:.45;cursor:default}
+  .steps .rl.on{color:var(--ink);font-weight:600}
+  .steps .rl.nxt{color:var(--btn);font-weight:500}
+  .steps .rl.nxt::after{content:" ← הבא";font-size:11px;font-weight:400;opacity:.8}
   .duemsg{display:flex;align-items:center;gap:8px;margin-top:10px;padding:9px 12px;border-radius:12px;background:var(--alert-soft);color:var(--alert);font-size:13.5px;font-weight:500}
   .card.cyc.due{border-color:color-mix(in srgb,var(--alert) 40%,transparent)}
+  .cyc-n{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:12px;padding:10px 12px;border-radius:12px;background:var(--bg)}
+  .cyc-n .nx{font-size:13px;color:var(--muted);line-height:1.4}
+  .cyc-n .nx b{display:block;font-size:15px;font-weight:600;color:var(--ink)}
+  .cyc-n .ghost{flex:none}
+  .playc .meds-h small{margin-inline-start:auto;font-size:12.5px;color:var(--muted)}
   .cyc-a{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:12px}
   .cyc-a .mainact{margin-inline-start:auto;display:flex;flex-direction:column;align-items:stretch;gap:4px}
   .cyc-a .sub{flex:1;min-width:0}
@@ -269,7 +279,8 @@
     .card.cyc > .steps{grid-column:1;grid-row:1 / span 8;margin:0;align-self:center;width:300px}
     .card.cyc > .cyc-h{align-self:end;margin-bottom:6px}
     .card.cyc > .cyc-h b{font-size:17px}
-    .card.cyc > .cyc-a{align-self:start}
+    .card.cyc > .cyc-n{align-self:start}
+    main > .card.playc{max-width:744px}
     .tiles, .tiles.two{grid-template-columns:repeat(auto-fill,minmax(170px,190px));gap:14px}
     .tiles .tile{grid-column:auto !important;aspect-ratio:1/1;padding:18px;justify-content:flex-end}
     .tiles .tile .ic{margin-bottom:auto}
@@ -326,7 +337,7 @@ document.getElementById('mark').innerHTML = `<svg viewBox="0 0 24 24">${ICONS.pa
 // ---------- model ----------
 const PETS = {
   kochik:   {name:'קוצ׳יק', items:['food','pee','poop','gel'], meds:true, where:['out','gravel','pad','floor']},
-  kishmish: {name:'קישמיש', items:['food','pee','poop','sleep','cry','crate'], cycle:true, where:['gravel','pad','floor','crate','out']}
+  kishmish: {name:'קישמיש', items:['crate','pee','poop','none','food','sleep','cry'], cycle:true, where:['gravel','pad','floor','crate','out']}
 };
 const ITEMS = {
   food:{lbl:'מאז האוכל האחרון',btn:'אכלה',log:'אכלה'},
@@ -338,7 +349,7 @@ const ITEMS = {
   sleep:{dur:true,lbl:'שינה אחרונה',live:'ישנה',start:'נרדמה',stop:'התעוררה',log:'ישנה',startQ:'מתי נרדמה?'},
   cry:{dur:true,lbl:'בכי אחרון',live:'בוכה',start:'בוכה',stop:'נרגעה',log:'בכתה',startQ:'מתי התחילה לבכות?'},
   crate:{dur:true,lbl:'כלוב אחרון',live:'בכלוב',start:'נכנסה לכלוב',stop:'יצאה מהכלוב',log:'בכלוב',startQ:'מתי נכנסה לכלוב?'},
-  none:{log:'יצאה ולא עשתה'},
+  none:{lbl:'מאז שיצאה ולא עשתה',btn:'לא עשתה',log:'יצאה ולא עשתה'},
   brk:{icon:'none',log:'הפסקה בשגרה'},
   nofood:{icon:'food',log:'לא אכלה'},   // offered food in the routine's food step and did not eat
   play:{icon:'ball',log:'משחק'},   // what kind of play it was (`y`), logged from the routine's play step   // taken out for potty, nothing happened (logged from the routine strip)
@@ -346,15 +357,8 @@ const ITEMS = {
   med_pm:{icon:'pill',log:'תרופת ערב'}
 };
 // The trainer's potty-training routine for pets with `cycle:true`: crate → walk + potty → play → food → potty → crate.
-// `k` = the timer that the step owns (started on entering, stopped on leaving); `food` logs a meal on entering;
-// `play` has no timer (too much tapping) — leaving the step just stamps `playEnd` for the take-out reminder.
-const CYCLE = [
-  {n:'כלוב', k:'crate'},
-  {n:'טיול וצרכים', potty:true},
-  {n:'משחק', play:true},
-  {n:'אוכל', food:true},
-  {n:'צרכים', potty:true}
-];
+// The app works out the current step from the log (see `routine()`); these are just the five names.
+const CYCLE = [{n:'כלוב'}, {n:'טיול וצרכים'}, {n:'משחק'}, {n:'אוכל'}, {n:'צרכים'}];
 // Where a pee / poop happened; stored as `w` on the log entry (optional).
 const WHERE = {out:'בחוץ', gravel:'על החצץ במרפסת', pad:'על הפד', floor:'על הרצפה', crate:'בכלוב'};   // floor and crate are accidents (shown in red)
 // The choices offered per pet, best place first. Kishmish is not vaccinated yet and does not go outside: her target is the gravel on the balcony.
@@ -363,8 +367,6 @@ const WHERE_SHORT = {out:'בחוץ', gravel:'חצץ', pad:'פד', floor:'רצפ�
 const hasWhere = k => k==='pee' || k==='poop';
 const CRATE_MAX = 2*3600000;   // a crate stay longer than this turns red (tile and strip)
 const DAY_FROM = 7, DAY_TO = 22;   // the red crate flag is only shown between these hours
-const BREAK = -1;   // pseudo step in `hist`: the routine is on hold (vet, a trip…); it ends the round
-const HIST_MAX = 1500;   // step changes kept for the rounds list (about a month)
 // Kinds of play, stored as `y` on a `play` log entry. Several can be marked in one play step.
 const PLAY = {rope:'חבל', kong:'קונג ממולא', lick:'משטח ליקוק', train:'אילוף עם אוכל'};
 // These kinds are a meal too (she is tiny): the play step then logs one `food` entry, tagged `y:"play"`.
@@ -657,13 +659,11 @@ function tapDur(p, k, at){   // `at`: start a timer that began earlier ("she wen
   const now = Date.now(), d = state[p][k] || {};
   if(d.start && !at) commit(`${PETS[p].name} · ${ITEMS[k].stop}`, () => {
     stopDur(p, k, now);
-    // Keep the routine strip in step with the crate tile: leaving the crate = awake, on to "walk + potty".
-    if(PETS[p].cycle && k==='crate'){ stopDur(p, 'sleep', now); if(!(state[p].cyc && state[p].cyc.i === 1)) setStep(state[p], 1, now); }
+    if(PETS[p].cycle && k==='crate') stopDur(p, 'sleep', now);   // out of the crate = awake
   });
   else commit(`${PETS[p].name} · ${ITEMS[k].start}`, () => {
     const t = at || now;
     state[p][k] = Object.assign({}, state[p][k] || {}, {start:t});
-    if(PETS[p].cycle && k==='crate') setStep(state[p], 0, t);
   });
 }
 function stopDur(p, k, t){
@@ -672,72 +672,31 @@ function stopDur(p, k, t){
   state[p][k] = {lastStart:d.start, lastEnd:end};
   state.log.push({p, k, t:d.start, end});
 }
-// Move the routine to step i: stop the crate timer if the crate step is being left, start the new step's
-// timer, and log a meal when entering the food step. One commit, so the toast undoes all of it.
-function goStep(p, i, at){   // `at`: the step really began earlier (forgot to tap at the time)
-  const st = CYCLE[i]; if(!st) return;
-  const S0 = state[p], same = !!(S0.cyc && S0.cyc.i === i), crateOn = !!(S0.crate && S0.crate.start);
-  // Tapping the step she is already in does nothing — unless the crate timer disagrees with the step
-  // (crate step but no timer, or another step while the timer still runs); then the tap puts it right.
-  if(same && (i === 0 ? crateOn : !crateOn)) return;
-  commit(`${PETS[p].name} · ${st.n}`, () => {
-    const S = state[p], h = S.hist || [];
-    // Never earlier than the previous step or than the moment she went into the crate, never in the future.
-    const now = Math.min(Date.now(), Math.max(at || Date.now(), h.length ? h[h.length-1].t : 0, (S.crate && S.crate.start) || 0));
-    if(st.k !== 'crate'){ stopDur(p, 'crate', now); stopDur(p, 'sleep', now); }
-    if(S.cyc && CYCLE[S.cyc.i] && CYCLE[S.cyc.i].play && !same) S.playEnd = now;
-    if(st.k && !(S[st.k] || {}).start) S[st.k] = Object.assign({}, S[st.k] || {}, {start:now});
-    if(st.food){ S.food = Math.max(S.food || 0, now); state.log.push({p, k:'food', t:now}); }
-    if(!same || i === 0) setStep(S, i, now);
-  });
-}
-// "The step began earlier": pick how long ago or a time, then move the routine there at that time.
-function openStepAtSheet(p, i){
-  const inCrate = !!(state[p].crate && state[p].crate.start);
-  sheet(`${PETS[p].name} · ${inCrate && i === 1 ? 'יצאה מהכלוב' : CYCLE[i].n} — מתי?`,
-    chips([5,10,15,30,60]) + `<label class="field">או בשעה ${timeField("tIn", nowStr())}</label>`,
-    cancelBtn, () => { const v = timeVal('tIn'); if(!v) return; close(); goStep(p, i, timeToTs(v)); },
-    ts => goStep(p, i, ts));
-}
-// One step back on the wheel: take back the last move as if it had not been tapped. The step's own
-// crate stay / meal goes with it, and whatever the move had closed (the crate stay or the sleep of the
-// step before, the "play ended" stamp) is running again. Anything logged meanwhile (a pee…) stays.
-function stepBack(p){
-  if(!(state[p].hist || []).length) return;
-  commit(`${PETS[p].name} · חזרה שלב`, () => {
-    const S = state[p], H = S.hist, last = H.pop(), st = CYCLE[last.i] || {};
-    if(st.k){
-      if(S[st.k] && S[st.k].start === last.t) delete S[st.k].start;
-      state.log = state.log.filter(e => !(e.p===p && e.k===st.k && e.t===last.t));
-      recalc(p, st.k);
-    }
-    if(st.food){ state.log = state.log.filter(e => !(e.p===p && ((e.k==='food' && e.t===last.t && !e.y) || (e.k==='nofood' && e.t >= last.t)))); recalc(p, 'food'); }
-    for(const k of last.i === 0 ? [] : ['crate','sleep']){   // entering the crate closes nothing, so there is nothing to restart
-      const e = state.log.find(x => x.p===p && x.k===k && x.end===last.t);
-      if(e && !(S[k] && S[k].start)){ state.log = state.log.filter(x => x !== e); recalc(p, k); S[k] = Object.assign({}, S[k] || {}, {start:e.t}); }
-    }
-    if(last.i === BREAK) state.log = state.log.filter(e => !(e.p===p && e.k==='brk' && e.t===last.t));
-    if(S.playEnd === last.t) delete S.playEnd;
-    if(H.length) S.cyc = Object.assign({}, H[H.length-1]); else delete S.cyc;
-  });
-}
-// Put the routine on hold (vet, a trip…). She is out of the crate and awake; the round ends here
-// and the next step that is tapped starts a new round.
+// Put the routine on hold (vet, a trip…): just an entry in the log. Whatever is logged next resumes it.
 function goBreak(p){
-  commit(`${PETS[p].name} · הפסקה בשגרה`, () => {
-    const now = Date.now(), S = state[p];
-    for(const k of ['crate','sleep']) stopDur(p, k, now);
-    if(S.cyc && CYCLE[S.cyc.i] && CYCLE[S.cyc.i].play) S.playEnd = now;
-    state.log.push({p, k:'brk', t:now});
-    setStep(S, BREAK, now);
-  });
+  commit(`${PETS[p].name} · הפסקה בשגרה`, () => { const now = Date.now(); stopDur(p, 'sleep', now); state.log.push({p, k:'brk', t:now}); });
 }
-// The current step plus a short history of step changes (`hist`), which is what the rounds list is built from.
-function setStep(S, i, t){
-  const h = Array.isArray(S.hist) ? S.hist : (S.cyc ? [S.cyc] : []);
-  if(h.length) t = Math.max(t, h[h.length-1].t);   // a timer started "10 minutes ago" must not go back in the history
-  S.cyc = {i, t};
-  S.hist = h.concat([{i, t}]).slice(-HIST_MAX);
+// Where she is in the trainer's routine. This is worked out from what was logged on the tiles — it is
+// never stored and cannot be tapped — so the wheel and the tiles are one thing:
+//   in the crate                                   → כלוב            (next: walk + potty)
+//   out of the crate, nothing logged yet           → טיול וצרכים      (next: play)
+//   a pee / poop / "nothing"                        → משחק            (next: food)
+//   a meal, or "did not eat"                        → צרכים           (next: crate)
+//   a pee / poop / "nothing" after that meal        → round done      (next: crate)
+// Only entries since she last left the crate count (or since midnight when there is no stay yet today).
+function routine(p){
+  const S = state[p], now = Date.now(), day0 = sod(now).getTime();
+  if(S.crate && S.crate.start) return {i:0, t:S.crate.start, next:1};
+  const out = S.crate && S.crate.lastEnd >= day0 ? S.crate.lastEnd : 0, base = out || day0;
+  const ev = state.log.filter(e => e.p===p && e.t >= base && !e.end);
+  const isP = e => e.k==='pee' || e.k==='poop' || e.k==='none', isM = e => e.k==='food' || e.k==='nofood';
+  const last = ev[ev.length-1];
+  if(last && last.k === 'brk') return {brk:true, t:last.t, next:0};
+  const meal = ev.filter(isM).pop();
+  if(meal){ const after = ev.find(e => isP(e) && e.t > meal.t); return after ? {i:4, t:after.t, done:true, next:0} : {i:4, t:meal.t, next:0}; }
+  const first = ev.find(isP);
+  if(first) return {i:2, t:first.t, next:3};
+  return out ? {i:1, t:out, next:2} : null;
 }
 // Rounds are a view of the log, not separate data: a round begins each time she goes into the crate
 // (a crate entry in the log, or the running crate timer). The wheel's round number, the grouped list on
@@ -788,13 +747,9 @@ function openAddSheet(p){
 function pottyDue(p){
   const S = state[p], c = [];
   if((S.sleep && S.sleep.start) || (S.crate && S.crate.start)) return null;
-  // In the routine, potty has its own step right after play and food — no nagging during those two.
-  const cur = S.cyc && CYCLE[S.cyc.i];
-  if(cur && (cur.play || cur.food)) return null;
   if(S.sleep && S.sleep.lastEnd) c.push([S.sleep.lastEnd, 'אחרי שינה']);
   if(S.crate && S.crate.lastEnd) c.push([S.crate.lastEnd, 'אחרי יציאה מהכלוב']);
-  if(typeof S.food === 'number') c.push([S.food, 'אחרי אוכל']);   // before play: on a tie the meal is the reason shown
-  if(S.playEnd) c.push([S.playEnd, 'אחרי משחק']);
+  if(typeof S.food === 'number') c.push([S.food, 'אחרי אוכל']);
   const fc = peeForecast(p);
   if(fc && fc.state !== 'soon') c.push([fc.from, 'לפי הקצב הרגיל שלה']);
   c.sort((a,b) => b[0]-a[0]);
@@ -879,6 +834,7 @@ function render(){
 
   for(const k of P.items){
     const it = ITEMS[k];
+    if(P.cycle && k === 'food') h += playCardHTML(pet);   // play sits between potty and food, as in the routine
     if(!it.dur){
       const t = S[k];
       h += `<div class="card item">
@@ -889,7 +845,8 @@ function render(){
           <div class="sub">${t ? `${dayLabel(t)} ב־${clock(t)}${whereOf(pet,k,t) || (hasWhere(k) ? ` · <button class="lnk" data-act="where" data-k="${k}">איפה?</button>` : '')}${byOf(pet,k,t)}` : 'עוד לא נרשם'}</div>
           ${P.cycle && k === 'pee' ? forecastLine(pet) : ''}${todayWhere(pet,k) ? `<div class="sub hint">${todayWhere(pet,k)}</div>` : ''}${P.cycle && typical(pet,k) ? `<div class="sub hint">${typical(pet,k)}</div>` : ''}${it.note ? `<div class="sub hint">${it.note}</div>` : ''}</div>
         <div class="acts"><button class="go" data-act="pt" data-k="${k}">${it.btn}</button>
-          <button class="ghost" data-act="edit" data-k="${k}">${ico('clock','s')}שעה אחרת</button></div></div>`;
+          <button class="ghost" data-act="edit" data-k="${k}">${ico('clock','s')}שעה אחרת</button>
+          ${P.cycle && k === 'food' ? `<button class="ghost" data-act="nofood">${ico('none','s')}לא אכלה</button>` : ''}</div></div>`;
     } else {
       const d = S[k] || {}, live = !!d.start, tt = todayTotal(pet,k);
       let lbl, big, sub;
@@ -924,96 +881,64 @@ function render(){
   document.getElementById('main').innerHTML = h;
 }
 function cycleHTML(p){
-  const S = state[p], brk = !!(S.cyc && S.cyc.i === BREAK), now = Date.now(), rn = roundStarts(p).pop();
-  // Being in the crate is a state that only ends when someone marks that she was taken out: while the
-  // crate timer runs the strip shows the crate step, the other steps are locked, and the one way on is
-  // the explicit "הוצאתי אותה מהכלוב" button (or the same button on the crate tile).
-  const inCrate = !!(S.crate && S.crate.start), over = crateOver(p);
-  const c = inCrate ? {i:0, t:S.crate.start} : (S.cyc && CYCLE[S.cyc.i] ? S.cyc : null), ci = c ? c.i : -1;
-  // While she sleeps the strip does not push on: the only suggestion is what to do when she wakes up.
-  const asleep = !!(S.sleep && S.sleep.start), next = (ci+1) % CYCLE.length;
-  const due = pottyDue(p), potty = !asleep && !inCrate && (due || (c && CYCLE[ci].potty));
-  // The ring: five segments clockwise from the top; earlier steps of the round are tinted, the current
-  // one is filled (red once the crate stay is too long). Segments and their labels both jump to a step.
-  const R = 74, pt = (deg, r) => [100 + r*Math.cos(deg*Math.PI/180), 100 + r*Math.sin(deg*Math.PI/180)].map(v => v.toFixed(1));
-  const cls = i => `${i === ci ? 'cur' : i < ci ? 'done' : ''} ${i === ci && over ? 'over' : ''} ${inCrate && i !== 0 ? 'lock' : ''}`;
-  // Each segment is an arrow-shaped chunk: a notch at its start and a point at its end, so the ring
-  // reads as crate → walk → play → food → potty → and round again, clockwise.
+  const S = state[p], now = Date.now(), rn = roundStarts(p).pop(), r = routine(p);
+  const inCrate = !!(S.crate && S.crate.start), over = crateOver(p), asleep = !!(S.sleep && S.sleep.start), due = pottyDue(p);
+  const ci = r && !r.brk ? r.i : -1, nx = r ? r.next : 0;
+  // The ring only shows; nothing on it is tappable. Earlier steps of the round are tinted, the current
+  // one is filled (red when the crate stay is too long) and the next one has a dashed outline.
+  const R = 74, pt = (deg, rr) => [100 + rr*Math.cos(deg*Math.PI/180), 100 + rr*Math.sin(deg*Math.PI/180)].map(v => v.toFixed(1));
+  const cls = i => r && r.done ? (i === nx ? 'nxt' : 'done') : `${i === ci ? 'cur' : i < ci ? 'done' : ''} ${i === ci && over ? 'over' : ''} ${i === nx && i !== ci ? 'nxt' : ''}`;
   const RO = 86, RI = 62, TIP = 11, GAP = 9;
   const segs = CYCLE.map((s, i) => {
     const a0 = -90 + i*72 + GAP/2, a1 = a0 + 72 - GAP, [ix,iy] = pt((a0 + a1 + TIP)/2, R);
     const d = `M${pt(a0,RO)}A${RO} ${RO} 0 0 1 ${pt(a1,RO)}L${pt(a1+TIP,R)}L${pt(a1,RI)}A${RI} ${RI} 0 0 0 ${pt(a0,RI)}L${pt(a0+TIP,R)}Z`.replace(/,/g, ' ');
-    return `<path class="sg ${cls(i)}" data-seg="${i}" d="${d}"/>` +
+    return `<path class="sg ${cls(i)}" d="${d}"/>` +
       `<svg class="si ${cls(i)}" x="${ix-8.5}" y="${iy-8.5}" width="17" height="17" viewBox="0 0 24 24">${ICONS[STEP_ICON[i]]}</svg>`;
   }).join('');
   const labels = CYCLE.map((s, i) => {
-    // Labels sit just outside the ring: side ones are anchored by their inner edge so they never cover it.
     const ang = -90 + i*72 + 36, cos = Math.cos(ang*Math.PI/180), side = cos > .5 ? 'r' : cos < -.5 ? 'l' : 'm';
     const [dx, dy] = pt(ang, side === 'm' ? 106 : 93);
-    return `<button class="rl ${side} ${i===ci?'on':''}" data-act="step" data-k="${i}" style="left:calc(50% + ${(dx-100).toFixed(1)}px);top:calc(50% + ${(dy-100).toFixed(1)}px)" ${inCrate && i!==0 ? 'disabled' : ''}><i>${i+1}</i>${s.n}</button>`;
+    return `<span class="rl ${side} ${i===ci && !(r && r.done) ? 'on' : ''} ${cls(i).includes('nxt') ? 'nxt' : ''}" style="left:calc(50% + ${(dx-100).toFixed(1)}px);top:calc(50% + ${(dy-100).toFixed(1)}px)"><i>${i+1}</i>${s.n}</span>`;
   }).join('');
   const since = t => `כבר <span data-words="${t}">${words(now-t)}</span>`;
-  const centre = (asleep ? ico('sleep','s zzi') : '') + (c ? `<b>${CYCLE[ci].n}</b><span>${since(c.t)}</span>${inCrate ? `<span>מ־<bdi dir="ltr">${clock(c.t)}</bdi></span>` : ''}`
-    : brk ? `<b>הפסקה</b><span>${since(S.cyc.t)}</span>` : `<span>לחיצה על שלב<br>מתחילה את המעקב</span>`);
-  const main = inCrate ? `<button class="go ${asleep?'wait':''}" data-act="out">הוצאתי אותה מהכלוב</button>`
-    : asleep ? `<button class="go wait" data-act="wake">כשתתעורר: ${CYCLE[1].n}</button>`
-    : `<button class="go" data-act="step" data-k="${next}">${brk ? 'חזרה לשגרה' : 'הבא'}: ${CYCLE[next].n}</button>`;
-  // Shortcuts for the current step, in a labelled box so it is clear what they are: the potty buttons
-  // write exactly what the pee / poop tiles below write; the play kinds and "did not eat" exist only here.
-  const box = (title, btns) => `<div class="sc"><div class="sc-h">${title}</div><div class="sc-b">${btns}</div></div>`;
-  const shortcuts =
-    (potty ? box('קיצור לשלב הזה · נרשם בדיוק כמו בכרטיסי הפיפי והקקי למטה',
-      `<button class="btn" data-act="pt" data-k="pee">פיפי</button><button class="btn" data-act="pt" data-k="poop">קקי</button><button class="btn" data-act="pt" data-k="none">לא עשתה</button>`) : '') +
-    (c && CYCLE[ci].play && !inCrate ? box('במה שיחקה? אפשר לסמן כמה · אוכל במשחק נרשם גם כארוחה',
-      Object.keys(PLAY).map(y => `<button class="btn ${playOn(p, y) ? 'sel' : ''}" data-act="play" data-k="${y}">${PLAY[y]}</button>`).join('')) : '') +
-    (c && CYCLE[ci].food && !inCrate ? box('הארוחה נרשמה עם הכניסה לשלב · אם לא אכלה:',
-      `<button class="btn ${noFood(p) ? 'sel' : ''}" data-act="nofood">לא אכלה</button>`) : '');
+  const centre = (asleep ? ico('sleep','s zzi') : '') + (!r ? `<span>הגלגל מתקדם לבד<br>לפי מה שמסמנים למטה</span>`
+    : r.brk ? `<b>הפסקה</b><span>${since(r.t)}</span>`
+    : r.done ? `<b>הסבב הושלם</b><span>${since(r.t)}</span>`
+    : `<b>${CYCLE[ci].n}</b><span>${since(r.t)}</span>${inCrate ? `<span>מ־<bdi dir="ltr">${clock(r.t)}</bdi></span>` : ''}`);
+  // What moves the wheel on: always something on the tiles below.
+  const how = !r ? 'מתחילים ב״נכנסה לכלוב״ בכרטיס הכלוב' : r.brk ? 'כל רישום חדש מחזיר לשגרה'
+    : r.done ? 'מסמנים ״נכנסה לכלוב״ כשהיא חוזרת לכלוב'
+    : ci === 0 ? 'כשמוציאים אותה: ״יצאה מהכלוב״ בכרטיס הכלוב'
+    : ci === 1 ? 'אחרי שמסמנים פיפי, קקי או ״לא עשתה״'
+    : ci === 2 ? 'כשהיא אוכלת: ״אכלה״ (או משחק עם אוכל)'
+    : 'אחרי שמסמנים פיפי, קקי או ״לא עשתה״';
   return `<div class="card cyc ${due||over?'due':''}">
-    <div class="cyc-h"><b>השגרה של ${PETS[p].name}</b><small>${c && rn ? roundName(rn) : brk ? 'בהפסקה' : ''}</small></div>
+    <div class="cyc-h"><b>השגרה של ${PETS[p].name}</b><small>${r && !r.brk && rn ? roundName(rn) : r && r.brk ? 'בהפסקה' : ''}</small></div>
     <div class="steps"><svg class="ring" viewBox="0 0 200 200" aria-hidden="true">${segs}</svg>
       <div class="rc">${centre}</div>${labels}</div>
     ${over ? `<div class="duemsg">${ico('crate','s')}<span>בכלוב כבר יותר מ${words(CRATE_MAX)} · מ־<bdi dir="ltr">${clock(S.crate.start)}</bdi></span></div>` : ''}
     ${due ? `<div class="duemsg">${ico('pee','s')}<span>זמן להוציא לצרכים · ${due.why}, לפני <span data-words="${due.t}">${words(now-due.t)}</span></span></div>` : ''}
     ${asleep ? `<div class="zz">${ico('sleep','s')}<span>ישנה מ־<bdi dir="ltr">${clock(S.sleep.start)}</bdi> · נותנים לה לישון</span></div>` : ''}
-    ${shortcuts}
-    <div class="cyc-a">
-      ${(S.hist || []).length ? `<button class="ghost" data-act="back">${ico('chevR','s')}חזרה שלב</button>` : ''}
-      ${brk || inCrate ? '' : `<button class="ghost" data-act="brk">${ico('none','s')}הפסקה בשגרה</button>`}
-      ${inCrate ? `<span class="sub">בכלוב עד שמסמנים הוצאה</span>` : ''}
-      <span class="mainact">${main}<button class="ghost" data-act="stepat" data-k="${inCrate || asleep ? 1 : next}">${ico('clock','s')}שעה אחרת</button></span></div></div>`;
+    <div class="cyc-n"><span class="nx"><b>הבא: ${CYCLE[nx].n}</b>${how}</span>
+      ${r && !r.brk && !inCrate ? `<button class="ghost" data-act="brk">${ico('none','s')}הפסקה בשגרה</button>` : ''}</div></div>`;
 }
-// The food step logs a meal by itself; "לא אכלה" takes that meal back and records that she was offered
-// food and did not eat. Tapping it again restores the meal.
-function noFood(p){ const c = state[p].cyc; return c ? state.log.find(e => e.p===p && e.k==='nofood' && e.t >= c.t) : null; }
-function toggleNoFood(p){
-  const had = noFood(p);
-  commit(`${PETS[p].name} · ${had ? 'אכלה' : 'לא אכלה'}`, () => {
-    const t0 = state[p].cyc.t;
-    if(had){
-      state.log = state.log.filter(e => e !== had);
-      if(!state.log.some(e => e.p===p && e.k==='food' && e.t===t0)) state.log.push({p, k:'food', t:t0});
-    } else {
-      state.log = state.log.filter(e => !(e.p===p && e.k==='food' && e.t===t0 && !e.y));
-      state.log.push({p, k:'nofood', t:Math.max(Date.now(), t0)});
+// Things that are logged from the tiles, not from the wheel.
+function logNoFood(p){ commit(`${PETS[p].name} · לא אכלה`, () => { state.log.push({p, k:'nofood', t:Date.now()}); }); }
+function logPlay(p, y){
+  commit(`${PETS[p].name} · משחק · ${PLAY[y]}`, () => {
+    const now = Date.now();
+    state.log.push({p, k:'play', t:now, y});
+    // Play with food is a meal too — one meal per play session, however many food games are marked.
+    if(PLAY_FOOD[y] && !state.log.some(e => e.p===p && e.k==='food' && e.y==='play' && now - e.t < 30*60000)){
+      state.log.push({p, k:'food', t:now, y:'play'}); state[p].food = Math.max(state[p].food || 0, now);
     }
-    recalc(p, 'food');
   });
 }
-// The play step: mark what kind of play it was. Tapping a kind again takes it back.
-function playEntry(p, y){ const c = state[p].cyc; return c ? state.log.find(e => e.p===p && e.k==='play' && e.y===y && e.t >= c.t) : null; }
-const playOn = (p, y) => !!playEntry(p, y);
-function togglePlay(p, y){
-  const had = playEntry(p, y);
-  commit(`${PETS[p].name} · משחק · ${PLAY[y]}${had ? ' בוטל' : ''}`, () => {
-    const now = Date.now(), since = state[p].cyc.t;
-    if(had) state.log = state.log.filter(e => !(e.p===p && e.k==='play' && e.y===y && e.t===had.t));
-    else state.log.push({p, k:'play', t:now, y});
-    // One meal per play step while any food kind is marked; it goes away with the last of them.
-    const fed = state.log.some(e => e.p===p && e.k==='play' && PLAY_FOOD[e.y] && e.t >= since);
-    const meal = state.log.find(e => e.p===p && e.k==='food' && e.y==='play' && e.t >= since);
-    if(fed && !meal){ state.log.push({p, k:'food', t:now, y:'play'}); state[p].food = Math.max(state[p].food || 0, now); }
-    if(!fed && meal){ state.log = state.log.filter(e => e !== meal); recalc(p, 'food'); }
-  });
+function playCardHTML(p){
+  const last = state.log.filter(e => e.p===p && e.k==='play').pop();
+  return `<div class="card playc"><div class="meds-h"><div class="ic">${ico('ball')}</div><b>משחק</b><small>${last ? `אחרון: ${PLAY[last.y] || ''} · ${dayLabel(last.t)} <bdi dir="ltr">${clock(last.t)}</bdi>` : 'במה שיחקה?'}</small></div>
+    <div class="sc-b">${Object.keys(PLAY).map(y => `<button class="btn" data-act="play" data-k="${y}">${PLAY[y]}</button>`).join('')}</div>
+    <div class="sub" style="margin-top:8px">קונג, משטח ליקוק ואילוף עם אוכל נרשמים גם כארוחה.</div></div>`;
 }
 // A crate stay longer than CRATE_MAX is flagged red — in the daytime only, so a night in the crate is not an alarm.
 function crateOver(p){
@@ -1086,7 +1011,7 @@ let sumFilter = null;   // one kind ("pee", "crate"…) the summary is narrowed 
 const DAY = 86400000;
 const DOW = ['א׳','ב׳','ג׳','ד׳','ה׳','ו׳','ש׳'];
 const MONTHS = ['ינואר','פברואר','מרץ','אפריל','מאי','יוני','יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר'];
-const SUM_LBL = {food:'אוכל', pee:'פיפי', poop:'קקי', sleep:'שינה', cry:'בכי', crate:'כלוב', gel:'ג׳ל לאוזן'};
+const SUM_LBL = {food:'אוכל', pee:'פיפי', poop:'קקי', sleep:'שינה', cry:'בכי', crate:'כלוב', gel:'ג׳ל לאוזן', none:'לא עשתה'};
 function sod(t){ const d = new Date(t); d.setHours(0,0,0,0); return d; }
 function ddmm(t){ const d = new Date(t); return `${d.getDate()}.${d.getMonth()+1}`; }
 function hm(ms){ const m = Math.round(ms/60000); return `${Math.floor(m/60)}:${pad(m%60)}`; }
@@ -1106,7 +1031,7 @@ function sumShift(dir){
   sumAnchor = Math.min(d.getTime(), Date.now());
 }
 function stats(p, from, to){
-  const r = {food:0, pee:0, poop:0, gel:0, sleep:{n:0,ms:0}, cry:{n:0,ms:0}, crate:{n:0,ms:0}, meds:0, w:{pee:{}, poop:{}}};
+  const r = {food:0, pee:0, poop:0, gel:0, none:0, sleep:{n:0,ms:0}, cry:{n:0,ms:0}, crate:{n:0,ms:0}, meds:0, w:{pee:{}, poop:{}}};
   const add = (k, a, b) => { const ov = Math.min(b,to) - Math.max(a,from); if(ov > 0){ r[k].ms += ov; r[k].n++; } };
   for(const e of state.log){
     if(e.p !== p) continue;
@@ -1281,22 +1206,15 @@ document.getElementById('main').addEventListener('click', e => {
   if(lv){ openSheet(pet, lv.dataset.live); return; }
   const row = e.target.closest('[data-day]');
   if(row){ sumMode = 'day'; sumAnchor = +row.dataset.day; render(); window.scrollTo(0,0); return; }
-  const sg = e.target.closest('[data-seg]');
-  if(sg){ if(!sg.classList.contains('lock')) goStep(pet, +sg.dataset.seg); return; }
   const b = e.target.closest('button'); if(!b) return;
   const k = b.dataset.k, a = b.dataset.act;
   if(a==='mode'){ sumMode = k; render(); }
   else if(a==='filt'){ sumFilter = sumFilter === k ? null : k; render(); }
   else if(a==='prev' || a==='next'){ sumShift(a==='prev' ? -1 : 1); render(); }
-  else if(a==='step') goStep(pet, +k);
   else if(a==='addev') openAddSheet(pet);
   else if(a==='brk') goBreak(pet);
-  else if(a==='back') stepBack(pet);
-  else if(a==='play') togglePlay(pet, k);
-  else if(a==='nofood') toggleNoFood(pet);
-  else if(a==='stepat') openStepAtSheet(pet, +k);
-  else if(a==='out') goStep(pet, 1);   // out of the crate: stops the crate (and sleep) timer, on to walk + potty
-  else if(a==='wake'){ const c = state[pet].cyc; if(c && c.i === 1) tapDur(pet, 'sleep'); else goStep(pet, 1); }
+  else if(a==='play') logPlay(pet, k);
+  else if(a==='nofood') logNoFood(pet);
   else if(a==='where') whereSheet(pet, k, state[pet][k]);
   else if(a==='pt') tapPoint(pet, k);
   else if(a==='dur') tapDur(pet, k);
@@ -1513,11 +1431,6 @@ function openEntrySheet(i){
       const j = find(); if(j < 0) return;
       state.log.splice(j, 1); recalc(e.p, e.k);
       state[e.p][e.k] = Object.assign({}, state[e.p][e.k] || {}, {start:e.t});
-      if(PETS[e.p].cycle && e.k === 'crate'){
-        const S = state[e.p], H = S.hist || [];
-        if(H.length >= 2 && H[H.length-1].t === e.end && H[H.length-2].i === 0){ H.pop(); S.cyc = Object.assign({}, H[H.length-1]); }   // undo the "out" step
-        else if(!(S.cyc && S.cyc.i === 0)) setStep(S, 0, e.t);
-      }
     });
   };
   sh.querySelector('#del').onclick = () => {
