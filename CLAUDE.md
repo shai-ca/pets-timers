@@ -3,6 +3,7 @@
 A single-page mobile web app (Hebrew, RTL) for tracking two pets:
 
 - **Kochik (קוצ׳יק):** time since last food / pee / poop, plus a daily morning + evening medication checklist (turns red if the morning dose isn't marked by 11:00 or the evening dose by 21:00; resets at midnight).
+- **Kochik's ear gel:** a fourth tile, `gel` — given as needed when she is not eating, roughly once in three days. It is an ordinary point entry, but `slow:true` makes its tile count in days and hours (`wordsLong`) instead of a running clock, with a note of the usual rhythm. Counted in the summary like the other point kinds.
 - **Kishmish (קישמיש):** time since last food / pee / poop, plus start/stop timers for sleep, crying and crate (shows the live duration, the last duration, and today's total). These are ongoing states, not moments (`state.kishmish.crate.start` is set while she is inside), and they overlap freely (asleep or crying in the crate). The owner does not want more than this tracked — a puppy-pen timer was added and removed; keep the logging light. A timer can be started in the past from its "הוספה" sheet (`tapDur(p, k, at)`): a start time with no end time means "still going on"; only an explicit end time logs a finished stay. A stay that was closed by mistake can be reopened from its history row ("עדיין נמשך").
 - **Routine strip (Kishmish, `cycle:true`):** the trainer's potty-training cycle from `CYCLE` — כלוב → טיול וצרכים → משחק → אוכל → צרכים → back to crate. `goStep()` moves between steps in one undoable commit: entering the crate step starts the crate timer and leaving it stops it, entering the food step logs a meal, play has no timer (the owner found that too much tapping; leaving it only stamps `playEnd`). Using the crate tile directly moves the strip too. The current step is `state.kishmish.cyc = {i, t}`.
 - **The routine is drawn as a ring** (`cycleHTML`): an inline SVG with five arrow-shaped segments (notch at the start, point at the end, so the clockwise direction is visible) from the top, an icon on each (`STEP_ICON`), the step names as buttons around it and the current step, elapsed time and (in the crate) start time in the centre. Earlier steps of the round are tinted, the current one filled, red when the crate stay is over the limit. Segments and labels both jump to a step.
@@ -49,7 +50,7 @@ All state lives in one JSON object:
               cry:   { start?: ts, lastStart?: ts, lastEnd?: ts },
               crate: { start?: ts, lastStart?: ts, lastEnd?: ts },
               cyc?: { i: 0..4 | -1 (break), t: ts }, hist?: [{ i, t }], playEnd?: ts, none?: ts },
-  log: [ { p: "kochik"|"kishmish", k: "food"|"pee"|"poop"|"sleep"|"cry"|"crate"|"none"|"play"|"nofood"|"brk"|"med_am"|"med_pm", t: ts, end?: ts, w?: "out"|"gravel"|"pad"|"floor"|"crate", y?: "rope"|"kong"|"lick"|"train" (on play) | "play" (on a meal that came from play), by?: "yonatan"|"shai"|"liza" } ]  // capped at 5000 (LOG_MAX)
+  log: [ { p: "kochik"|"kishmish", k: "food"|"pee"|"poop"|"gel"|"sleep"|"cry"|"crate"|"none"|"play"|"nofood"|"brk"|"med_am"|"med_pm", t: ts, end?: ts, w?: "out"|"gravel"|"pad"|"floor"|"crate", y?: "rope"|"kong"|"lick"|"train" (on play) | "play" (on a meal that came from play), by?: "yonatan"|"shai"|"liza" } ]  // capped at 5000 (LOG_MAX)
 }
 ```
 

@@ -308,6 +308,7 @@ const ICONS = {
   crate:'<rect x="3.5" y="6.5" width="17" height="12.5" rx="2.2"/><path d="M8 6.5V19M12 6.5V19M16 6.5V19M9.5 6.5V5a2.5 2.5 0 0 1 5 0v1.5"/>',
   none:'<circle cx="12" cy="12" r="8.5"/><path d="M6.2 17.8 17.8 6.2"/>',
   ball:'<circle cx="12" cy="12" r="8.3"/><path d="M5 8.3c3.7 1 6.2 4.2 6 11.8M19 8.3c-3.7 1-6.2 4.2-6 11.8"/>',
+  gel:'<path d="M7 9.5a5 5 0 0 1 10 0c0 3.1-2.6 3.7-2.6 6.3a2.9 2.9 0 0 1-5.6 1.1"/><path d="M9.6 9.6a2.4 2.4 0 0 1 4.8 0c0 1.2-1.4 1.6-1.5 3"/>',
   pill:'<rect x="2.8" y="8.6" width="18.4" height="6.8" rx="3.4" transform="rotate(-45 12 12)"/><path d="M9.6 9.6l4.8 4.8"/>',
   check:'<path d="M5 12.5l4.2 4.2L19 7"/>',
   clock:'<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>',
@@ -321,13 +322,16 @@ document.getElementById('mark').innerHTML = `<svg viewBox="0 0 24 24">${ICONS.pa
 
 // ---------- model ----------
 const PETS = {
-  kochik:   {name:'קוצ׳יק', items:['food','pee','poop'], meds:true, where:['out','gravel','pad','floor']},
+  kochik:   {name:'קוצ׳יק', items:['food','pee','poop','gel'], meds:true, where:['out','gravel','pad','floor']},
   kishmish: {name:'קישמיש', items:['food','pee','poop','sleep','cry','crate'], cycle:true, where:['gravel','pad','floor','crate','out']}
 };
 const ITEMS = {
   food:{lbl:'מאז האוכל האחרון',btn:'אכלה',log:'אכלה'},
   pee:{lbl:'מאז הפיפי האחרון',btn:'פיפי',log:'פיפי'},
   poop:{lbl:'מאז הקקי האחרון',btn:'קקי',log:'קקי'},
+  // Ear gel for Kochik: given as needed (when she is not eating), roughly once in three days — so the
+  // tile counts in days and hours instead of a running clock (`slow`), with a note of the usual rhythm.
+  gel:{lbl:'מאז הג׳ל לאוזן האחרון',btn:'נתתי ג׳ל',log:'ג׳ל לאוזן',slow:true,note:'לפי הצורך · בערך פעם ב־3 ימים'},
   sleep:{dur:true,lbl:'שינה אחרונה',live:'ישנה',start:'נרדמה',stop:'התעוררה',log:'ישנה',startQ:'מתי נרדמה?'},
   cry:{dur:true,lbl:'בכי אחרון',live:'בוכה',start:'בוכה',stop:'נרגעה',log:'בכתה',startQ:'מתי התחילה לבכות?'},
   crate:{dur:true,lbl:'כלוב אחרון',live:'בכלוב',start:'נכנסה לכלוב',stop:'יצאה מהכלוב',log:'בכלוב',startQ:'מתי נכנסה לכלוב?'},
@@ -822,6 +826,13 @@ function words(ms){
   const h = Math.floor(m/60), r = m%60;
   return (h===1?'שעה':h===2?'שעתיים':`${h} שעות`) + (r ? ` ו־${r} דק׳` : '');
 }
+function wordsLong(ms){   // for things counted in days: "יומיים ו־5 שעות"
+  const hrs = Math.floor(Math.max(0, ms) / 3600000), d = Math.floor(hrs / 24), r = hrs % 24;
+  if(hrs < 1) return words(ms);
+  const hw = n => n === 1 ? 'שעה' : n === 2 ? 'שעתיים' : `${n} שעות`;
+  if(!d) return hw(hrs);
+  return (d === 1 ? 'יום' : d === 2 ? 'יומיים' : `${d} ימים`) + (r ? ` ו־${hw(r)}` : '');
+}
 function clock(t){ const d = new Date(t); return `${pad(d.getHours())}:${pad(d.getMinutes())}`; }
 function dayLabel(t){
   const d = new Date(t), n = new Date(), y = new Date(); y.setDate(n.getDate()-1);
@@ -867,9 +878,10 @@ function render(){
       h += `<div class="card item">
         <div class="ic">${ico(k)}</div>
         <div><div class="lbl">${it.lbl}</div>
-          <div class="big ${t?'':'none'}" ${t?`data-since="${t}"`:''}>${t ? dur(Date.now()-t) : '–'}</div>
+          ${it.slow ? `<div class="big txt ${t?'':'none'}">${t ? wordsLong(Date.now()-t) : '–'}</div>`
+                    : `<div class="big ${t?'':'none'}" ${t?`data-since="${t}"`:''}>${t ? dur(Date.now()-t) : '–'}</div>`}
           <div class="sub">${t ? `${dayLabel(t)} ב־${clock(t)}${whereOf(pet,k,t) || (hasWhere(k) ? ` · <button class="lnk" data-act="where" data-k="${k}">איפה?</button>` : '')}${byOf(pet,k,t)}` : 'עוד לא נרשם'}</div>
-          ${P.cycle && typical(pet,k) ? `<div class="sub hint">${typical(pet,k)}</div>` : ''}</div>
+          ${P.cycle && typical(pet,k) ? `<div class="sub hint">${typical(pet,k)}</div>` : ''}${it.note ? `<div class="sub hint">${it.note}</div>` : ''}</div>
         <div class="acts"><button class="go" data-act="pt" data-k="${k}">${it.btn}</button>
           <button class="ghost" data-act="edit" data-k="${k}">${ico('clock','s')}שעה אחרת</button></div></div>`;
     } else {
@@ -1040,7 +1052,7 @@ let sumFilter = null;   // one kind ("pee", "crate"…) the summary is narrowed 
 const DAY = 86400000;
 const DOW = ['א׳','ב׳','ג׳','ד׳','ה׳','ו׳','ש׳'];
 const MONTHS = ['ינואר','פברואר','מרץ','אפריל','מאי','יוני','יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר'];
-const SUM_LBL = {food:'אוכל', pee:'פיפי', poop:'קקי', sleep:'שינה', cry:'בכי', crate:'כלוב'};
+const SUM_LBL = {food:'אוכל', pee:'פיפי', poop:'קקי', sleep:'שינה', cry:'בכי', crate:'כלוב', gel:'ג׳ל לאוזן'};
 function sod(t){ const d = new Date(t); d.setHours(0,0,0,0); return d; }
 function ddmm(t){ const d = new Date(t); return `${d.getDate()}.${d.getMonth()+1}`; }
 function hm(ms){ const m = Math.round(ms/60000); return `${Math.floor(m/60)}:${pad(m%60)}`; }
@@ -1060,7 +1072,7 @@ function sumShift(dir){
   sumAnchor = Math.min(d.getTime(), Date.now());
 }
 function stats(p, from, to){
-  const r = {food:0, pee:0, poop:0, sleep:{n:0,ms:0}, cry:{n:0,ms:0}, crate:{n:0,ms:0}, meds:0, w:{pee:{}, poop:{}}};
+  const r = {food:0, pee:0, poop:0, gel:0, sleep:{n:0,ms:0}, cry:{n:0,ms:0}, crate:{n:0,ms:0}, meds:0, w:{pee:{}, poop:{}}};
   const add = (k, a, b) => { const ov = Math.min(b,to) - Math.max(a,from); if(ov > 0){ r[k].ms += ov; r[k].n++; } };
   for(const e of state.log){
     if(e.p !== p) continue;
@@ -1162,7 +1174,7 @@ function renderSummary(){
   const F = P.items.includes(sumFilter) ? sumFilter : null;
   const tcls = k => `tile ${F === k ? 'on' : F ? 'dim' : ''}`;
   h += `<div class="flt">${F ? `מוצג רק: <b>${SUM_LBL[F]}</b> <button class="lnk" data-act="filt" data-k="${F}">הצגת הכול</button>` : 'לחיצה על קטגוריה מציגה רק אותה'}</div>`;
-  h += `<div class="tiles">` + ['food','pee','poop'].map(k =>
+  h += `<div class="tiles">` + P.items.filter(k => !ITEMS[k].dur).map(k =>
     `<button class="${tcls(k)}" data-act="filt" data-k="${k}"><div class="ic">${ico(k)}</div><b>${st[k]}</b><span>${SUM_LBL[k]}</span>${avg(st[k])}${whereLine(st.w[k])}</button>`).join('') + `</div>`;
   const durs = P.items.filter(k => ITEMS[k].dur);
   if(durs.length) h += `<div class="tiles two">` + durs.map(k =>
