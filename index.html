@@ -213,9 +213,9 @@
   /* the routine as a ring: five segments clockwise from the top, the current one filled */
   .steps{position:relative;height:236px;max-width:340px;margin:2px auto 0}
   .ring{position:absolute;left:50%;top:50%;width:200px;height:200px;margin:-100px 0 0 -100px;overflow:visible}
-  .sg{fill:none;stroke:var(--seg);stroke-width:26;cursor:pointer;transition:stroke .2s}
-  .sg.done{stroke:color-mix(in srgb,var(--btn) 32%,var(--card))}
-  .sg.cur{stroke:var(--btn)} .sg.cur.over{stroke:var(--alert)}
+  .sg{color:var(--seg);fill:currentColor;stroke:currentColor;stroke-width:2.5;stroke-linejoin:round;cursor:pointer;transition:color .2s}
+  .sg.done{color:color-mix(in srgb,var(--btn) 32%,var(--card))}
+  .sg.cur{color:var(--btn)} .sg.cur.over{color:var(--alert)}
   .sg.lock{cursor:default;opacity:.55}
   .si{fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round;color:var(--muted);pointer-events:none}
   .si.done{color:var(--btn)} .si.cur{color:#fff} .si.lock{opacity:.55}
@@ -952,9 +952,13 @@ function cycleHTML(p){
   // one is filled (red once the crate stay is too long). Segments and their labels both jump to a step.
   const R = 74, pt = (deg, r) => [100 + r*Math.cos(deg*Math.PI/180), 100 + r*Math.sin(deg*Math.PI/180)].map(v => v.toFixed(1));
   const cls = i => `${i === ci ? 'cur' : i < ci ? 'done' : ''} ${i === ci && over ? 'over' : ''} ${inCrate && i !== 0 ? 'lock' : ''}`;
+  // Each segment is an arrow-shaped chunk: a notch at its start and a point at its end, so the ring
+  // reads as crate → walk → play → food → potty → and round again, clockwise.
+  const RO = 86, RI = 62, TIP = 11, GAP = 9;
   const segs = CYCLE.map((s, i) => {
-    const a0 = -90 + i*72 + 3.5, [x1,y1] = pt(a0, R), [x2,y2] = pt(a0 + 65, R), [ix,iy] = pt(a0 + 32.5, R);
-    return `<path class="sg ${cls(i)}" data-seg="${i}" d="M${x1} ${y1}A${R} ${R} 0 0 1 ${x2} ${y2}"/>` +
+    const a0 = -90 + i*72 + GAP/2, a1 = a0 + 72 - GAP, [ix,iy] = pt((a0 + a1 + TIP)/2, R);
+    const d = `M${pt(a0,RO)}A${RO} ${RO} 0 0 1 ${pt(a1,RO)}L${pt(a1+TIP,R)}L${pt(a1,RI)}A${RI} ${RI} 0 0 0 ${pt(a0,RI)}L${pt(a0+TIP,R)}Z`.replace(/,/g, ' ');
+    return `<path class="sg ${cls(i)}" data-seg="${i}" d="${d}"/>` +
       `<svg class="si ${cls(i)}" x="${ix-8.5}" y="${iy-8.5}" width="17" height="17" viewBox="0 0 24 24">${ICONS[STEP_ICON[i]]}</svg>`;
   }).join('');
   const labels = CYCLE.map((s, i) => {
