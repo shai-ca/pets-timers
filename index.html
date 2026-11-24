@@ -16,7 +16,7 @@
     --kishmish:#a8672d; --kishmish-soft:#f6e6d2;  /* Yorkshire puppy: tan and chestnut brown, black only as ink */
     --seg:#ebe7e1; --btn:var(--acc);
     --ok:#2f8a66; --ok-soft:#e7f4ee; --alert:#c64d68; --alert-soft:#fbeaee; --warn:#c47a17; --warn-soft:#fdf0dc;
-    --acc:var(--kishmish); --acc-soft:var(--kishmish-soft);
+    --acc:var(--kishmish); --acc-soft:var(--kishmish-soft); --on-btn:#fff;
   }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
   html,body{margin:0;background:var(--bg);color:var(--ink);font-family:Heebo,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
@@ -26,14 +26,29 @@
     --bg:#f7f8fa; --card:#fff; --ink:#131416; --muted:#80868e; --faint:#b6bcc3; --line:#e7e9ed; --seg:#e9ebef; --btn:#131416}
   .p-kishmish{--acc:var(--kishmish);--acc-soft:var(--kishmish-soft);
     --bg:#f5ede3; --card:#fffbf6; --ink:#1d1713; --muted:#8b7a69; --faint:#c2b3a2; --line:#eadecf; --seg:#eadfd1; --btn:#77471f}
-  /* Night (23:00–06:00): dark, so the phone does not glare. Must come after the per-pet themes. */
-  .night{--bg:#14110e; --card:#211d18; --ink:#e8e0d5; --muted:#9a9086; --faint:#665e55; --line:#332d26; --seg:#2a251f;
-    --ok:#5bb48f; --ok-soft:#1c3128; --alert:#e07a92; --alert-soft:#3a1e26; --warn:#e0a04c; --warn-soft:#3a2c17;
-    --kochik-soft:#2a2c30; --kishmish-soft:#3a2a1b}
-  .night.p-kishmish{--btn:#9a6332;--acc:#c98a4e} .night.p-kochik{--btn:#4a4e55;--acc:#c9ccd1}
-  .night .seg button.on,.night .sheet,.night .field input,.night .btn.danger,.night .card.live .ic,.night .card.alertc .ic{background:var(--line);color:var(--ink)}
-  .night .btn.primary,.night .mark,.night .chips button.sel{background:#4a4239;border-color:#4a4239;color:#fff}
-  .night .toast{background:#3a332b}
+  /* DARK (20:00 – sunrise): the same two dogs at night, every pair checked for contrast (WCAG: text 4.5:1 or more —
+     most are 7+). Kishmish keeps her browns: cream ink on dark chestnut, and the filled buttons in her TAN with dark
+     text (white on brown and on the green / pink buttons was hard to read). Kochik, the Maltese, inverts: snow-white
+     buttons with black text on charcoal. Secondary buttons are raised (lighter than the card), never sunk.
+     `--on-btn` is the text on any filled button; light mode keeps white. Must come after the per-pet themes. */
+  .night{--bg:#15100c; --card:#211a14; --ink:#f5ece0; --muted:#c7b6a2; --faint:#8a7a66; --line:#3b3026; --seg:#30271f;
+    --surf:#33291f; --sheet:#2a2119; --toast:#3a2f25;
+    --ok:#72c9a2; --ok-soft:#17302a; --alert:#f2909f; --alert-soft:#3d1d25; --warn:#ecb867; --warn-soft:#3a2a14;
+    --kishmish-soft:#3a2a1b; --kochik-soft:#2b2d32; --on-btn:#1c1209}
+  .night.p-kishmish{--btn:#d49a5c; --acc:#e3ad72}
+  .night.p-kochik{--bg:#111214; --card:#1c1d21; --ink:#f1f2f4; --muted:#b8bdc5; --faint:#7a8089; --line:#34363c; --seg:#2b2d32;
+    --surf:#2e3036; --sheet:#25262b; --toast:#34363c; --ok-soft:#152c25; --alert-soft:#381c24; --warn-soft:#352814;
+    --btn:#e4e6ea; --acc:#e4e6ea; --on-btn:#131416}
+  .night .chips button,.night .btn{background:var(--surf);border-color:color-mix(in srgb,var(--faint) 45%,transparent)}
+  .night .seg button.on,.night .card.live .ic,.night .card.alertc .ic{background:var(--surf);color:var(--ink);box-shadow:none}
+  .night .card.live.cry .ic{color:var(--alert)} .night .card.alertc .ic{color:var(--alert)}
+  .night .sheet{background:var(--sheet);color:var(--ink)}
+  .night .field input{background:var(--bg);border-color:color-mix(in srgb,var(--faint) 60%,transparent);color:var(--ink)}
+  .night .btn.danger{background:var(--surf);color:var(--alert)}
+  .night .btn.primary,.night .mark,.night .chips button.sel{background:var(--ink);border-color:var(--ink);color:var(--bg)}
+  .night .toast{background:var(--toast);color:var(--ink)} .night .toast button{color:var(--ink)}
+  .night .sub.hint{opacity:1}
+  .night .bg{background:rgba(0,0,0,.55)}
   .card.item.warn{background:var(--warn-soft);border-color:var(--warn)} .card.item.warn .big,.card.item.warn .lbl{color:var(--warn)}
   .frm{display:flex;align-items:center;gap:8px;margin-top:10px;padding:9px 12px;border-radius:12px;background:var(--warn-soft);color:var(--warn);font-size:13.5px;font-weight:500}
   .lnk.fcq{display:inline-block;width:17px;height:17px;line-height:15px;text-align:center;border:1px solid var(--faint);border-radius:50%;font-size:11px;text-decoration:none;color:var(--muted);margin-inline-start:4px}
@@ -73,7 +88,7 @@
   .big.none{color:var(--faint)}
   .sub{font-size:12.5px;color:var(--muted)}
   .acts{display:flex;flex-direction:column;align-items:stretch;gap:4px}
-  .go{border:0;border-radius:12px;padding:10px 16px;font:inherit;font-weight:500;font-size:14.5px;color:#fff;background:var(--btn);cursor:pointer;white-space:nowrap;min-width:108px}
+  .go{border:0;border-radius:12px;padding:10px 16px;font:inherit;font-weight:500;font-size:14.5px;color:var(--on-btn);background:var(--btn);cursor:pointer;white-space:nowrap;min-width:108px}
   .go:active{transform:scale(.97)}
   .ghost{border:0;background:none;color:var(--muted);font:inherit;font-size:12.5px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:4px;padding:4px}
   .card.live{border-color:color-mix(in srgb,var(--ok) 40%,transparent);background:linear-gradient(0deg,var(--ok-soft),var(--ok-soft))}
@@ -127,7 +142,7 @@
   .sub.fc{margin-top:3px;color:var(--ink);font-weight:500}
   .sub.fc i{display:none;width:8px;height:8px;border-radius:50%;margin-inline-end:6px;vertical-align:baseline}
   .sub.fc.now i{display:inline-block;background:#fab219} .sub.fc.late i{display:inline-block;background:#d03b3b}
-  .chips.when [data-m="0"]{flex-basis:100%;background:var(--btn);border-color:var(--btn);color:#fff;font-size:17px;font-weight:600;padding:15px}
+  .chips.when [data-m="0"]{flex-basis:100%;background:var(--btn);border-color:var(--btn);color:var(--on-btn);font-size:17px;font-weight:600;padding:15px}
   .chips.when button{flex:1 1 28%;padding:11px 8px}
   .chips.days{margin-bottom:10px} .chips.days button{flex:1}
   .chips.mini{margin:2px 0 10px;gap:6px} .chips.mini button{padding:6px 10px;font-size:13px}
@@ -190,8 +205,8 @@
   .sc{margin-top:10px;padding:10px 12px 12px;border:1px dashed var(--faint);border-radius:14px}
   .sc-h{font-size:12px;color:var(--muted);margin-bottom:8px;line-height:1.35}
   .sc-b{display:flex;flex-wrap:wrap;gap:8px}
-  .sc .btn.sel{background:var(--btn);border-color:var(--btn);color:#fff}
-  .cyc-a .btn.sel{background:var(--btn);border-color:var(--btn);color:#fff}
+  .sc .btn.sel{background:var(--btn);border-color:var(--btn);color:var(--on-btn)}
+  .cyc-a .btn.sel{background:var(--btn);border-color:var(--btn);color:var(--on-btn)}
   .btn.primary{background:var(--ink);color:#fff;border-color:var(--ink);padding:10px 22px}
   .btn.danger{color:var(--alert);background:#fff}
 
@@ -261,7 +276,7 @@
   .sg.cur{color:var(--btn)} .sg.cur.over{color:var(--alert)}
   .sg.lock{cursor:default;opacity:.55}
   .si{fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round;color:var(--muted);pointer-events:none}
-  .si.done{color:var(--btn)} .si.cur{color:#fff} .si.lock{opacity:.55}
+  .si.done{color:var(--btn)} .si.cur{color:var(--on-btn)} .si.lock{opacity:.55}
   .rc{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:114px;text-align:center;pointer-events:none;line-height:1.3}
   .rc b{display:block;font-size:17px;font-weight:600;color:var(--ink)}
   .rc span{display:block;font-size:12px;color:var(--muted)}
@@ -283,7 +298,7 @@
   .cyc-n .nx b{font-weight:600}
   .cyc-n .nx > b:first-child{margin-bottom:2px}
   .cyc-n .nx b:not(:first-child){display:inline;font-size:inherit;color:var(--ink)}
-  .tagk{background:var(--btn);color:#fff;font-size:11px;font-weight:500;padding:2px 8px;border-radius:8px;white-space:nowrap}
+  .tagk{background:var(--btn);color:var(--on-btn);font-size:11px;font-weight:500;padding:2px 8px;border-radius:8px;white-space:nowrap}
   .card.nowt{position:relative;box-shadow:0 0 0 2px var(--btn)}
   #side{display:flex;flex-direction:column;gap:10px;margin-bottom:10px}
   #side:empty{display:none}
@@ -301,7 +316,7 @@
   .grp.flash > h2.sec{color:var(--btn)}
   h2.sec{display:flex;align-items:center;gap:8px;margin:16px 4px 0;font-size:14px;font-weight:600;color:var(--ink);letter-spacing:0}
   h2.sec i{font-style:normal;font-weight:500;font-size:12px;color:var(--muted);background:var(--seg);border-radius:8px;padding:1px 8px;white-space:nowrap}
-  h2.sec.now i{background:var(--btn);color:#fff}
+  h2.sec.now i{background:var(--btn);color:var(--on-btn)}
   h2.sec .tagk{font-weight:500}
   .card.slim{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 16px}
   .card.slim b{display:block;font-size:14px;font-weight:500}
