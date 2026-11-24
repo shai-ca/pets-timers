@@ -50,6 +50,16 @@
     ok('"woke up" on an estimated sleep writes an entry flagged as the app\'s estimate, and it is not a sample', w.a === 1 && w.t === now - 50*MIN && sleepSamples('kishmish', state.log, now).length === 5);
     seed([{ ...K0, k:'crate', t: now - 8*D, end: now - 8*D + 60*MIN }, { ...K0, k:'sleep', t: now - 8*D + 2*MIN, end: now - 8*D + 50*MIN }, { ...K0, k:'crate', t: now - 7*D, end: now - 7*D + 60*MIN }, { ...K0, k:'sleep', t: now - 7*D + 9*MIN, end: now - 7*D + 50*MIN }]);
     ok('older entries sitting exactly on the two-minute mark are not samples either; a hand-marked one is', canon(sleepSamples('kishmish', state.log, now).map(x => [x.c, x.lat])) === canon([['box', 9*MIN]]));
+    // a change of crate in the middle of a stay: from there on the NEW crate's rule, wherever the stay began
+    const boxStay = { ...K0, id:'now', k:'crate', t: now - 6*D, end: now - 6*D + 120*MIN, c:'box' }, swapAt = m => ({ ...K0, k:'swap', t: now - 6*D + m*MIN, c:'mesh' });
+    seed([boxStay, swapAt(60)]);
+    ok('a stay that began in the box before the move, then a change to the mesh crate with no marks there: the box part keeps its estimate, the mesh part has none', canon(mine()) === canon([{ t: now - 6*D + 2*MIN, end: now - 6*D + 60*MIN, assumed: true, stay: 'now' }]));
+    seed(past('mesh', [10, 10, 10, 10, 10], 8).concat([boxStay, swapAt(60)]));
+    ok('…and with five marks in the mesh crate, the mesh part is estimated by the mesh delay, from the change', mine().length === 2 && mine()[1].t === now - 6*D + 70*MIN && mine()[1].end === now - 6*D + 120*MIN);
+    seed([boxStay, { ...K0, k:'cry', t: now - 6*D + 55*MIN, end: now - 6*D + 70*MIN }, swapAt(58)]);
+    ok('the 24.11 case: moved during a cry — nothing is estimated after the cry in the new crate', mine().length === 1 && mine()[0].end === now - 6*D + 55*MIN);
+    seed(past('box', [3, 3, 3, 3, 3], 3).concat([stay(120, null, 'mesh'), { ...K0, k:'swap', t: now - 60*MIN, c:'box' }]));
+    ok('the other way round: from the mesh crate (no marks) into the box (five marks) — estimated from three minutes after the change', mine().length === 1 && mine()[0].t === now - 57*MIN && K().sleep.assumed === true);
     // marking by hand in the new crate, and the guard
     seed([stay(40)]); tapDur('kishmish', 'sleep');
     ok('marking "נרדמה" by hand works as always and counts towards the five', !!K().sleep.start && !K().sleep.assumed && !logOf('kishmish', 'sleep')[0].a && sleepSamples('kishmish', state.log, Date.now()).length === 1);

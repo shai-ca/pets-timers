@@ -687,7 +687,8 @@ function sleepSpans(p, log, now){
   const L = log.filter(e => e.p===p), sleeps = L.filter(e => e.k==='sleep'), cries = L.filter(e => e.k==='cry');
   const out = sleeps.map(e => ({t:e.t, end: e.end == null ? null : e.end, id:e.id}));
   if(PETS[p].cycle){
-    const pts = L.filter(e => AWAKE_PT[e.k]).map(e => e.t);
+    // What she was seen doing splits a stay from SLEEP2_FROM on; a change of crate splits it always.
+    const pts = L.filter(e => e.k === 'swap' ? !!CRATES[e.c] : AWAKE_PT[e.k] && e.t >= SLEEP2_FROM).map(e => e.t);
     let samples = null;
     // The usual delay in this crate AS OF THE START OF THE STAY (so a stay's estimate never changes when more
     // marks arrive later): the median of the last ten samples; none with fewer than SLEEP_MIN — then nothing is
@@ -695,9 +696,9 @@ function sleepSpans(p, log, now){
     const delay = (kind, asOf) => { samples = samples || sleepSamples(p, log, now); const g = samples.filter(x => x.c === kind && x.t < asOf).slice(-10).map(x => x.lat); return g.length >= SLEEP_MIN ? median(g) : null; };
     for(const c of L){
       if(c.k !== 'crate' || c.ns) continue;
-      const cEnd = c.end == null ? now : c.end, no = Array.isArray(c.nsx) ? c.nsx : [], old = c.t < SLEEP2_FROM;
-      // Crying — and, in stays from SLEEP2_FROM on, anything else she was seen doing (eating, a kong, drinking,
-      // being moved) — splits the stay into quiet stretches, and EACH STRETCH IS JUDGED ON ITS OWN: nothing said
+      const cEnd = c.end == null ? now : c.end, no = Array.isArray(c.nsx) ? c.nsx : [];
+      // Crying — and, from SLEEP2_FROM on, anything else she was seen doing (eating, a kong, drinking), and a
+      // change of crate at any time — splits the stay into quiet stretches, and EACH STRETCH IS JUDGED ON ITS OWN: nothing said
       // about it -> asleep from the usual delay after it begins (stays before SLEEP2_FROM: the fixed
       // ASSUME_SLEEP, exactly as they were shown); a sleep she logged in it -> her entry is the truth for that
       // stretch (and nothing more is assumed there); "לא ישנה" about it (`nsx`) -> no sleep there. What she says
@@ -705,14 +706,18 @@ function sleepSpans(p, log, now){
       // The rule must NOT depend on what kind of stay this later turns out to be (a retry wait, say): on 24.11 such a
       // dependence made a sleep that had been shown all morning disappear.
       const cr = cries.filter(x => x.t <= cEnd && (x.end == null ? now : x.end) >= c.t).map(x => [x.t, x.end == null ? Infinity : x.end])
-        .concat(old ? [] : pts.filter(t => t >= c.t && t <= cEnd).map(t => [t, t])).sort((a,b) => a[0]-b[0]);
+        .concat(pts.filter(t => t >= c.t && t <= cEnd).map(t => [t, t])).sort((a,b) => a[0]-b[0]);
       const stretches = []; let cur = c.t;
       for(const [a, b] of cr){ if(a > cur) stretches.push([cur, Math.min(a, cEnd), false]); cur = Math.max(cur, b); if(cur >= cEnd) break; }
       if(cur < cEnd) stretches.push([cur, cEnd, c.end == null]);   // only the last stretch of a running stay is still going
       for(const [s, e, open] of stretches){
         if(sleeps.some(x => x.t < e && (x.end == null ? now : x.end) > s)) continue;
         if(no.some(t => t >= s && t <= e)) continue;
-        const d = old ? ASSUME_SLEEP : delay(crateAt(p, s, log) || crateKind(c), c.t);
+        // WHICH RULE is decided per stretch, by the crate she is in when it begins — not by where the stay began:
+        // after a change of crate the new crate's rule applies (a new crate with too few marks: no estimate).
+        // Only a stretch in the box that began before SLEEP2_FROM keeps the fixed ASSUME_SLEEP.
+        const kind = crateAt(p, s, log) || crateKind(c), old = s < SLEEP2_FROM && kind === 'box';
+        const d = old ? ASSUME_SLEEP : delay(kind, c.t);
         if(d == null) continue;
         const a = s + d;
         if(a < e && (open || e - a >= 60000)) out.push({t:a, end: open ? null : e, assumed:true, stay:c.id});
