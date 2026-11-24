@@ -65,7 +65,7 @@
     ok('still in the crate after 45 minutes: an ordinary stay, no card, sleep assumed as usual', !card() && !isRetryStay(stays()[1]) && retryStats('kishmish', ...today).n === 0 && K().sleep.assumed === true && K().sleep.start === stays()[1].t + ASSUME_SLEEP);
     seed([{ ...K0, k:'crate', t: now - 300*MIN, end: now - 15*MIN }, pee(130), { ...K0, k:'none', t: now - 12*MIN }, { ...K0, k:'crate', t: now - 12*MIN + 1 }]);
     tapPoint('kishmish', 'food');
-    ok('eating takes her out of the crate; the card asks what happened on the gravel', !K().crate.start && card().classList.contains('again'));
+    ok('eating does not take her out of the crate: the wait and its countdown go on', !!K().crate.start && stays().length === 2 && !stays()[1].end && card().classList.contains('due'));
     seed([{ ...K0, k:'crate', t: now - 300*MIN, end: now - 15*MIN }, pee(130), { ...K0, k:'none', t: now - 12*MIN }, { ...K0, k:'crate', t: now - 12*MIN + 1 }]);
     tapPoint('kishmish', 'pee'); sh.querySelector('[data-w=pad]').click();
     ok('pee on the pad ends the retry too, with no free time, counted as a miss', !card() && !$q('.card.slim.free') && $q('#main').textContent.includes('פספוסים 1'));

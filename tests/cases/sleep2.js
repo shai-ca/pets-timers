@@ -1,0 +1,65 @@
+// The sleep estimate after the move to the mesh crate: her own time to fall asleep, per crate; nothing over
+// recorded activity; nothing at all until there are five marked "נרדמה" in that crate. Older stays keep the old rule.
+(async function(){
+  try {
+    reset();
+    const now = Date.now(), late = now - midnight() > 420*MIN, K0 = { p:'kishmish' }, D = 24*HOUR;
+    if(!late){ ok('skipped (too close to midnight)', true); done(); return; }
+    SLEEP2_FROM = now - 5*D;
+    // n earlier stays in a crate of kind c, each with a hand-marked sleep `lat` minutes after going in
+    const past = (c, lats, daysAgo = 2) => lats.flatMap((m, i) => [{ ...K0, k:'crate', t: now - daysAgo*D - i*3*HOUR, end: now - daysAgo*D - i*3*HOUR + 100*MIN, c }, { ...K0, k:'sleep', t: now - daysAgo*D - i*3*HOUR + m*MIN, end: now - daysAgo*D - i*3*HOUR + 90*MIN }]);
+    const stay = (a, b, c = 'mesh') => ({ ...K0, id:'now', k:'crate', t: now - a*MIN, ...(b != null ? { end: now - b*MIN } : {}), c });
+    const mine = () => K().spans.filter(sp => sp.stay === 'now'), hint = () => { const e = $q('#sec-rest .newcrate'); return e ? e.textContent : ''; };
+    // before the cut-off nothing changes
+    seed([{ ...K0, id:'old', k:'crate', t: now - 6*D, end: now - 6*D + 60*MIN }, { ...K0, k:'cry', t: now - 6*D + 20*MIN, end: now - 6*D + 25*MIN }, { ...K0, k:'water', t: now - 6*D + 40*MIN }]);
+    ok('a stay from before the move is estimated exactly as it was: two minutes in, crying splits, nothing else does', canon(K().spans) === canon([{ t: now - 6*D + 2*MIN, end: now - 6*D + 20*MIN, assumed: true, stay: 'old' }, { t: now - 6*D + 27*MIN, end: now - 6*D + 60*MIN, assumed: true, stay: 'old' }]));
+    // a new crate: nothing is estimated
+    seed([stay(40)]);
+    ok('a crate with no marked sleeps: no estimate, and the sleep card asks for a mark', mine().length === 0 && !K().sleep.start && hint() === 'כלוב חדש: סמנו ידנית מתי נרדמה (0 מתוך 5)' && !$q('.zz'));
+    seed(past('mesh', [10, 12, 14, 16]).concat([stay(40)]));
+    ok('four marks are not enough', mine().length === 0 && hint().includes('(4 מתוך 5)'));
+    seed(past('mesh', [10, 12, 14, 16, 30]).concat([stay(40)]));
+    ok('five: asleep from her median delay (14 minutes), and the request is gone', mine().length === 1 && mine()[0].t === now - 40*MIN + 14*MIN && mine()[0].end === null && K().sleep.assumed === true && hint() === '');
+    seed(past('box', [10, 12, 14, 16, 30]).concat([stay(40)]));
+    ok('marks from the other crate do not count for this one', mine().length === 0 && hint().includes('(0 מתוך 5)'));
+    seed(past('box', [3, 4, 5, 6, 7]).concat(past('mesh', [20, 22, 24, 26, 28], 3), [stay(40, null, 'box')]));
+    ok('each crate has its own delay', mine()[0].t === now - 40*MIN + 5*MIN);
+    seed(past('mesh', [1, 2, 3, 4, 5, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20]).concat([stay(40)]));
+    ok('the last ten marks are what counts', mine()[0].t === now - 40*MIN + 20*MIN);
+    // activity
+    const base5 = past('mesh', [10, 10, 10, 10, 10]);
+    seed(base5.concat([stay(90), { ...K0, k:'play', t: now - 85*MIN, y:'kong' }, { ...K0, k:'food', t: now - 85*MIN, y:'play' }]));
+    ok('a kong five minutes in: asleep ten minutes after it, not after going in', mine().length === 1 && mine()[0].t === now - 75*MIN);
+    seed(base5.concat([stay(90), { ...K0, k:'water', t: now - 50*MIN }]));
+    ok('a drink in the middle splits the estimate: nothing over it, and again ten minutes later', mine().length === 2 && mine()[0].t === now - 80*MIN && mine()[0].end === now - 50*MIN && mine()[1].t === now - 40*MIN);
+    seed(base5.concat([stay(90), { ...K0, k:'food', t: now - 5*MIN }]));
+    ok('she ate five minutes ago: not asleep now', !K().sleep.start && mine().length === 1 && mine()[0].end === now - 5*MIN);
+    seed(base5.concat([stay(90), { ...K0, k:'cry', t: now - 70*MIN, end: now - 60*MIN }]));
+    ok('crying splits it as before, with her delay after it', mine().length === 2 && mine()[1].t === now - 50*MIN);
+    seed(base5.concat([stay(30), { ...K0, k:'water', t: now - 22*MIN }, { ...K0, k:'food', t: now - 14*MIN }, { ...K0, k:'play', t: now - 6*MIN, y:'lick' }]));
+    ok('activity every few minutes: no estimate at all', mine().length === 0 && !K().sleep.start);
+    // a stay's estimate does not move when more marks arrive later
+    seed(base5.concat([stay(300, 200)]));
+    const before = canon(mine());
+    state.log.push({ ...K0, k:'crate', t: now - 150*MIN, end: now - 60*MIN, c:'mesh' }, { ...K0, k:'sleep', t: now - 110*MIN, end: now - 70*MIN }); state.log.sort((a, b) => a.t - b.t); use(state); render();
+    ok('a later mark (40 minutes) does not change an earlier stay\'s estimate', canon(mine()) === before && sleepSamples('kishmish', state.log, now).length === 6);
+    // "woke up" on an estimate is not a mark of when she fell asleep
+    seed(base5.concat([stay(60)]));
+    $q('[data-act=dur][data-k=sleep]').click();
+    const w = logOf('kishmish', 'sleep').pop();
+    ok('"woke up" on an estimated sleep writes an entry flagged as the app\'s estimate, and it is not a sample', w.a === 1 && w.t === now - 50*MIN && sleepSamples('kishmish', state.log, now).length === 5);
+    seed([{ ...K0, k:'crate', t: now - 8*D, end: now - 8*D + 60*MIN }, { ...K0, k:'sleep', t: now - 8*D + 2*MIN, end: now - 8*D + 50*MIN }, { ...K0, k:'crate', t: now - 7*D, end: now - 7*D + 60*MIN }, { ...K0, k:'sleep', t: now - 7*D + 9*MIN, end: now - 7*D + 50*MIN }]);
+    ok('older entries sitting exactly on the two-minute mark are not samples either; a hand-marked one is', canon(sleepSamples('kishmish', state.log, now).map(x => [x.c, x.lat])) === canon([['box', 9*MIN]]));
+    // marking by hand in the new crate, and the guard
+    seed([stay(40)]); tapDur('kishmish', 'sleep');
+    ok('marking "נרדמה" by hand works as always and counts towards the five', !!K().sleep.start && !K().sleep.assumed && !logOf('kishmish', 'sleep')[0].a && sleepSamples('kishmish', state.log, Date.now()).length === 1);
+    seed(base5.concat([{ ...K0, id:'now', k:'crate', t: now - 200*MIN, end: now - 120*MIN, c:'mesh' }, { ...K0, k:'water', t: now - 160*MIN }, { ...K0, k:'pee', t: now - 119*MIN, w:'gravel' }]));
+    const want = canon(mine()), bad = [], then = (name, fn) => { fn(); if(bg.classList.contains('show')){ const g = sh.querySelector('[data-w=gravel]') || sh.querySelector('#still'); if(g) g.click(); else close(); } if(canon(mine()) !== want) bad.push(name); };
+    then('meal', () => tapPoint('kishmish', 'food')); then('water', () => tapPoint('kishmish', 'water')); then('crate in', () => tapDur('kishmish', 'crate')); then('kong', () => logPlay('kishmish', 'kong', true)); then('sleep', () => tapDur('kishmish', 'sleep')); then('woke', () => tapDur('kishmish', 'sleep')); then('swap', () => askSwap('kishmish')); then('cry', () => tapDur('kishmish', 'cry')); then('calm', () => tapDur('kishmish', 'cry')); then('out', () => tapDur('kishmish', 'crate')); then('nothing', () => tapPoint('kishmish', 'none'));
+    ok('nothing done afterwards changes a finished stay\'s estimate under the new rule' + (bad.length ? ' — changed by: ' + bad.join(', ') : ''), mine().length === 2 && bad.length === 0);
+    seed(base5.concat([stay(60)])); $q('.uni .r.guess').click();
+    ok('an estimated row can be corrected or deleted from the list as before', bg.classList.contains('show') && !!sh.querySelector('#del') && sh.querySelector('#aIn').value === clock(now - 50*MIN));
+    sh.querySelector('#del').click(); ok('deleted', mine().length === 0);
+    done();
+  } catch(e){ crashed(e); }
+})();

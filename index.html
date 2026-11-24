@@ -82,6 +82,9 @@
   .meds-h{display:flex;align-items:center;gap:10px;margin-bottom:12px}
   .meds-h .ic{width:36px;height:36px;border-radius:11px}
   .meds-h b{font-weight:600;font-size:15px}
+  .card.item .incr{grid-column:1/-1;display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding-top:10px;margin-top:2px;border-top:1px solid var(--line);font-size:12.5px;color:var(--muted)}
+  .card.item .incr .btn{padding:8px 12px;font-size:13.5px}
+  .card.cmp{padding:6px 16px} .cmp-r{display:flex;flex-direction:column;gap:2px;padding:10px 0;border-bottom:1px solid var(--line);font-size:14px} .cmp-r:last-child{border-bottom:0} .cmp-r span{color:var(--muted);font-size:13px}
   .lnk.medoff{display:block;margin-top:10px;font-size:12.5px;color:var(--muted)} .card.medc.off .sub{margin-bottom:10px;line-height:1.5}
   .meds{display:grid;grid-template-columns:1fr 1fr;gap:8px}
   .med{border:1.5px solid var(--line);background:var(--bg);border-radius:14px;padding:12px;font:inherit;text-align:right;cursor:pointer;display:flex;gap:10px;align-items:center;color:var(--ink)}
@@ -492,6 +495,9 @@ const ITEMS = {
   // A treat (dogs with `treats:true` in PETS): `q` = regular / fatty, `n` = what it was (optional free text),
   // and — the point of it — `by`, who gave it. Its own kind, so it never resets the food clock.
   treat:{lbl:'חטיף אחרון',log:'חטיף'},
+  // Moved from one crate to another without coming out (`c` = the crate she is in from then on). It sits inside
+  // the running crate stay: the stay, its timer and the round go on.
+  swap:{icon:'crate',log:'הועברה לכלוב אחר'},
   born:{icon:'paw',log:'תאריך לידה',hid:true},
   med_am:{icon:'pill',log:'תרופת בוקר'},
   med_pm:{icon:'pill',log:'תרופת ערב'}
@@ -629,31 +635,88 @@ function mealKinds(p, log){
   return m;
 }
 const mealKind = e => e.k === 'food' && !!V && V[e.p].mealOf.get(e) || null;
+// WHICH CRATE. Until 24.11.2026 12:06 she slept in a closed box; from 12:11 that day in a covered mesh crate.
+// Crate entries written from now on store `c`; older ones are read by their time. A `swap` entry changes the
+// crate in the middle of a stay. The same moment (`SLEEP2_FROM`) is where the sleep estimate changes rule —
+// stays that began before it are estimated exactly as they were, so past days do not move.
+let SLEEP2_FROM = Date.UTC(2026, 10, 24, 10, 8);   // 24.11.2026 12:08 in Israel; tests move it
+const CRATES = {box:'בוקס', mesh:'כלוב רשת'};
+const crateKind = e => CRATES[e.c] ? e.c : (e.t < SLEEP2_FROM ? 'box' : 'mesh');
+function crateAt(p, t, log){   // the crate she was in at t, or null when she was not in one
+  const L = (log || state.log).filter(e => e.p===p), st = L.filter(e => e.k==='crate' && e.t <= t && (e.end == null || e.end >= t)).sort((x,y) => x.t-y.t).pop();
+  if(!st) return null;
+  const sw = L.filter(e => e.k==='swap' && CRATES[e.c] && e.t >= st.t && e.t <= t).sort((x,y) => x.t-y.t).pop();
+  return sw ? sw.c : crateKind(st);
+}
+function lastCrate(p){   // the crate used most recently: what "נכנסה לכלוב" means now
+  const e = state.log.filter(e => e.p===p && (e.k==='crate' || (e.k==='swap' && CRATES[e.c]))).sort((x,y) => x.t-y.t).pop();
+  return e ? (e.k === 'swap' ? e.c : crateKind(e)) : crateKind({t: Date.now()});
+}
+const newStay = (p, k, t, end) => Object.assign({p, k, t}, end != null ? {end} : {}, k === 'crate' && PETS[p].cycle ? {c: lastCrate(p)} : {});
+function crateSegs(p, now){   // every crate stay as stretches of one crate kind: [{a, b, c}]
+  const L = state.log.filter(e => e.p===p), out = [];
+  for(const st of L.filter(e => e.k==='crate')){
+    const end = st.end == null ? now : st.end; let a = st.t, kind = crateKind(st);
+    for(const sw of L.filter(e => e.k==='swap' && CRATES[e.c] && e.t > st.t && e.t < end).sort((x,y) => x.t-y.t)){ out.push({a, b: sw.t, c: kind}); a = sw.t; kind = sw.c; }
+    out.push({a, b: end, c: kind});
+  }
+  return out;
+}
+const SLEEP_MIN = 5;   // marked "נרדמה" needed in a crate before sleep is estimated there
 const ASSUME_SLEEP = 2*60000;
 // Retries: a crate stay counts as one when it began within `gap` of a "לא עשתה" and lasted at most `max`;
 // a "לא עשתה" stops calling for a retry after `life`. (Defined here because `derive` runs while the page loads.)
 const RETRY = {gap:30*60000, max:30*60000, life:3*3600000, wait:10*60000, fresh:2*3600000, after:60*60000};
+// HOW LONG SHE TAKES TO FALL ASLEEP, from her own entries: every sleep she marked by hand that began in a quiet
+// stretch of a crate stay gives one sample — the time from the start of that stretch (going in, the end of a
+// cry, the last thing she was seen doing) to "נרדמה" — filed under the crate she was in. Entries written by
+// "התעוררה" on an estimated sleep are not samples (`a:1`; older ones sit exactly on the old two-minute mark).
+const AWAKE_PT = {food:1, nofood:1, water:1, play:1, swap:1};
+function sleepSamples(p, log, now){
+  const L = log.filter(e => e.p===p), stays = L.filter(e => e.k==='crate'), out = [];
+  for(const s of L.filter(e => e.k==='sleep' && !e.a)){
+    const c = stays.filter(x => x.t <= s.t && (x.end == null ? now : x.end) >= s.t).sort((x,y) => x.t-y.t).pop(); if(!c) continue;
+    const start = Math.max(c.t, ...L.filter(x => x.k==='cry' && x.end != null && x.end <= s.t && x.end >= c.t).map(x => x.end), ...L.filter(x => AWAKE_PT[x.k] && x.t >= c.t && x.t <= s.t).map(x => x.t));
+    const lat = s.t - start;
+    if(lat < 0 || lat > 2*3600000 || Math.abs(lat - ASSUME_SLEEP) < 2) continue;
+    out.push({t: s.t, c: crateAt(p, s.t, log), lat});
+  }
+  return out.sort((x,y) => x.t-y.t);
+}
 function sleepSpans(p, log, now){
   const L = log.filter(e => e.p===p), sleeps = L.filter(e => e.k==='sleep'), cries = L.filter(e => e.k==='cry');
   const out = sleeps.map(e => ({t:e.t, end: e.end == null ? null : e.end, id:e.id}));
-  if(PETS[p].cycle) for(const c of L){
-    if(c.k !== 'crate' || c.ns) continue;
-    const cEnd = c.end == null ? now : c.end, no = Array.isArray(c.nsx) ? c.nsx : [];
-    // Crying splits the stay into quiet stretches, and EACH STRETCH IS JUDGED ON ITS OWN: nothing said about it ->
-    // asleep from ASSUME_SLEEP after it begins; a sleep she logged in it -> her entry is the truth for that stretch
-    // (and nothing more is assumed there, so "התעוררה" is not followed by "asleep again"); "לא ישנה" about it
-    // (`nsx`) -> no sleep there. What she says about one stretch never touches another.
-    // The rule must NOT depend on what kind of stay this later turns out to be (a retry wait, say): on 24.11 such a
-    // dependence made a sleep that had been shown all morning disappear.
-    const cr = cries.filter(x => x.t <= cEnd && (x.end == null ? now : x.end) >= c.t).map(x => [x.t, x.end == null ? Infinity : x.end]).sort((a,b) => a[0]-b[0]);
-    const stretches = []; let cur = c.t;
-    for(const [a, b] of cr){ if(a > cur) stretches.push([cur, Math.min(a, cEnd), false]); cur = Math.max(cur, b); if(cur >= cEnd) break; }
-    if(cur < cEnd) stretches.push([cur, cEnd, c.end == null]);   // only the last stretch of a running stay is still going
-    for(const [s, e, open] of stretches){
-      if(sleeps.some(x => x.t < e && (x.end == null ? now : x.end) > s)) continue;
-      if(no.some(t => t >= s && t <= e)) continue;
-      const a = s + ASSUME_SLEEP;
-      if(a < e && (open || e - a >= 60000)) out.push({t:a, end: open ? null : e, assumed:true, stay:c.id});
+  if(PETS[p].cycle){
+    const pts = L.filter(e => AWAKE_PT[e.k]).map(e => e.t);
+    let samples = null;
+    // The usual delay in this crate AS OF THE START OF THE STAY (so a stay's estimate never changes when more
+    // marks arrive later): the median of the last ten samples; none with fewer than SLEEP_MIN — then nothing is
+    // estimated and the sleep card asks for "נרדמה" to be marked by hand.
+    const delay = (kind, asOf) => { samples = samples || sleepSamples(p, log, now); const g = samples.filter(x => x.c === kind && x.t < asOf).slice(-10).map(x => x.lat); return g.length >= SLEEP_MIN ? median(g) : null; };
+    for(const c of L){
+      if(c.k !== 'crate' || c.ns) continue;
+      const cEnd = c.end == null ? now : c.end, no = Array.isArray(c.nsx) ? c.nsx : [], old = c.t < SLEEP2_FROM;
+      // Crying — and, in stays from SLEEP2_FROM on, anything else she was seen doing (eating, a kong, drinking,
+      // being moved) — splits the stay into quiet stretches, and EACH STRETCH IS JUDGED ON ITS OWN: nothing said
+      // about it -> asleep from the usual delay after it begins (stays before SLEEP2_FROM: the fixed
+      // ASSUME_SLEEP, exactly as they were shown); a sleep she logged in it -> her entry is the truth for that
+      // stretch (and nothing more is assumed there); "לא ישנה" about it (`nsx`) -> no sleep there. What she says
+      // about one stretch never touches another.
+      // The rule must NOT depend on what kind of stay this later turns out to be (a retry wait, say): on 24.11 such a
+      // dependence made a sleep that had been shown all morning disappear.
+      const cr = cries.filter(x => x.t <= cEnd && (x.end == null ? now : x.end) >= c.t).map(x => [x.t, x.end == null ? Infinity : x.end])
+        .concat(old ? [] : pts.filter(t => t >= c.t && t <= cEnd).map(t => [t, t])).sort((a,b) => a[0]-b[0]);
+      const stretches = []; let cur = c.t;
+      for(const [a, b] of cr){ if(a > cur) stretches.push([cur, Math.min(a, cEnd), false]); cur = Math.max(cur, b); if(cur >= cEnd) break; }
+      if(cur < cEnd) stretches.push([cur, cEnd, c.end == null]);   // only the last stretch of a running stay is still going
+      for(const [s, e, open] of stretches){
+        if(sleeps.some(x => x.t < e && (x.end == null ? now : x.end) > s)) continue;
+        if(no.some(t => t >= s && t <= e)) continue;
+        const d = old ? ASSUME_SLEEP : delay(crateAt(p, s, log) || crateKind(c), c.t);
+        if(d == null) continue;
+        const a = s + d;
+        if(a < e && (open || e - a >= 60000)) out.push({t:a, end: open ? null : e, assumed:true, stay:c.id});
+      }
     }
   }
   return out.sort((x,y) => x.t-y.t);
@@ -698,7 +761,7 @@ function retryScan(p, log){
 // written with it (one tap, one undo) — a millisecond later, so the order can never be read the other way.
 function pushNone(p, t){
   const e = {p, k:'none', t}; state.log.push(e);
-  if(PETS[p].cycle && retryScan(p, state.log).nones.has(e)) state.log.push({p, k:'crate', t: t + 1});
+  if(PETS[p].cycle && retryScan(p, state.log).nones.has(e)) state.log.push(newStay(p, 'crate', t + 1));
   return e;
 }
 // "Out of the crate means awake" is a fact about the list, not just something done at tap time: a sleep that
@@ -1016,19 +1079,21 @@ function tapPoint(p, k, t, sure){
   let e = {p, k, t};
   const mk = k === 'food' && PETS[p].cycle ? MEAL_LBL[mealKinds(p, state.log.concat([e])).get(e)] : '';
   commit(`${PETS[p].name} · ${ITEMS[k].log}${mk ? ' · '+mk : ''}`, () => { impliesOut(p, k, t); if(k === 'none') e = pushNone(p, t); else state.log.push(e); });
-  if(hasWhere(k) && e.id) whereSheet(e.id);
-  else if(hasType(p, k) && e.id) typeSheet(e.id);   // vomiting: straight to "of what?"
+  stillCrying(p, t, () => {
+    if(hasWhere(k) && e.id) whereSheet(e.id);
+    else if(hasType(p, k) && e.id) typeSheet(e.id);   // vomiting: straight to "of what?"
+  });
 }
 function tapDur(p, k, at){   // `at`: start a timer that began earlier ("she went in 10 minutes ago and is still there")
   const now = Date.now(), running = !!(V[p][k] && V[p][k].start), sl = V[p].sleep;
   if(running && !at) commit(`${PETS[p].name} · ${ITEMS[k].stop}`, () => {
     // waking from a sleep the app only assumed: now it is known, so it becomes a real entry
-    if(k === 'sleep' && sl.assumed) state.log.push({p, k, t: sl.start, end: Math.max(now, sl.start + 1)});
+    if(k === 'sleep' && sl.assumed) state.log.push({p, k, t: sl.start, end: Math.max(now, sl.start + 1), a: 1});   // `a`: its start was the app's estimate, not hers
     else if(k === 'crate') leaveCrate(p, now); else stopDur(p, k, now);
   });
   else commit(`${PETS[p].name} · ${ITEMS[k].start}`, () => {
     if(running) stopDur(p, k, at);          // starting "earlier" while one is running: close that one first
-    state.log.push({p, k, t: at || now});   // no `end`: it is running
+    state.log.push(newStay(p, k, at || now));   // no `end`: it is running
   });
 }
 // Out of the crate always means awake: however the crate stay ends (its tile, the retry card, "it already
@@ -1040,15 +1105,17 @@ function leaveCrate(p, t){
   const sl = state.log.filter(e => e.p===p && e.k==='sleep' && e.end == null).sort((x,y) => x.t-y.t)[0];
   if(sl && sl.t > t - 16*3600000 && sl.t <= t) stopDur(p, 'sleep', t);
 }
-// Things that can only happen outside the crate and awake: being taken out to pee / poop (also when nothing
-// came of it), eating and drinking — there is nothing inside the crate. Logging one of them at time t while
-// the list says she is in the crate (or asleep) therefore ends that stay (and the sleep) at t.
-const OUT_KINDS = {pee:1, poop:1, none:1, food:1, water:1};
+// OUT OF THE CRATE is implied only by being taken out to pee / poop (also when nothing came of it): logging one
+// of them at time t while the list says she is in the crate ends that stay (and a marked sleep) at t.
+// Eating, drinking and playing do NOT end the stay any more — since 24.11 she gets a kong, a lick mat and
+// sometimes her bowl inside the (mesh) crate. They only mean she is awake: a marked sleep still running ends.
+const OUT_KINDS = {pee:1, poop:1, none:1};
+const AWAKE_KINDS = {food:1, water:1, play:1, nofood:1};
 function impliesOut(p, k, t){
-  if(!PETS[p].cycle || !OUT_KINDS[k]) return;
+  if(!PETS[p].cycle || !(OUT_KINDS[k] || AWAKE_KINDS[k])) return;
   const open = kk => state.log.filter(e => e.p===p && e.k===kk && e.end == null).sort((x,y) => x.t-y.t)[0];
   const c = open('crate'), sl = open('sleep');
-  if(c && c.t < t) leaveCrate(p, t);
+  if(OUT_KINDS[k] && c && c.t < t) leaveCrate(p, t);
   else if(sl && sl.t < t && sl.t > t - 16*3600000) stopDur(p, 'sleep', t);
 }
 // End the running timer of kind k: its entry gets an `end`. If two phones started the same stay, there are
@@ -1058,6 +1125,22 @@ function stopDur(p, k, t){
   if(!open.length) return;
   open[0].end = Math.max(t, open[0].t + 1);
   if(open.length > 1) state.log = state.log.filter(e => !open.slice(1).includes(e));
+}
+// A CRY TIMER LEFT RUNNING: when something else is logged while a cry has been "running" for more than CRY_OPEN,
+// ask whether she is still crying, and offer to end the cry at that moment. `after` continues with whatever
+// the action normally asks next (where the pee was, …).
+const CRY_OPEN = 5*60000;
+function stillCrying(p, t, after){
+  const go = () => { if(after) after(); }, c = PETS[p].cycle && V[p].cry && V[p].cry.start, name = PETS[p].name;
+  if(!c || t - c <= CRY_OPEN || t > Date.now() + 60000){ go(); return; }
+  sh.innerHTML = `<h3>${name} · היא עדיין בוכה?</h3>
+    <div class="sub" style="font-size:14px;margin-bottom:16px">הבכי מסומן כנמשך מ־<bdi dir="ltr">${clock(c)}</bdi> (${words(t - c)}). אם היא כבר נרגעה ורק לא סימנו:</div>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <button class="btn primary" id="calm">לא, נרגעה ב־<bdi dir="ltr">${clock(t)}</bdi></button>
+      <button class="btn" id="still">כן, עדיין בוכה</button></div>`;
+  sh.querySelector('#calm').onclick = () => { close(); commit(`${name} · ${ITEMS.cry.stop}`, () => stopDur(p, 'cry', t)); go(); };
+  sh.querySelector('#still').onclick = () => { close(); go(); };
+  bg.classList.add('show');
 }
 // ---------- alerts ----------
 // For the puppy (a one-kilo Yorkshire): too long without food is a hypoglycaemia risk; too long without a
@@ -1162,6 +1245,32 @@ function fat30HTML(p){   // always the last 30 days, whatever period the summary
     : `${k === 0 ? 'אף אחד מהם לא היה' : k === 1 ? 'אחד מהם היה' : `${k} מהם היו`} בתוך 24 שעות אחרי חטיף שומני`;
   return `<div class="card slim fat30"><span><b>ב־30 הימים האחרונים: ${head}</b>${sub ? `<small>${sub}</small>` : ''}</span>${ico('treat','s')}</div>`;
 }
+// In a crate with too few marked "נרדמה" the app estimates nothing — and says so, with how many it has.
+function newCrateHint(p){
+  const st = V[p].crate.start; if(!st || st < SLEEP2_FROM) return '';
+  const kind = crateAt(p, Date.now()), n = sleepSamples(p, state.log, Date.now()).filter(x => x.c === kind).length;
+  return n >= SLEEP_MIN ? '' : `<div class="sub hint newcrate">כלוב חדש: סמנו ידנית מתי נרדמה (${n} מתוך ${SLEEP_MIN})</div>`;
+}
+function askSwap(p){   // moved to another crate without coming out: the stay goes on
+  const st = V[p].crate.start; if(!st) return;
+  const cur = crateAt(p, Date.now()) || lastCrate(p), name = PETS[p].name; let to = Object.keys(CRATES).find(x => x !== cur) || cur;
+  askWhen(`${name} · החלפת כלוב — מתי?`, ts => { const t = Math.max(Math.min(ts || Date.now(), Date.now()), st + 1); commit(`${name} · הועברה ל${CRATES[to]}`, () => { state.log.push({p, k:'swap', t, c: to}); }); },
+    `<div class="sub" style="margin-bottom:8px">לאיזה כלוב? הזמן בכלוב והסבב ממשיכים.</div><div class="chips">${Object.keys(CRATES).map(x => `<button data-c="${x}" class="${x === to ? 'sel' : ''}">${CRATES[x]}</button>`).join('')}</div>`);
+  if(ASK_WHEN) sh.querySelectorAll('[data-c]').forEach(b => b.onclick = () => { to = b.dataset.c; sh.querySelectorAll('[data-c]').forEach(x => x.classList.toggle('sel', x === b)); });
+}
+// The two crates side by side for a period: time in each, how much of it asleep (marked and estimated), crying.
+function crateCompareHTML(p, from, to){
+  const now = Date.now(), segs = crateSegs(p, now), ov = (a, b, x, y) => Math.max(0, Math.min(b, y, to) - Math.max(a, x, from)), R = {};
+  for(const s of segs){
+    const r = R[s.c] = R[s.c] || {crate:0, sleep:0, cry:0};
+    r.crate += ov(s.a, s.b, from, to);
+    for(const sp of V[p].spans) r.sleep += ov(s.a, s.b, sp.t, sp.end == null ? now : sp.end);
+    for(const e of state.log) if(e.p===p && e.k==='cry') r.cry += ov(s.a, s.b, e.t, e.end == null ? now : e.end);
+  }
+  const kinds = Object.keys(CRATES).filter(k => R[k] && R[k].crate >= 60000);
+  if(kinds.length < 2) return '';
+  return `<h2>השוואה בין הכלובים</h2><div class="card cmp">${kinds.map(k => `<div class="cmp-r"><b>${CRATES[k]}</b><span>בכלוב ${words(R[k].crate)} · שינה ${R[k].sleep >= 60000 ? words(R[k].sleep) : '–'} · בכי ${R[k].cry >= 60000 ? words(R[k].cry) : '–'}</span></div>`).join('')}</div>`;
+}
 // One row for "I saw her drink" — no amount. The same row for both dogs.
 function waterRowHTML(p){
   const lw = V[p].water;
@@ -1253,7 +1362,7 @@ function endDurAt(p, k, ts){   // "woke up / came out 10 minutes ago"
   const t = Math.min(ts, Date.now());
   const sl = V[p].sleep;
   commit(`${PETS[p].name} · ${ITEMS[k].stop}`, () => {
-    if(k === 'sleep' && sl.assumed) state.log.push({p, k, t: sl.start, end: Math.max(t, sl.start + 1)});
+    if(k === 'sleep' && sl.assumed) state.log.push({p, k, t: sl.start, end: Math.max(t, sl.start + 1), a: 1});
     else if(k === 'crate') leaveCrate(p, t); else stopDur(p, k, t);
   });
 }
@@ -1327,7 +1436,7 @@ function retryAct(p, a, k, sure, t){
     if(d){ askAgain(d, ITEMS[kind].log, () => retryAct(p, a, k, true)); return; }
     let e = {p, k: kind, t: now};
     commit(`${name} · ${ITEMS[e.k].log}`, () => { if(open) leaveCrate(p, now); if(kind === 'none') e = pushNone(p, now); else state.log.push(e); });
-    if(e.k === 'pee' && e.id) whereSheet(e.id);
+    stillCrying(p, now, () => { if(e.k === 'pee' && e.id) whereSheet(e.id); });
   }
   // Closing the card only hides it and unlocks play. What happened is still a retry if it turns out to be one.
   else if(a === 'rtstop') commit(`${name} · כרטיס הניסיון החוזר נסגר`, () => { const n = state.log.find(x => x.id === r.none.id); if(n) n.x = 1; });
@@ -1414,12 +1523,18 @@ function entriesIn(p, from, to){
   return state.log.filter(e => e.p===p && e.t >= from && e.t < to && !ITEMS[e.k].hid).concat(assumed).sort((x,y) => x.t - y.t);
 }
 // A day's entries grouped by round: newest round first, the entries inside a round in the order they happened.
+// Which round an entry is listed under: the one it falls in — except that something logged in the very minute a
+// round begins (the meal put in the crate with her, a cry as the door closes) belongs to the NEW round even if
+// it was tapped a few seconds before "נכנסה לכלוב". Pee, poop and "לא עשתה" happen before she goes in and stay
+// with the round that is ending.
+const WITH_NEW_ROUND = {food:1, nofood:1, play:1, water:1, cry:1, sleep:1, swap:1};
 function groupedHTML(p, from, to){
-  const rs = roundStarts(p).filter(r => r.t >= from && r.t < to), parts = [];
+  const rs = roundStarts(p).filter(r => r.t >= from && r.t < to), parts = [], all = entriesIn(p, from, to), min = t => Math.floor(t / 60000);
+  const at = e => { if(WITH_NEW_ROUND[e.k] && !e.assumed){ const r = rs.find(r => r.t > e.t && min(r.t) === min(e.t)); if(r) return r.t; } return e.t; };
   const rows = ev => ev.length ? ev.map(logRow).join('') : `<div class="empty">אין רישומים</div>`;
   for(const r of rs.slice().reverse())
-    parts.push(`<div class="rd"><div class="rd-h"><b>${roundName(r)}</b><span>התחיל ב־<bdi dir="ltr">${clock(r.t)}</bdi> · ${r.end ? 'נמשך '+words(r.end-r.t) : 'עכשיו'}</span></div>${rows(entriesIn(p, r.t, Math.min(r.end || Infinity, to)))}</div>`);
-  const lead = entriesIn(p, from, rs.length ? rs[0].t : to);
+    parts.push(`<div class="rd"><div class="rd-h"><b>${roundName(r)}</b><span>התחיל ב־<bdi dir="ltr">${clock(r.t)}</bdi> · ${r.end ? 'נמשך '+words(r.end-r.t) : 'עכשיו'}</span></div>${rows(all.filter(e => at(e) >= r.t && at(e) < Math.min(r.end || Infinity, to)))}</div>`);
+  const lead = all.filter(e => at(e) < (rs.length ? rs[0].t : to));
   if(lead.length) parts.push(`<div class="rd"><div class="rd-h"><b>${rs.length ? 'לפני הסבב הראשון' : 'בלי סבב'}</b></div>${rows(lead)}</div>`);
   return parts.join('') || `<div class="empty">אין עדיין רישומים</div>`;
 }
@@ -1564,6 +1679,7 @@ function render(){
       } else { lbl = it.lbl; big = `<div class="big none">–</div>`; sub = 'עוד לא נרשם'; }
       const cur = live ? Date.now()-d.start : (d.lastEnd ? d.lastEnd-d.lastStart : 0);
       if(tt > cur + 60000) sub += ` · סה״כ היום <span data-total="${k}">${words(tt)}</span>`;
+      if(k === 'crate' && live && P.cycle && CRATES[crateAt(pet, Date.now())]) sub += ` · ${CRATES[crateAt(pet, Date.now())]}`;
       const over = k==='crate' && crateOver(pet);
       if(over) sub += ` · יותר מ${words(CRATE_MAX)}`;
       const warn = k === 'sleep' && !live && aw && Date.now() - aw >= AWAKE.warn && Date.now() - aw < 6*3600000;
@@ -1571,7 +1687,9 @@ function render(){
         <div class="ic">${ico(k)}</div>
         <div><div class="lbl">${lbl}</div>${big}<div class="sub">${sub}</div></div>
         <div class="acts"><button class="go" data-act="dur" data-k="${k}">${live?it.stop:it.start}</button>
-          <button class="ghost" data-act="edit" data-k="${k}">${ico(live?'clock':'plus','s')}${live?'שעת התחלה':'הוספה'}</button></div></div>`;
+          <button class="ghost" data-act="edit" data-k="${k}">${ico(live?'clock':'plus','s')}${live?'שעת התחלה':'הוספה'}</button>${k === 'crate' && live && P.cycle ? `<button class="ghost" data-act="swap">${ico('crate','s')}החלפת כלוב</button>` : ''}</div>
+        ${k === 'crate' && live && P.cycle && !slim ? `<div class="incr"><span>קיבלה בכלוב:</span><button class="btn" data-act="play" data-k="kong">${PLAY.kong}</button><button class="btn" data-act="play" data-k="lick">${PLAY.lick}</button><button class="btn" data-act="crfood">ארוחה</button></div>` : ''}
+        ${k === 'sleep' && !live && P.cycle ? newCrateHint(pet) : ''}</div>`;
     }
     return h;
   };
@@ -1689,18 +1807,20 @@ function openHelp(){
 function logNoFood(p, sure, t){
   if(!sure && !t){ const d = recentDouble(p, e => e.k === 'nofood'); if(d){ askAgain(d, ITEMS.nofood.log, () => logNoFood(p, true)); return; } }
   commit(`${PETS[p].name} · לא אכלה`, () => { state.log.push({p, k:'nofood', t: t || Date.now()}); });
+  stillCrying(p, t || Date.now());
 }
 function logPlay(p, y, sure, t){
   if(!sure && !t){ const d = recentDouble(p, e => e.k === 'play' && e.y === y); if(d){ askAgain(d, 'משחק · ' + PLAY[y], () => logPlay(p, y, true)); return; } }
   commit(`${PETS[p].name} · משחק · ${PLAY[y]}`, () => {
     const now = t || Date.now();
+    impliesOut(p, 'play', now);   // awake, wherever she is
     state.log.push({p, k:'play', t:now, y});
     // Play with food is a meal too — one meal per play session, however many food games are marked.
     if(PLAY_FOOD[y] && !state.log.some(e => e.p===p && e.k==='food' && e.y==='play' && now - e.t < 30*60000)){
-      impliesOut(p, 'food', now);
       state.log.push({p, k:'food', t:now, y:'play'});
     }
   });
+  stillCrying(p, t || Date.now());
 }
 function playCardHTML(p, nowt){
   const last = state.log.filter(e => e.p===p && e.k==='play').pop(), locked = !!retry(p);   // no play until she pees
@@ -1826,7 +1946,7 @@ function logRow(e){
   const live = isLive(e);
   if(e.assumed) return `<div class="r guess" data-stay="${e.stay}" data-t="${e.t}">${ico('sleep','s')}<span>${live ? 'ישנה כנראה עכשיו' : 'ישנה'} <i class="by">משוער</i>${e.end ? ' · '+words(e.end-e.t) : ''}</span>
      <time>${dayLabel(e.t)} <bdi dir="ltr">${clock(e.t)}${e.end ? '–'+clock(e.end) : ''}</bdi></time></div>`;
-  return `<div class="r" ${live ? `data-live="${e.k}"` : `data-e="${state.log.indexOf(e)}"`}>${ico(iconOf(e.k),'s')}<span>${live ? ITEMS[e.k].live+' עכשיו' : ITEMS[e.k].log}${isRetryStay(e) ? ' · ניסיון חוזר' : ''}${CRY_LBL[cryKind(e)] ? ' · '+CRY_LBL[cryKind(e)] : ''}${mealKind(e) ? ' · '+MEAL_LBL[mealKind(e)] : ''}${typeTag(e.q)}${e.n ? ' · '+esc(e.n) : ''}${afterCrate(e.p, e)}${PLAY[e.y] ? ' · '+PLAY[e.y] : e.y === 'play' ? ' · במשחק' : ''}${whereTag(e.w)}${e.end ? ' · '+words(e.end-e.t) : ''}${USERS[e.by] ? `<i class="by">${USERS[e.by]}</i>` : ''}${fatLine(e) ? `<small class="ctx">${fatLine(e)}</small>` : ''}</span>
+  return `<div class="r" ${live ? `data-live="${e.k}"` : `data-e="${state.log.indexOf(e)}"`}>${ico(iconOf(e.k),'s')}<span>${live ? ITEMS[e.k].live+' עכשיו' : e.k === 'swap' && CRATES[e.c] ? 'הועברה ל'+CRATES[e.c] : ITEMS[e.k].log}${e.k === 'crate' && PETS[e.p].cycle && (CRATES[e.c] || e.t >= SLEEP2_FROM) ? ' · '+CRATES[crateKind(e)] : ''}${isRetryStay(e) ? ' · ניסיון חוזר' : ''}${CRY_LBL[cryKind(e)] ? ' · '+CRY_LBL[cryKind(e)] : ''}${mealKind(e) ? ' · '+MEAL_LBL[mealKind(e)] : ''}${typeTag(e.q)}${e.n ? ' · '+esc(e.n) : ''}${afterCrate(e.p, e)}${PLAY[e.y] ? ' · '+PLAY[e.y] : e.y === 'play' ? ' · במשחק' : ''}${whereTag(e.w)}${e.end ? ' · '+words(e.end-e.t) : ''}${USERS[e.by] ? `<i class="by">${USERS[e.by]}</i>` : ''}${fatLine(e) ? `<small class="ctx">${fatLine(e)}</small>` : ''}</span>
      <time>${dayLabel(e.t)} <bdi dir="ltr">${clock(e.t)}${e.end ? '–'+clock(e.end) : ''}</bdi></time></div>`;
 }
 
@@ -1937,7 +2057,7 @@ function logText(p, from, to){
     for(const e of ev){
       const it = ITEMS[e.k];
       const live = isLive(e), time = e.end ? `${clock(e.t)}–${clock(e.end)}` : live ? `${clock(e.t)}–עכשיו` : clock(e.t);
-      const what = (live ? it.live : it.log) + (e.assumed ? ' (משוער)' : '') + (!e.assumed && CRY_LBL[cryKind(e)] ? ` · ${CRY_LBL[cryKind(e)]}` : '') + (!e.assumed && mealKind(e) ? ` · ${MEAL_LBL[mealKind(e)]}` : '') + (PLAY[e.y] ? ` · ${PLAY[e.y]}` : e.y === 'play' ? ' · במשחק' : '') + (WHERE[e.w] ? ` · ${WHERE[e.w]}` : '') + (KIND_LBL[e.q] ? ` · ${KIND_LBL[e.q]}` : '') + (e.n ? ` · ${e.n}` : '') + (!e.assumed && fatLine(e) ? ` · ${fatLine(e)}` : '')
+      const what = (live ? it.live : e.k === 'swap' && CRATES[e.c] ? 'הועברה ל'+CRATES[e.c] : it.log) + (e.k === 'crate' && PETS[e.p].cycle && (CRATES[e.c] || e.t >= SLEEP2_FROM) ? ` · ${CRATES[crateKind(e)]}` : '') + (e.assumed ? ' (משוער)' : '') + (!e.assumed && CRY_LBL[cryKind(e)] ? ` · ${CRY_LBL[cryKind(e)]}` : '') + (!e.assumed && mealKind(e) ? ` · ${MEAL_LBL[mealKind(e)]}` : '') + (PLAY[e.y] ? ` · ${PLAY[e.y]}` : e.y === 'play' ? ' · במשחק' : '') + (WHERE[e.w] ? ` · ${WHERE[e.w]}` : '') + (KIND_LBL[e.q] ? ` · ${KIND_LBL[e.q]}` : '') + (e.n ? ` · ${e.n}` : '') + (!e.assumed && fatLine(e) ? ` · ${fatLine(e)}` : '')
         + (e.end ? ` · ${words(e.end - e.t)}` : live ? ` · כבר ${words(Date.now() - e.t)}` : '') + (e.assumed ? '' : afterCrate(p, e));
       out.push(`${time}  ${what}`);
     }
@@ -2040,6 +2160,7 @@ function renderSummary(){
 
   if(sumMode !== 'month') h += timelineHTML(pet, from, to, F);
   if(P.cycle && (!F || F === 'pee')) h += successHTML(pet, from, to, multi);
+  if(P.cycle && !F) h += crateCompareHTML(pet, from, to);
   if(P.treats && !F) h += fat30HTML(pet);
   if(P.cycle && !F){ const rs = retryStats(pet, from, to); if(rs.n) h += `<div class="card slim rtsum"><span><b>ניסיונות חוזרים: ${rs.n}</b><small>הסתיימו בפיפי בחצץ: ${rs.good}</small></span>${ico('crate','s')}</div>`; h += cryStatsHTML(pet, from, to);
     if(sumMode === 'day'){
@@ -2132,6 +2253,11 @@ document.getElementById('shell').addEventListener('click', e => {
     view = 'sum'; sumMode = 'day'; sumFilter = null; sumAnchor = d.getTime(); render(); window.scrollTo(0, 0);
   }
   else if(a==='brk') goBreak(pet);
+  else if(a==='swap') askSwap(pet);
+  else if(a==='crfood'){   // the bowl inside the crate: the same "אכלה" as the food card
+    const ask = () => askWhen(`${PETS[pet].name} · ${ITEMS.food.log} — מתי?`, ts => tapPoint(pet, 'food', ts, true));
+    const d = recentDouble(pet, e => e.k === 'food'); if(d) askAgain(d, ITEMS.food.log, ask); else ask();
+  }
   else if(a==='nightfull'){ nightFull = true; render(); }
   else if(a === 'rtstop') retryAct(pet, a, k);
   else if(a && a.startsWith('rt')) askWhen(`${PETS[pet].name} · ${b.textContent.trim()} — מתי?`, ts => retryAct(pet, a, k, false, ts));
@@ -2316,7 +2442,7 @@ function openSheet(p, k){
         const b = timeVal('bIn'); if(!b) return;
         const tb = timeToTs(b); let ta = timeToTs(a); if(ta >= tb) ta -= 86400000;
         close();
-        commit(`${name} · ${it.log} נוסף`, () => { state.log.push({p, k, t:ta, end:tb}); });
+        commit(`${name} · ${it.log} נוסף`, () => { state.log.push(newStay(p, k, ta, tb)); });
       }, ts => tapDur(p, k, ts));
     sh.querySelectorAll('[data-after]').forEach(b => b.onclick = () => { close(); tapDur(p, k, afterAt(+b.dataset.after)); });
   }
@@ -2359,7 +2485,7 @@ function assumeSheet(stayId, t){   // one assumed piece of a crate stay: the one
   const all = V[c.p].spans.filter(x => x.assumed && x.stay === stayId), sp = all.find(x => x.t === t) || all[0], name = PETS[c.p].name;
   const onDay = v => { const [hh,mm] = v.split(':').map(Number), d = new Date(sp ? sp.t : c.t); d.setHours(hh,mm,0,0); if(d.getTime() < c.t - 60000) d.setDate(d.getDate()+1); return d.getTime(); };
   sheet(`${name} · שינה בכלוב (משוער)`,
-    `<div class="sub" style="margin-bottom:12px">האפליקציה מניחה שבכלוב היא נרדמת שתי דקות אחרי הכניסה, או אחרי שהבכי נגמר. אם זה היה אחרת, אפשר לרשום מה באמת קרה:</div>
+    `<div class="sub" style="margin-bottom:12px">זו הערכה של האפליקציה, לפי הזמן שלוקח לה בדרך כלל להירדם בכלוב הזה. אם זה היה אחרת, אפשר לרשום מה באמת קרה:</div>
      <label class="field">נרדמה ב־ ${timeField("aIn", sp ? clock(sp.t) : '')}</label><label class="field">התעוררה ב־ ${timeField("bIn", sp && sp.end != null ? clock(sp.end) : '')}</label>
      <div class="sub">בלי שעת התעוררות = עדיין ישנה.</div>`,
     `<button class="btn danger" id="del">${all.length > 1 ? 'לא ישנה כאן' : 'לא ישנה בכלוב הזה'}</button>`,
@@ -2381,6 +2507,9 @@ function openEntrySheet(i){
   const it = ITEMS[e.k], name = PETS[e.p].name, med = e.k.startsWith('med_'), pt = !it.dur && !med;
   const find = () => state.log.find(x => x.id === e.id);
   // A stay that was closed by mistake can be turned back into the running timer, if it is the latest one.
+  const isCrateE = e.k === 'crate' && PETS[e.p].cycle; let ck = isCrateE ? crateKind(e) : null; const ck0 = ck;
+  // The stay before this one, if it ended only a few minutes earlier: the two may really be one (a change of crate).
+  const prevStay = isCrateE ? state.log.filter(x => x.p===e.p && x.k==='crate' && x.id !== e.id && x.end != null && x.end <= e.t && e.t - x.end <= 15*60000).sort((x,y) => x.t-y.t).pop() : null;
   const canReopen = !!it.dur && !(V[e.p][e.k] || {}).start && !state.log.some(x => x.p===e.p && x.k===e.k && x.end > e.end);
   sheet(`${name} · ${it.log} · ${dayLabel(e.t)} <bdi dir="ltr">${clock(e.t)}</bdi>`,
     pt ? `<label class="field">תיקון השעה ${timeField("tIn", clock(e.t))}</label>` +
@@ -2389,6 +2518,8 @@ function openEntrySheet(i){
          (e.k === 'treat' ? `<label class="field" style="margin-top:12px">מה זה היה? <input type="text" id="nmIn" maxlength="40" value="${esc(e.n)}" placeholder="לא חובה" autocomplete="off"></label>` : '') +
          (hasType(e.p, e.k) ? `<div class="sub" style="margin:14px 0 8px">${KIND_Q[e.k]}</div><div class="chips">${Object.keys(kindsOf(e.p, e.k)).map(q => `<button data-q="${q}" class="${e.q===q?'sel':''}">${kindsOf(e.p, e.k)[q]}</button>`).join('')}</div>` : '')
        : (it.dur ? `<label class="field">התחלה ${timeField("aIn", clock(e.t))}</label><label class="field">סיום&nbsp; ${timeField("bIn", clock(e.end))}</label>` : '') +
+         (isCrateE ? `<div class="sub" style="margin:12px 0 8px">איזה כלוב?</div><div class="chips">${Object.keys(CRATES).map(x => `<button data-c="${x}" class="${crateKind(e)===x?'sel':''}">${CRATES[x]}</button>`).join('')}</div>` : '') +
+         (prevStay ? `<div class="sub" style="margin:10px 0">היא רק עברה מכלוב לכלוב ולא באמת יצאה?</div><div class="chips"><button id="join">המשך של השהייה הקודמת (החלפת כלוב)</button></div>` : '') +
          (canReopen ? `<div class="sub" style="margin:10px 0">נרשם בטעות כאילו נגמר?</div><div class="chips"><button id="reopen">עדיין נמשך (מ־${clock(e.t)})</button></div>` : '') +
          `<div class="sub">אפשר למחוק את הרישום הזה.</div>`,
     '<button class="btn danger" id="del">מחיקה</button>',
@@ -2399,8 +2530,8 @@ function openEntrySheet(i){
         const ta = on(a, e.t), tb = on(b, e.end);
         if(tb <= ta || tb > Date.now() + 60000){ sh.querySelector('#bIn').classList.add('bad'); return; }
         close();
-        if(ta === e.t && tb === e.end) return;
-        commit(`${name} · ${it.log} עודכן`, () => { const x = find(); if(x){ x.t = ta; x.end = tb; } });
+        if(ta === e.t && tb === e.end && ck === ck0) return;
+        commit(`${name} · ${it.log} עודכן`, () => { const x = find(); if(x){ x.t = ta; x.end = tb; if(ck !== ck0) x.c = ck; } });
         return;
       }
       if(!pt){ close(); return; }
@@ -2430,6 +2561,18 @@ function openEntrySheet(i){
     q = q === b.dataset.q ? undefined : b.dataset.q;
     sh.querySelectorAll('[data-q]').forEach(x => x.classList.toggle('sel', x.dataset.q === q));
   });
+  sh.querySelectorAll('[data-c]').forEach(b => b.onclick = () => { ck = b.dataset.c; sh.querySelectorAll('[data-c]').forEach(x => x.classList.toggle('sel', x === b)); });
+  const jn = sh.querySelector('#join');
+  if(jn) jn.onclick = () => {
+    close();
+    commit(`${name} · השהיות אוחדו (החלפת כלוב)`, () => {
+      const x = find(), pv = state.log.find(y => y.id === prevStay.id); if(!x || !pv) return;
+      const from = crateKind(pv), to = ck;
+      pv.c = from; pv.end = x.end;                                    // one stay, from the first entry to the last exit
+      state.log = state.log.filter(y => y.id !== x.id);
+      state.log.push({p: e.p, k:'swap', t: x.t, c: to});              // where she changed crates
+    });
+  };
   const ro = sh.querySelector('#reopen');
   if(ro) ro.onclick = () => {
     close();
