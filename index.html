@@ -1399,6 +1399,23 @@ function waterRowHTML(p){
 const NIGHT = {from:23, to:6};
 let FAKE_HOUR = null, FAKE_PHONE = null, nightFull = false;
 function isNight(){ const h = FAKE_HOUR != null ? FAKE_HOUR : new Date().getHours(); return h >= NIGHT.from || h < NIGHT.to; }
+// DARK COLOURS (the owner, 24.11): from 20:00 until sunrise — longer than the night screen above, which stays
+// 23:00–06:00 (the cut-down screen and the silent food alert are about her sleeping, not about the light).
+// Sunrise is worked out for the day (NOAA's short formula), for roughly the middle of Israel: a few minutes off
+// elsewhere in the country, which is close enough for colours. Sunset in Israel is 16:40–19:50, so 20:00 is always after it.
+const DARK = {from:20, lat:31.8, lng:35.0};
+function sunrise(t){   // epoch ms of sunrise on the local calendar day of t
+  const d = new Date(t), y = d.getFullYear(), mo = d.getMonth(), dd = d.getDate(), rad = Math.PI/180;
+  const n = Math.round((Date.UTC(y, mo, dd) - Date.UTC(y, 0, 1)) / 86400000) + 1, g = 2*Math.PI/365*(n - 1);
+  const eq = 229.18*(0.000075 + 0.001868*Math.cos(g) - 0.032077*Math.sin(g) - 0.014615*Math.cos(2*g) - 0.040849*Math.sin(2*g));
+  const dec = 0.006918 - 0.399912*Math.cos(g) + 0.070257*Math.sin(g) - 0.006758*Math.cos(2*g) + 0.000907*Math.sin(2*g) - 0.002697*Math.cos(3*g) + 0.00148*Math.sin(3*g);
+  const ha = Math.acos(Math.cos(90.833*rad)/(Math.cos(DARK.lat*rad)*Math.cos(dec)) - Math.tan(DARK.lat*rad)*Math.tan(dec)) / rad;
+  return Date.UTC(y, mo, dd) + (720 - 4*(DARK.lng + ha) - eq) * 60000;
+}
+function isDark(){
+  const d = new Date(); if(FAKE_HOUR != null) d.setHours(Math.floor(FAKE_HOUR), Math.round(FAKE_HOUR % 1 * 60), 0, 0);
+  return d.getHours() >= DARK.from || d.getTime() < sunrise(d.getTime());
+}
 const PHONE_MQ = window.matchMedia ? window.matchMedia('(min-width:760px)') : null;
 function isPhone(){ return FAKE_PHONE != null ? FAKE_PHONE : !(PHONE_MQ && PHONE_MQ.matches); }
 // WHEN SHE LAST WOKE UP: the end of her last sleep — marked, or estimated (not the estimate inside a retry wait).
@@ -1755,7 +1772,7 @@ function todayTotal(p, k){
 function render(){
   V = derive(state);   // also by the clock: an assumed sleep begins a couple of minutes after she goes in, with no tap
   const night = isNight(), slim = night && !nightFull && view === 'now' && PETS[pet].cycle;
-  document.body.className = document.documentElement.className = 'p-'+pet + (night ? ' night' : '');
+  document.body.className = document.documentElement.className = 'p-'+pet + (isDark() ? ' night' : '');   // the colours follow the light (20:00 – sunrise); `night` above is the cut-down screen
   document.querySelectorAll('.seg button').forEach(b => b.classList.toggle('on', b.dataset.pet===pet || b.dataset.view===view));
   document.querySelectorAll('.seg button[data-pet]').forEach(b => { b.innerHTML = `${PETS[b.dataset.pet].name}<small class="age">${ageText(ageOf(b.dataset.pet))}</small>`; });
   const side = document.getElementById('side'); side.innerHTML = '';

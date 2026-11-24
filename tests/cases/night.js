@@ -21,7 +21,16 @@
     nightFull = false; pet = 'kochik'; render(); ok('kochik: dark, nothing hidden', document.body.classList.contains('night') && $n('#main .card.item') >= 3 && !$q('.nightc'));
     view = 'sum'; pet = 'kishmish'; render(); ok('the summary is not cut down', !$q('.nightc') && !!$q('.tile')); view = 'now';
     FAKE_HOUR = 23; render(); ok('23:00 is night', !!$q('.nightc'));
-    FAKE_HOUR = 6; render(); ok('06:00: day again, and the food alert is back', !$q('.nightc') && !document.body.classList.contains('night') && [...document.querySelectorAll('.card.alertc')].some(c => c.textContent.includes('אוכל')));
+    FAKE_HOUR = 6; render(); ok('06:00: the full screen and the food alert are back', !$q('.nightc') && [...document.querySelectorAll('.card.alertc')].some(c => c.textContent.includes('אוכל')));
+    // dark colours: 20:00 until sunrise
+    const sr = new Date(sunrise(Date.now())), srH = sr.getHours() + sr.getMinutes()/60;
+    ok('sunrise is worked out for the day, between 05:20 and 06:50 local time', srH > 5.3 && srH < 6.85);
+    const jun = new Date(2026, 5, 21), dec = new Date(2026, 11, 21), h = t => { const x = new Date(sunrise(t)); return x.getHours()*60 + x.getMinutes(); };
+    ok('earliest in June (about 05:30), latest in winter (about 06:30)', Math.abs(h(jun.getTime()) - (5*60 + 33)) <= 10 && Math.abs(h(dec.getTime()) - (6*60 + 37)) <= 12);
+    FAKE_HOUR = srH - 0.1; render(); ok('a few minutes before sunrise: still dark', document.body.classList.contains('night'));
+    FAKE_HOUR = srH + 0.1; render(); ok('a few minutes after sunrise: light', !document.body.classList.contains('night'));
+    FAKE_HOUR = 19.9; render(); ok('19:54: light', !document.body.classList.contains('night'));
+    FAKE_HOUR = 20; render(); ok('20:00: dark, but the full screen — the cut-down night screen waits for 23:00', document.body.classList.contains('night') && !$q('.nightc') && !!$q('.cyc'));
     done();
   } catch(e){ crashed(e); }
 })();
