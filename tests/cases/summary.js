@@ -29,7 +29,7 @@
     ok('day: one timeline row and the entries grouped by round', $n('.tl-t') === 1 && !!$q('.card.log.uni') && $q('.uni').textContent.includes('סבב 1'));
     // a running timer counts in the totals and in the text
     const day = m0 - 24*HOUR, text = logText(P, day, day + 24*HOUR), lines = text.split('\n');
-    ok('text export: heading, day, entries in order with times, total line', lines[0] === 'קישמיש — יומן' && lines[2].startsWith('יום ') && /\n09:00–10:30  בכלוב · שעה ו־30 דק׳/.test(text) && text.includes('09:00–09:04  בכתה · 4 דקות') && text.includes('07:00  אכלה') && lines.slice(3, -1).every((l, i, a) => !i || l.slice(0, 5) >= a[i-1].slice(0, 5)) && /סה״כ: .*כלוב .*פיפי \d+/.test(text));
+    ok('text export: heading, day, entries in order with times, total line', lines[0] === 'קישמיש — יומן' && lines[2].startsWith('יום ') && /\n09:00–10:30  בכלוב · שעה ו־30 דק׳/.test(text) && text.includes('09:00–09:04  בכתה · מחאה · 4 דקות') && text.includes('07:00  אכלה') && lines.slice(3, -1).every((l, i, a) => !i || l.slice(0, 5) >= a[i-1].slice(0, 5)) && /סה״כ: .*כלוב .*פיפי \d+/.test(text));
     let got = ''; Object.defineProperty(navigator, 'clipboard', { value: { writeText: async t => { got = t; } }, configurable: true });
     $q('[data-act=copylog]').click(); await new Promise(r => setTimeout(r, 30));
     ok('copy puts exactly that text on the clipboard', got === text && document.getElementById('toastMsg').textContent.includes('הועתק'));
