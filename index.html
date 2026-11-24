@@ -36,6 +36,7 @@
   .night .toast{background:#3a332b}
   .card.item.warn{background:var(--warn-soft);border-color:var(--warn)} .card.item.warn .big,.card.item.warn .lbl{color:var(--warn)}
   .frm{display:flex;align-items:center;gap:8px;margin-top:10px;padding:9px 12px;border-radius:12px;background:var(--warn-soft);color:var(--warn);font-size:13.5px;font-weight:500}
+  .card.slim.sleepq{border-color:color-mix(in srgb,var(--btn) 45%,transparent);flex-wrap:wrap;gap:8px 12px}
   .card.slim.cryrow.on{border-color:var(--alert);background:var(--alert-soft)}
   .wrap{max-width:520px;margin:0 auto}
   svg.i{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;flex:none}
@@ -1250,6 +1251,23 @@ function fat30HTML(p){   // always the last 30 days, whatever period the summary
     : `${k === 0 ? 'אף אחד מהם לא היה' : k === 1 ? 'אחד מהם היה' : `${k} מהם היו`} בתוך 24 שעות אחרי חטיף שומני`;
   return `<div class="card slim fat30"><span><b>ב־30 הימים האחרונים: ${head}</b>${sub ? `<small>${sub}</small>` : ''}</span>${ico('treat','s')}</div>`;
 }
+// "DID SHE FALL ASLEEP?" — when she has been quiet in the crate for SLEEP_ASK and nothing says she is asleep
+// (no mark, and no estimate — a new crate has none), a small card asks. "נרדמה" is the ordinary sleep button
+// (with "when?"); "עדיין ערה" hides the card for another SLEEP_ASK on this phone only (nothing is saved for it).
+const SLEEP_ASK = 5*60000;
+let awakeUntil = 0;
+function sleepAsk(p){
+  const S = V[p], now = Date.now(), st = S.crate && S.crate.start;
+  if(!PETS[p].cycle || !st || S.sleep.start || S.cry.start) return null;
+  const quiet = Math.max(st, ...state.log.filter(e => e.p===p && e.t >= st && e.t <= now && (AWAKE_PT[e.k] || ((e.k==='cry' || e.k==='sleep') && e.end != null))).map(e => e.end != null ? e.end : e.t));
+  if(now - quiet < SLEEP_ASK || awakeUntil > now) return null;
+  return {since: quiet};
+}
+function sleepAskHTML(p){
+  const a = sleepAsk(p); if(!a) return '';
+  return `<div class="card slim sleepq"><span><b>נרדמה?</b><small>שקטה בכלוב כבר <span data-words="${a.since}">${words(Date.now() - a.since)}</span></small></span>
+    <span class="rt-a"><button class="go" data-act="dur" data-k="sleep">${ITEMS.sleep.start}</button><button class="btn" data-act="stillawake">עדיין ערה</button></span></div>`;
+}
 // In a crate with too few marked "נרדמה" the app estimates nothing — and says so, with how many it has.
 function newCrateHint(p){
   const st = V[p].crate.start; if(!st || st < SLEEP2_FROM) return '';
@@ -1649,7 +1667,7 @@ function render(){
 
   // Alerts, the retry card and the wheel live in the side column: on a computer it stays in place while
   // the tiles scroll; on a phone it is simply the top of the page.
-  let sideHTML = P.cycle ? alertsHTML(pet) + retryHTML(pet) + cycleHTML(pet) : '';
+  let sideHTML = P.cycle ? alertsHTML(pet) + retryHTML(pet) + sleepAskHTML(pet) + cycleHTML(pet) : '';
 
   const tap = P.cycle ? routineTap(pet) : [];
   const tileOf = k => {
@@ -1713,7 +1731,7 @@ function render(){
       h = `<div class="card slim nightc"><span><b>מצב לילה</b><small>רק כלוב, פיפי וקקי · עד 06:00</small></span><button class="btn" data-act="nightfull">להציג הכול</button></div>` +
         tileOf('crate') + tileOf('pee') + tileOf('poop') +
         `<div class="card slim cryrow ${cr.start ? 'on' : ''}"><span><b>${cr.start ? 'בוכה כבר' : 'בוכה?'}</b>${cr.start ? `<small data-since="${cr.start}">${dur(Date.now()-cr.start)}</small>` : ''}</span><button class="btn" data-act="dur" data-k="cry">${cr.start ? ITEMS.cry.stop : ITEMS.cry.start}</button></div>`;
-      side.innerHTML = alertsHTML(pet); document.getElementById('main').innerHTML = h; return;
+      side.innerHTML = alertsHTML(pet) + sleepAskHTML(pet); document.getElementById('main').innerHTML = h; return;
     }
     h += sec('1', 'כלוב', tap.includes('crate'), tileOf('crate'), 'crate');
     // "Went out, nothing happened" is one button in a slim row — it has no timer of its own worth a tile.
@@ -1726,7 +1744,7 @@ function render(){
     h += sec('4', 'אוכל ושתייה', tap.includes('food'), tileOf('food') +
 waterRowHTML(pet) + (P.treats ? treatCardHTML(pet) : ''), 'food');
     // Sleep and crying sit right under the wheel, always at hand: in the crate she is either asleep or crying.
-    if(pottyTop) sideHTML = alertsHTML(pet) + retryHTML(pet) + pottySec + cycleHTML(pet);
+    if(pottyTop) sideHTML = alertsHTML(pet) + retryHTML(pet) + sleepAskHTML(pet) + pottySec + cycleHTML(pet);
     sideHTML += `<section class="duo" id="sec-rest">${tileOf('sleep')}${tileOf('cry')}</section>`;
   }
 
@@ -2259,6 +2277,7 @@ document.getElementById('shell').addEventListener('click', e => {
   }
   else if(a==='brk') goBreak(pet);
   else if(a==='swap') askSwap(pet);
+  else if(a==='stillawake'){ awakeUntil = Date.now() + SLEEP_ASK; render(); }
   else if(a==='crfood'){   // the bowl inside the crate: the same "אכלה" as the food card
     const ask = () => askWhen(`${PETS[pet].name} · ${ITEMS.food.log} — מתי?`, ts => tapPoint(pet, 'food', ts, true));
     const d = recentDouble(pet, e => e.k === 'food'); if(d) askAgain(d, ITEMS.food.log, ask); else ask();

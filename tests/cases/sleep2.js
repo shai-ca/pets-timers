@@ -70,6 +70,24 @@
     seed(base5.concat([stay(60)])); $q('.uni .r.guess').click();
     ok('an estimated row can be corrected or deleted from the list as before', bg.classList.contains('show') && !!sh.querySelector('#del') && sh.querySelector('#aIn').value === clock(now - 50*MIN));
     sh.querySelector('#del').click(); ok('deleted', mine().length === 0);
+    // "did she fall asleep?" — asked after five quiet minutes in the crate when nothing says she is asleep
+    const q = () => $q('.sleepq');
+    seed([stay(4)]); ok('four minutes in: not yet', !q());
+    seed([stay(6)]);
+    ok('six quiet minutes in a crate with no estimate: a small card asks, first thing in the side column', !!q() && q().textContent.includes('נרדמה?') && [...q().querySelectorAll('button')].map(b => b.textContent).join() === 'נרדמה,עדיין ערה' && $q('#side').firstElementChild === q());
+    q().querySelector('[data-act=stillawake]').click();
+    ok('"still awake" hides it — nothing is saved', !q() && state.log.length === 1 && noDiff(diff(base, state)));
+    awakeUntil = Date.now() - 1; render(); ok('…and it asks again five minutes later', !!q());
+    q().querySelector('[data-act=dur][data-k=sleep]').click();
+    ok('"נרדמה" on the card is the ordinary mark, and the card goes', logOf('kishmish', 'sleep').length === 1 && !logOf('kishmish', 'sleep')[0].a && !K().sleep.assumed && !!K().sleep.start && !q());
+    seed([stay(30), { ...K0, k:'water', t: now - 3*MIN }]); ok('she drank three minutes ago: the five minutes start from then', !q());
+    seed([stay(30), { ...K0, k:'cry', t: now - 20*MIN, end: now - 2*MIN }]); ok('…or from when the crying stopped', !q());
+    seed([stay(30), { ...K0, k:'cry', t: now - 20*MIN }]); ok('not while she is crying', !q());
+    seed([stay(30), { ...K0, k:'sleep', t: now - 25*MIN, end: now - 8*MIN }]); ok('woke up eight minutes ago and still in the crate: it asks again', !!q());
+    seed(base5.concat([stay(30)])); ok('where the app already estimates that she is asleep it does not ask', !q() && K().sleep.assumed === true);
+    seed([{ ...K0, k:'pee', t: now - 30*MIN, w:'gravel' }]); ok('not when she is out of the crate', !q());
+    FAKE_HOUR = 2; seed([stay(10)]); ok('at night too, above the short night screen', !!$q('#side .sleepq') && !!$q('.nightc')); FAKE_HOUR = 12;
+    pet = 'kochik'; seed([{ p:'kochik', k:'food', t: now - HOUR }]); ok('never for kochik', !q()); pet = 'kishmish';
     done();
   } catch(e){ crashed(e); }
 })();
