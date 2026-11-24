@@ -99,7 +99,7 @@
     ok('deleting the entry unticks the checklist', !medsOf('kochik').am && !$q('.med.done'));
     $q('[data-act=med][data-k=pm]').click(); $q('[data-act=med][data-k=pm]').click(); sh.querySelector('#del').click();
     ok('"not given" removes the entry', !medsOf('kochik').pm && logOf('kochik', 'med_pm').length === 0);
-    tapPoint('kochik', 'pee'); ok('kochik: outside, balcony, at home, pad', [...sh.querySelectorAll('[data-w]')].map(b => b.dataset.w).join() === 'out,balcony,home,pad');
+    tapPoint('kochik', 'pee'); ok('kochik: outside, the balcony gravel, the balcony floor, at home, pad', [...sh.querySelectorAll('[data-w]')].map(b => b.dataset.w).join() === 'out,gravel,balcony,home,pad' && sh.querySelector('[data-w=balcony]').textContent.includes('על הרצפה במרפסת'));
     sh.querySelector('[data-w=home]').click(); ok('"at home" is saved and shown in red', logOf('kochik', 'pee')[0].w === 'home' && !!$q('.wh.home') && whereCls('home') === 'acc' && whereCls('balcony') === 'pad');
     // kochik's poop: what kind it was
     seed([]); tapPoint('kochik', 'poop');

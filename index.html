@@ -450,7 +450,7 @@ document.getElementById('mark').innerHTML = `<svg viewBox="0 0 24 24">${ICONS.pa
 
 // ---------- model ----------
 const PETS = {
-  kochik:   {name:'קוצ׳יק', items:['food','pee','poop','gel'], meds:true, poopType:true, where:['out','balcony','home','pad']},   // Kochik is an adult: outside is the norm, the balcony or indoors happen sometimes
+  kochik:   {name:'קוצ׳יק', items:['food','pee','poop','gel'], meds:true, poopType:true, where:['out','gravel','balcony','home','pad']},   // Kochik is an adult: outside is the norm; on the balcony she goes on the gravel or just on its floor
   kishmish: {name:'קישמיש', items:['crate','pee','poop','food','sleep','cry'], cycle:true, where:['gravel','pad','floor','out']}   // not "in the crate": she does not go there (the owner's working assumption)
 };
 const ITEMS = {
@@ -475,10 +475,10 @@ const ITEMS = {
 // The app works out the current step from the log (see `routine()`); these are just the five names.
 const CYCLE = [{n:'כלוב'}, {n:'טיול וצרכים'}, {n:'משחק'}, {n:'אוכל'}, {n:'צרכים'}];
 // Where a pee / poop happened; stored as `w` on the log entry (optional).
-const WHERE = {out:'בחוץ', gravel:'על החצץ במרפסת', balcony:'במרפסת', pad:'על הפד', home:'בבית', floor:'על הרצפה', crate:'בכלוב'};   // floor and crate are accidents (shown in red)
+const WHERE = {out:'בחוץ', gravel:'על החצץ במרפסת', balcony:'על הרצפה במרפסת', pad:'על הפד', home:'בבית', floor:'על הרצפה', crate:'בכלוב'};   // floor and crate are accidents (shown in red)
 // The choices offered per pet, best place first. Kishmish is not vaccinated yet and does not go outside: her target is the gravel on the balcony.
 const whereKeys = p => PETS[p].where || Object.keys(WHERE);
-const WHERE_SHORT = {out:'בחוץ', gravel:'חצץ', balcony:'מרפסת', pad:'פד', home:'בית', floor:'רצפה', crate:'כלוב'};
+const WHERE_SHORT = {out:'בחוץ', gravel:'חצץ', balcony:'רצפת המרפסת', pad:'פד', home:'בית', floor:'רצפה', crate:'כלוב'};
 const hasWhere = k => k==='pee' || k==='poop';
 // What a poop was like, stored as `q` on the entry — for Kochik, whose diarrhoea comes and goes.
 const POOP = {ok:'תקין', soft:'רך', dia:'שלשול'};
@@ -1697,7 +1697,7 @@ function whereLine(c){   // "רצפה 1 · פד 2" under the pee / poop tiles
 // pad, red for an accident (floor or crate); the balcony gravel counts as outside, grey when it was not marked. Shape says what it was
 // (round = pee, square = poop). Every colour is also named in the legend, never colour alone.
 const whereCls = w => (w==='out' || w==='gravel') ? 'out' : (w==='pad' || w==='balcony') ? 'pad' : (w==='floor' || w==='crate' || w==='home') ? 'acc' : 'unk';
-const WHERE_LEGEND = [['out','בחוץ / על החצץ'], ['pad','על הפד / במרפסת'], ['acc','בבית (רצפה / כלוב)'], ['unk','לא סומן']];
+const WHERE_LEGEND = [['out','בחוץ / על החצץ'], ['pad','על הפד / רצפת המרפסת'], ['acc','בבית (רצפה / כלוב)'], ['unk','לא סומן']];
 function eachDay(from, to, fn){ const now = Date.now(); for(const d = new Date(from); d.getTime() < to && d.getTime() <= now; d.setDate(d.getDate()+1)){ const b = new Date(d); b.setDate(b.getDate()+1); fn(d, d.getTime(), b.getTime()); } }
 // One bar per day, midnight to midnight (left to right): crate and sleep as bands, meals as ticks,
 // every pee / poop as a dot. Tapping a dot opens that entry for fixing.
