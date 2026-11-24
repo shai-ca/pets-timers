@@ -75,7 +75,7 @@
       ok('eating while "asleep" outside the crate ends the sleep', !K().sleep.start);
       pet = 'kochik'; seed([]); tapPoint('kochik', 'food'); ok('no such rule for kochik', logOf('kochik', 'food').length === 1); pet = 'kishmish';
       seed([1,2,3].flatMap(d => [{ p:'kishmish', k:'crate', t: now - d*5*HOUR, end: now - d*5*HOUR + 90*MIN }, { p:'kishmish', k:'sleep', t: now - d*5*HOUR + (4 + d*4)*MIN, end: now - d*5*HOUR + 80*MIN }]));
-      ok('the list and the tile say how long after the crate she fell asleep, and the usual time', $q('.uni').textContent.includes('נרדמה 8 דקות אחרי הכניסה לכלוב') && typicalSleep('kishmish') === 'בדרך כלל נרדמת 12 דקות אחרי הכניסה לכלוב' && $q('#sec-rest').textContent.includes('בדרך כלל נרדמת'));
+      ok('the list says how long after the crate she fell asleep; no "usual time" line on the tile', $q('.uni').textContent.includes('נרדמה 8 דקות אחרי הכניסה לכלוב') && !$q('#sec-rest').textContent.includes('בדרך כלל נרדמת'));
       ok('a sleep outside the crate carries no such note', afterCrate('kishmish', { k:'sleep', t: now - MIN }) === '' && afterCrate('kishmish', { k:'cry', t: now - 5*HOUR + MIN }) === '');
       // a running timer that really ended a while ago
       seed([{ p:'kishmish', k:'sleep', t: now - 140*MIN }]);

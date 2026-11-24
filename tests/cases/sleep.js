@@ -34,7 +34,7 @@
     seed([{ p:'kishmish', k:'crate', t: now - 30*MIN }]);
     $q('[data-act=edit][data-k=sleep]').click(); ok('the tile\'s "start time" link opens the same sheet', sh.querySelector('h3').textContent.includes('משוער'));
     sh.querySelector('#del').click();
-    ok('"did not sleep in this stay" removes the assumption for it', state.log[0].ns === 1 && !K().sleep.start && K().spans.length === 0 && logOf('kishmish', 'sleep').length === 0);
+    ok('"did not sleep in this stay" removes the assumption for it', canon(state.log[0].nsx) === canon([now - 30*MIN + A]) && !K().sleep.start && K().spans.length === 0 && logOf('kishmish', 'sleep').length === 0);
     // leaving the crate
     seed([{ p:'kishmish', k:'crate', t: now - 30*MIN }]);
     tapDur('kishmish', 'crate');
@@ -45,7 +45,7 @@
     // it counts as asleep for the reminders
     seed([{ p:'kishmish', k:'pee', t: now - 6.5*HOUR, w:'gravel' }, { p:'kishmish', k:'food', t: now - HOUR }, { p:'kishmish', k:'crate', t: now - 30*MIN }]);
     ok('asleep by assumption: no "take her out" and no vet alert meanwhile', !$q('.duemsg') && $n('.card.alertc') === 0);
-    ok('how long she usually takes to fall asleep uses logged sleeps only', typicalSleep('kishmish') === '');
+    ok('no "she usually falls asleep after…" line: the assumption is a fixed two minutes', typeof typicalSleep === 'undefined' && !$q('#sec-rest').textContent.includes('בדרך כלל נרדמת'));
     // GUARD (24.11: a 19-minute assumed sleep vanished when the stay it was in came to count as a retry wait).
     // Once a stay is over, its assumed sleep changes only through what the owner does to that stay.
     const K0 = { p:'kishmish' };
@@ -75,6 +75,36 @@
     ok('nothing done afterwards changes a finished stay\'s assumed sleep or the total' + (changed.length ? ' — changed by: ' + changed.join(', ') : ''), changed.length === 0);
     state.log.find(e => e.id === 'short').ns = 1; use(state); render();
     ok('…only what she says about that stay does', mine() !== want && !K().spans.some(sp => sp.stay === 'short'));
+    // EACH QUIET STRETCH ON ITS OWN: a stay with a cry in the middle has two pieces, P1 · cry · P2.
+    const split = (extra = []) => seed([{ ...K0, id:'st', k:'crate', t: now - 90*MIN }, { ...K0, k:'cry', t: now - 50*MIN, end: now - 45*MIN }].concat(extra));
+    const P1 = canon({ t: now - 88*MIN, end: now - 50*MIN, assumed: true, stay: 'st' }), has1 = () => K().spans.some(sp => canon(sp) === P1), p2 = () => K().spans.find(sp => sp.t >= now - 45*MIN);
+    split();
+    ok('two pieces: one up to the cry, one from two minutes after it', K().spans.length === 2 && has1() && p2().t === now - 43*MIN && p2().end === null && $n('.uni .r.guess') === 2);
+    $q('[data-act=dur][data-k=sleep]').click();
+    ok('"woke up" in the second piece: it becomes a real entry — and the first piece is still there, untouched', has1() && logOf('kishmish', 'sleep').length === 1 && logOf('kishmish', 'sleep')[0].t === now - 43*MIN && !!logOf('kishmish', 'sleep')[0].end && !K().sleep.start && !!K().crate.start);
+    logOf('kishmish', 'sleep')[0].end = now - 20*MIN; use(state); render();
+    ok('awake in the crate after "woke up": she is not put back to sleep two minutes later', !K().sleep.start && K().spans.length === 2);
+    state.log.push({ ...K0, id:'c2', k:'cry', t: now - 15*MIN, end: now - 10*MIN }); use(state); render();
+    ok('…but after another cry and quiet, a new piece begins two minutes later', K().sleep.assumed === true && K().sleep.start === now - 8*MIN && has1());
+    split(); tapDur('kishmish', 'crate');
+    ok('"out of the crate" in the second piece ends it then; the first is unchanged', has1() && p2().end === logOf('kishmish', 'crate')[0].end && K().spans.length === 2);
+    split(); $q('.uni .r.guess[data-t="' + (now - 43*MIN) + '"]').click();
+    ok('tapping a piece opens the sheet for that piece', sh.querySelector('#aIn').value === clock(now - 43*MIN) && sh.querySelector('#del').textContent === 'לא ישנה כאן');
+    sh.querySelector('#aIn').value = clock(now - 30*MIN); sh.querySelector('#ok').click();
+    ok('correcting the second piece changes only it', has1() && K().spans.length === 2 && clock(K().sleep.start) === clock(now - 30*MIN) && !K().sleep.assumed);
+    split(); $q('.uni .r.guess[data-t="' + (now - 88*MIN) + '"]').click(); sh.querySelector('#aIn').value = clock(now - 70*MIN); sh.querySelector('#bIn').value = clock(now - 55*MIN); sh.querySelector('#ok').click();
+    ok('correcting the first piece changes only it', !has1() && K().spans.length === 2 && clock(K().spans[0].t) === clock(now - 70*MIN) && !K().spans[0].assumed && p2().assumed === true && p2().t === now - 43*MIN);
+    split(); $q('.uni .r.guess[data-t="' + (now - 88*MIN) + '"]').click(); sh.querySelector('#del').click();
+    ok('"did not sleep here" on the first piece removes that piece only', !has1() && K().spans.length === 1 && p2().t === now - 43*MIN && canon(state.log.find(e => e.id === 'st').nsx) === canon([now - 88*MIN]));
+    $q('#undo').click(); ok('undo brings it back', has1() && K().spans.length === 2);
+    split(); state.log.find(e => e.id === 'st').ns = 1; use(state); render(); ok('an old whole-stay "did not sleep" mark still removes every piece', K().spans.length === 0);
+    split([{ ...K0, k:'sleep', t: now - 80*MIN, end: now - 60*MIN }]);
+    ok('a sleep she logged by hand in the first stretch is the truth there; the second is still assumed', K().spans.length === 2 && !K().spans[0].assumed && K().spans[0].t === now - 80*MIN && p2().assumed === true);
+    // the guard again, on a finished split stay
+    seed([{ ...K0, id:'st', k:'crate', t: now - 200*MIN, end: now - 110*MIN }, { ...K0, k:'cry', t: now - 160*MIN, end: now - 155*MIN }, { ...K0, k:'pee', t: now - 108*MIN, w:'gravel' }]);
+    const want2 = mine(), bad2 = [], then2 = (name, fn) => { fn(); if(bg.classList.contains('show')){ const g = sh.querySelector('[data-w=gravel]'); if(g) g.click(); else close(); } if(mine() !== want2) bad2.push(name); };
+    then2('nothing', () => tile('none').click()); then2('pee on the card', () => { const b = $q('[data-act=rtpee]'); if(b) b.click(); }); then2('crate in', () => tapDur('kishmish', 'crate')); then2('woke up', () => tapDur('kishmish', 'sleep')); then2('cry', () => tapDur('kishmish', 'cry')); then2('cry stops', () => tapDur('kishmish', 'cry')); then2('crate out', () => tapDur('kishmish', 'crate')); then2('meal', () => tapPoint('kishmish', 'food'));
+    ok('nothing done afterwards changes the two pieces of a finished stay' + (bad2.length ? ' — changed by: ' + bad2.join(', ') : ''), K().spans.filter(sp => sp.stay === 'st').length === 2 && bad2.length === 0);
     pet = 'kochik'; seed([{ p:'kochik', k:'food', t: now - HOUR }]); ok('nothing is assumed for kochik', KO().spans.length === 0); pet = 'kishmish';
     done();
   } catch(e){ crashed(e); }

@@ -599,16 +599,23 @@ function sleepSpans(p, log, now){
   const out = sleeps.map(e => ({t:e.t, end: e.end == null ? null : e.end, id:e.id}));
   if(PETS[p].cycle) for(const c of L){
     if(c.k !== 'crate' || c.ns) continue;
-    const cEnd = c.end == null ? now : c.end;
-    if(sleeps.some(x => x.t < cEnd && (x.end == null ? now : x.end) > c.t)) continue;
-    // One rule for every stay. It must NOT depend on what kind of stay this later turns out to be (a retry wait, say):
-    // on 24.11 such a dependence made a sleep that had been shown all morning disappear.
-    const awake = [[c.t, c.t + ASSUME_SLEEP]].concat(cries.filter(x => x.t <= cEnd && (x.end == null ? now : x.end) >= c.t)
-      .map(x => [x.t, x.end == null ? Infinity : x.end + ASSUME_SLEEP])).sort((a,b) => a[0]-b[0]);
-    const add = (a, b, open) => { if(b - a >= 60000 || open) out.push({t:a, end: open ? null : b, assumed:true, stay:c.id}); };   // only the last stretch of a running stay is still going
-    let cur = c.t;
-    for(const [a, b] of awake){ if(a > cur) add(cur, Math.min(a, cEnd)); cur = Math.max(cur, b); if(cur >= cEnd) break; }
-    if(cur < cEnd) add(cur, cEnd, c.end == null);
+    const cEnd = c.end == null ? now : c.end, no = Array.isArray(c.nsx) ? c.nsx : [];
+    // Crying splits the stay into quiet stretches, and EACH STRETCH IS JUDGED ON ITS OWN: nothing said about it ->
+    // asleep from ASSUME_SLEEP after it begins; a sleep she logged in it -> her entry is the truth for that stretch
+    // (and nothing more is assumed there, so "התעוררה" is not followed by "asleep again"); "לא ישנה" about it
+    // (`nsx`) -> no sleep there. What she says about one stretch never touches another.
+    // The rule must NOT depend on what kind of stay this later turns out to be (a retry wait, say): on 24.11 such a
+    // dependence made a sleep that had been shown all morning disappear.
+    const cr = cries.filter(x => x.t <= cEnd && (x.end == null ? now : x.end) >= c.t).map(x => [x.t, x.end == null ? Infinity : x.end]).sort((a,b) => a[0]-b[0]);
+    const stretches = []; let cur = c.t;
+    for(const [a, b] of cr){ if(a > cur) stretches.push([cur, Math.min(a, cEnd), false]); cur = Math.max(cur, b); if(cur >= cEnd) break; }
+    if(cur < cEnd) stretches.push([cur, cEnd, c.end == null]);   // only the last stretch of a running stay is still going
+    for(const [s, e, open] of stretches){
+      if(sleeps.some(x => x.t < e && (x.end == null ? now : x.end) > s)) continue;
+      if(no.some(t => t >= s && t <= e)) continue;
+      const a = s + ASSUME_SLEEP;
+      if(a < e && (open || e - a >= 60000)) out.push({t:a, end: open ? null : e, assumed:true, stay:c.id});
+    }
   }
   return out.sort((x,y) => x.t-y.t);
 }
@@ -1410,7 +1417,7 @@ function render(){
       const warn = k === 'sleep' && !live && aw && Date.now() - aw >= AWAKE.warn && Date.now() - aw < 6*3600000;
       h += `<div class="card item ${nowt} ${live?'live':''} ${k==='cry' || over?'cry':''} ${warn?'warn':''}">
         <div class="ic">${ico(k)}</div>
-        <div><div class="lbl">${lbl}</div>${big}<div class="sub">${sub}</div>${k === 'sleep' && typicalSleep(pet) ? `<div class="sub hint">${typicalSleep(pet)}</div>` : ''}</div>
+        <div><div class="lbl">${lbl}</div>${big}<div class="sub">${sub}</div></div>
         <div class="acts"><button class="go" data-act="dur" data-k="${k}">${live?it.stop:it.start}</button>
           <button class="ghost" data-act="edit" data-k="${k}">${ico(live?'clock':'plus','s')}${live?'שעת התחלה':'הוספה'}</button></div></div>`;
     }
@@ -1556,11 +1563,6 @@ function sinceCrate(p, t){
   return c ? t - c.t : null;
 }
 const afterCrate = (p, e) => { const d = e.k === 'sleep' && !e.assumed ? sinceCrate(p, e.t) : null; return d == null ? '' : ` · נרדמה ${d < 60000 ? 'מיד' : words(d)} אחרי הכניסה לכלוב`; };
-function typicalSleep(p){   // "usually asleep N minutes after going into the crate"
-  const since = Date.now() - 7*86400000, g = [];
-  for(const e of state.log) if(e.p===p && e.k==='sleep' && e.t >= since){ const d = sinceCrate(p, e.t); if(d != null && d <= 2*3600000) g.push(d); }
-  return g.length >= 3 ? `בדרך כלל נרדמת ${words(median(g))} אחרי הכניסה לכלוב` : '';
-}
 // Two numbers worth knowing, from the last 7 days: how often she usually pees (gaps between pees,
 // nights and long breaks left out) and how long after a meal she usually poops. Shown under the tiles
 // once there is enough data to mean something.
@@ -1665,7 +1667,7 @@ function byOf(p, k, t){   // " · name" of whoever logged this event, if known
 }
 function logRow(e){
   const live = isLive(e);
-  if(e.assumed) return `<div class="r guess" data-stay="${e.stay}">${ico('sleep','s')}<span>${live ? 'ישנה כנראה עכשיו' : 'ישנה'} <i class="by">משוער</i>${e.end ? ' · '+words(e.end-e.t) : ''}</span>
+  if(e.assumed) return `<div class="r guess" data-stay="${e.stay}" data-t="${e.t}">${ico('sleep','s')}<span>${live ? 'ישנה כנראה עכשיו' : 'ישנה'} <i class="by">משוער</i>${e.end ? ' · '+words(e.end-e.t) : ''}</span>
      <time>${dayLabel(e.t)} <bdi dir="ltr">${clock(e.t)}${e.end ? '–'+clock(e.end) : ''}</bdi></time></div>`;
   return `<div class="r" ${live ? `data-live="${e.k}"` : `data-e="${state.log.indexOf(e)}"`}>${ico(iconOf(e.k),'s')}<span>${live ? ITEMS[e.k].live+' עכשיו' : ITEMS[e.k].log}${isRetryStay(e) ? ' · ניסיון חוזר' : ''}${CRY_LBL[cryKind(e)] ? ' · '+CRY_LBL[cryKind(e)] : ''}${mealKind(e) ? ' · '+MEAL_LBL[mealKind(e)] : ''}${typeTag(e.q)}${afterCrate(e.p, e)}${PLAY[e.y] ? ' · '+PLAY[e.y] : e.y === 'play' ? ' · במשחק' : ''}${whereTag(e.w)}${e.end ? ' · '+words(e.end-e.t) : ''}${USERS[e.by] ? `<i class="by">${USERS[e.by]}</i>` : ''}</span>
      <time>${dayLabel(e.t)} <bdi dir="ltr">${clock(e.t)}${e.end ? '–'+clock(e.end) : ''}</bdi></time></div>`;
@@ -1952,7 +1954,7 @@ document.getElementById('shell').addEventListener('click', e => {
   const ent = e.target.closest('.r[data-e], .d[data-e]');
   if(ent){ openEntrySheet(+ent.dataset.e); return; }
   const gs = e.target.closest('.r[data-stay]');
-  if(gs){ assumeSheet(gs.dataset.stay); return; }
+  if(gs){ assumeSheet(gs.dataset.stay, +gs.dataset.t); return; }
   const lv = e.target.closest('.r[data-live]');
   if(lv){ openSheet(pet, lv.dataset.live); return; }
   const row = e.target.closest('[data-day]');
@@ -2093,7 +2095,7 @@ function sheet(title, body, footL, onOk, onChip){
 const cancelBtn = '<button class="btn" id="cancel">ביטול</button>';
 
 function openSheet(p, k){
-  if(k === 'sleep' && V[p].sleep.assumed && V[p].sleep.start){ assumeSheet(V[p].sleep.stay); return; }
+  if(k === 'sleep' && V[p].sleep.assumed && V[p].sleep.start){ assumeSheet(V[p].sleep.stay, V[p].sleep.start); return; }
   const it = ITEMS[k], name = PETS[p].name, start = V[p][k] && V[p][k].start;
   const running = () => state.log.filter(e => e.p===p && e.k===k && e.end == null);
   if(!it.dur){
@@ -2182,15 +2184,15 @@ function openMedSheet(p, slot){
 // An assumed sleep is not an entry, so it cannot be "edited" — but the owner can say what really happened in
 // that crate stay: when she fell asleep (and woke), which becomes a real entry and replaces the assumption,
 // or that she did not sleep there at all (`ns` on the stay).
-function assumeSheet(stayId){
+function assumeSheet(stayId, t){   // one assumed piece of a crate stay: the one that starts at t (or the first)
   const c = state.log.find(e => e.id === stayId); if(!c) return;
-  const sp = V[c.p].spans.filter(x => x.assumed && x.stay === stayId), first = sp[0], lastSp = sp[sp.length-1], name = PETS[c.p].name;
-  const onDay = v => { const [hh,mm] = v.split(':').map(Number), d = new Date(first ? first.t : c.t); d.setHours(hh,mm,0,0); if(d.getTime() < c.t - 60000) d.setDate(d.getDate()+1); return d.getTime(); };
+  const all = V[c.p].spans.filter(x => x.assumed && x.stay === stayId), sp = all.find(x => x.t === t) || all[0], name = PETS[c.p].name;
+  const onDay = v => { const [hh,mm] = v.split(':').map(Number), d = new Date(sp ? sp.t : c.t); d.setHours(hh,mm,0,0); if(d.getTime() < c.t - 60000) d.setDate(d.getDate()+1); return d.getTime(); };
   sheet(`${name} · שינה בכלוב (משוער)`,
-    `<div class="sub" style="margin-bottom:12px">האפליקציה מניחה שבכלוב היא נרדמת תוך כמה דקות. אם זה היה אחרת, אפשר לרשום מה באמת קרה:</div>
-     <label class="field">נרדמה ב־ ${timeField("aIn", first ? clock(first.t) : '')}</label><label class="field">התעוררה ב־ ${timeField("bIn", lastSp && lastSp.end != null ? clock(lastSp.end) : '')}</label>
+    `<div class="sub" style="margin-bottom:12px">האפליקציה מניחה שבכלוב היא נרדמת שתי דקות אחרי הכניסה, או אחרי שהבכי נגמר. אם זה היה אחרת, אפשר לרשום מה באמת קרה:</div>
+     <label class="field">נרדמה ב־ ${timeField("aIn", sp ? clock(sp.t) : '')}</label><label class="field">התעוררה ב־ ${timeField("bIn", sp && sp.end != null ? clock(sp.end) : '')}</label>
      <div class="sub">בלי שעת התעוררות = עדיין ישנה.</div>`,
-    '<button class="btn danger" id="del">לא ישנה בכלוב הזה</button>',
+    `<button class="btn danger" id="del">${all.length > 1 ? 'לא ישנה כאן' : 'לא ישנה בכלוב הזה'}</button>`,
     () => {
       const a = timeVal('aIn'); if(!a) return;
       const ta = onDay(a), bRaw = sh.querySelector('#bIn').value.trim();
@@ -2199,7 +2201,8 @@ function assumeSheet(stayId){
       close();
       commit(`${name} · ${ITEMS.sleep.log} עודכן`, () => { state.log.push(tb ? {p:c.p, k:'sleep', t:ta, end:tb} : {p:c.p, k:'sleep', t:ta}); });
     });
-  sh.querySelector('#del').onclick = () => { close(); commit(`${name} · לא ישנה בכלוב`, () => { const x = state.log.find(e => e.id === stayId); if(x) x.ns = 1; }); };
+  // "She did not sleep here" is about this piece only: a time inside its stretch is kept on the crate entry.
+  sh.querySelector('#del').onclick = () => { close(); if(!sp) return; commit(`${name} · לא ישנה בכלוב`, () => { const x = state.log.find(e => e.id === stayId); if(x) x.nsx = (Array.isArray(x.nsx) ? x.nsx : []).concat([sp.t]); }); };
 }
 // Fix or delete one entry. The tiles follow by themselves, because they are computed from the list.
 function openEntrySheet(i){
