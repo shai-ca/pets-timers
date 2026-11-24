@@ -81,6 +81,7 @@
   .meds-h{display:flex;align-items:center;gap:10px;margin-bottom:12px}
   .meds-h .ic{width:36px;height:36px;border-radius:11px}
   .meds-h b{font-weight:600;font-size:15px}
+  .lnk.medoff{display:block;margin-top:10px;font-size:12.5px;color:var(--muted)} .card.medc.off .sub{margin-bottom:10px;line-height:1.5}
   .meds{display:grid;grid-template-columns:1fr 1fr;gap:8px}
   .med{border:1.5px solid var(--line);background:var(--bg);border-radius:14px;padding:12px;font:inherit;text-align:right;cursor:pointer;display:flex;gap:10px;align-items:center;color:var(--ink)}
   .med .ck{width:24px;height:24px;border-radius:50%;border:1.5px solid var(--faint);display:grid;place-items:center;flex:none;color:#fff}
@@ -471,6 +472,9 @@ const ITEMS = {
   brk:{icon:'none',log:'הפסקה בשגרה'},
   nofood:{icon:'food',log:'לא אכלה'},   // offered food in the routine's food step and did not eat
   play:{icon:'ball',log:'משחק'},   // what kind of play it was (`y`), logged from the routine's play step   // taken out for potty, nothing happened (logged from the routine strip)
+  // A break from the medicines (Kochik): when she is unwell the vet says to stop them for a few days. A running
+  // timer like the crate — while it runs the checklist steps aside and nothing is marked late.
+  medoff:{dur:true,icon:'pill',lbl:'הפסקת תרופות',live:'בהפסקת תרופות',start:'הפסקת תרופות',stop:'חזרה לתרופות',log:'הפסקת תרופות',startQ:'ממתי בלי תרופות?'},
   med_am:{icon:'pill',log:'תרופת בוקר'},
   med_pm:{icon:'pill',log:'תרופת ערב'}
 };
@@ -1380,8 +1384,12 @@ function render(){
         <span class="ck">${t?ico('check'):''}</span>
         <span><b>${lbl}</b><small>${t?'ניתנה ב־'+clock(t)+byOf(pet,'med_'+s,t):(late?'עוד לא ניתנה':'לא ניתנה')}</small></span></button>`;
     };
-    h += `<div class="card medc"><div class="meds-h"><div class="ic">${ico('pill')}</div><b>תרופות היום</b></div>
-      <div class="meds">${slot('am','בוקר',11)}${slot('pm','ערב',21)}</div></div>`;
+    const off = (S.medoff || {}).start;
+    if(off) h += `<div class="card medc off"><div class="meds-h"><div class="ic">${ico('pill')}</div><b>בהפסקת תרופות</b></div>
+      <div class="sub">${dayLabel(off)} מ־<bdi dir="ltr">${clock(off)}</bdi> · כבר <span data-words="${off}">${Date.now() - off < 24*3600000 ? words(Date.now() - off) : wordsLong(Date.now() - off)}</span><br>כשהיא לא מרגישה טוב, לפי הווטרינר. אין מה לסמן בינתיים.</div>
+      <div class="meds"><button class="med" data-act="dur" data-k="medoff"><span class="ck"></span><span><b>חזרה לתרופות</b><small>כשהיא מרגישה טוב יותר</small></span></button></div></div>`;
+    else h += `<div class="card medc"><div class="meds-h"><div class="ic">${ico('pill')}</div><b>תרופות היום</b></div>
+      <div class="meds">${slot('am','בוקר',11)}${slot('pm','ערב',21)}</div><button class="lnk medoff" data-act="dur" data-k="medoff">לא מרגישה טוב? הפסקת תרופות</button></div>`;
   }
 
   // Alerts, the retry card and the wheel live in the side column: on a computer it stays in place while
@@ -1708,7 +1716,7 @@ function sumShift(dir){
   sumAnchor = Math.min(d.getTime(), Date.now());
 }
 function stats(p, from, to){
-  const r = {food:0, pee:0, poop:0, gel:0, none:0, vomit:0, sleep:{n:0,ms:0}, cry:{n:0,ms:0}, crate:{n:0,ms:0}, meds:0, w:{pee:{}, poop:{}}, q:{}};
+  const r = {food:0, pee:0, poop:0, gel:0, none:0, vomit:0, sleep:{n:0,ms:0}, cry:{n:0,ms:0}, crate:{n:0,ms:0}, medoff:{n:0,ms:0}, meds:0, w:{pee:{}, poop:{}}, q:{}};
   const add = (k, a, b) => { const ov = Math.min(b,to) - Math.max(a,from); if(ov > 0){ r[k].ms += ov; r[k].n++; } };
   for(const e of state.log){
     if(e.p !== p) continue;
@@ -1883,10 +1891,11 @@ function renderSummary(){
       ${multi && days > 1 && st[k].ms ? `<small>ממוצע ${words(st[k].ms/days)} ליום</small>` : ''}</button>`).join('') + `</div>`;
   if(P.meds && !F){
     const m = V[pet].meds[dayKey(from)] || {};
+    const offDay = state.log.some(e => e.p===pet && e.k==='medoff' && e.t < to && (e.end == null ? Date.now() : e.end) > from);   // a break from the medicines touched this day
     h += `<div class="tiles two">` + (multi
       ? `<div class="tile" style="grid-column:1/-1"><div class="ic">${ico('pill')}</div><b><bdi dir="ltr">${st.meds}/${days*2}</bdi></b><span>תרופות שניתנו</span></div>`
       : [['am','בוקר'],['pm','ערב']].map(([s,l]) =>
-        `<div class="tile"><div class="ic">${ico('pill')}</div><b class="t">${m[s] ? 'ניתנה ב־'+clock(m[s]) : 'לא ניתנה'}</b><span>תרופת ${l}${m[s] ? byOf(pet,'med_'+s,m[s]) : ''}</span></div>`).join('')) + `</div>`;
+        `<div class="tile"><div class="ic">${ico('pill')}</div><b class="t">${m[s] ? 'ניתנה ב־'+clock(m[s]) : offDay ? 'בהפסקה' : 'לא ניתנה'}</b><span>תרופת ${l}${m[s] ? byOf(pet,'med_'+s,m[s]) : ''}</span></div>`).join('')) + `</div>`;
   }
 
   if(sumMode !== 'month') h += timelineHTML(pet, from, to, F);
