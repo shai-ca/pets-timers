@@ -16,7 +16,9 @@
       for(const p of Object.keys(PETS)){
         const x = expected(state.log, p), a = tiles(p);
         for(const k of ['food','pee','poop','gel','none']) if((a[k] || 0) !== (x.point[k] || 0)) return `${who}: ${p}.${k} tile ${a[k]} vs list ${x.point[k]}`;
+        if(typeof derive === 'function' && canon(derive(state)[p].sleep) !== canon(a.sleep)) return `${who}: ${p}.sleep view is not what the list gives`;
         for(const k of KD){
+          if(k === 'sleep' && typeof sleepSpans === 'function') continue;   // sleep = logged + assumed; checked just above
           if(((a[k] || {}).lastEnd || 0) !== (x.lastEnd[k] || 0)) return `${who}: ${p}.${k} last stay ${(a[k]||{}).lastEnd} vs list ${x.lastEnd[k]}`;
           if(typeof V !== 'undefined' && ((a[k] || {}).start || 0) !== (x.start[k] || 0)) return `${who}: ${p}.${k} running ${(a[k]||{}).start} vs list ${x.start[k]}`;
         }

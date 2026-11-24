@@ -61,7 +61,7 @@
     tapDur('kishmish', 'crate'); await wait();                                       // "out of the crate" also ends the sleep it believes is running
     const napNow = S.doc.log.find(e => e.id === 'nap');
     ok('a stale phone cannot stretch a sleep that was already ended', napNow.end === now - 22*HOUR && S.doc.log.find(e => e.id === 'cr').end > now - MIN);
-    ok('and it shows the true last sleep itself afterwards', K().sleep.lastEnd === now - 22*HOUR && !K().sleep.start);
+    ok('and it holds the true end itself afterwards', state.log.find(e => e.id === 'nap').end === now - 22*HOUR);
     // (seen in real use) one phone ends a sleep "now"; another then records that she was out 7 minutes earlier
     onServer(S.read()); await wait();
     S.doc.log.push({ id:'nap2', p:'kishmish', k:'sleep', t: now - 30*MIN, by:'shai' });

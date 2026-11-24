@@ -19,10 +19,9 @@
     seed([]);
     $q('[data-act=dur][data-k=crate]').click(); ok('a timer asks too', sh.querySelector('h3').textContent.includes('נכנסה לכלוב — מתי?')); chip(20).click();
     ok('"went in 20 minutes ago": running since then', near(K().crate.start, now - 20*MIN));
-    $q('[data-act=dur][data-k=sleep]').click(); chip(10).click();
     $q('[data-act=dur][data-k=crate]').click(); ok('stopping asks as well', sh.querySelector('h3').textContent.includes('יצאה מהכלוב — מתי?')); chip(5).click();
-    const cr = logOf('kishmish', 'crate')[0], sl = logOf('kishmish', 'sleep')[0];
-    ok('"came out 5 minutes ago" ends the stay, and the sleep, at that time', near(cr.end, now - 5*MIN) && sl.end === cr.end && !K().crate.start);
+    const cr = logOf('kishmish', 'crate')[0];
+    ok('"came out 5 minutes ago" ends the stay, and the sleep, at that time', near(cr.end, now - 5*MIN) && K().sleep.lastEnd === cr.end && !K().sleep.start && !K().crate.start);
     $q('[data-act=dur][data-k=cry]').click(); chip(0).click(); $q('[data-act=dur][data-k=cry]').click(); chip(0).click();
     ok('start and stop "now" still work', logOf('kishmish', 'cry').length === 1 && !!logOf('kishmish', 'cry')[0].end);
     // play, "did not eat", the retry card
@@ -31,8 +30,8 @@
     seed([{ p:'kishmish', k:'crate', t: now - 120*MIN, end: now - 30*MIN }, { p:'kishmish', k:'none', t: now - 20*MIN }]);
     $q('[data-act=rtcrate]').click(); chip(5).click();
     const C = logOf('kishmish', 'crate').pop();
-    ok('retry: "went back in 5 minutes ago" starts the countdown from then', C.r === 10 && near(C.t, now - 5*MIN) && near(retry('kishmish').until, now + 5*MIN));
-    $q('[data-act=rtmin][data-k="8"]').click(); ok('changing the wait does not ask when', !bg.classList.contains('show') && logOf('kishmish', 'crate').pop().r === 8);
+    ok('retry: "went back in 5 minutes ago" counts her time in the crate from then', near(C.t, now - 5*MIN) && retry('kishmish').state === 'wait' && +$q('.card.retry [data-since]').dataset.since === C.t);
+    $q('[data-act=rtstop]').click(); ok('closing the card does not ask when', !bg.classList.contains('show') && !$q('.card.retry'));
     // the double-tap question comes first, then "when"
     seed([]); DUP_MS = 2*60000;
     tile('food').click(); chip(0).click(); tile('food').click();

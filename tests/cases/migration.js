@@ -17,7 +17,7 @@
     use(a, clone(a)); render();
     ok('the running crate timer became an entry and still runs from the same time', K().crate.start === now - 40*MIN && logOf('kishmish', 'crate').some(e => e.end == null && e.t === now - 40*MIN) && !!$q('.card.item.live'));
     ok('the stuck "22 hours" number is gone: last pee comes from the list', K().pee === now - 50*MIN);
-    ok('last finished stay and sleep unchanged', K().crate.lastEnd === now - 4*HOUR && K().sleep.lastEnd === now - 8*HOUR && K().food === now - 2*HOUR);
+    ok('last finished stay unchanged; her logged sleep is still there', K().crate.lastEnd === now - 4*HOUR && logOf('kishmish', 'sleep')[0].end === now - 8*HOUR && K().food === now - 2*HOUR);
     ok('medicine checklist unchanged', medsOf('kochik').am === early + MIN && !medsOf('kochik').pm && KO().food === early);
     // once it is version 2, the old pet objects are never read again, even though they stay in the document
     const again = norm(Object.assign(clone(a), { legacy: { kishmish: { crate: { start: 12345 } } } }));

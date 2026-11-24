@@ -35,17 +35,18 @@
       ok('it shows as a running row in the list', !!$q('.uni .r[data-live=crate]'));
       $q('.uni .r[data-live=crate]').click(); ok('the running row opens the start-time sheet', sh.querySelector('h3').textContent.includes('מתי נכנסה')); type('40'); sh.querySelector('#ok').click();
       ok('start moved to 40 minutes ago', near(K().crate.start, now - 40*MIN) && logOf('kishmish', 'crate').length === 1);
-      tapDur('kishmish', 'sleep'); tapDur('kishmish', 'cry');
-      ok('sleep and crying overlap the crate', K().sleep.start && K().cry.start && K().crate.start && $n('.card.item.live') === 3);
+      ok('in the crate she is taken to be asleep', !!K().sleep.start && K().sleep.assumed && $n('.card.item.live') === 2);
+      tapDur('kishmish', 'cry');
+      ok('crying runs alongside the crate, and means awake', !!K().cry.start && !!K().crate.start && !K().sleep.start && $n('.card.item.live') === 2);
       tapDur('kishmish', 'cry'); tapDur('kishmish', 'crate');
       const stay = logOf('kishmish', 'crate')[0];
-      ok('"out of the crate" ends the stay and the sleep', stay.end && near(stay.end - stay.t, 40*MIN) && !K().sleep.start && logOf('kishmish', 'sleep')[0].end);
+      ok('"out of the crate" ends the stay and the sleep', stay.end && near(stay.end - stay.t, 40*MIN) && !K().sleep.start);
       openEntrySheet(state.log.indexOf(stay)); ok('a finished stay has start, end and "still going"', !!sh.querySelector('#aIn') && !!sh.querySelector('#bIn') && !!sh.querySelector('#reopen'));
       sh.querySelector('#reopen').click();
       ok('"still going": the same entry runs again', K().crate.start === stay.t && logOf('kishmish', 'crate').length === 1 && logOf('kishmish', 'crate')[0].id === stay.id);
       $q('[data-act=edit][data-k=crate]').click(); sh.querySelector('#del').click();
       ok('cancelling a running timer removes it', !K().crate.start && logOf('kishmish', 'crate').length === 0);
-      $q('[data-act=edit][data-k=sleep]').click(); sh.querySelector('#aIn').value = '01:00'; sh.querySelector('#bIn').value = '01:30'; sh.querySelector('#ok').click();
+      seed([]); $q('[data-act=edit][data-k=sleep]').click(); sh.querySelector('#aIn').value = '01:00'; sh.querySelector('#bIn').value = '01:30'; sh.querySelector('#ok').click();
       ok('start + end = a finished stay', logOf('kishmish', 'sleep').some(e => e.end - e.t === 30*MIN));
       // two phones started the same stay: stopping keeps one
       seed([{ p:'kishmish', k:'crate', t: now - 30*MIN }, { p:'kishmish', k:'crate', t: now - 28*MIN }]);
@@ -73,20 +74,6 @@
       seed([{ p:'kishmish', k:'sleep', t: now - 30*MIN }]); tapPoint('kishmish', 'food');
       ok('eating while "asleep" outside the crate ends the sleep', !K().sleep.start);
       pet = 'kochik'; seed([]); tapPoint('kochik', 'food'); ok('no such rule for kochik', logOf('kochik', 'food').length === 1); pet = 'kishmish';
-      // falling asleep, placed relative to going into the crate
-      seed([{ p:'kishmish', k:'crate', t: now - 40*MIN }]);
-      $q('[data-act=edit][data-k=sleep]').click();
-      ok('in the crate, the sleep sheet asks "how long after she went in"', sh.textContent.includes('כמה זמן אחרי זה נרדמה') && sh.querySelectorAll('[data-after]').length === 6 && !!sh.querySelector('#afterIn'));
-      sh.querySelector('[data-after="10"]').click();
-      ok('"10 minutes after": asleep from crate entry + 10', K().sleep.start === now - 30*MIN && $q('#sec-rest').textContent.includes('10 דקות אחרי הכניסה לכלוב'));
-      $q('[data-act=edit][data-k=sleep]').click(); sh.querySelector('#del').click();
-      $q('[data-act=edit][data-k=sleep]').click(); sh.querySelector('#afterIn').value = '17'; sh.querySelector('#ok').click();
-      ok('any number of minutes works too', K().sleep.start === now - 23*MIN);
-      $q('[data-act=edit][data-k=sleep]').click(); sh.querySelector('#del').click();
-      $q('[data-act=edit][data-k=sleep]').click(); sh.querySelector('#afterIn').value = '55'; sh.querySelector('#ok').click();
-      ok('a time that has not come yet is refused', !K().sleep.start && sh.querySelector('#afterIn').classList.contains('bad')); close();
-      tapDur('kishmish', 'crate'); $q('[data-act=edit][data-k=sleep]').click();
-      ok('out of the crate, the sheet does not ask about the crate', !sh.querySelector('[data-after]')); close();
       seed([1,2,3].flatMap(d => [{ p:'kishmish', k:'crate', t: now - d*5*HOUR, end: now - d*5*HOUR + 90*MIN }, { p:'kishmish', k:'sleep', t: now - d*5*HOUR + (4 + d*4)*MIN, end: now - d*5*HOUR + 80*MIN }]));
       ok('the list and the tile say how long after the crate she fell asleep, and the usual time', $q('.uni').textContent.includes('נרדמה 8 דקות אחרי הכניסה לכלוב') && typicalSleep('kishmish') === 'בדרך כלל נרדמת 12 דקות אחרי הכניסה לכלוב' && $q('#sec-rest').textContent.includes('בדרך כלל נרדמת'));
       ok('a sleep outside the crate carries no such note', afterCrate('kishmish', { k:'sleep', t: now - MIN }) === '' && afterCrate('kishmish', { k:'cry', t: now - 5*HOUR + MIN }) === '');
