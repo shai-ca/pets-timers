@@ -37,6 +37,7 @@
   .card.item.warn{background:var(--warn-soft);border-color:var(--warn)} .card.item.warn .big,.card.item.warn .lbl{color:var(--warn)}
   .frm{display:flex;align-items:center;gap:8px;margin-top:10px;padding:9px 12px;border-radius:12px;background:var(--warn-soft);color:var(--warn);font-size:13.5px;font-weight:500}
   .card.slim.sleepq{border-color:color-mix(in srgb,var(--btn) 45%,transparent);flex-wrap:wrap;gap:8px 12px}
+  .card.slim.sleepq.wait{border-color:var(--line)} .card.slim.sleepq small b{font-weight:600;color:var(--ink)}
   .card.slim.cryrow.on{border-color:var(--alert);background:var(--alert-soft)}
   .wrap{max-width:520px;margin:0 auto}
   svg.i{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;flex:none}
@@ -1260,11 +1261,13 @@ function sleepAsk(p){
   const S = V[p], now = Date.now(), st = S.crate && S.crate.start;
   if(!PETS[p].cycle || !st || S.sleep.start || S.cry.start) return null;
   const quiet = Math.max(st, ...state.log.filter(e => e.p===p && e.t >= st && e.t <= now && (AWAKE_PT[e.k] || ((e.k==='cry' || e.k==='sleep') && e.end != null))).map(e => e.end != null ? e.end : e.t));
-  if(now - quiet < SLEEP_ASK || awakeUntil > now) return null;
-  return {since: quiet};
+  if(now - quiet < SLEEP_ASK) return null;
+  return {since: quiet, snooze: awakeUntil > now ? awakeUntil : 0};   // snooze: she said "still awake" — a countdown to the next ask
 }
 function sleepAskHTML(p){
   const a = sleepAsk(p); if(!a) return '';
+  if(a.snooze) return `<div class="card slim sleepq wait"><span><b>עדיין ערה</b><small>נשאל שוב בעוד <b class="rt-t" data-until="${a.snooze}">${dur(a.snooze - Date.now())}</b></small></span>
+    <span class="rt-a"><button class="btn" data-act="dur" data-k="sleep">${ITEMS.sleep.start}</button></span></div>`;
   return `<div class="card slim sleepq"><span><b>נרדמה?</b><small>שקטה בכלוב כבר <span data-words="${a.since}">${words(Date.now() - a.since)}</span></small></span>
     <span class="rt-a"><button class="go" data-act="dur" data-k="sleep">${ITEMS.sleep.start}</button><button class="btn" data-act="stillawake">עדיין ערה</button></span></div>`;
 }

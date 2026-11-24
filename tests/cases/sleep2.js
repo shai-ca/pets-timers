@@ -76,8 +76,11 @@
     seed([stay(6)]);
     ok('six quiet minutes in a crate with no estimate: a small card asks, first thing in the side column', !!q() && q().textContent.includes('נרדמה?') && [...q().querySelectorAll('button')].map(b => b.textContent).join() === 'נרדמה,עדיין ערה' && $q('#side').firstElementChild === q());
     q().querySelector('[data-act=stillawake]').click();
-    ok('"still awake" hides it — nothing is saved', !q() && state.log.length === 1 && noDiff(diff(base, state)));
-    awakeUntil = Date.now() - 1; render(); ok('…and it asks again five minutes later', !!q());
+    ok('"still awake": the card turns into a quiet countdown to the next ask, with "נרדמה" still at hand — nothing is saved', q().classList.contains('wait') && q().textContent.includes('עדיין ערה') && q().textContent.includes('נשאל שוב בעוד') && Math.abs(+q().querySelector('[data-until]').dataset.until - (Date.now() + 5*MIN)) < 3000 && !q().querySelector('[data-act=stillawake]') && !!q().querySelector('[data-act=dur][data-k=sleep]') && state.log.length === 1 && noDiff(diff(base, state)));
+    awakeUntil = Date.now() - 1; q().querySelector('[data-until]').dataset.until = awakeUntil; tick(); ok('…when the countdown reaches zero the question is back by itself', !!q() && !q().classList.contains('wait') && !!q().querySelector('[data-act=stillawake]'));
+    q().querySelector('[data-act=stillawake]').click(); q().querySelector('[data-act=dur][data-k=sleep]').click();
+    ok('"נרדמה" during the countdown marks the sleep and removes the card', logOf('kishmish', 'sleep').length === 1 && !q());
+    seed([stay(6)]);
     q().querySelector('[data-act=dur][data-k=sleep]').click();
     ok('"נרדמה" on the card is the ordinary mark, and the card goes', logOf('kishmish', 'sleep').length === 1 && !logOf('kishmish', 'sleep')[0].a && !K().sleep.assumed && !!K().sleep.start && !q());
     seed([stay(30), { ...K0, k:'water', t: now - 3*MIN }]); ok('she drank three minutes ago: the five minutes start from then', !q());
