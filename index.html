@@ -555,6 +555,9 @@ function derive(s){
         else if(!(c.lastEnd >= e.end)){ c.lastStart = e.t; c.lastEnd = e.end; }
       } else if(!(S[e.k] >= e.t)) S[e.k] = e.t;
     }
+    // Food (routine pets): the timer, the alert and the forecasts follow MEALS; a bite in between does not reset them.
+    S.mealOf = PETS[p].cycle ? mealKinds(p, s.log) : new Map();
+    if(PETS[p].cycle){ delete S.food; for(const [e, k] of S.mealOf){ const key = k === 'meal' ? 'food' : 'bite'; if(!(S[key] >= e.t)) S[key] = e.t; } }
     const scan = retryScan(p, s.log);
     S.retryStays = scan.stays; S.retryNones = scan.nones;
     S.spans = sleepSpans(p, s.log, now);
@@ -572,6 +575,21 @@ function derive(s){
 // asleep or crying; she is out within two minutes"). The assumption is dropped for a stay as soon as
 // someone says otherwise: a sleep entry that overlaps the stay, or `ns` ("did not sleep") on the stay.
 // Returns [{t, end|null, assumed?, stay?}] for one pet: logged sleeps and assumed ones, oldest first.
+// MEAL OR BITE, worked out from the list (no button for it): an "אכלה" more than MEAL.gap after the last MEAL — or
+// the first one — is a meal; anything sooner is a bite, and a bite does not move the reference point. Food from
+// play (kong, lick mat, training) is judged the same way. The owner can correct an entry (`m` on it), and what
+// follows is then judged relative to her correction.
+const MEAL = {gap:2*3600000, perDay:4};
+const MEAL_LBL = {meal:'ארוחה', bite:'ביס'};
+function mealKinds(p, log){
+  const m = new Map(); let last = null;
+  for(const e of log.filter(e => e.p===p && e.k==='food').sort((x,y) => x.t-y.t)){
+    const k = MEAL_LBL[e.m] ? e.m : (last == null || e.t - last > MEAL.gap ? 'meal' : 'bite');
+    m.set(e, k); if(k === 'meal') last = e.t;
+  }
+  return m;
+}
+const mealKind = e => e.k === 'food' && !!V && V[e.p].mealOf.get(e) || null;
 const ASSUME_SLEEP = 2*60000;
 // Retries: a crate stay counts as one when it began within `gap` of a "לא עשתה" and lasted at most `max`;
 // a "לא עשתה" stops calling for a retry after `life`. (Defined here because `derive` runs while the page loads.)
@@ -603,22 +621,23 @@ function sleepSpans(p, log, now){
 // it is time (last pee + the 25th percentile of the last week's gaps, as in the forecast); or she woke up /
 // came out of an ordinary crate stay, or ate, within the last hour and has not peed since. Otherwise a
 // "לא עשתה" is just a note in the list.
-function needsPee(L, t, wakes){
+function needsPee(L, t, wakes, meals){
   const pees = L.filter(e => e.k==='pee' && e.t < t).map(e => e.t).sort((x,y) => x-y), last = pees.length ? pees[pees.length-1] : 0;
   if(!last || t - last > RETRY.fresh) return true;
   const g = []; for(let i = 1; i < pees.length; i++){ const d = pees[i]-pees[i-1]; if(pees[i] >= t - 7*86400000 && d >= 10*60000 && d <= 5*3600000) g.push(d); }
   if(g.length >= 4 && t >= last + quantile(g.sort((x,y) => x-y), .25)) return true;
   const recent = x => x <= t && t - x <= RETRY.after && x > last;
-  return wakes.some(recent) || L.some(e => e.k==='food' && recent(e.t));
+  return wakes.some(recent) || meals.some(recent);
 }
 function retryScan(p, log){
   const stays = new Set(), nones = new Set(), L = log.filter(e => e.p===p).sort((x,y) => x.t-y.t), wakes = L.filter(e => e.k==='sleep' && e.end != null).map(e => e.end);
+  const meals = [...mealKinds(p, log)].filter(x => x[1] === 'meal').map(x => x[0].t);
   let last = null;   // the latest pee / poop / "nothing", and whether it calls for a retry
   for(const e of L){
     if(e.k === 'pee' || e.k === 'poop') last = {k:e.k, t:e.t};
     else if(e.k === 'none'){
       const on = !!(last && last.k === 'none' && last.calls && !last.x && e.t - last.t <= RETRY.life);
-      last = {k:'none', t:e.t, x:e.x, calls: on || needsPee(L, e.t, wakes)};
+      last = {k:'none', t:e.t, x:e.x, calls: on || needsPee(L, e.t, wakes, meals)};
       if(last.calls) nones.add(e);
     }
     else if(e.k === 'crate'){
@@ -949,7 +968,8 @@ function tapPoint(p, k, t, sure){
   if(!t && !sure){ const d = recentDouble(p, e => e.k === k); if(d){ askAgain(d, ITEMS[k].log, () => tapPoint(p, k, undefined, true)); return; } }
   t = t || Date.now();
   let e = {p, k, t};
-  commit(`${PETS[p].name} · ${ITEMS[k].log}`, () => { impliesOut(p, k, t); if(k === 'none') e = pushNone(p, t); else state.log.push(e); });
+  const mk = k === 'food' && PETS[p].cycle ? MEAL_LBL[mealKinds(p, state.log.concat([e])).get(e)] : '';
+  commit(`${PETS[p].name} · ${ITEMS[k].log}${mk ? ' · '+mk : ''}`, () => { impliesOut(p, k, t); if(k === 'none') e = pushNone(p, t); else state.log.push(e); });
   if(hasWhere(k) && e.id) whereSheet(e.id);
 }
 function tapDur(p, k, at){   // `at`: start a timer that began earlier ("she went in 10 minutes ago and is still there")
@@ -1363,7 +1383,7 @@ function render(){
           ${it.slow ? `<div class="big txt ${t?'':'none'}">${t ? wordsLong(Date.now()-t) : '–'}</div>`
                     : `<div class="big ${t?'':'none'}" ${t?`data-since="${t}"`:''}>${t ? dur(Date.now()-t) : '–'}</div>`}
           <div class="sub">${t ? `${dayLabel(t)} ב־${clock(t)}${whereOf(pet,k,t) || (hasWhere(k) ? ` · <button class="lnk" data-act="where" data-k="${k}">איפה?</button>` : '')}${typeOf(pet,k,t)}${byOf(pet,k,t)}` : 'עוד לא נרשם'}</div>
-          ${P.cycle && k === 'pee' ? forecastLine(pet) : ''}${P.cycle && k === 'poop' ? poopLine(pet) : ''}${P.cycle && k === 'food' ? mealLine(pet) : ''}${todayWhere(pet,k) ? `<div class="sub hint">${todayWhere(pet,k)}</div>` : ''}${P.cycle && typical(pet,k) ? `<div class="sub hint">${typical(pet,k)}</div>` : ''}${it.note ? `<div class="sub hint">${it.note}</div>` : ''}</div>
+          ${P.cycle && k === 'pee' ? forecastLine(pet) : ''}${P.cycle && k === 'poop' ? poopLine(pet) : ''}${P.cycle && k === 'food' && S.bite > (S.food || 0) ? `<div class="sub hint bite">ביס אחרון ב־<bdi dir="ltr">${clock(S.bite)}</bdi> · לא מאפס את השעון</div>` : ''}${P.cycle && k === 'food' ? mealLine(pet) : ''}${todayWhere(pet,k) ? `<div class="sub hint">${todayWhere(pet,k)}</div>` : ''}${P.cycle && typical(pet,k) ? `<div class="sub hint">${typical(pet,k)}</div>` : ''}${it.note ? `<div class="sub hint">${it.note}</div>` : ''}</div>
         <div class="acts"><button class="go" data-act="pt" data-k="${k}">${it.btn}</button>
           <button class="ghost" data-act="edit" data-k="${k}">${ico('clock','s')}שעה אחרת</button>
           ${P.cycle && k === 'food' ? `<button class="ghost" data-act="nofood">${ico('none','s')}לא אכלה</button>` : ''}</div></div>`;
@@ -1564,7 +1584,7 @@ const POOP_AFTER = {food:'אחרי אוכל', wake:'אחרי שהתעוררה'};
 function poopModel(p){
   const now = Date.now(), since = now - 14*86400000, L = state.log.filter(e => e.p===p && e.t >= since && e.t <= now);
   const poops = L.filter(e => e.k==='poop').map(e => e.t).sort((x,y) => x-y);
-  const anchors = { food: L.filter(e => e.k==='food').map(e => e.t).sort((x,y) => x-y),
+  const anchors = { food: L.filter(e => mealKind(e) === 'meal').map(e => e.t).sort((x,y) => x-y),
     wake: V[p].spans.filter(sp => sp.end != null && sp.end >= since && sp.end <= now && sp.end - sp.t >= 20*60000).map(sp => sp.end).sort((x,y) => x-y) };
   let best = null;
   for(const anchor of ['food','wake']){
@@ -1588,7 +1608,7 @@ function poopLine(p){
 // a new group); a group seen on at least 3 different days is one of her meal times.
 function mealTimes(p){
   const now = Date.now(), since = now - 14*86400000, mod = t => { const d = new Date(t); return d.getHours()*60 + d.getMinutes(); };
-  const M = state.log.filter(e => e.p===p && e.k==='food' && e.t >= since && e.t <= now).map(e => ({m: mod(e.t), d: dayKey(e.t)})).sort((x,y) => x.m-y.m);
+  const M = state.log.filter(e => e.p===p && mealKind(e) === 'meal' && e.t >= since && e.t <= now).map(e => ({m: mod(e.t), d: dayKey(e.t)})).sort((x,y) => x.m-y.m);
   const groups = []; let cur = null;
   for(const x of M){ if(!cur || x.m - cur[cur.length-1].m >= 90){ cur = []; groups.push(cur); } cur.push(x); }
   return groups.filter(g => new Set(g.map(x => x.d)).size >= 3).map(g => Math.round(median(g.map(x => x.m))));
@@ -1596,7 +1616,7 @@ function mealTimes(p){
 function mealLine(p){
   const T = mealTimes(p); if(!T.length) return '';
   const hhmm = m => `${pad(Math.floor(m/60))}:${pad(m%60)}`, d = new Date(), nowM = d.getHours()*60 + d.getMinutes(), today = dayKey(Date.now());
-  const ate = state.log.filter(e => e.p===p && e.k==='food' && dayKey(e.t) === today).map(e => { const x = new Date(e.t); return x.getHours()*60 + x.getMinutes(); });
+  const ate = state.log.filter(e => e.p===p && mealKind(e) === 'meal' && dayKey(e.t) === today).map(e => { const x = new Date(e.t); return x.getHours()*60 + x.getMinutes(); });
   const next = T.find(m => m > nowM - 30 && !ate.some(a => Math.abs(a - m) <= 60));
   return `<div class="sub hint">אוכלת בדרך כלל בסביבות <bdi dir="ltr">${T.map(hhmm).join(' · ')}</bdi></div>` +
     (next != null ? `<div class="sub hint fc">הארוחה הבאה בדרך כלל בסביבות <bdi dir="ltr">${hhmm(next)}</bdi></div>` : '');
@@ -1647,7 +1667,7 @@ function logRow(e){
   const live = isLive(e);
   if(e.assumed) return `<div class="r guess" data-stay="${e.stay}">${ico('sleep','s')}<span>${live ? 'ישנה כנראה עכשיו' : 'ישנה'} <i class="by">משוער</i>${e.end ? ' · '+words(e.end-e.t) : ''}</span>
      <time>${dayLabel(e.t)} <bdi dir="ltr">${clock(e.t)}${e.end ? '–'+clock(e.end) : ''}</bdi></time></div>`;
-  return `<div class="r" ${live ? `data-live="${e.k}"` : `data-e="${state.log.indexOf(e)}"`}>${ico(iconOf(e.k),'s')}<span>${live ? ITEMS[e.k].live+' עכשיו' : ITEMS[e.k].log}${isRetryStay(e) ? ' · ניסיון חוזר' : ''}${CRY_LBL[cryKind(e)] ? ' · '+CRY_LBL[cryKind(e)] : ''}${typeTag(e.q)}${afterCrate(e.p, e)}${PLAY[e.y] ? ' · '+PLAY[e.y] : e.y === 'play' ? ' · במשחק' : ''}${whereTag(e.w)}${e.end ? ' · '+words(e.end-e.t) : ''}${USERS[e.by] ? `<i class="by">${USERS[e.by]}</i>` : ''}</span>
+  return `<div class="r" ${live ? `data-live="${e.k}"` : `data-e="${state.log.indexOf(e)}"`}>${ico(iconOf(e.k),'s')}<span>${live ? ITEMS[e.k].live+' עכשיו' : ITEMS[e.k].log}${isRetryStay(e) ? ' · ניסיון חוזר' : ''}${CRY_LBL[cryKind(e)] ? ' · '+CRY_LBL[cryKind(e)] : ''}${mealKind(e) ? ' · '+MEAL_LBL[mealKind(e)] : ''}${typeTag(e.q)}${afterCrate(e.p, e)}${PLAY[e.y] ? ' · '+PLAY[e.y] : e.y === 'play' ? ' · במשחק' : ''}${whereTag(e.w)}${e.end ? ' · '+words(e.end-e.t) : ''}${USERS[e.by] ? `<i class="by">${USERS[e.by]}</i>` : ''}</span>
      <time>${dayLabel(e.t)} <bdi dir="ltr">${clock(e.t)}${e.end ? '–'+clock(e.end) : ''}</bdi></time></div>`;
 }
 
@@ -1758,7 +1778,7 @@ function logText(p, from, to){
     for(const e of ev){
       const it = ITEMS[e.k];
       const live = isLive(e), time = e.end ? `${clock(e.t)}–${clock(e.end)}` : live ? `${clock(e.t)}–עכשיו` : clock(e.t);
-      const what = (live ? it.live : it.log) + (e.assumed ? ' (משוער)' : '') + (!e.assumed && CRY_LBL[cryKind(e)] ? ` · ${CRY_LBL[cryKind(e)]}` : '') + (PLAY[e.y] ? ` · ${PLAY[e.y]}` : e.y === 'play' ? ' · במשחק' : '') + (WHERE[e.w] ? ` · ${WHERE[e.w]}` : '') + (POOP[e.q] ? ` · ${POOP[e.q]}` : '')
+      const what = (live ? it.live : it.log) + (e.assumed ? ' (משוער)' : '') + (!e.assumed && CRY_LBL[cryKind(e)] ? ` · ${CRY_LBL[cryKind(e)]}` : '') + (!e.assumed && mealKind(e) ? ` · ${MEAL_LBL[mealKind(e)]}` : '') + (PLAY[e.y] ? ` · ${PLAY[e.y]}` : e.y === 'play' ? ' · במשחק' : '') + (WHERE[e.w] ? ` · ${WHERE[e.w]}` : '') + (POOP[e.q] ? ` · ${POOP[e.q]}` : '')
         + (e.end ? ` · ${words(e.end - e.t)}` : live ? ` · כבר ${words(Date.now() - e.t)}` : '') + (e.assumed ? '' : afterCrate(p, e));
       out.push(`${time}  ${what}`);
     }
@@ -1860,7 +1880,11 @@ function renderSummary(){
 
   if(sumMode !== 'month') h += timelineHTML(pet, from, to, F);
   if(P.cycle && (!F || F === 'pee')) h += successHTML(pet, from, to, multi);
-  if(P.cycle && !F){ const rs = retryStats(pet, from, to); if(rs.n) h += `<div class="card slim rtsum"><span><b>ניסיונות חוזרים: ${rs.n}</b><small>הסתיימו בפיפי בחצץ: ${rs.good}</small></span>${ico('crate','s')}</div>`; h += cryStatsHTML(pet, from, to); }
+  if(P.cycle && !F){ const rs = retryStats(pet, from, to); if(rs.n) h += `<div class="card slim rtsum"><span><b>ניסיונות חוזרים: ${rs.n}</b><small>הסתיימו בפיפי בחצץ: ${rs.good}</small></span>${ico('crate','s')}</div>`; h += cryStatsHTML(pet, from, to);
+    if(sumMode === 'day'){
+      const ks = state.log.filter(e => e.p===pet && e.k==='food' && e.t >= from && e.t < to).map(mealKind), nm = ks.filter(k => k === 'meal').length, nb = ks.filter(k => k === 'bite').length;
+      h += `<div class="card slim mealsum"><span><b>${dayLabel(from) === 'היום' ? 'ארוחות היום' : 'ארוחות'}: ${nm} מתוך ${MEAL.perDay}</b>${nb ? `<small>ביסים: ${nb}</small>` : ''}</span>${ico('food','s')}</div>`;
+    } }
   if(multi) h += whereBarsHTML(pet, from, to, F);
 
   const evAll = state.log.filter(e => e.p===pet && (!F || e.k===F) && (ITEMS[e.k].dur ? ((e.end == null ? now : e.end) > from && e.t < to) : (e.t >= from && e.t < to)));
@@ -2188,6 +2212,7 @@ function openEntrySheet(i){
   sheet(`${name} · ${it.log} · ${dayLabel(e.t)} <bdi dir="ltr">${clock(e.t)}</bdi>`,
     pt ? `<label class="field">תיקון השעה ${timeField("tIn", clock(e.t))}</label>` +
          (hasWhere(e.k) ? `<div class="sub" style="margin:14px 0 8px">איפה?</div><div class="chips">${whereKeys(e.p).map(w => `<button data-w="${w}" class="${e.w===w?'sel':''}">${WHERE[w]}</button>`).join('')}</div>` : '') +
+         (mealKind(e) ? `<div class="sub" style="margin:14px 0 8px">ארוחה או ביס?</div><div class="chips">${Object.keys(MEAL_LBL).map(m => `<button data-m="${m}" class="${mealKind(e)===m?'sel':''}">${MEAL_LBL[m]}</button>`).join('')}</div><div class="sub hint">ארוחה מאפסת את השעון של האוכל; ביס לא.</div>` : '') +
          (hasType(e.p, e.k) ? `<div class="sub" style="margin:14px 0 8px">איך היה הקקי?</div><div class="chips">${Object.keys(POOP).map(q => `<button data-q="${q}" class="${e.q===q?'sel':''}">${POOP[q]}</button>`).join('')}</div>` : '')
        : (it.dur ? `<label class="field">התחלה ${timeField("aIn", clock(e.t))}</label><label class="field">סיום&nbsp; ${timeField("bIn", clock(e.end))}</label>` : '') +
          (canReopen ? `<div class="sub" style="margin:10px 0">נרשם בטעות כאילו נגמר?</div><div class="chips"><button id="reopen">עדיין נמשך (מ־${clock(e.t)})</button></div>` : '') +
@@ -2210,15 +2235,17 @@ function openEntrySheet(i){
       if(v === clock(e.t)) d.setTime(e.t);   // same minute = time untouched
       if(d.getTime() > Date.now() + 60000){ sh.querySelector('#tIn').classList.add('bad'); return; }   // not in the future
       close();
-      if(d.getTime() === e.t && w === e.w && q === e.q) return;
+      if(d.getTime() === e.t && w === e.w && q === e.q && mk === mk0) return;
       commit(`${name} · ${it.log} עודכן`, () => {
         const x = find(); if(!x) return;
         if(w) x.w = w; else delete x.w;
         if(q) x.q = q; else delete x.q;
+        if(mk !== mk0) x.m = mk;   // her correction; from here on it wins over the two-hour rule
         x.t = d.getTime();
       });
     });
-  let w = e.w, q = e.q;
+  let w = e.w, q = e.q; const mk0 = mealKind(e); let mk = mk0;
+  sh.querySelectorAll('[data-m]').forEach(b => b.onclick = () => { mk = b.dataset.m; sh.querySelectorAll('[data-m]').forEach(x => x.classList.toggle('sel', x.dataset.m === mk)); });
   sh.querySelectorAll('[data-w]').forEach(b => b.onclick = () => {
     w = w === b.dataset.w ? undefined : b.dataset.w;
     sh.querySelectorAll('[data-w]').forEach(x => x.classList.toggle('sel', x.dataset.w === w));

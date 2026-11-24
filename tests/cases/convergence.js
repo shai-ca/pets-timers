@@ -15,6 +15,10 @@
     const mismatch = (who) => {
       for(const p of Object.keys(PETS)){
         const x = expected(state.log, p), a = tiles(p);
+        if(typeof mealKinds === 'function' && PETS[p].cycle){   // the food tile follows meals: more than two hours after the last meal (worked out here independently)
+          let lastMeal = 0; for(const e of state.log.filter(e => e.p === p && e.k === 'food').sort((u, v) => u.t - v.t)) if(e.m === 'meal' || (e.m !== 'bite' && (!lastMeal || e.t - lastMeal > 2*HOUR))) lastMeal = e.t;
+          x.point.food = lastMeal;
+        }
         for(const k of ['food','pee','poop','gel','none']) if((a[k] || 0) !== (x.point[k] || 0)) return `${who}: ${p}.${k} tile ${a[k]} vs list ${x.point[k]}`;
         if(typeof derive === 'function' && canon(derive(state)[p].sleep) !== canon(a.sleep)) return `${who}: ${p}.sleep view is not what the list gives`;
         for(const k of KD){
