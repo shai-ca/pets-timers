@@ -36,6 +36,7 @@
   .night .toast{background:#3a332b}
   .card.item.warn{background:var(--warn-soft);border-color:var(--warn)} .card.item.warn .big,.card.item.warn .lbl{color:var(--warn)}
   .frm{display:flex;align-items:center;gap:8px;margin-top:10px;padding:9px 12px;border-radius:12px;background:var(--warn-soft);color:var(--warn);font-size:13.5px;font-weight:500}
+  .card.slim.gravel.on{border-color:var(--ok);background:var(--ok-soft)} .card.slim.gravel small b{font-weight:600;color:var(--ink)}
   .card.slim.sleepq{border-color:color-mix(in srgb,var(--btn) 45%,transparent);flex-wrap:wrap;gap:8px 12px}
   .card.slim.sleepq.wait{border-color:var(--line)} .card.slim.sleepq small b{font-weight:600;color:var(--ink)}
   .card.slim.cryrow.on{border-color:var(--alert);background:var(--alert-soft)}
@@ -500,6 +501,9 @@ const ITEMS = {
   // Moved from one crate to another without coming out (`c` = the crate she is in from then on). It sits inside
   // the running crate stay: the stay, its timer and the round go on.
   swap:{icon:'crate',log:'הועברה לכלוב אחר'},
+  // On the gravel, waiting for her to go: an optional timer ("יצאנו לחצץ") that the next pee / poop / "לא עשתה"
+  // ends, so each of them knows how long it took. Not listed as a row of its own (`nolist`).
+  gravel:{dur:true,icon:'pee',lbl:'בחצץ',live:'בחצץ',start:'יצאנו לחצץ',stop:'חזרנו בלי לסמן',log:'בחצץ',startQ:'מתי יצאתם לחצץ?',nolist:true},
   born:{icon:'paw',log:'תאריך לידה',hid:true},
   med_am:{icon:'pill',log:'תרופת בוקר'},
   med_pm:{icon:'pill',log:'תרופת ערב'}
@@ -1100,6 +1104,7 @@ function tapDur(p, k, at){   // `at`: start a timer that began earlier ("she wen
   });
   else commit(`${PETS[p].name} · ${ITEMS[k].start}`, () => {
     if(running) stopDur(p, k, at);          // starting "earlier" while one is running: close that one first
+    if(k === 'crate') endGravel(p, at || now);
     state.log.push(newStay(p, k, at || now));   // no `end`: it is running
   });
 }
@@ -1118,7 +1123,27 @@ function leaveCrate(p, t){
 // sometimes her bowl inside the (mesh) crate. They only mean she is awake: a marked sleep still running ends.
 const OUT_KINDS = {pee:1, poop:1, none:1};
 const AWAKE_KINDS = {food:1, water:1, play:1, nofood:1};
+// HOW LONG IT TOOK HER ON THE GRAVEL. The running "gravel" timer ends at the pee / poop / "לא עשתה" that follows
+// (or when she goes into the crate); one forgotten for more than an hour is dropped rather than believed.
+const GRAVEL_MAX = 60*60000, GRAVEL_OPTS = [2, 5, 10, 15, 20];
+function endGravel(p, t){
+  const g = state.log.filter(e => e.p===p && e.k==='gravel' && e.end == null);
+  for(const e of g){ if(e.t < t && t - e.t <= GRAVEL_MAX) e.end = t; else state.log = state.log.filter(x => x !== e); }
+}
+// The wait behind a pee / poop / "לא עשתה": what she said afterwards (`g`, minutes), else the timer that ended with it.
+function waitOf(e){
+  if(!(e.k === 'pee' || e.k === 'poop' || e.k === 'none')) return null;
+  if(typeof e.g === 'number' && e.g > 0) return e.g * 60000;
+  const g = state.log.find(x => x.p===e.p && x.k==='gravel' && x.end === e.t && x.t < e.t);
+  return g ? e.t - g.t : null;
+}
+const waitTag = e => { const w = waitOf(e); return w == null ? '' : ` · אחרי ${words(w)} בחצץ`; };
+function usualWait(p, kinds, from, to){   // median wait for these kinds in a period, with how many it is based on
+  const g = state.log.filter(e => e.p===p && kinds.includes(e.k) && e.t >= from && e.t < to).map(waitOf).filter(w => w != null);
+  return g.length ? {ms: median(g), n: g.length} : null;
+}
 function impliesOut(p, k, t){
+  if(PETS[p].cycle && OUT_KINDS[k]) endGravel(p, t);
   if(!PETS[p].cycle || !(OUT_KINDS[k] || AWAKE_KINDS[k])) return;
   const open = kk => state.log.filter(e => e.p===p && e.k===kk && e.end == null).sort((x,y) => x.t-y.t)[0];
   const c = open('crate'), sl = open('sleep');
@@ -1464,7 +1489,7 @@ function retryAct(p, a, k, sure, t){
     const kind = a === 'rtpee' ? 'pee' : 'none', d = !sure && !t && recentDouble(p, x => x.k === kind);
     if(d){ askAgain(d, ITEMS[kind].log, () => retryAct(p, a, k, true)); return; }
     let e = {p, k: kind, t: now};
-    commit(`${name} · ${ITEMS[e.k].log}`, () => { if(open) leaveCrate(p, now); if(kind === 'none') e = pushNone(p, now); else state.log.push(e); });
+    commit(`${name} · ${ITEMS[e.k].log}`, () => { endGravel(p, now); if(open) leaveCrate(p, now); if(kind === 'none') e = pushNone(p, now); else state.log.push(e); });
     stillCrying(p, now, () => { if(e.k === 'pee' && e.id) whereSheet(e.id); });
   }
   // Closing the card only hides it and unlocks play. What happened is still a retry if it turns out to be one.
@@ -1549,7 +1574,7 @@ function roundName(r){ const dl = dayLabel(r.t); return `סבב ${r.n}${dl==='ה
 function entriesIn(p, from, to){
   const now = Date.now();
   const assumed = V[p].spans.filter(sp => sp.assumed && sp.t <= now && sp.t >= from && sp.t < to).map(sp => ({p, k:'sleep', t:sp.t, end: sp.end == null ? undefined : sp.end, assumed:true, stay:sp.stay}));
-  return state.log.filter(e => e.p===p && e.t >= from && e.t < to && !ITEMS[e.k].hid).concat(assumed).sort((x,y) => x.t - y.t);
+  return state.log.filter(e => e.p===p && e.t >= from && e.t < to && !ITEMS[e.k].hid && !ITEMS[e.k].nolist).concat(assumed).sort((x,y) => x.t - y.t);
 }
 // A day's entries grouped by round: newest round first, the entries inside a round in the order they happened.
 // Which round an entry is listed under: the one it falls in — except that something logged in the very minute a
@@ -1741,7 +1766,9 @@ function render(){
     }
     h += sec('1', 'כלוב', tap.includes('crate'), tileOf('crate'), 'crate');
     // "Went out, nothing happened" is one button in a slim row — it has no timer of its own worth a tile.
-    const pottySec = sec('2 · 5', 'צרכים', tap.includes('pee') || !!rt, tileOf('pee') + tileOf('poop') +
+    const gv = (S.gravel || {}).start, uw = usualWait(pet, ['pee'], Date.now() - 14*86400000, Date.now() + 1);
+    const gravelRow = `<div class="card slim gravel ${gv ? 'on' : ''}"><span><b>${gv ? 'בחצץ כבר' : 'יוצאים לחצץ?'}</b><small>${gv ? `<b class="rt-t" data-since="${gv}">${dur(Date.now() - gv)}</b> · פיפי, קקי או ״לא עשתה״ עוצרים את השעון` : uw && uw.n >= 3 ? `בדרך כלל עושה פיפי תוך ${words(uw.ms)}` : 'מודד כמה זמן לוקח לה. לא חובה.'}</small></span><button class="btn" data-act="dur" data-k="gravel">${gv ? ITEMS.gravel.stop : ITEMS.gravel.start}</button></div>`;
+    const pottySec = sec('2 · 5', 'צרכים', tap.includes('pee') || !!rt, gravelRow + tileOf('pee') + tileOf('poop') +
       `<div class="card slim ${tap.includes('none') ? 'nowt' : ''}"><span><b>יצאה לצרכים ולא עשתה כלום?</b>${ln ? `<small>פעם אחרונה: ${dayLabel(ln)} <bdi dir="ltr">${clock(ln)}</bdi></small>` : ''}</span><button class="btn" data-act="pt" data-k="none">לא עשתה</button></div>`, 'potty');
     // Just woken up or out of the crate: on a phone the potty tiles come to the top of the page, above the wheel.
     const pottyTop = !!pottyDue(pet) && isPhone();
@@ -1759,7 +1786,7 @@ waterRowHTML(pet) + (P.treats ? treatCardHTML(pet) : ''), 'food');
     const a = sod(Date.now()), b = new Date(a); b.setDate(b.getDate()+1);
     h += `<h2>היום לפי סבבים<small>לחיצה על רישום לתיקון · <button class="lnk" data-act="prevdays">ימים קודמים</button> · <button class="lnk" data-act="addev">הוספת רישום</button></small></h2><div class="card log uni">${groupedHTML(pet, a.getTime(), b.getTime())}</div>`;
   } else {
-    const items = state.log.filter(e => e.p===pet && !ITEMS[e.k].hid).slice(-25).reverse();
+    const items = state.log.filter(e => e.p===pet && !ITEMS[e.k].hid && !ITEMS[e.k].nolist).slice(-25).reverse();
     h += `<h2>היסטוריה<small>לחיצה על רישום לתיקון או מחיקה · <button class="lnk" data-act="addev">הוספת רישום</button></small></h2><div class="card log">` + (items.length ? items.map(logRow).join('') : `<div class="empty">אין עדיין רישומים</div>`) + `</div>`;
   }
   document.getElementById('main').innerHTML = h;
@@ -1975,7 +2002,7 @@ function logRow(e){
   const live = isLive(e);
   if(e.assumed) return `<div class="r guess" data-stay="${e.stay}" data-t="${e.t}">${ico('sleep','s')}<span>${live ? 'ישנה כנראה עכשיו' : 'ישנה'} <i class="by">משוער</i>${e.end ? ' · '+words(e.end-e.t) : ''}</span>
      <time>${dayLabel(e.t)} <bdi dir="ltr">${clock(e.t)}${e.end ? '–'+clock(e.end) : ''}</bdi></time></div>`;
-  return `<div class="r" ${live ? `data-live="${e.k}"` : `data-e="${state.log.indexOf(e)}"`}>${ico(iconOf(e.k),'s')}<span>${live ? ITEMS[e.k].live+' עכשיו' : e.k === 'swap' && CRATES[e.c] ? 'הועברה ל'+CRATES[e.c] : ITEMS[e.k].log}${e.k === 'crate' && PETS[e.p].cycle && (CRATES[e.c] || e.t >= SLEEP2_FROM) ? ' · '+CRATES[crateKind(e)] : ''}${isRetryStay(e) ? ' · ניסיון חוזר' : ''}${CRY_LBL[cryKind(e)] ? ' · '+CRY_LBL[cryKind(e)] : ''}${mealKind(e) ? ' · '+MEAL_LBL[mealKind(e)] : ''}${typeTag(e.q)}${e.n ? ' · '+esc(e.n) : ''}${afterCrate(e.p, e)}${PLAY[e.y] ? ' · '+PLAY[e.y] : e.y === 'play' ? ' · במשחק' : ''}${whereTag(e.w)}${e.end ? ' · '+words(e.end-e.t) : ''}${USERS[e.by] ? `<i class="by">${USERS[e.by]}</i>` : ''}${fatLine(e) ? `<small class="ctx">${fatLine(e)}</small>` : ''}</span>
+  return `<div class="r" ${live ? `data-live="${e.k}"` : `data-e="${state.log.indexOf(e)}"`}>${ico(iconOf(e.k),'s')}<span>${live ? ITEMS[e.k].live+' עכשיו' : e.k === 'swap' && CRATES[e.c] ? 'הועברה ל'+CRATES[e.c] : ITEMS[e.k].log}${e.k === 'crate' && PETS[e.p].cycle && (CRATES[e.c] || e.t >= SLEEP2_FROM) ? ' · '+CRATES[crateKind(e)] : ''}${isRetryStay(e) ? ' · ניסיון חוזר' : ''}${CRY_LBL[cryKind(e)] ? ' · '+CRY_LBL[cryKind(e)] : ''}${mealKind(e) ? ' · '+MEAL_LBL[mealKind(e)] : ''}${typeTag(e.q)}${e.n ? ' · '+esc(e.n) : ''}${afterCrate(e.p, e)}${PLAY[e.y] ? ' · '+PLAY[e.y] : e.y === 'play' ? ' · במשחק' : ''}${whereTag(e.w)}${waitTag(e)}${e.end ? ' · '+words(e.end-e.t) : ''}${USERS[e.by] ? `<i class="by">${USERS[e.by]}</i>` : ''}${fatLine(e) ? `<small class="ctx">${fatLine(e)}</small>` : ''}</span>
      <time>${dayLabel(e.t)} <bdi dir="ltr">${clock(e.t)}${e.end ? '–'+clock(e.end) : ''}</bdi></time></div>`;
 }
 
@@ -2005,7 +2032,7 @@ function sumShift(dir){
   sumAnchor = Math.min(d.getTime(), Date.now());
 }
 function stats(p, from, to){
-  const r = {food:0, pee:0, poop:0, gel:0, none:0, vomit:0, treat:0, sleep:{n:0,ms:0}, cry:{n:0,ms:0}, crate:{n:0,ms:0}, medoff:{n:0,ms:0}, meds:0, w:{pee:{}, poop:{}}, q:{}};
+  const r = {food:0, pee:0, poop:0, gel:0, none:0, vomit:0, treat:0, sleep:{n:0,ms:0}, cry:{n:0,ms:0}, crate:{n:0,ms:0}, medoff:{n:0,ms:0}, gravel:{n:0,ms:0}, meds:0, w:{pee:{}, poop:{}}, q:{}};
   const add = (k, a, b) => { const ov = Math.min(b,to) - Math.max(a,from); if(ov > 0){ r[k].ms += ov; r[k].n++; } };
   for(const e of state.log){
     if(e.p !== p) continue;
@@ -2086,7 +2113,7 @@ function logText(p, from, to){
     for(const e of ev){
       const it = ITEMS[e.k];
       const live = isLive(e), time = e.end ? `${clock(e.t)}–${clock(e.end)}` : live ? `${clock(e.t)}–עכשיו` : clock(e.t);
-      const what = (live ? it.live : e.k === 'swap' && CRATES[e.c] ? 'הועברה ל'+CRATES[e.c] : it.log) + (e.k === 'crate' && PETS[e.p].cycle && (CRATES[e.c] || e.t >= SLEEP2_FROM) ? ` · ${CRATES[crateKind(e)]}` : '') + (e.assumed ? ' (משוער)' : '') + (!e.assumed && CRY_LBL[cryKind(e)] ? ` · ${CRY_LBL[cryKind(e)]}` : '') + (!e.assumed && mealKind(e) ? ` · ${MEAL_LBL[mealKind(e)]}` : '') + (PLAY[e.y] ? ` · ${PLAY[e.y]}` : e.y === 'play' ? ' · במשחק' : '') + (WHERE[e.w] ? ` · ${WHERE[e.w]}` : '') + (KIND_LBL[e.q] ? ` · ${KIND_LBL[e.q]}` : '') + (e.n ? ` · ${e.n}` : '') + (!e.assumed && fatLine(e) ? ` · ${fatLine(e)}` : '')
+      const what = (live ? it.live : e.k === 'swap' && CRATES[e.c] ? 'הועברה ל'+CRATES[e.c] : it.log) + (e.k === 'crate' && PETS[e.p].cycle && (CRATES[e.c] || e.t >= SLEEP2_FROM) ? ` · ${CRATES[crateKind(e)]}` : '') + (e.assumed ? ' (משוער)' : '') + (!e.assumed && CRY_LBL[cryKind(e)] ? ` · ${CRY_LBL[cryKind(e)]}` : '') + (!e.assumed && mealKind(e) ? ` · ${MEAL_LBL[mealKind(e)]}` : '') + (PLAY[e.y] ? ` · ${PLAY[e.y]}` : e.y === 'play' ? ' · במשחק' : '') + (WHERE[e.w] ? ` · ${WHERE[e.w]}` : '') + (e.assumed ? '' : waitTag(e)) + (KIND_LBL[e.q] ? ` · ${KIND_LBL[e.q]}` : '') + (e.n ? ` · ${e.n}` : '') + (!e.assumed && fatLine(e) ? ` · ${fatLine(e)}` : '')
         + (e.end ? ` · ${words(e.end - e.t)}` : live ? ` · כבר ${words(Date.now() - e.t)}` : '') + (e.assumed ? '' : afterCrate(p, e));
       out.push(`${time}  ${what}`);
     }
@@ -2189,6 +2216,10 @@ function renderSummary(){
 
   if(sumMode !== 'month') h += timelineHTML(pet, from, to, F);
   if(P.cycle && (!F || F === 'pee')) h += successHTML(pet, from, to, multi);
+  if(P.cycle && !F){
+    const wp = usualWait(pet, ['pee', 'poop'], from, to), wn = usualWait(pet, ['none'], from, to);
+    if(wp || wn) h += `<div class="card slim waitsum"><span><b>${wp ? `בחצץ: עושה בדרך כלל תוך ${words(wp.ms)}` : 'בחצץ'}</b><small>${wp ? `לפי ${wp.n === 1 ? 'יציאה אחת' : wp.n + ' יציאות'}` : ''}${wp && wn ? ' · ' : ''}${wn ? `כשלא עשתה, חיכינו בדרך כלל ${words(wn.ms)} (${wn.n})` : ''}</small></span>${ico('pee','s')}</div>`;
+  }
   if(P.cycle && !F) h += crateCompareHTML(pet, from, to);
   if(P.treats && !F) h += fat30HTML(pet);
   if(P.cycle && !F){ const rs = retryStats(pet, from, to); if(rs.n) h += `<div class="card slim rtsum"><span><b>ניסיונות חוזרים: ${rs.n}</b><small>הסתיימו בפיפי בחצץ: ${rs.good}</small></span>${ico('crate','s')}</div>`; h += cryStatsHTML(pet, from, to);
@@ -2544,6 +2575,7 @@ function openEntrySheet(i){
   sheet(`${name} · ${it.log} · ${dayLabel(e.t)} <bdi dir="ltr">${clock(e.t)}</bdi>`,
     pt ? `<label class="field">תיקון השעה ${timeField("tIn", clock(e.t))}</label>` +
          (hasWhere(e.k) ? `<div class="sub" style="margin:14px 0 8px">איפה?</div><div class="chips">${whereKeys(e.p).map(w => `<button data-w="${w}" class="${e.w===w?'sel':''}">${WHERE[w]}</button>`).join('')}</div>` : '') +
+         (PETS[e.p].cycle && waitOf({...e, g: 1}) != null ? `<div class="sub" style="margin:14px 0 8px">כמה זמן לקח בחצץ?${typeof e.g !== 'number' && waitOf(e) != null ? ' (נמדד: ' + words(waitOf(e)) + ')' : ''}</div><div class="chips">${GRAVEL_OPTS.map(m => `<button data-g="${m}" class="${e.g===m?'sel':''}">${m} דק׳</button>`).join('')}</div>` : '') +
          (mealKind(e) ? `<div class="sub" style="margin:14px 0 8px">ארוחה או ביס?</div><div class="chips">${Object.keys(MEAL_LBL).map(m => `<button data-m="${m}" class="${mealKind(e)===m?'sel':''}">${MEAL_LBL[m]}</button>`).join('')}</div><div class="sub hint">ארוחה מאפסת את השעון של האוכל; ביס לא.</div>` : '') +
          (e.k === 'treat' ? `<label class="field" style="margin-top:12px">מה זה היה? <input type="text" id="nmIn" maxlength="40" value="${esc(e.n)}" placeholder="לא חובה" autocomplete="off"></label>` : '') +
          (hasType(e.p, e.k) ? `<div class="sub" style="margin:14px 0 8px">${KIND_Q[e.k]}</div><div class="chips">${Object.keys(kindsOf(e.p, e.k)).map(q => `<button data-q="${q}" class="${e.q===q?'sel':''}">${kindsOf(e.p, e.k)[q]}</button>`).join('')}</div>` : '')
@@ -2571,17 +2603,19 @@ function openEntrySheet(i){
       if(d.getTime() > Date.now() + 60000){ sh.querySelector('#tIn').classList.add('bad'); return; }   // not in the future
       close();
       const nmEl = sh.querySelector('#nmIn'), nm = nmEl ? nmEl.value.trim().slice(0, 40) : (e.n || '');
-      if(d.getTime() === e.t && w === e.w && q === e.q && mk === mk0 && nm === (e.n || '')) return;
+      if(d.getTime() === e.t && w === e.w && q === e.q && mk === mk0 && nm === (e.n || '') && gm === e.g) return;
       commit(`${name} · ${it.log} עודכן`, () => {
         const x = find(); if(!x) return;
         if(w) x.w = w; else delete x.w;
         if(q) x.q = q; else delete x.q;
         if(nm) x.n = nm; else delete x.n;
+        if(gm) x.g = gm; else delete x.g;
         if(mk !== mk0) x.m = mk;   // her correction; from here on it wins over the two-hour rule
         x.t = d.getTime();
       });
     });
-  let w = e.w, q = e.q; const mk0 = mealKind(e); let mk = mk0;
+  let w = e.w, q = e.q, gm = e.g; const mk0 = mealKind(e); let mk = mk0;
+  sh.querySelectorAll('[data-g]').forEach(b => b.onclick = () => { gm = gm === +b.dataset.g ? undefined : +b.dataset.g; sh.querySelectorAll('[data-g]').forEach(x => x.classList.toggle('sel', +x.dataset.g === gm)); });
   sh.querySelectorAll('[data-m]').forEach(b => b.onclick = () => { mk = b.dataset.m; sh.querySelectorAll('[data-m]').forEach(x => x.classList.toggle('sel', x.dataset.m === mk)); });
   sh.querySelectorAll('[data-w]').forEach(b => b.onclick = () => {
     w = w === b.dataset.w ? undefined : b.dataset.w;
