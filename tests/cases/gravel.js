@@ -5,7 +5,7 @@
     const now = Date.now(), late = now - midnight() > 400*MIN, K0 = { p:'kishmish' }, row = () => $q('#sec-potty .card.slim.gravel'), today = [midnight(), midnight() + 24*HOUR];
     if(!late){ ok('skipped (too close to midnight)', true); done(); return; }
     seed([{ ...K0, k:'crate', t: now - 200*MIN, end: now - 30*MIN }, { ...K0, k:'pee', t: now - 100*MIN, w:'gravel' }]);
-    ok('the potty group has an optional "going to the gravel" row, first in the group', !!row() && $q('#sec-potty .card') === row() && row().textContent.includes('יוצאים לחצץ?') && row().querySelector('button').textContent === 'יצאנו לחצץ' && row().textContent.includes('לא חובה'));
+    ok('one card for the gravel, first in the group: start the clock, or just "nothing" — no second row for it', !!row() && $q('#sec-potty .card') === row() && row().textContent.includes('יוצאים לחצץ?') && [...row().querySelectorAll('button')].map(b => b.textContent).join() === 'יצאנו לחצץ,לא עשתה' && $n('#sec-potty [data-act=pt][data-k=none]') === 1 && !$q('#sec-potty').textContent.includes('יצאה לצרכים ולא עשתה כלום'));
     row().querySelector('button').click();
     ok('while it runs the same card is the stop: pee, poop or "nothing" — and the separate "nothing" row steps aside', [...row().querySelectorAll('.rt-a button')].map(b => b.textContent).join() === 'פיפי,קקי,לא עשתה,×' && $n('#sec-potty [data-act=pt][data-k=none]') === 1 && row().textContent.includes('מה קרה?'));
     ok('tapping it starts a small timer; nothing else changes', !!K().gravel.start && row().classList.contains('on') && !!row().querySelector('[data-since]') && roundStarts('kishmish').length === 1 && !K().crate.start && !$q('.uni').textContent.includes('בחצץ'));

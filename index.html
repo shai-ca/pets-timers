@@ -36,7 +36,8 @@
   .night .toast{background:#3a332b}
   .card.item.warn{background:var(--warn-soft);border-color:var(--warn)} .card.item.warn .big,.card.item.warn .lbl{color:var(--warn)}
   .frm{display:flex;align-items:center;gap:8px;margin-top:10px;padding:9px 12px;border-radius:12px;background:var(--warn-soft);color:var(--warn);font-size:13.5px;font-weight:500}
-  .card.slim.gravel.on{border-color:var(--ok);background:var(--ok-soft);flex-wrap:wrap;gap:8px 12px} .card.slim.gravel.on .rt-a{flex-wrap:wrap} .card.slim.gravel small b{font-weight:600;color:var(--ink)}
+  .card.slim.gravel{flex-wrap:wrap;gap:8px 12px} .card.slim.gravel .rt-a{flex-wrap:wrap}
+  .card.slim.gravel.on{border-color:var(--ok);background:var(--ok-soft)} .card.slim.gravel small b{font-weight:600;color:var(--ink)}
   .card.slim.sleepq{border-color:color-mix(in srgb,var(--btn) 45%,transparent);flex-wrap:wrap;gap:8px 12px}
   .card.slim.sleepq.wait{border-color:var(--line)} .card.slim.sleepq small b{font-weight:600;color:var(--ink)}
   .card.slim.cryrow.on{border-color:var(--alert);background:var(--alert-soft)}
@@ -1775,9 +1776,9 @@ function render(){
     const gravelRow = gv
       ? `<div class="card slim gravel on"><span><b>בחצץ כבר <span class="rt-t" data-since="${gv}">${dur(Date.now() - gv)}</span></b><small>מה קרה? הלחיצה עוצרת את השעון ושומרת כמה זמן זה לקח</small></span>
           <span class="rt-a"><button class="go" data-act="pt" data-k="pee">פיפי</button><button class="go" data-act="pt" data-k="poop">קקי</button><button class="btn" data-act="pt" data-k="none">לא עשתה</button><button class="rt-x" data-act="dur" data-k="gravel" aria-label="${ITEMS.gravel.stop}" title="${ITEMS.gravel.stop}">×</button></span></div>`
-      : `<div class="card slim gravel"><span><b>יוצאים לחצץ?</b><small>${uw && uw.n >= 3 ? `בדרך כלל עושה פיפי תוך ${words(uw.ms)}` : 'מודד כמה זמן לוקח לה ומה יצא. לא חובה.'}</small></span><button class="btn" data-act="dur" data-k="gravel">${ITEMS.gravel.start}</button></div>`;
-    const pottySec = sec('2 · 5', 'צרכים', tap.includes('pee') || !!rt, gravelRow + tileOf('pee') + tileOf('poop') +
-      (gv ? '' : `<div class="card slim ${tap.includes('none') ? 'nowt' : ''}"><span><b>יצאה לצרכים ולא עשתה כלום?</b>${ln ? `<small>פעם אחרונה: ${dayLabel(ln)} <bdi dir="ltr">${clock(ln)}</bdi></small>` : ''}</span><button class="btn" data-act="pt" data-k="none">לא עשתה</button></div>`), 'potty');
+      : `<div class="card slim gravel ${tap.includes('none') ? 'nowt' : ''}"><span><b>יוצאים לחצץ?</b><small>${uw && uw.n >= 3 ? `בדרך כלל עושה פיפי תוך ${words(uw.ms)}` : 'השעון מודד כמה זמן לקח ומה יצא'}${ln ? ` · לא עשתה לאחרונה: ${dayLabel(ln)} <bdi dir="ltr">${clock(ln)}</bdi>` : ''}</small></span>
+          <span class="rt-a"><button class="go" data-act="dur" data-k="gravel">${ITEMS.gravel.start}</button><button class="btn" data-act="pt" data-k="none">לא עשתה</button></span></div>`;
+    const pottySec = sec('2 · 5', 'צרכים', tap.includes('pee') || !!rt, gravelRow + tileOf('pee') + tileOf('poop'), 'potty');
     // Just woken up or out of the crate: on a phone the potty tiles come to the top of the page, above the wheel.
     const pottyTop = !!pottyDue(pet) && isPhone();
     if(!pottyTop) h += pottySec;

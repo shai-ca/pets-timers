@@ -13,7 +13,7 @@
       ok('crate tile -> wheel on crate, next step outlined', cur() === 'כלוב' && nxt() === 'טיול וצרכים' && $n('.sg.cur') === 1 && $n('.sg.nxt') === 1 && $q('.cyc-h small').textContent.includes('סבב 1'));
       ok('no stored step or timer field: the running stay is an entry', !('cyc' in state) && !state.kishmish && logOf('kishmish', 'crate').length === 1 && logOf('kishmish', 'crate')[0].end == null);
       $q('[data-act=dur][data-k=crate]').click();
-      ok('out of the crate -> walk + potty, reminder up, potty tiles tagged', cur() === 'טיול וצרכים' && !!$q('.duemsg') && tags() === 'pee,poop,none');
+      ok('out of the crate -> walk + potty, reminder up, potty tiles tagged', cur() === 'טיול וצרכים' && !!$q('.duemsg') && tags() === 'gravel,pee,poop');   // the gravel card (start the clock / "nothing") comes first, then pee and poop
       tile('pee').click(); sh.querySelector('[data-w=pad]').click();
       ok('a pee -> play; reminder cleared; play card and food tagged', cur() === 'משחק' && nxt() === 'אוכל' && !$q('.duemsg') && !!$q('.card.playc.nowt') && $n('.card.nowt') === 2);
       $q('[data-act=play][data-k=rope]').click();
