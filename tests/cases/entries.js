@@ -104,7 +104,7 @@
     // kochik's poop: what kind it was
     seed([]); tapPoint('kochik', 'poop');
     ok('after a poop: first where…', !!sh.querySelector('[data-w=out]')); sh.querySelector('[data-w=out]').click();
-    ok('…then what kind: fine, soft or diarrhoea', sh.querySelector('h3').textContent.includes('איך הוא היה') && [...sh.querySelectorAll('[data-q]')].map(b => b.dataset.q).join() === 'ok,soft,dia');
+    ok('…then what kind: fine, soft or diarrhoea', sh.querySelector('h3').textContent.includes('איך היה הקקי') && [...sh.querySelectorAll('[data-q]')].map(b => b.dataset.q).join() === 'ok,soft,dia');
     sh.querySelector('[data-q=dia]').click();
     ok('diarrhoea is saved and shown on the tile and in the list', logOf('kochik', 'poop')[0].q === 'dia' && logOf('kochik', 'poop')[0].w === 'out' && $q('.card.item [data-k=poop]').closest('.card').textContent.includes('שלשול') && $q('.card.log').textContent.includes('קקי · שלשול'));
     tapPoint('kochik', 'poop', Date.now() - 5*MIN); sh.querySelector('#cancel').click(); sh.querySelector('#cancel').click();

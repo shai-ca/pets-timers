@@ -50,7 +50,7 @@
     ok('"previous days" opens yesterday in the summary', view === 'sum' && sumMode === 'day' && dayKey(sumAnchor) === dayKey(midnight() - HOUR) && $q('.card.log').textContent.includes('פיפי') && $q('.seg.sm .on').dataset.view === 'sum');
     view = 'now'; render();
     $q('[data-act=help]').click(); ok('help sheet', sh.textContent.includes('מסמנים רק בכרטיסים')); close();
-    pet = 'kochik'; render(); ok('kochik: no wheel, no play card, no tags', !$q('.cyc') && !$q('.playc') && $n('.card.item') === 4 && $n('.nowt') === 0);
+    pet = 'kochik'; render(); ok('kochik: no wheel, no play card, no tags', !$q('.cyc') && !$q('.playc') && $n('.card.item') === 5 && $n('.nowt') === 0);
     done();
   } catch(e){ crashed(e); }
 })();

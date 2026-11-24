@@ -35,7 +35,8 @@
     ok('copy puts exactly that text on the clipboard', got === text && document.getElementById('toastMsg').textContent.includes('הועתק'));
     view = 'now'; tapDur(P, 'sleep', now - 20*MIN);
     const st = stats(P, m0, m0 + 24*HOUR);
-    ok('a running timer is counted up to now', (now - m0 > 30*MIN) ? (st.sleep.ms >= 19*MIN && logText(P, m0, m0 + 24*HOUR).includes('–עכשיו  ישנה')) : true);
+    const inSeededStay = now > m0 + 9*HOUR && now - 20*MIN < m0 + 10.5*HOUR;   // the day's seeded crate stay is 09:00–10:30: a sleep begun in it ends with it
+    ok('a running timer is counted up to now', (now - m0 > 30*MIN && !inSeededStay) ? (st.sleep.ms >= 19*MIN && logText(P, m0, m0 + 24*HOUR).includes('–עכשיו  ישנה')) : true);
     pet = 'kochik'; view = 'sum'; sumMode = 'week'; sumFilter = 'crate'; render(); ok('a filter the pet does not have is ignored', !$q('.tile.on')); sumFilter = null;
     done(hints);
   } catch(e){ crashed(e); }
