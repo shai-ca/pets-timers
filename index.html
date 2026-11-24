@@ -36,7 +36,7 @@
   .night .toast{background:#3a332b}
   .card.item.warn{background:var(--warn-soft);border-color:var(--warn)} .card.item.warn .big,.card.item.warn .lbl{color:var(--warn)}
   .frm{display:flex;align-items:center;gap:8px;margin-top:10px;padding:9px 12px;border-radius:12px;background:var(--warn-soft);color:var(--warn);font-size:13.5px;font-weight:500}
-  .card.slim.gravel.on{border-color:var(--ok);background:var(--ok-soft)} .card.slim.gravel small b{font-weight:600;color:var(--ink)}
+  .card.slim.gravel.on{border-color:var(--ok);background:var(--ok-soft);flex-wrap:wrap;gap:8px 12px} .card.slim.gravel.on .rt-a{flex-wrap:wrap} .card.slim.gravel small b{font-weight:600;color:var(--ink)}
   .card.slim.sleepq{border-color:color-mix(in srgb,var(--btn) 45%,transparent);flex-wrap:wrap;gap:8px 12px}
   .card.slim.sleepq.wait{border-color:var(--line)} .card.slim.sleepq small b{font-weight:600;color:var(--ink)}
   .card.slim.cryrow.on{border-color:var(--alert);background:var(--alert-soft)}
@@ -772,7 +772,10 @@ function retryScan(p, log){
 // written with it (one tap, one undo) — a millisecond later, so the order can never be read the other way.
 function pushNone(p, t){
   const e = {p, k:'none', t}; state.log.push(e);
-  if(PETS[p].cycle && retryScan(p, state.log).nones.has(e)) state.log.push(newStay(p, 'crate', t + 1));
+  // …but only while the wait it starts could still be running, and never next to another crate stay. A "לא עשתה"
+  // entered for a quarter of an hour ago must not put her into the crate back then: on 24.11 that left two running crate stays (she had gone back in, and logged that, later).
+  const live = Date.now() - t < RETRY.wait && !state.log.some(x => x.p===p && x.k==='crate' && (x.t >= t || x.end == null));
+  if(PETS[p].cycle && live && retryScan(p, state.log).nones.has(e)) state.log.push(newStay(p, 'crate', t + 1));
   return e;
 }
 // "Out of the crate means awake" is a fact about the list, not just something done at tap time: a sleep that
@@ -1767,9 +1770,14 @@ function render(){
     h += sec('1', 'כלוב', tap.includes('crate'), tileOf('crate'), 'crate');
     // "Went out, nothing happened" is one button in a slim row — it has no timer of its own worth a tile.
     const gv = (S.gravel || {}).start, uw = usualWait(pet, ['pee'], Date.now() - 14*86400000, Date.now() + 1);
-    const gravelRow = `<div class="card slim gravel ${gv ? 'on' : ''}"><span><b>${gv ? 'בחצץ כבר' : 'יוצאים לחצץ?'}</b><small>${gv ? `<b class="rt-t" data-since="${gv}">${dur(Date.now() - gv)}</b> · פיפי, קקי או ״לא עשתה״ עוצרים את השעון` : uw && uw.n >= 3 ? `בדרך כלל עושה פיפי תוך ${words(uw.ms)}` : 'מודד כמה זמן לוקח לה. לא חובה.'}</small></span><button class="btn" data-act="dur" data-k="gravel">${gv ? ITEMS.gravel.stop : ITEMS.gravel.start}</button></div>`;
+    // One start / stop unit: "יצאנו לחצץ" starts the clock, and what happened there stops it — so every trip has
+    // how long it took and how it ended. (Without the clock the three buttons below work as always.)
+    const gravelRow = gv
+      ? `<div class="card slim gravel on"><span><b>בחצץ כבר <span class="rt-t" data-since="${gv}">${dur(Date.now() - gv)}</span></b><small>מה קרה? הלחיצה עוצרת את השעון ושומרת כמה זמן זה לקח</small></span>
+          <span class="rt-a"><button class="go" data-act="pt" data-k="pee">פיפי</button><button class="go" data-act="pt" data-k="poop">קקי</button><button class="btn" data-act="pt" data-k="none">לא עשתה</button><button class="rt-x" data-act="dur" data-k="gravel" aria-label="${ITEMS.gravel.stop}" title="${ITEMS.gravel.stop}">×</button></span></div>`
+      : `<div class="card slim gravel"><span><b>יוצאים לחצץ?</b><small>${uw && uw.n >= 3 ? `בדרך כלל עושה פיפי תוך ${words(uw.ms)}` : 'מודד כמה זמן לוקח לה ומה יצא. לא חובה.'}</small></span><button class="btn" data-act="dur" data-k="gravel">${ITEMS.gravel.start}</button></div>`;
     const pottySec = sec('2 · 5', 'צרכים', tap.includes('pee') || !!rt, gravelRow + tileOf('pee') + tileOf('poop') +
-      `<div class="card slim ${tap.includes('none') ? 'nowt' : ''}"><span><b>יצאה לצרכים ולא עשתה כלום?</b>${ln ? `<small>פעם אחרונה: ${dayLabel(ln)} <bdi dir="ltr">${clock(ln)}</bdi></small>` : ''}</span><button class="btn" data-act="pt" data-k="none">לא עשתה</button></div>`, 'potty');
+      (gv ? '' : `<div class="card slim ${tap.includes('none') ? 'nowt' : ''}"><span><b>יצאה לצרכים ולא עשתה כלום?</b>${ln ? `<small>פעם אחרונה: ${dayLabel(ln)} <bdi dir="ltr">${clock(ln)}</bdi></small>` : ''}</span><button class="btn" data-act="pt" data-k="none">לא עשתה</button></div>`), 'potty');
     // Just woken up or out of the crate: on a phone the potty tiles come to the top of the page, above the wheel.
     const pottyTop = !!pottyDue(pet) && isPhone();
     if(!pottyTop) h += pottySec;

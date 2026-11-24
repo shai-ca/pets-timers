@@ -35,6 +35,13 @@
     seed([{ ...K0, k:'crate', t: now - 600*MIN, end: now - 420*MIN }].concat(rhythm, [pee(65)]));
     tile('none').click(); ok('65 minutes after: her usual time has come — a retry', !!card());
     seed([]); tile('none').click(); ok('no pee logged at all: a retry', !!card());
+    // logged late: it must not put her into the crate in the past
+    seed([{ ...K0, k:'crate', t: now - 300*MIN, end: now - 30*MIN }, pee(170)]);
+    tapPoint('kishmish', 'none', now - 15*MIN);
+    ok('"nothing, a quarter of an hour ago": only the entry — no crate stay is invented for back then', logOf('kishmish', 'none').length === 1 && stays().length === 1 && !K().crate.start);
+    seed([{ ...K0, k:'crate', t: now - 300*MIN, end: now - 30*MIN }, pee(170), { ...K0, k:'crate', t: now - 10*MIN }]);
+    tapPoint('kishmish', 'none', now - 15*MIN);
+    ok('…also when she is already back in the crate: still one running stay (the 24.11 double)', stays().length === 2 && stays().filter(s => !s.end).length === 1 && K().crate.start === now - 10*MIN);
     // the countdown and what the row says
     seed([{ ...K0, k:'crate', t: now - 300*MIN, end: now - 160*MIN }, pee(150)]);
     tile('none').click();

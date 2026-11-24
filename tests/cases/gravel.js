@@ -7,6 +7,7 @@
     seed([{ ...K0, k:'crate', t: now - 200*MIN, end: now - 30*MIN }, { ...K0, k:'pee', t: now - 100*MIN, w:'gravel' }]);
     ok('the potty group has an optional "going to the gravel" row, first in the group', !!row() && $q('#sec-potty .card') === row() && row().textContent.includes('יוצאים לחצץ?') && row().querySelector('button').textContent === 'יצאנו לחצץ' && row().textContent.includes('לא חובה'));
     row().querySelector('button').click();
+    ok('while it runs the same card is the stop: pee, poop or "nothing" — and the separate "nothing" row steps aside', [...row().querySelectorAll('.rt-a button')].map(b => b.textContent).join() === 'פיפי,קקי,לא עשתה,×' && $n('#sec-potty [data-act=pt][data-k=none]') === 1 && row().textContent.includes('מה קרה?'));
     ok('tapping it starts a small timer; nothing else changes', !!K().gravel.start && row().classList.contains('on') && !!row().querySelector('[data-since]') && roundStarts('kishmish').length === 1 && !K().crate.start && !$q('.uni').textContent.includes('בחצץ'));
     logOf('kishmish', 'gravel')[0].t = now - 4*MIN; use(state); render();
     tile('pee').click(); sh.querySelector('[data-w=gravel]').click();
@@ -14,13 +15,13 @@
     ok('a pee ends it, and the pee knows how long it took', !K().gravel.start && logOf('kishmish', 'gravel')[0].end === pee.t && Math.abs(waitOf(pee) - 4*MIN) < 3000 && $q('.uni').textContent.includes('אחרי 4 דקות בחצץ') && !row().classList.contains('on'));
     ok('the text export says it too', logText('kishmish', ...today).includes('אחרי 4 דקות בחצץ'));
     seed([{ ...K0, k:'crate', t: now - 200*MIN, end: now - 30*MIN }, { ...K0, k:'pee', t: now - 100*MIN, w:'gravel' }, { ...K0, k:'gravel', t: now - 12*MIN }]);
-    tile('none').click();
+    row().querySelector('[data-act=pt][data-k=none]').click();
     const none = logOf('kishmish', 'none')[0];
     ok('"nothing" ends it too: we waited twelve minutes', Math.abs(waitOf(none) - 12*MIN) < 3000 && !K().gravel.start && $q('.uni').textContent.includes('יצאה ולא עשתה · אחרי 12 דקות בחצץ'));
     seed([{ ...K0, k:'gravel', t: now - 6*MIN }]); tile('poop').click(); if(bg.classList.contains('show')) sh.querySelector('[data-w=gravel]').click();
     ok('and a poop', Math.abs(waitOf(logOf('kishmish', 'poop')[0]) - 6*MIN) < 3000);
-    seed([{ ...K0, k:'gravel', t: now - 6*MIN }]); row().querySelector('button').click();
-    ok('"came back without marking" just stops it', !K().gravel.start && !!logOf('kishmish', 'gravel')[0].end && logOf('kishmish', 'pee').length === 0);
+    seed([{ ...K0, k:'gravel', t: now - 6*MIN }]); row().querySelector('.rt-x').click();
+    ok('the small × (came back without marking) just stops it', !K().gravel.start && !!logOf('kishmish', 'gravel')[0].end && logOf('kishmish', 'pee').length === 0);
     seed([{ ...K0, k:'gravel', t: now - 6*MIN }]); tapDur('kishmish', 'crate');
     ok('going into the crate stops it', !K().gravel.start);
     seed([{ ...K0, k:'gravel', t: now - 90*MIN }]); tile('pee').click(); sh.querySelector('[data-w=gravel]').click();
