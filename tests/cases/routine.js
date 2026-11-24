@@ -50,7 +50,8 @@
     ok('"previous days" opens yesterday in the summary', view === 'sum' && sumMode === 'day' && dayKey(sumAnchor) === dayKey(midnight() - HOUR) && $q('.card.log').textContent.includes('פיפי') && $q('.seg.sm .on').dataset.view === 'sum');
     view = 'now'; render();
     $q('[data-act=help]').click(); ok('help sheet', sh.textContent.includes('מסמנים רק בכרטיסים')); close();
-    pet = 'kochik'; render(); ok('kochik: no wheel, no play card, no tags', !$q('.cyc') && !$q('.playc') && $n('.card.item') === 5 && $n('.nowt') === 0);
+    pet = 'kochik'; render(); ok('kochik: no wheel, no play card, no tags', !$q('.cyc') && !$q('.playc') && $n('.card.item') === 6 && $n('.nowt') === 0);
+    ok('kochik\'s cards are grouped by topic, each group in its own box', [...document.querySelectorAll('#main > section.grp')].map(s => s.id + ':' + s.querySelector('h2').textContent + ':' + s.querySelectorAll('.card').length).join(' | ') === 'sec-food:אוכל ושתייה:3 | sec-potty:פיפי וקקי:2 | sec-meds:תרופות וג׳ל לאוזן:2 | sec-vomit:הקאות:1' && !!$q('#sec-meds .medc') && !!$q('#sec-meds [data-k=gel]') && !!$q('#sec-food .water') && !!$q('#sec-food .treatc'));
     done();
   } catch(e){ crashed(e); }
 })();

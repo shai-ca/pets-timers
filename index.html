@@ -100,6 +100,8 @@
   .log .r{display:flex;align-items:center;gap:10px;padding:11px 0;border-bottom:1px solid var(--line);font-size:14px}
   .log .r:last-child{border-bottom:0}
   .log .r span{flex:1}
+  .log .r small.ctx{display:block;color:var(--muted);font-size:12.5px;margin-top:2px}
+  .chips.names{margin:-6px 0 14px} .field input[type=text]{flex:1;min-width:0;width:100%}
   .log .r time{color:var(--muted);font-size:13px;font-variant-numeric:tabular-nums}
   .log .r svg{color:var(--acc)}
   .log .r[data-e]{cursor:pointer}
@@ -382,7 +384,8 @@
     main.grps > .grp > h2.sec{margin:0 2px 4px;font-size:15.5px}
     main.grps > .grp .card{box-shadow:none}
     main.grps > .grp .card.nowt{box-shadow:0 0 0 2px var(--btn)}
-    #sec-crate{grid-area:crate} #sec-potty{grid-area:potty} #sec-play{grid-area:play} #sec-food{grid-area:food}
+    #sec-crate{grid-area:crate} #sec-potty{grid-area:potty} #sec-play{grid-area:play} #sec-food{grid-area:food} #sec-meds{grid-area:meds} #sec-vomit{grid-area:vomit}
+    main.grps.solo{grid-template-areas:"food potty" "vomit meds"}
     main.grps > .card.log{max-width:none}
     main.grps > h2{margin-top:6px}
     .grp.flash{animation:flash 1.4s ease-out}
@@ -409,6 +412,7 @@
   @media (min-width:1860px){
     .wrap{max-width:1760px}
     main.grps{grid-template-columns:repeat(3,minmax(0,1fr));grid-template-areas:"crate potty food" "play potty food"}
+    main.grps.solo{grid-template-areas:"food potty meds" "vomit potty meds"}
   }
 </style>
 </head>
@@ -443,6 +447,7 @@ const ICONS = {
   crate:'<rect x="3.5" y="6.5" width="17" height="12.5" rx="2.2"/><path d="M8 6.5V19M12 6.5V19M16 6.5V19M9.5 6.5V5a2.5 2.5 0 0 1 5 0v1.5"/>',
   water:'<path d="M6.6 5h10.8l-1.3 13.1a1.6 1.6 0 0 1-1.6 1.4H9.5a1.6 1.6 0 0 1-1.6-1.4L6.6 5Z"/><path d="M7.3 10.6c1.6-1 3.1 1 4.7 0s3.1-1 4.7 0"/>',
   none:'<circle cx="12" cy="12" r="8.5"/><path d="M6.2 17.8 17.8 6.2"/>',
+  treat:'<path d="M8.2 9.3a2.4 2.4 0 1 0-3.3 3.3L11.4 19a2.4 2.4 0 1 0 3.3-3.3l.8-.8a2.4 2.4 0 1 0 3.3-3.3L12.4 5.2A2.4 2.4 0 1 0 9 8.5Z"/>',
   vomit:'<path d="M6.5 4.5h11l-1.3 7.2a4.3 4.3 0 0 1-8.4 0Z"/><path d="M9 17.2v2.3M12 16.4v3.6M15 17.2v2.3"/>',
   ball:'<circle cx="12" cy="12" r="8.3"/><path d="M5 8.3c3.7 1 6.2 4.2 6 11.8M19 8.3c-3.7 1-6.2 4.2-6 11.8"/>',
   gel:'<path d="M7 9.5a5 5 0 0 1 10 0c0 3.1-2.6 3.7-2.6 6.3a2.9 2.9 0 0 1-5.6 1.1"/><path d="M9.6 9.6a2.4 2.4 0 0 1 4.8 0c0 1.2-1.4 1.6-1.5 3"/>',
@@ -459,7 +464,7 @@ document.getElementById('mark').innerHTML = `<svg viewBox="0 0 24 24">${ICONS.pa
 
 // ---------- model ----------
 const PETS = {
-  kochik:   {name:'קוצ׳יק', born:'2010-03-20', items:['food','pee','poop','vomit','gel'], meds:true, poopType:true, where:['out','gravel','balcony','home','pad']},   // Kochik is an adult: outside is the norm; on the balcony she goes on the gravel or just on its floor
+  kochik:   {name:'קוצ׳יק', born:'2010-03-20', treats:true, items:['food','pee','poop','vomit','gel'], meds:true, poopType:true, where:['out','gravel','balcony','home','pad']},   // Kochik is an adult: outside is the norm; on the balcony she goes on the gravel or just on its floor
   kishmish: {name:'קישמיש', born:'2026-09-20', items:['crate','pee','poop','food','sleep','cry'], cycle:true, where:['gravel','pad','floor','out']}   // not "in the crate": she does not go there (the owner's working assumption)
 };
 const ITEMS = {
@@ -484,6 +489,9 @@ const ITEMS = {
   medoff:{dur:true,icon:'pill',lbl:'הפסקת תרופות',live:'בהפסקת תרופות',start:'הפסקת תרופות',stop:'חזרה לתרופות',log:'הפסקת תרופות',startQ:'ממתי בלי תרופות?'},
   // The dog's date of birth (`d: 'YYYY-MM-DD'`), saved as an entry so it syncs, undoes and merges like everything
   // else; the latest one wins, and without any the default in PETS is used. Not an event: never listed (`hid`).
+  // A treat (dogs with `treats:true` in PETS): `q` = regular / fatty, `n` = what it was (optional free text),
+  // and — the point of it — `by`, who gave it. Its own kind, so it never resets the food clock.
+  treat:{lbl:'חטיף אחרון',log:'חטיף'},
   born:{icon:'paw',log:'תאריך לידה',hid:true},
   med_am:{icon:'pill',log:'תרופת בוקר'},
   med_pm:{icon:'pill',log:'תרופת ערב'}
@@ -501,9 +509,12 @@ const hasWhere = k => k==='pee' || k==='poop';
 const POOP = {ok:'תקין', soft:'רך', dia:'שלשול'};
 // What came up when she vomited, also stored as `q`: digestive fluids, or food.
 const VOMIT = {bile:'נוזלי עיכול', food:'אוכל'};
-const KIND_LBL = {...POOP, ...VOMIT};
-const kindsOf = (p, k) => k === 'poop' && PETS[p].poopType ? POOP : k === 'vomit' ? VOMIT : null;   // the choices for "what kind", if this entry has any
-const KIND_Q = {poop:'איך היה הקקי?', vomit:'קיא של מה?'};
+const TREAT = {reg:'רגיל', fat:'שומני'};
+const KIND_LBL = {...POOP, ...VOMIT, ...TREAT};
+const kindsOf = (p, k) => k === 'poop' && PETS[p].poopType ? POOP : k === 'vomit' ? VOMIT : k === 'treat' ? TREAT : null;   // the choices for "what kind", if this entry has any
+const KIND_Q = {poop:'איך היה הקקי?', vomit:'קיא של מה?', treat:'איזה חטיף?'};
+// Anything a person typed (the name of a treat) is shown as text, never as HTML.
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
 const hasType = (p, k) => !!kindsOf(p, k);
 const typeTag = q => KIND_LBL[q] ? ` · <em class="wh ${q === 'dia' ? 'floor' : q === 'soft' ? 'no' : ''}">${KIND_LBL[q]}</em>` : '';
 const CRATE_MAX = 2*3600000;   // a crate stay longer than this turns red (tile and strip)
@@ -1098,6 +1109,59 @@ function openProfileSheet(p){
   const el = sh.querySelector('#bornIn');
   el.oninput = () => { el.classList.remove('bad'); const a = /^\d{4}-\d\d-\d\d$/.test(el.value) && el.value <= today ? ageParts(el.value, today) : null; sh.querySelector('#agePrev').textContent = a ? `בת ${ageText(a)} · ${dmy(el.value)}` : 'תאריך לא תקין'; };
 }
+// ---------- treats (for dogs with `treats:true`) ----------
+const treatsOf = p => state.log.filter(e => e.p===p && e.k==='treat');
+function treatNames(p){   // what was typed before, most recent first, each once
+  const seen = new Set(), out = [];
+  for(const e of treatsOf(p).reverse()){ const n = (e.n || '').trim(); if(n && !seen.has(n)){ seen.add(n); out.push(n); } }
+  return out.slice(0, 8);
+}
+function treatCardHTML(p){
+  const L = treatsOf(p), last = L[L.length-1], from = sod(Date.now()).getTime(), td = L.filter(e => e.t >= from), fat = td.filter(e => e.q === 'fat').length;
+  const today = !td.length ? 'היום: בלי חטיפים' : td.length === 1 ? `היום: חטיף אחד, ${fat ? 'שומני' : 'לא שומני'}`
+    : `היום: ${td.length} חטיפים, ${fat === 0 ? 'אף אחד מהם לא שומני' : fat === 1 ? 'מתוכם אחד שומני' : `מתוכם ${fat} שומניים`}`;
+  return `<div class="card item treatc"><div class="ic">${ico('treat')}</div>
+    <div><div class="lbl">חטיף אחרון</div>
+      <div class="big txt ${last ? '' : 'none'}">${last ? [TREAT[last.q], esc(last.n)].filter(Boolean).join(' · ') || 'חטיף' : '–'}</div>
+      <div class="sub">${last ? `${dayLabel(last.t)} ב־<bdi dir="ltr">${clock(last.t)}</bdi>${USERS[last.by] ? ' · '+USERS[last.by] : ''}` : 'עוד לא נרשם'}</div>
+      <div class="sub hint">${today}</div></div>
+    <div class="acts"><button class="go" data-act="treat" data-k="reg">חטיף רגיל</button><button class="go" data-act="treat" data-k="fat">חטיף שומני</button></div></div>`;
+}
+function logTreat(p, q, n, t, sure){
+  if(!sure && !t){ const d = recentDouble(p, e => e.k === 'treat' && e.q === q); if(d){ askAgain(d, 'חטיף ' + TREAT[q], () => logTreat(p, q, n, undefined, true)); return; } }
+  n = String(n || '').trim().slice(0, 40);
+  commit(`${PETS[p].name} · חטיף ${TREAT[q]}${n ? ' · '+n : ''}`, () => { const e = {p, k:'treat', t: t || Date.now(), q}; if(n) e.n = n; state.log.push(e); });
+}
+function askTreat(p, q){   // one sheet: what it was (optional, with her earlier answers offered), then when
+  let name = '';
+  const names = treatNames(p);
+  askWhen(`${PETS[p].name} · חטיף ${TREAT[q]} — מתי?`, ts => logTreat(p, q, name, ts),
+    `<label class="field">מה זה היה? <input type="text" id="nmIn" maxlength="40" list="nmList" placeholder="לא חובה" autocomplete="off" enterkeyhint="done"></label><datalist id="nmList">${names.map(n => `<option value="${esc(n)}">`).join('')}</datalist>
+     ${names.length ? `<div class="chips names">${names.map(n => `<button data-n="${esc(n)}">${esc(n)}</button>`).join('')}</div>` : ''}`);
+  if(!ASK_WHEN) return;
+  const el = sh.querySelector('#nmIn'); if(!el) return;
+  el.oninput = () => { name = el.value; };
+  sh.querySelectorAll('[data-n]').forEach(b => b.onclick = () => { el.value = name = b.dataset.n; sh.querySelectorAll('[data-n]').forEach(x => x.classList.toggle('sel', x === b)); });
+}
+// WHAT HAPPENED BEFORE A DIARRHOEA — facts only: the latest fatty treat in the 24 hours before it, if there was one.
+const FAT_WINDOW = 24*3600000;
+function fatBefore(e){
+  if(e.k !== 'poop' || e.q !== 'dia') return null;
+  return state.log.filter(x => x.p===e.p && x.k==='treat' && x.q==='fat' && x.t <= e.t && e.t - x.t <= FAT_WINDOW).pop() || null;
+}
+function fatLine(e){   // "8 שעות אחרי חטיף שומני (שי, 09:15)"
+  const f = fatBefore(e); if(!f) return '';
+  const h = Math.floor((e.t - f.t) / 3600000), gap = h < 1 ? 'פחות משעה' : h === 1 ? 'שעה' : h === 2 ? 'שעתיים' : `${h} שעות`;
+  const when = (dayKey(f.t) === dayKey(e.t) ? '' : dayLabel(f.t) + ' ') + clock(f.t);
+  return `${gap} אחרי חטיף שומני (${USERS[f.by] ? USERS[f.by] + ', ' : ''}${when})`;
+}
+function fat30HTML(p){   // always the last 30 days, whatever period the summary shows
+  const since = Date.now() - 30*86400000, D = state.log.filter(e => e.p===p && e.k==='poop' && e.q==='dia' && e.t >= since && e.t <= Date.now()), k = D.filter(fatBefore).length;
+  const head = !D.length ? 'לא נרשמו שלשולים' : D.length === 1 ? 'שלשול אחד' : `${D.length} שלשולים`;
+  const sub = !D.length ? '' : D.length === 1 ? (k ? 'הוא היה בתוך 24 שעות אחרי חטיף שומני' : 'לא היה חטיף שומני ב־24 השעות שלפניו')
+    : `${k === 0 ? 'אף אחד מהם לא היה' : k === 1 ? 'אחד מהם היה' : `${k} מהם היו`} בתוך 24 שעות אחרי חטיף שומני`;
+  return `<div class="card slim fat30"><span><b>ב־30 הימים האחרונים: ${head}</b>${sub ? `<small>${sub}</small>` : ''}</span>${ico('treat','s')}</div>`;
+}
 // One row for "I saw her drink" — no amount. The same row for both dogs.
 function waterRowHTML(p){
   const lw = V[p].water;
@@ -1179,9 +1243,9 @@ function alertsHTML(p){
 // buttons, any number of minutes, or a clock time. The owner is with the puppy when things happen and
 // often cannot tap at that very minute. `go(ts)` gets a time, or nothing for "now".
 let ASK_WHEN = true;
-function askWhen(title, go){
+function askWhen(title, go, extra){   // `extra`: something to ask in the same sheet, above the times (a treat's name)
   if(!ASK_WHEN){ go(); return; }
-  sheet(title, chips([0,5,10,15,20,30,60,120,180]).replace('class="chips"', 'class="chips when"') + `<div class="sub" style="margin:4px 0 8px">או ביום ובשעה:</div>${dayPick()}<label class="field">בשעה ${timeField("tIn", nowStr())}</label>`,
+  sheet(title, (extra || '') + chips([0,5,10,15,20,30,60,120,180]).replace('class="chips"', 'class="chips when"') + `<div class="sub" style="margin:4px 0 8px">או ביום ובשעה:</div>${dayPick()}<label class="field">בשעה ${timeField("tIn", nowStr())}</label>`,
     cancelBtn, () => { const v = timeVal('tIn'); if(!v) return; close(); const ts = timeToTs(v); go(Date.now() - ts < 60000 ? undefined : ts); },
     ts => go(Date.now() - ts < 1000 ? undefined : ts));
 }
@@ -1361,7 +1425,7 @@ function groupedHTML(p, from, to){
 }
 // Add an entry at a chosen time (for something that was missed), from the list's header.
 function openAddSheet(p){
-  const kinds = PETS[p].cycle ? ['pee','poop','none','food'] : ['pee','poop','food','vomit'];
+  const kinds = (PETS[p].cycle ? ['pee','poop','none','food'] : ['pee','poop','food','vomit']).concat(PETS[p].treats ? ['treat'] : []);
   let k = kinds[0];
   sheet(`${PETS[p].name} · הוספת רישום`,
     `<div class="chips">${kinds.map(x => `<button data-kind="${x}" class="${x===k?'sel':''}">${ITEMS[x].log}</button>`).join('')}</div>
@@ -1440,10 +1504,12 @@ function render(){
   document.querySelectorAll('.seg button').forEach(b => b.classList.toggle('on', b.dataset.pet===pet || b.dataset.view===view));
   document.querySelectorAll('.seg button[data-pet]').forEach(b => { b.innerHTML = `${PETS[b.dataset.pet].name}<small class="age">${ageText(ageOf(b.dataset.pet))}</small>`; });
   const side = document.getElementById('side'); side.innerHTML = '';
-  document.getElementById('main').className = view === 'now' && PETS[pet].cycle && !slim ? 'grps' : '';
+  document.getElementById('main').className = view === 'now' && !slim ? (PETS[pet].cycle ? 'grps' : 'grps solo') : '';
   if(view==='sum'){ document.getElementById('main').innerHTML = renderSummary(); return; }
   const P = PETS[pet], S = V[pet], aw = P.cycle ? awakeSince(pet) : 0;
-  let h = '';
+  let h = '', medHTML = '';
+  // A group of tiles in an outer box with a heading. Kishmish's follow the routine's steps; Kochik's follow topics.
+  const sec = (num, title, now, body, id) => `<section class="grp ${now ? 'now' : ''}" id="sec-${id}"><h2 class="sec ${now ? 'now' : ''}">${num ? `<i>${num}</i>` : ''}${title}${now ? '<span class="tagk">עכשיו בשגרה</span>' : ''}</h2>${body}</section>`;
 
   if(P.meds){
     const m = medsOf(pet), hr = new Date().getHours();
@@ -1454,10 +1520,10 @@ function render(){
         <span><b>${lbl}</b><small>${t?'ניתנה ב־'+clock(t)+byOf(pet,'med_'+s,t):(late?'עוד לא ניתנה':'לא ניתנה')}</small></span></button>`;
     };
     const off = (S.medoff || {}).start;
-    if(off) h += `<div class="card medc off"><div class="meds-h"><div class="ic">${ico('pill')}</div><b>בהפסקת תרופות</b></div>
+    if(off) medHTML = `<div class="card medc off"><div class="meds-h"><div class="ic">${ico('pill')}</div><b>בהפסקת תרופות</b></div>
       <div class="sub">${dayLabel(off)} מ־<bdi dir="ltr">${clock(off)}</bdi> · כבר <span data-words="${off}">${Date.now() - off < 24*3600000 ? words(Date.now() - off) : wordsLong(Date.now() - off)}</span><br>כשהיא לא מרגישה טוב, לפי הווטרינר. אין מה לסמן בינתיים.</div>
       <div class="meds"><button class="med" data-act="dur" data-k="medoff"><span class="ck"></span><span><b>חזרה לתרופות</b><small>כשהיא מרגישה טוב יותר</small></span></button></div></div>`;
-    else h += `<div class="card medc"><div class="meds-h"><div class="ic">${ico('pill')}</div><b>תרופות היום</b></div>
+    else medHTML = `<div class="card medc"><div class="meds-h"><div class="ic">${ico('pill')}</div><b>תרופות היום</b></div>
       <div class="meds">${slot('am','בוקר',11)}${slot('pm','ערב',21)}</div><button class="lnk medoff" data-act="dur" data-k="medoff">לא מרגישה טוב? הפסקת תרופות</button></div>`;
   }
 
@@ -1509,11 +1575,16 @@ function render(){
     }
     return h;
   };
-  if(!P.cycle) h += P.items.map(k => tileOf(k) + (k === 'food' ? waterRowHTML(pet) : '')).join('');
+  if(!P.cycle){
+    // By topic, each in its own box (the owner's grouping): food and water · pee and poop · medicines and ear gel · vomiting.
+    const has = k => P.items.includes(k), t = k => has(k) ? tileOf(k) : '';
+    const groups = [['food', 'אוכל ושתייה', t('food') + (has('food') ? waterRowHTML(pet) : '') + (P.treats ? treatCardHTML(pet) : '')],
+      ['potty', 'פיפי וקקי', t('pee') + t('poop')], ['meds', has('gel') && P.meds ? 'תרופות וג׳ל לאוזן' : P.meds ? 'תרופות' : 'ג׳ל לאוזן', medHTML + t('gel')], ['vomit', 'הקאות', t('vomit')]];
+    h += groups.filter(g => g[2]).map(g => sec('', g[1], false, g[2], g[0])).join('');
+  }
   else {
     // The tiles are grouped by the routine's steps, in its order; the group to fill in now is marked.
     const rt = retry(pet), ln = S.none, lw = S.water;
-    const sec = (num, title, now, body, id) => `<section class="grp ${now ? 'now' : ''}" id="sec-${id}"><h2 class="sec ${now ? 'now' : ''}">${num ? `<i>${num}</i>` : ''}${title}${now ? '<span class="tagk">עכשיו בשגרה</span>' : ''}</h2>${body}</section>`;
     if(slim){
       const cr = S.cry || {};
       h = `<div class="card slim nightc"><span><b>מצב לילה</b><small>רק כלוב, פיפי וקקי · עד 06:00</small></span><button class="btn" data-act="nightfull">להציג הכול</button></div>` +
@@ -1530,7 +1601,7 @@ function render(){
     if(!pottyTop) h += pottySec;
     h += sec('3', 'משחק וחופש', tap.includes('play'), playCardHTML(pet, tap.includes('play')) + freeCardHTML(pet), 'play');
     h += sec('4', 'אוכל ושתייה', tap.includes('food'), tileOf('food') +
-waterRowHTML(pet), 'food');
+waterRowHTML(pet) + (P.treats ? treatCardHTML(pet) : ''), 'food');
     // Sleep and crying sit right under the wheel, always at hand: in the crate she is either asleep or crying.
     if(pottyTop) sideHTML = alertsHTML(pet) + retryHTML(pet) + pottySec + cycleHTML(pet);
     sideHTML += `<section class="duo" id="sec-rest">${tileOf('sleep')}${tileOf('cry')}</section>`;
@@ -1755,7 +1826,7 @@ function logRow(e){
   const live = isLive(e);
   if(e.assumed) return `<div class="r guess" data-stay="${e.stay}" data-t="${e.t}">${ico('sleep','s')}<span>${live ? 'ישנה כנראה עכשיו' : 'ישנה'} <i class="by">משוער</i>${e.end ? ' · '+words(e.end-e.t) : ''}</span>
      <time>${dayLabel(e.t)} <bdi dir="ltr">${clock(e.t)}${e.end ? '–'+clock(e.end) : ''}</bdi></time></div>`;
-  return `<div class="r" ${live ? `data-live="${e.k}"` : `data-e="${state.log.indexOf(e)}"`}>${ico(iconOf(e.k),'s')}<span>${live ? ITEMS[e.k].live+' עכשיו' : ITEMS[e.k].log}${isRetryStay(e) ? ' · ניסיון חוזר' : ''}${CRY_LBL[cryKind(e)] ? ' · '+CRY_LBL[cryKind(e)] : ''}${mealKind(e) ? ' · '+MEAL_LBL[mealKind(e)] : ''}${typeTag(e.q)}${afterCrate(e.p, e)}${PLAY[e.y] ? ' · '+PLAY[e.y] : e.y === 'play' ? ' · במשחק' : ''}${whereTag(e.w)}${e.end ? ' · '+words(e.end-e.t) : ''}${USERS[e.by] ? `<i class="by">${USERS[e.by]}</i>` : ''}</span>
+  return `<div class="r" ${live ? `data-live="${e.k}"` : `data-e="${state.log.indexOf(e)}"`}>${ico(iconOf(e.k),'s')}<span>${live ? ITEMS[e.k].live+' עכשיו' : ITEMS[e.k].log}${isRetryStay(e) ? ' · ניסיון חוזר' : ''}${CRY_LBL[cryKind(e)] ? ' · '+CRY_LBL[cryKind(e)] : ''}${mealKind(e) ? ' · '+MEAL_LBL[mealKind(e)] : ''}${typeTag(e.q)}${e.n ? ' · '+esc(e.n) : ''}${afterCrate(e.p, e)}${PLAY[e.y] ? ' · '+PLAY[e.y] : e.y === 'play' ? ' · במשחק' : ''}${whereTag(e.w)}${e.end ? ' · '+words(e.end-e.t) : ''}${USERS[e.by] ? `<i class="by">${USERS[e.by]}</i>` : ''}${fatLine(e) ? `<small class="ctx">${fatLine(e)}</small>` : ''}</span>
      <time>${dayLabel(e.t)} <bdi dir="ltr">${clock(e.t)}${e.end ? '–'+clock(e.end) : ''}</bdi></time></div>`;
 }
 
@@ -1765,7 +1836,7 @@ let sumFilter = null;   // one kind ("pee", "crate"…) the summary is narrowed 
 const DAY = 86400000;
 const DOW = ['א׳','ב׳','ג׳','ד׳','ה׳','ו׳','ש׳'];
 const MONTHS = ['ינואר','פברואר','מרץ','אפריל','מאי','יוני','יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר'];
-const SUM_LBL = {food:'אוכל', pee:'פיפי', poop:'קקי', sleep:'שינה', cry:'בכי', crate:'כלוב', gel:'ג׳ל לאוזן', none:'לא עשתה', vomit:'הקאות'};
+const SUM_LBL = {food:'אוכל', pee:'פיפי', poop:'קקי', sleep:'שינה', cry:'בכי', crate:'כלוב', gel:'ג׳ל לאוזן', none:'לא עשתה', vomit:'הקאות', treat:'חטיפים'};
 function sod(t){ const d = new Date(t); d.setHours(0,0,0,0); return d; }
 function ddmm(t){ const d = new Date(t); return `${d.getDate()}.${d.getMonth()+1}`; }
 function hm(ms){ const m = Math.round(ms/60000); return `${Math.floor(m/60)}:${pad(m%60)}`; }
@@ -1785,7 +1856,7 @@ function sumShift(dir){
   sumAnchor = Math.min(d.getTime(), Date.now());
 }
 function stats(p, from, to){
-  const r = {food:0, pee:0, poop:0, gel:0, none:0, vomit:0, sleep:{n:0,ms:0}, cry:{n:0,ms:0}, crate:{n:0,ms:0}, medoff:{n:0,ms:0}, meds:0, w:{pee:{}, poop:{}}, q:{}};
+  const r = {food:0, pee:0, poop:0, gel:0, none:0, vomit:0, treat:0, sleep:{n:0,ms:0}, cry:{n:0,ms:0}, crate:{n:0,ms:0}, medoff:{n:0,ms:0}, meds:0, w:{pee:{}, poop:{}}, q:{}};
   const add = (k, a, b) => { const ov = Math.min(b,to) - Math.max(a,from); if(ov > 0){ r[k].ms += ov; r[k].n++; } };
   for(const e of state.log){
     if(e.p !== p) continue;
@@ -1866,7 +1937,7 @@ function logText(p, from, to){
     for(const e of ev){
       const it = ITEMS[e.k];
       const live = isLive(e), time = e.end ? `${clock(e.t)}–${clock(e.end)}` : live ? `${clock(e.t)}–עכשיו` : clock(e.t);
-      const what = (live ? it.live : it.log) + (e.assumed ? ' (משוער)' : '') + (!e.assumed && CRY_LBL[cryKind(e)] ? ` · ${CRY_LBL[cryKind(e)]}` : '') + (!e.assumed && mealKind(e) ? ` · ${MEAL_LBL[mealKind(e)]}` : '') + (PLAY[e.y] ? ` · ${PLAY[e.y]}` : e.y === 'play' ? ' · במשחק' : '') + (WHERE[e.w] ? ` · ${WHERE[e.w]}` : '') + (KIND_LBL[e.q] ? ` · ${KIND_LBL[e.q]}` : '')
+      const what = (live ? it.live : it.log) + (e.assumed ? ' (משוער)' : '') + (!e.assumed && CRY_LBL[cryKind(e)] ? ` · ${CRY_LBL[cryKind(e)]}` : '') + (!e.assumed && mealKind(e) ? ` · ${MEAL_LBL[mealKind(e)]}` : '') + (PLAY[e.y] ? ` · ${PLAY[e.y]}` : e.y === 'play' ? ' · במשחק' : '') + (WHERE[e.w] ? ` · ${WHERE[e.w]}` : '') + (KIND_LBL[e.q] ? ` · ${KIND_LBL[e.q]}` : '') + (e.n ? ` · ${e.n}` : '') + (!e.assumed && fatLine(e) ? ` · ${fatLine(e)}` : '')
         + (e.end ? ` · ${words(e.end - e.t)}` : live ? ` · כבר ${words(Date.now() - e.t)}` : '') + (e.assumed ? '' : afterCrate(p, e));
       out.push(`${time}  ${what}`);
     }
@@ -1952,7 +2023,7 @@ function renderSummary(){
   const tcls = k => `tile ${F === k ? 'on' : F ? 'dim' : ''}`;
   h += `<div class="flt">${F ? `מוצג רק: <b>${SUM_LBL[F]}</b> <button class="lnk" data-act="filt" data-k="${F}">הצגת הכול</button>` : 'לחיצה על קטגוריה מציגה רק אותה'}</div>`;
   h += `<div class="tiles">` + P.items.filter(k => !ITEMS[k].dur).map(k =>
-    `<button class="${tcls(k)}" data-act="filt" data-k="${k}"><div class="ic">${ico(k)}</div><b>${st[k]}</b><span>${SUM_LBL[k]}</span>${avg(st[k])}${whereLine(st.w[k])}${k === 'poop' && (st.q.dia || st.q.soft) ? `<small>${st.q.dia ? `<em class="wh floor">שלשול ${st.q.dia}</em>` : ''}${st.q.dia && st.q.soft ? ' · ' : ''}${st.q.soft ? `רך ${st.q.soft}` : ''}</small>` : ''}${k === 'vomit' && (st.q.bile || st.q.food) ? `<small>${['bile','food'].filter(q => st.q[q]).map(q => `${VOMIT[q]} ${st.q[q]}`).join(' · ')}</small>` : ''}</button>`).join('') + `</div>`;
+    `<button class="${tcls(k)}" data-act="filt" data-k="${k}"><div class="ic">${ico(k)}</div><b>${st[k]}</b><span>${SUM_LBL[k]}</span>${avg(st[k])}${whereLine(st.w[k])}${k === 'poop' && (st.q.dia || st.q.soft) ? `<small>${st.q.dia ? `<em class="wh floor">שלשול ${st.q.dia}</em>` : ''}${st.q.dia && st.q.soft ? ' · ' : ''}${st.q.soft ? `רך ${st.q.soft}` : ''}</small>` : ''}${k === 'vomit' && (st.q.bile || st.q.food) ? `<small>${['bile','food'].filter(q => st.q[q]).map(q => `${VOMIT[q]} ${st.q[q]}`).join(' · ')}</small>` : ''}</button>`).join('') + (P.treats && !F ? `<div class="tile"><div class="ic">${ico('treat')}</div><b>${st.treat}</b><span>${SUM_LBL.treat}</span>${st.treat ? `<small>שומניים ${st.q.fat || 0}</small>` : ''}</div>` : '') + `</div>`;
   const durs = P.items.filter(k => ITEMS[k].dur);
   if(durs.length) h += `<div class="tiles two">` + durs.map(k =>
     `<button class="${tcls(k)}" data-act="filt" data-k="${k}"><div class="ic">${ico(k)}</div><b class="t">${st[k].ms ? words(st[k].ms) : '–'}</b>
@@ -1969,6 +2040,7 @@ function renderSummary(){
 
   if(sumMode !== 'month') h += timelineHTML(pet, from, to, F);
   if(P.cycle && (!F || F === 'pee')) h += successHTML(pet, from, to, multi);
+  if(P.treats && !F) h += fat30HTML(pet);
   if(P.cycle && !F){ const rs = retryStats(pet, from, to); if(rs.n) h += `<div class="card slim rtsum"><span><b>ניסיונות חוזרים: ${rs.n}</b><small>הסתיימו בפיפי בחצץ: ${rs.good}</small></span>${ico('crate','s')}</div>`; h += cryStatsHTML(pet, from, to);
     if(sumMode === 'day'){
       const ks = state.log.filter(e => e.p===pet && e.k==='food' && e.t >= from && e.t < to).map(mealKind), nm = ks.filter(k => k === 'meal').length, nb = ks.filter(k => k === 'bite').length;
@@ -2065,6 +2137,7 @@ document.getElementById('shell').addEventListener('click', e => {
   else if(a && a.startsWith('rt')) askWhen(`${PETS[pet].name} · ${b.textContent.trim()} — מתי?`, ts => retryAct(pet, a, k, false, ts));
   else if(a==='help') openHelp();
   else if(a==='play') askWhen(`${PETS[pet].name} · משחק · ${PLAY[k]} — מתי?`, ts => logPlay(pet, k, false, ts));
+  else if(a==='treat') askTreat(pet, k);
   else if(a==='nofood') askWhen(`${PETS[pet].name} · לא אכלה — מתי?`, ts => logNoFood(pet, false, ts));
   else if(a==='where'){ const e = state.log.filter(x => x.p===pet && x.k===k).pop(); if(e) whereSheet(e.id); }
   else if(a==='ptype'){ const e = state.log.filter(x => x.p===pet && x.k===k).pop(); if(e) typeSheet(e.id); }
@@ -2313,6 +2386,7 @@ function openEntrySheet(i){
     pt ? `<label class="field">תיקון השעה ${timeField("tIn", clock(e.t))}</label>` +
          (hasWhere(e.k) ? `<div class="sub" style="margin:14px 0 8px">איפה?</div><div class="chips">${whereKeys(e.p).map(w => `<button data-w="${w}" class="${e.w===w?'sel':''}">${WHERE[w]}</button>`).join('')}</div>` : '') +
          (mealKind(e) ? `<div class="sub" style="margin:14px 0 8px">ארוחה או ביס?</div><div class="chips">${Object.keys(MEAL_LBL).map(m => `<button data-m="${m}" class="${mealKind(e)===m?'sel':''}">${MEAL_LBL[m]}</button>`).join('')}</div><div class="sub hint">ארוחה מאפסת את השעון של האוכל; ביס לא.</div>` : '') +
+         (e.k === 'treat' ? `<label class="field" style="margin-top:12px">מה זה היה? <input type="text" id="nmIn" maxlength="40" value="${esc(e.n)}" placeholder="לא חובה" autocomplete="off"></label>` : '') +
          (hasType(e.p, e.k) ? `<div class="sub" style="margin:14px 0 8px">${KIND_Q[e.k]}</div><div class="chips">${Object.keys(kindsOf(e.p, e.k)).map(q => `<button data-q="${q}" class="${e.q===q?'sel':''}">${kindsOf(e.p, e.k)[q]}</button>`).join('')}</div>` : '')
        : (it.dur ? `<label class="field">התחלה ${timeField("aIn", clock(e.t))}</label><label class="field">סיום&nbsp; ${timeField("bIn", clock(e.end))}</label>` : '') +
          (canReopen ? `<div class="sub" style="margin:10px 0">נרשם בטעות כאילו נגמר?</div><div class="chips"><button id="reopen">עדיין נמשך (מ־${clock(e.t)})</button></div>` : '') +
@@ -2335,11 +2409,13 @@ function openEntrySheet(i){
       if(v === clock(e.t)) d.setTime(e.t);   // same minute = time untouched
       if(d.getTime() > Date.now() + 60000){ sh.querySelector('#tIn').classList.add('bad'); return; }   // not in the future
       close();
-      if(d.getTime() === e.t && w === e.w && q === e.q && mk === mk0) return;
+      const nmEl = sh.querySelector('#nmIn'), nm = nmEl ? nmEl.value.trim().slice(0, 40) : (e.n || '');
+      if(d.getTime() === e.t && w === e.w && q === e.q && mk === mk0 && nm === (e.n || '')) return;
       commit(`${name} · ${it.log} עודכן`, () => {
         const x = find(); if(!x) return;
         if(w) x.w = w; else delete x.w;
         if(q) x.q = q; else delete x.q;
+        if(nm) x.n = nm; else delete x.n;
         if(mk !== mk0) x.m = mk;   // her correction; from here on it wins over the two-hour rule
         x.t = d.getTime();
       });

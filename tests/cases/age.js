@@ -70,8 +70,7 @@
     ok('the birth date survives the trimming of a very long list', state.log.length === LOG_MAX + 1 && state.log.some(e => e.id === 'b0') && K().born === '2026-09-19' && patch(diff(blank(), state), blank()).log.some(e => e.id === 'b0'));
     // kochik drinks
     reset('shai', 'kochik'); ASK_WHEN = true; seed([{ p:'kochik', k:'food', t: now - HOUR }]);
-    const cards = [...$q('#main').children].map(x => x.className);
-    ok('kochik has the same "she drank" row, right after the food card', !!$q('#main .card.slim.water') && cards[cards.findIndex(x => x.includes('water')) - 1].includes('item') && $q('#main .card.slim.water').previousElementSibling.textContent.includes('מאז האוכל האחרון') && $q('.water').textContent.includes('עוד לא נרשמה שתייה'));
+    ok('kochik has the same "she drank" row, right after the food card', !!$q('#sec-food .card.slim.water') && $q('#main .card.slim.water').previousElementSibling.textContent.includes('מאז האוכל האחרון') && $q('.water').textContent.includes('עוד לא נרשמה שתייה'));
     $q('.water [data-act=pt][data-k=water]').click(); sh.querySelector('[data-m="0"]').click();
     ok('"she drank" now: logged with who saw it, shown on the row and in the history', logOf('kochik', 'water').length === 1 && logOf('kochik', 'water')[0].by === 'shai' && !('w' in logOf('kochik', 'water')[0]) && $q('.water').textContent.includes('פעם אחרונה: היום') && $q('#main .log').textContent.includes('שתתה') && $q('#main .log .by').textContent === 'שי');
     DUP_MS = 0; $q('.water [data-act=pt][data-k=water]').click(); sh.querySelector('[data-day="1"]').click(); sh.querySelector('#tIn').value = '21:00'; sh.querySelector('#ok').click();
