@@ -53,6 +53,7 @@
   .sync.on i{background:var(--ok)} .sync.err i{background:var(--alert)}
 
   .seg{display:flex;background:var(--seg);border-radius:14px;padding:4px;margin-bottom:16px}
+  .seg button small.age{display:block;font-size:11px;font-weight:400;color:var(--muted);margin-top:1px;line-height:1.2}
   .seg button{flex:1;border:0;background:none;border-radius:11px;padding:10px;font:inherit;font-size:15.5px;font-weight:500;color:var(--muted);cursor:pointer;transition:all .15s}
   .seg button.on{background:#fff;color:var(--ink);box-shadow:0 1px 3px rgba(40,30,20,.1)}
   .seg button.on[data-pet=kochik]{color:var(--kochik)} .seg button.on[data-pet=kishmish]{color:var(--kishmish)}
@@ -359,6 +360,11 @@
     .card.cyc > .cyc-h b{font-size:17px}
     .card.cyc > .cyc-n{align-self:start}
     main > .card.playc, main > .card.slim{max-width:744px}
+    /* Kochik's "she drank" row is one cell of the card grid, like its neighbours */
+    main:not(.grps) > .card.slim.water{grid-column:auto;width:240px;height:240px;min-width:0;flex-direction:column;align-items:stretch;justify-content:space-between;padding:18px}
+    main:not(.grps) > .card.slim.water b{display:block;font-size:15px;margin-bottom:4px}
+    main:not(.grps) > .card.slim.water .btn{padding:12px;font-weight:500}
+    .card.medc .lnk.medoff{margin-top:4px;font-size:11.5px}
     #side > .card{max-width:744px}
     .tiles, .tiles.two{grid-template-columns:repeat(auto-fill,minmax(170px,190px));gap:14px}
     .tiles .tile{grid-column:auto !important;aspect-ratio:1/1;padding:18px;justify-content:flex-end}
@@ -453,8 +459,8 @@ document.getElementById('mark').innerHTML = `<svg viewBox="0 0 24 24">${ICONS.pa
 
 // ---------- model ----------
 const PETS = {
-  kochik:   {name:'קוצ׳יק', items:['food','pee','poop','vomit','gel'], meds:true, poopType:true, where:['out','gravel','balcony','home','pad']},   // Kochik is an adult: outside is the norm; on the balcony she goes on the gravel or just on its floor
-  kishmish: {name:'קישמיש', items:['crate','pee','poop','food','sleep','cry'], cycle:true, where:['gravel','pad','floor','out']}   // not "in the crate": she does not go there (the owner's working assumption)
+  kochik:   {name:'קוצ׳יק', born:'2010-03-20', items:['food','pee','poop','vomit','gel'], meds:true, poopType:true, where:['out','gravel','balcony','home','pad']},   // Kochik is an adult: outside is the norm; on the balcony she goes on the gravel or just on its floor
+  kishmish: {name:'קישמיש', born:'2026-09-20', items:['crate','pee','poop','food','sleep','cry'], cycle:true, where:['gravel','pad','floor','out']}   // not "in the crate": she does not go there (the owner's working assumption)
 };
 const ITEMS = {
   food:{lbl:'מאז האוכל האחרון',btn:'אכלה',log:'אכלה'},
@@ -476,6 +482,9 @@ const ITEMS = {
   // A break from the medicines (Kochik): when she is unwell the vet says to stop them for a few days. A running
   // timer like the crate — while it runs the checklist steps aside and nothing is marked late.
   medoff:{dur:true,icon:'pill',lbl:'הפסקת תרופות',live:'בהפסקת תרופות',start:'הפסקת תרופות',stop:'חזרה לתרופות',log:'הפסקת תרופות',startQ:'ממתי בלי תרופות?'},
+  // The dog's date of birth (`d: 'YYYY-MM-DD'`), saved as an entry so it syncs, undoes and merges like everything
+  // else; the latest one wins, and without any the default in PETS is used. Not an event: never listed (`hid`).
+  born:{icon:'paw',log:'תאריך לידה',hid:true},
   med_am:{icon:'pill',log:'תרופת בוקר'},
   med_pm:{icon:'pill',log:'תרופת ערב'}
 };
@@ -516,6 +525,11 @@ let state = blank(), pet = 'kishmish';
 let V = null;   // everything the screen shows about the pets, computed from `state.log` by `derive`; never saved
 let ref = null, writing = false, dirty = false, lastUndo = null, toastTimer = null;
 
+function trim(log){   // keep the newest LOG_MAX entries — and always the profile entries, however old
+  if(log.length <= LOG_MAX) return log;
+  const cut = log.length - LOG_MAX;
+  return log.filter((e, i) => i >= cut || ITEMS[e.k].hid);
+}
 function blank(){ return {v:SCHEMA, log:[]}; }
 function clone(o){ return JSON.parse(JSON.stringify(o)); }
 // THE RULE: the saved data is one list of entries (`state.log`) and nothing else that matters. Last
@@ -556,10 +570,11 @@ function norm(s){   // any saved or received data -> the current shape (also upg
 function derive(s){
   const v = {}, now = Date.now();
   for(const p of Object.keys(PETS)){
-    const S = v[p] = {meds:{}};
+    const S = v[p] = {meds:{}, born: PETS[p].born}; let bornAt = -1;
     for(const k of Object.keys(ITEMS)) if(ITEMS[k].dur) S[k] = {};
     for(const e of s.log){
       if(e.p !== p) continue;
+      if(e.k === 'born'){ if(/^\d{4}-\d\d-\d\d$/.test(e.d) && !(bornAt > e.t)){ bornAt = e.t; S.born = e.d; } continue; }
       if(e.k.startsWith('med_')){ const m = S.meds[dayKey(e.t)] = S.meds[dayKey(e.t)] || {}, sl = e.k.slice(4); if(!(m[sl] >= e.t)) m[sl] = e.t; }
       else if(ITEMS[e.k].dur){
         if(e.k === 'sleep') continue;   // sleep is read from the spans below (logged + assumed)
@@ -759,7 +774,7 @@ function patch(d, onto){   // returns a new state: `onto` with the changes `d` a
     for(const k of c.del) delete x[k];
   }
   if(d.add.length){ const ids = new Set(d.add.map(e => e.id)); s.log = s.log.filter(e => !ids.has(e.id)).concat(clone(d.add)); }
-  s.log.sort((x,y) => x.t-y.t); s.log = s.log.slice(-LOG_MAX);
+  s.log.sort((x,y) => x.t-y.t); s.log = trim(s.log);
   enforce(s.log);
   return s;
 }
@@ -977,7 +992,7 @@ function commit(msg, mutate, opts){
   mutate();
   for(const e of state.log){ if(!e.id){ e.id = newId(); if(!e.by) e.by = me; } }
   state.log.sort((x,y)=>x.t-y.t);
-  state.log = state.log.slice(-LOG_MAX);
+  state.log = trim(state.log);
   enforce(state.log);
   setState(state);
   const after = clone(state);
@@ -1036,6 +1051,58 @@ function stopDur(p, k, t){
 // ---------- alerts ----------
 // For the puppy (a one-kilo Yorkshire): too long without food is a hypoglycaemia risk; too long without a
 // pee (while awake) or a poop is worth a call to the vet. Shown as red cards above everything else.
+// AGE. "Today" is the calendar date in Israel whatever the phone's own time zone says; ages are counted in whole
+// calendar months to the monthly anniversary of the birth date (when that day does not exist in a month — the
+// 31st, 29 February — the anniversary is the month's last day), then days from the last anniversary.
+let FAKE_TODAY = null;   // tests only
+function todayIL(ts){
+  if(FAKE_TODAY && ts == null) return FAKE_TODAY;
+  return new Intl.DateTimeFormat('en-CA', {timeZone:'Asia/Jerusalem', year:'numeric', month:'2-digit', day:'2-digit'}).format(new Date(ts == null ? Date.now() : ts));
+}
+function ageParts(born, today){   // both 'YYYY-MM-DD' -> {y, m, d}, or null before the birth date
+  const [by, bm, bd] = born.split('-').map(Number), [ty, tm, td] = today.split('-').map(Number);
+  const dim = (y, m) => new Date(Date.UTC(y, m, 0)).getUTCDate(), ann = (y, m) => Math.min(bd, dim(y, m));
+  let months = (ty - by)*12 + (tm - bm); if(td < ann(ty, tm)) months--;
+  if(months < 0) return null;
+  const m0 = bm - 1 + months, ay = by + Math.floor(m0/12), am = m0 % 12 + 1;
+  return {y: Math.floor(months/12), m: months % 12, d: Math.round((Date.UTC(ty, tm-1, td) - Date.UTC(ay, am-1, ann(ay, am))) / 86400000)};
+}
+const HE_N = (n, one, two, many) => n === 1 ? one : n === 2 ? two : `${n} ${many}`;
+const HE_AND = (a, b) => b ? `${a} ${/^\d/.test(b) ? 'ו־' : 'ו'}${b}` : a;   // "שנה וחודשיים", "חודשיים ו־4 ימים"
+function ageText(a){   // under a year: months and days; from a year: years and months; a zero part is never shown
+  if(!a) return '';
+  const Y = HE_N(a.y, 'שנה', 'שנתיים', 'שנים'), M = HE_N(a.m, 'חודש', 'חודשיים', 'חודשים'), D = HE_N(a.d, 'יום', 'יומיים', 'ימים');
+  if(a.y) return HE_AND(Y, a.m ? M : '');
+  if(a.m) return HE_AND(M, a.d ? D : '');
+  return a.d ? D : 'נולדה היום';
+}
+const ageOf = p => ageParts(V[p].born, todayIL());
+// How long a puppy can usually hold it: about an hour per month of age, plus one, eight at most. Shown beside
+// what the app learns from her own entries, not instead of it — and only for a dog under a year old.
+function holdHint(p){
+  const a = ageOf(p); if(!a || a.y) return '';
+  const h = Math.min(8, a.m + 1);
+  return `<div class="sub hint byage">לפי הגיל: ${h === 1 ? 'עד כשעה' : h === 2 ? 'עד כשעתיים' : `עד כ־${h} שעות`}</div>`;
+}
+function openProfileSheet(p){
+  const name = PETS[p].name, cur = V[p].born, today = todayIL(), dmy = s => s.split('-').reverse().map(Number).join('.');
+  sheet(`${name} · תאריך לידה`,
+    `<label class="field">נולדה ב־ <input type="date" id="bornIn" value="${cur}" max="${today}" min="1990-01-01" style="direction:ltr"></label>
+     <div class="sub" id="agePrev">בת ${ageText(ageOf(p))} · ${dmy(cur)}</div>`,
+    cancelBtn, () => {
+      const el = sh.querySelector('#bornIn'), v = el.value;
+      if(!/^\d{4}-\d\d-\d\d$/.test(v) || v > today || v < '1990-01-01' || !ageParts(v, today)){ el.classList.add('bad'); return; }
+      close(); if(v === cur) return;
+      commit(`${name} · תאריך הלידה עודכן`, () => { state.log = state.log.filter(e => !(e.p===p && e.k==='born')); state.log.push({p, k:'born', t: Date.now(), d: v}); });
+    });
+  const el = sh.querySelector('#bornIn');
+  el.oninput = () => { el.classList.remove('bad'); const a = /^\d{4}-\d\d-\d\d$/.test(el.value) && el.value <= today ? ageParts(el.value, today) : null; sh.querySelector('#agePrev').textContent = a ? `בת ${ageText(a)} · ${dmy(el.value)}` : 'תאריך לא תקין'; };
+}
+// One row for "I saw her drink" — no amount. The same row for both dogs.
+function waterRowHTML(p){
+  const lw = V[p].water;
+  return `<div class="card slim water"><span><b>שתתה מים?</b><small>${lw ? `פעם אחרונה: ${dayLabel(lw)} <bdi dir="ltr">${clock(lw)}</bdi>${byOf(p,'water',lw)}` : 'עוד לא נרשמה שתייה'}</small></span><button class="btn" data-act="pt" data-k="water">שתתה</button></div>`;
+}
 // NIGHT: between 23:00 and 06:00 the page is dark and shows only what is needed half asleep (crate, pee, poop
 // and a cry row); the food alert is silent. `FAKE_HOUR` / `FAKE_PHONE` are for the tests only.
 const NIGHT = {from:23, to:6};
@@ -1248,7 +1315,7 @@ function routine(p){
   if(S.crate.start) return {i:0, t:S.crate.start, next:1, retry:!!rt};
   const lastOut = Math.max(0, ...state.log.filter(e => e.p===p && e.k==='crate' && e.end != null).map(e => e.end));
   const out = lastOut >= day0 ? lastOut : 0, base = out || day0;
-  const ev = state.log.filter(e => e.p===p && e.t >= base && !ITEMS[e.k].dur);
+  const ev = state.log.filter(e => e.p===p && e.t >= base && !ITEMS[e.k].dur && !ITEMS[e.k].hid);
   const went = e => e.k==='pee' || e.k==='poop', isM = e => e.k==='food' || e.k==='nofood';
   const last = ev[ev.length-1];
   if(last && last.k === 'brk') return {brk:true, t:last.t, next:0};
@@ -1280,7 +1347,7 @@ function roundName(r){ const dl = dayLabel(r.t); return `סבב ${r.n}${dl==='ה
 function entriesIn(p, from, to){
   const now = Date.now();
   const assumed = V[p].spans.filter(sp => sp.assumed && sp.t <= now && sp.t >= from && sp.t < to).map(sp => ({p, k:'sleep', t:sp.t, end: sp.end == null ? undefined : sp.end, assumed:true, stay:sp.stay}));
-  return state.log.filter(e => e.p===p && e.t >= from && e.t < to).concat(assumed).sort((x,y) => x.t - y.t);
+  return state.log.filter(e => e.p===p && e.t >= from && e.t < to && !ITEMS[e.k].hid).concat(assumed).sort((x,y) => x.t - y.t);
 }
 // A day's entries grouped by round: newest round first, the entries inside a round in the order they happened.
 function groupedHTML(p, from, to){
@@ -1371,6 +1438,7 @@ function render(){
   const night = isNight(), slim = night && !nightFull && view === 'now' && PETS[pet].cycle;
   document.body.className = document.documentElement.className = 'p-'+pet + (night ? ' night' : '');
   document.querySelectorAll('.seg button').forEach(b => b.classList.toggle('on', b.dataset.pet===pet || b.dataset.view===view));
+  document.querySelectorAll('.seg button[data-pet]').forEach(b => { b.innerHTML = `${PETS[b.dataset.pet].name}<small class="age">${ageText(ageOf(b.dataset.pet))}</small>`; });
   const side = document.getElementById('side'); side.innerHTML = '';
   document.getElementById('main').className = view === 'now' && PETS[pet].cycle && !slim ? 'grps' : '';
   if(view==='sum'){ document.getElementById('main').innerHTML = renderSummary(); return; }
@@ -1408,7 +1476,7 @@ function render(){
           ${it.slow ? `<div class="big txt ${t?'':'none'}">${t ? wordsLong(Date.now()-t) : '–'}</div>`
                     : `<div class="big ${t?'':'none'}" ${t?`data-since="${t}"`:''}>${t ? dur(Date.now()-t) : '–'}</div>`}
           <div class="sub">${t ? `${dayLabel(t)} ב־${clock(t)}${whereOf(pet,k,t) || (hasWhere(k) ? ` · <button class="lnk" data-act="where" data-k="${k}">איפה?</button>` : '')}${typeOf(pet,k,t)}${byOf(pet,k,t)}` : 'עוד לא נרשם'}</div>
-          ${P.cycle && k === 'pee' ? forecastLine(pet) : ''}${P.cycle && k === 'poop' ? poopLine(pet) : ''}${P.cycle && k === 'food' && S.bite > (S.food || 0) ? `<div class="sub hint bite">ביס אחרון ב־<bdi dir="ltr">${clock(S.bite)}</bdi> · לא מאפס את השעון</div>` : ''}${P.cycle && k === 'food' ? mealLine(pet) : ''}${todayWhere(pet,k) ? `<div class="sub hint">${todayWhere(pet,k)}</div>` : ''}${P.cycle && typical(pet,k) ? `<div class="sub hint">${typical(pet,k)}</div>` : ''}${it.note ? `<div class="sub hint">${it.note}</div>` : ''}</div>
+          ${P.cycle && k === 'pee' ? forecastLine(pet) : ''}${k === 'pee' ? holdHint(pet) : ''}${P.cycle && k === 'poop' ? poopLine(pet) : ''}${P.cycle && k === 'food' && S.bite > (S.food || 0) ? `<div class="sub hint bite">ביס אחרון ב־<bdi dir="ltr">${clock(S.bite)}</bdi> · לא מאפס את השעון</div>` : ''}${P.cycle && k === 'food' ? mealLine(pet) : ''}${todayWhere(pet,k) ? `<div class="sub hint">${todayWhere(pet,k)}</div>` : ''}${P.cycle && typical(pet,k) ? `<div class="sub hint">${typical(pet,k)}</div>` : ''}${it.note ? `<div class="sub hint">${it.note}</div>` : ''}</div>
         <div class="acts"><button class="go" data-act="pt" data-k="${k}">${it.btn}</button>
           <button class="ghost" data-act="edit" data-k="${k}">${ico('clock','s')}שעה אחרת</button>
           ${P.cycle && k === 'food' ? `<button class="ghost" data-act="nofood">${ico('none','s')}לא אכלה</button>` : ''}</div></div>`;
@@ -1441,7 +1509,7 @@ function render(){
     }
     return h;
   };
-  if(!P.cycle) h += P.items.map(tileOf).join('');
+  if(!P.cycle) h += P.items.map(k => tileOf(k) + (k === 'food' ? waterRowHTML(pet) : '')).join('');
   else {
     // The tiles are grouped by the routine's steps, in its order; the group to fill in now is marked.
     const rt = retry(pet), ln = S.none, lw = S.water;
@@ -1462,7 +1530,7 @@ function render(){
     if(!pottyTop) h += pottySec;
     h += sec('3', 'משחק וחופש', tap.includes('play'), playCardHTML(pet, tap.includes('play')) + freeCardHTML(pet), 'play');
     h += sec('4', 'אוכל ושתייה', tap.includes('food'), tileOf('food') +
-      `<div class="card slim"><span><b>שתתה מים?</b><small>${lw ? `פעם אחרונה: ${dayLabel(lw)} <bdi dir="ltr">${clock(lw)}</bdi>` : 'עוד לא נרשמה שתייה'}</small></span><button class="btn" data-act="pt" data-k="water">שתתה</button></div>`, 'food');
+waterRowHTML(pet), 'food');
     // Sleep and crying sit right under the wheel, always at hand: in the crate she is either asleep or crying.
     if(pottyTop) sideHTML = alertsHTML(pet) + retryHTML(pet) + pottySec + cycleHTML(pet);
     sideHTML += `<section class="duo" id="sec-rest">${tileOf('sleep')}${tileOf('cry')}</section>`;
@@ -1473,7 +1541,7 @@ function render(){
     const a = sod(Date.now()), b = new Date(a); b.setDate(b.getDate()+1);
     h += `<h2>היום לפי סבבים<small>לחיצה על רישום לתיקון · <button class="lnk" data-act="prevdays">ימים קודמים</button> · <button class="lnk" data-act="addev">הוספת רישום</button></small></h2><div class="card log uni">${groupedHTML(pet, a.getTime(), b.getTime())}</div>`;
   } else {
-    const items = state.log.filter(e => e.p===pet).slice(-25).reverse();
+    const items = state.log.filter(e => e.p===pet && !ITEMS[e.k].hid).slice(-25).reverse();
     h += `<h2>היסטוריה<small>לחיצה על רישום לתיקון או מחיקה · <button class="lnk" data-act="addev">הוספת רישום</button></small></h2><div class="card log">` + (items.length ? items.map(logRow).join('') : `<div class="empty">אין עדיין רישומים</div>`) + `</div>`;
   }
   document.getElementById('main').innerHTML = h;
@@ -1950,6 +2018,7 @@ setInterval(() => { const m = new Date().getMinutes(); if(m !== lastMin){ lastMi
 
 // ---------- events ----------
 document.querySelectorAll('[data-pet]').forEach(b => b.onclick = () => {
+  if(b.dataset.pet === pet && view === 'now'){ openProfileSheet(pet); return; }   // the tab she is already on: her profile
   pet = b.dataset.pet; try{ localStorage.setItem(LS_KEY+'-tab', pet); }catch(e){} render();
 });
 document.querySelectorAll('[data-view]').forEach(b => b.onclick = () => { view = b.dataset.view; render(); window.scrollTo(0,0); });

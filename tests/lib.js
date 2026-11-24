@@ -15,6 +15,7 @@ function reset(who = 'shai', showPet = 'kishmish'){
   use(blank(), blank()); me = who; pet = showPet; view = 'now'; sumFilter = null;
   if(typeof ASK_WHEN !== 'undefined') ASK_WHEN = false;   // cases tap buttons and expect the entry at once; when.js tests the prompt
   if(typeof FAKE_HOUR !== 'undefined'){ FAKE_HOUR = 12; FAKE_PHONE = false; nightFull = false; }   // night.js and routine.js test the night screen and the phone layout
+  if(typeof FAKE_TODAY !== 'undefined') FAKE_TODAY = null;
   if(typeof DUP_MS !== 'undefined') DUP_MS = 0;   // most cases tap the same button repeatedly on purpose; extras.js tests the guard
   close(); renderMe(); document.getElementById('toast').classList.remove('show'); render();
 }
