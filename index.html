@@ -36,6 +36,7 @@
   .night .toast{background:#3a332b}
   .card.item.warn{background:var(--warn-soft);border-color:var(--warn)} .card.item.warn .big,.card.item.warn .lbl{color:var(--warn)}
   .frm{display:flex;align-items:center;gap:8px;margin-top:10px;padding:9px 12px;border-radius:12px;background:var(--warn-soft);color:var(--warn);font-size:13.5px;font-weight:500}
+  .lnk.fcq{display:inline-block;width:17px;height:17px;line-height:15px;text-align:center;border:1px solid var(--faint);border-radius:50%;font-size:11px;text-decoration:none;color:var(--muted);margin-inline-start:4px}
   .card.slim.gravel{flex-wrap:wrap;gap:8px 12px} .card.slim.gravel .rt-a{flex-wrap:wrap}
   .card.slim.gravel.on{border-color:var(--ok);background:var(--ok-soft)} .card.slim.gravel small b{font-weight:600;color:var(--ink)}
   .card.slim.sleepq{border-color:color-mix(in srgb,var(--btn) 45%,transparent);flex-wrap:wrap;gap:8px 12px}
@@ -472,7 +473,7 @@ document.getElementById('mark').innerHTML = `<svg viewBox="0 0 24 24">${ICONS.pa
 // ---------- model ----------
 const PETS = {
   kochik:   {name:'קוצ׳יק', born:'2010-03-20', treats:true, items:['food','pee','poop','vomit','gel'], meds:true, poopType:true, where:['out','gravel','balcony','home','pad']},   // Kochik is an adult: outside is the norm; on the balcony she goes on the gravel or just on its floor
-  kishmish: {name:'קישמיש', born:'2026-09-20', items:['crate','pee','poop','food','sleep','cry'], cycle:true, where:['gravel','pad','floor','out']}   // not "in the crate": she does not go there (the owner's working assumption)
+  kishmish: {name:'קישמיש', born:'2026-09-20', poopType:true, items:['crate','pee','poop','food','sleep','cry'], cycle:true, where:['gravel','pad','floor','out']}   // not "in the crate": she does not go there (the owner's working assumption)
 };
 const ITEMS = {
   food:{lbl:'מאז האוכל האחרון',btn:'אכלה',log:'אכלה'},
@@ -518,8 +519,11 @@ const WHERE = {out:'בחוץ', gravel:'על החצץ במרפסת', balcony:'ע�
 const whereKeys = p => PETS[p].where || Object.keys(WHERE);
 const WHERE_SHORT = {out:'בחוץ', gravel:'חצץ', balcony:'רצפת המרפסת', pad:'פד', home:'בית', floor:'רצפה', crate:'כלוב'};
 const hasWhere = k => k==='pee' || k==='poop';
+// Strictly inside a crate stay (a meal that ENDED a stay under the old rule sits on its edge and does not count).
+const inCrate = e => PETS[e.p].cycle && state.log.some(s => s.p===e.p && s.k==='crate' && s.t < e.t && (s.end == null || s.end > e.t));
+const lblOf = e => e.k === 'play' && inCrate(e) ? 'קיבלה בכלוב' : e.k === 'food' && inCrate(e) ? 'אכלה בכלוב' : ITEMS[e.k].log;
 // What a poop was like, stored as `q` on the entry — for Kochik, whose diarrhoea comes and goes.
-const POOP = {ok:'תקין', soft:'רך', dia:'שלשול'};
+const POOP = {ok:'רגיל', soft:'רך', hard:'קשה', dia:'שלשול'};
 // What came up when she vomited, also stored as `q`: digestive fluids, or food.
 const VOMIT = {bile:'נוזלי עיכול', food:'אוכל'};
 const TREAT = {reg:'רגיל', fat:'שומני'};
@@ -529,7 +533,7 @@ const KIND_Q = {poop:'איך היה הקקי?', vomit:'קיא של מה?', treat
 // Anything a person typed (the name of a treat) is shown as text, never as HTML.
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
 const hasType = (p, k) => !!kindsOf(p, k);
-const typeTag = q => KIND_LBL[q] ? ` · <em class="wh ${q === 'dia' ? 'floor' : q === 'soft' ? 'no' : ''}">${KIND_LBL[q]}</em>` : '';
+const typeTag = (q, plain) => KIND_LBL[q] ? ` · <em class="wh ${plain ? 'no' : q === 'dia' ? 'floor' : q === 'soft' || q === 'hard' ? 'no' : ''}">${KIND_LBL[q]}</em>` : '';   // plain: information only, no warning colour (the puppy)
 const CRATE_MAX = 2*3600000;   // a crate stay longer than this turns red (tile and strip)
 const DAY_FROM = 7, DAY_TO = 22;   // the red crate flag is only shown between these hours
 // Kinds of play, stored as `y` on a `play` log entry. Several can be marked in one play step.
@@ -673,7 +677,8 @@ const SLEEP_MIN = 5;   // marked "נרדמה" needed in a crate before sleep is 
 const ASSUME_SLEEP = 2*60000;
 // Retries: a crate stay counts as one when it began within `gap` of a "לא עשתה" and lasted at most `max`;
 // a "לא עשתה" stops calling for a retry after `life`. (Defined here because `derive` runs while the page loads.)
-const RETRY = {gap:30*60000, max:30*60000, life:3*3600000, wait:10*60000, fresh:2*3600000, after:60*60000};
+const RETRY = {gap:30*60000, max:30*60000, life:3*3600000, wait:10*60000, fresh:2*3600000, after:60*60000};   // fresh: under this long since a pee, "לא עשתה" starts no retry
+let RETRY2_FROM = Date.UTC(2026, 10, 24, 15, 5);   // 24.11.2026 17:05 in Israel; tests move it
 // HOW LONG SHE TAKES TO FALL ASLEEP, from her own entries: every sleep she marked by hand that began in a quiet
 // stretch of a crate stay gives one sample — the time from the start of that stretch (going in, the end of a
 // cry, the last thing she was seen doing) to "נרדמה" — filed under the crate she was in. Entries written by
@@ -745,6 +750,10 @@ function sleepSpans(p, log, now){
 function needsPee(L, t, wakes, meals){
   const pees = L.filter(e => e.k==='pee' && e.t < t).map(e => e.t).sort((x,y) => x-y), last = pees.length ? pees[pees.length-1] : 0;
   if(!last || t - last > RETRY.fresh) return true;
+  // Since RETRY2_FROM that is the whole rule: under RETRY.fresh from a pee, "לא עשתה" is only a note. (On 24.11 there
+  // were ten outings with nothing and she pees every three and a half hours.) Earlier entries keep the triggers
+  // they were judged by — just woke up, just ate, her usual time — so no label already in the list changes.
+  if(t >= RETRY2_FROM) return false;
   const g = []; for(let i = 1; i < pees.length; i++){ const d = pees[i]-pees[i-1]; if(pees[i] >= t - 7*86400000 && d >= 10*60000 && d <= 5*3600000) g.push(d); }
   if(g.length >= 4 && t >= last + quantile(g.sort((x,y) => x-y), .25)) return true;
   const recent = x => x <= t && t - x <= RETRY.after && x > last;
@@ -1109,6 +1118,8 @@ function tapDur(p, k, at){   // `at`: start a timer that began earlier ("she wen
   else commit(`${PETS[p].name} · ${ITEMS[k].start}`, () => {
     if(running) stopDur(p, k, at);          // starting "earlier" while one is running: close that one first
     if(k === 'crate') endGravel(p, at || now);
+    // Going out to the gravel means she is out of the crate and awake: both end at that moment.
+    if(k === 'gravel' && PETS[p].cycle){ const t = at || now, open = kk => state.log.filter(e => e.p===p && e.k===kk && e.end == null && e.t < t).sort((x,y) => x.t-y.t)[0]; if(open('crate')) leaveCrate(p, t); else if(open('sleep')) stopDur(p, 'sleep', t); }
     state.log.push(newStay(p, k, at || now));   // no `end`: it is running
   });
 }
@@ -1209,9 +1220,9 @@ function ageText(a){   // under a year: months and days; from a year: years and 
 const ageOf = p => ageParts(V[p].born, todayIL());
 // How long a puppy can usually hold it: about an hour per month of age, plus one, eight at most. Shown beside
 // what the app learns from her own entries, not instead of it — and only for a dog under a year old.
+function holdHours(p){ const a = ageOf(p); return !a || a.y ? 0 : Math.min(8, a.m + 1); }   // 0 = no limit (a year old or more)
 function holdHint(p){
-  const a = ageOf(p); if(!a || a.y) return '';
-  const h = Math.min(8, a.m + 1);
+  const h = holdHours(p); if(!h) return '';
   return `<div class="sub hint byage">לפי הגיל: ${h === 1 ? 'עד כשעה' : h === 2 ? 'עד כשעתיים' : `עד כ־${h} שעות`}</div>`;
 }
 function openProfileSheet(p){
@@ -1383,7 +1394,7 @@ function cryStatsHTML(p, from, to){
     : c.needed === c.asked ? 'ובכל אחת מהן באמת הייתה צריכה' : `ב־${c.needed} מהן באמת הייתה צריכה`;
   return `<div class="card slim crysum"><span><b>${head}</b><small>${need}${c.asked && pr ? ' · '+pr : ''}</small></span>${ico('cry','s')}</div>`;
 }
-const ALERT = {food: 3.5*3600000, pee: 6*3600000, poop: 24*3600000, again: 45*60000};
+const ALERT = {food: 3.5*3600000, pee: 6*3600000, poop: 48*3600000, again: 45*60000};   // poop: a backstop only — the poop card says quietly when it is longer than usual for her
 function alerts(p){
   if(!PETS[p].cycle) return [];
   const S = V[p], now = Date.now(), out = [], awake = !S.sleep.start && !S.crate.start;
@@ -1592,8 +1603,14 @@ function groupedHTML(p, from, to){
   const rows = ev => ev.length ? ev.map(logRow).join('') : `<div class="empty">אין רישומים</div>`;
   for(const r of rs.slice().reverse())
     parts.push(`<div class="rd"><div class="rd-h"><b>${roundName(r)}</b><span>התחיל ב־<bdi dir="ltr">${clock(r.t)}</bdi> · ${r.end ? 'נמשך '+words(r.end-r.t) : 'עכשיו'}</span></div>${rows(all.filter(e => at(e) >= r.t && at(e) < Math.min(r.end || Infinity, to)))}</div>`);
+  // What began before this day and ran on into it (last night's crate stay and the sleep in it) is listed too, at
+  // the bottom, so the day's rows add up to the day's totals.
+  const now = Date.now(), over = e => e.t < from && (e.end == null ? now : e.end) > from;
+  const night = state.log.filter(e => e.p===p && (e.k==='crate' || e.k==='sleep') && over(e))
+    .concat(V[p].spans.filter(sp => sp.assumed && sp.t <= now && over(sp)).map(sp => ({p, k:'sleep', t:sp.t, end: sp.end == null ? undefined : sp.end, assumed:true, stay:sp.stay}))).sort((x,y) => x.t - y.t);
   const lead = all.filter(e => at(e) < (rs.length ? rs[0].t : to));
   if(lead.length) parts.push(`<div class="rd"><div class="rd-h"><b>${rs.length ? 'לפני הסבב הראשון' : 'בלי סבב'}</b></div>${rows(lead)}</div>`);
+  if(night.length) parts.push(`<div class="rd night"><div class="rd-h"><b>מהלילה</b><span>התחיל ביום הקודם ונמשך אל תוך היום הזה</span></div>${rows(night)}</div>`);
   return parts.join('') || `<div class="empty">אין עדיין רישומים</div>`;
 }
 // Add an entry at a chosen time (for something that was missed), from the list's header.
@@ -1660,6 +1677,12 @@ function dayLabel(t){
   if(d.toDateString()===y.toDateString()) return 'אתמול';
   return `${d.getDate()}.${d.getMonth()+1}`;
 }
+// The part of today's sleep that belongs to a sleep begun before midnight (last night's crate stay running on).
+function nightPart(p){
+  const s0 = sod(Date.now()).getTime(), now = Date.now(); let tot = 0;
+  for(const sp of V[p].spans) if(sp.t < s0){ const end = sp.end == null ? now : sp.end; if(end > s0) tot += end - s0; }
+  return tot;
+}
 function todayTotal(p, k){
   const s = new Date(); s.setHours(0,0,0,0); const s0 = s.getTime(), now = Date.now();
   let tot = 0;
@@ -1715,7 +1738,7 @@ function render(){
           ${it.slow ? `<div class="big txt ${t?'':'none'}">${t ? wordsLong(Date.now()-t) : '–'}</div>`
                     : `<div class="big ${t?'':'none'}" ${t?`data-since="${t}"`:''}>${t ? dur(Date.now()-t) : '–'}</div>`}
           <div class="sub">${t ? `${dayLabel(t)} ב־${clock(t)}${whereOf(pet,k,t) || (hasWhere(k) ? ` · <button class="lnk" data-act="where" data-k="${k}">איפה?</button>` : '')}${typeOf(pet,k,t)}${byOf(pet,k,t)}` : 'עוד לא נרשם'}</div>
-          ${P.cycle && k === 'pee' ? forecastLine(pet) : ''}${k === 'pee' ? holdHint(pet) : ''}${P.cycle && k === 'poop' ? poopLine(pet) : ''}${P.cycle && k === 'food' && S.bite > (S.food || 0) ? `<div class="sub hint bite">ביס אחרון ב־<bdi dir="ltr">${clock(S.bite)}</bdi> · לא מאפס את השעון</div>` : ''}${P.cycle && k === 'food' ? mealLine(pet) : ''}${todayWhere(pet,k) ? `<div class="sub hint">${todayWhere(pet,k)}</div>` : ''}${P.cycle && typical(pet,k) ? `<div class="sub hint">${typical(pet,k)}</div>` : ''}${it.note ? `<div class="sub hint">${it.note}</div>` : ''}</div>
+          ${P.cycle && k === 'pee' ? forecastLine(pet) : ''}${k === 'pee' ? holdHint(pet) : ''}${P.cycle && k === 'poop' ? poopLine(pet) + poopHints(pet) : ''}${P.cycle && k === 'food' && S.bite > (S.food || 0) ? `<div class="sub hint bite">ביס אחרון ב־<bdi dir="ltr">${clock(S.bite)}</bdi> · לא מאפס את השעון</div>` : ''}${P.cycle && k === 'food' ? mealLine(pet) : ''}${todayWhere(pet,k) ? `<div class="sub hint">${todayWhere(pet,k)}</div>` : ''}${P.cycle && typical(pet,k) ? `<div class="sub hint">${typical(pet,k)}</div>` : ''}${it.note ? `<div class="sub hint">${it.note}</div>` : ''}</div>
         <div class="acts"><button class="go" data-act="pt" data-k="${k}">${it.btn}</button>
           <button class="ghost" data-act="edit" data-k="${k}">${ico('clock','s')}שעה אחרת</button>
           ${P.cycle && k === 'food' ? `<button class="ghost" data-act="nofood">${ico('none','s')}לא אכלה</button>` : ''}</div></div>`;
@@ -1736,7 +1759,7 @@ function render(){
         sub = `לפני <span data-words="${d.lastEnd}">${words(Date.now()-d.lastEnd)}</span>`;
       } else { lbl = it.lbl; big = `<div class="big none">–</div>`; sub = 'עוד לא נרשם'; }
       const cur = live ? Date.now()-d.start : (d.lastEnd ? d.lastEnd-d.lastStart : 0);
-      if(tt > cur + 60000) sub += ` · סה״כ היום <span data-total="${k}">${words(tt)}</span>`;
+      if(tt > cur + 60000) sub += ` · סה״כ היום <span data-total="${k}">${words(tt)}</span>` + (k === 'sleep' && P.cycle && nightPart(pet) >= 60000 ? ` · כולל ${words(nightPart(pet))} מהלילה` : '');
       if(k === 'crate' && live && P.cycle && CRATES[crateAt(pet, Date.now())]) sub += ` · ${CRATES[crateAt(pet, Date.now())]}`;
       const over = k==='crate' && crateOver(pet);
       if(over) sub += ` · יותר מ${words(CRATE_MAX)}`;
@@ -1833,7 +1856,7 @@ function cycleHTML(p){
   // Two more of the trainer's reminders: awake for an hour -> crate to sleep; three hours since a pee -> gravel.
   const tired = awake && aw >= sod(now).getTime() && now - aw >= AWAKE.max;
   const long3 = awake && S.pee && now - S.pee >= 3*3600000 && !retry(p);
-  const what = r && r.retry ? `ניסיון חוזר: עושים מה שכתוב בכרטיס שלמעלה, עד ש${nm} עושה פיפי.`
+  const what = r && r.retry ? (asleep ? `נותנים לה לישון. כשהיא מתעוררת, ישר לחצץ.` : `ניסיון חוזר: עושים מה שכתוב בכרטיס שלמעלה, עד ש${nm} עושה פיפי.`)
     : !r ? `כש${nm} נכנסת לכלוב, לוחצים <b>״נכנסה לכלוב״</b> בכרטיס הכלוב למטה.`
     : r.brk ? `בהפסקה. כל דבר שמסמנים למטה מחזיר את ${nm} לשגרה.`
     : r.done ? `הסבב הושלם. כש${nm} חוזרת לכלוב, לוחצים <b>״נכנסה לכלוב״</b>.`
@@ -1972,16 +1995,48 @@ function quantile(sorted, q){ const i = (sorted.length-1)*q, lo = Math.floor(i),
 function peeForecast(p){
   const last = V[p].pee, g = peeGaps(p).sort((x,y) => x-y);
   if(typeof last !== 'number' || g.length < 4) return null;
-  const from = last + quantile(g, .25), to = last + quantile(g, .75), now = Date.now();
-  return {from, to, state: now < from ? 'soon' : now <= to ? 'now' : 'late'};
+  // The window never runs past what a puppy of her age can hold: its end is the earlier of the 75th percentile and
+  // the age limit. When she usually holds longer than the limit, that is said as a note — the window is not stretched.
+  const lim = holdHours(p) ? last + holdHours(p)*3600000 : Infinity, q25 = quantile(g, .25), q75 = quantile(g, .75), med = median(g);
+  const to = Math.min(last + q75, lim), from = Math.min(last + q25, to), now = Date.now();
+  return {from, to, q25, q75, last, capped: last + q75 > lim, longer: lim < Infinity && last + med > lim ? med : 0, state: now < from ? 'soon' : now <= to ? 'now' : 'late'};
 }
 function forecastLine(p){
   const f = peeForecast(p); if(!f) return '';
-  const span = `<bdi dir="ltr">${clock(f.from)}–${clock(f.to)}</bdi>`;
+  const span = f.from === f.to ? `עד <bdi dir="ltr">${clock(f.to)}</bdi>` : `בין <bdi dir="ltr">${clock(f.from)}–${clock(f.to)}</bdi>`;
   const quiet = (V[p].sleep && V[p].sleep.start) || (V[p].crate && V[p].crate.start);   // asleep or in the crate: no alarm colours
-  if(f.state === 'soon') return `<div class="sub fc">הפיפי הבא צפוי בין ${span}</div>`;
-  if(f.state === 'now') return `<div class="sub fc ${quiet ? '' : 'now'}"><i></i>הפיפי הבא צפוי עכשיו · עד <bdi dir="ltr">${clock(f.to)}</bdi></div>`;
-  return `<div class="sub fc ${quiet ? '' : 'late'}"><i></i>הפיפי היה צפוי עד <bdi dir="ltr">${clock(f.to)}</bdi></div>`;
+  const why = ` <button class="lnk fcq" data-act="fcwhy" aria-label="איך זה מחושב?">?</button>`;
+  const note = f.longer ? `<div class="sub hint longer">בדרך כלל מחזיקה יותר (כ־${words(f.longer)})</div>` : '';
+  if(f.state === 'soon') return `<div class="sub fc">הפיפי הבא צפוי ${span}${why}</div>${note}`;
+  if(f.state === 'now') return `<div class="sub fc ${quiet ? '' : 'now'}"><i></i>הפיפי הבא צפוי עכשיו · עד <bdi dir="ltr">${clock(f.to)}</bdi>${why}</div>${note}`;
+  return `<div class="sub fc ${quiet ? '' : 'late'}"><i></i>הפיפי היה צפוי עד <bdi dir="ltr">${clock(f.to)}</bdi>${why}</div>${note}`;
+}
+function forecastWhy(p){   // where the window comes from, in plain words
+  const f = peeForecast(p); if(!f) return;
+  const h = holdHours(p);
+  sh.innerHTML = `<h3>${PETS[p].name} · מאיפה החלון של הפיפי?</h3>
+    <div class="sub" style="font-size:14px;line-height:1.6;margin-bottom:16px">
+      <b>תחילת החלון</b> (<bdi dir="ltr">${clock(f.last + f.q25)}</bdi>): הפיפי האחרון ב־<bdi dir="ltr">${clock(f.last)}</bdi> ועוד ${words(f.q25)} — רבע מהמרווחים שלה בין פיפי לפיפי בשבוע האחרון היו קצרים מזה.<br>
+      <b>סוף החלון</b>: הפיפי האחרון ועוד ${words(f.q75)} (שלושה רבעים מהמרווחים שלה היו קצרים מזה)${h ? `, אבל לא יותר ממגבלת הגיל — כ־${h} שעות מהפיפי האחרון, כלומר <bdi dir="ltr">${clock(f.last + h*3600000)}</bdi>` : ''}.
+    </div><div class="foot"><span></span><button class="btn primary" id="cancel">סגירה</button></div>`;
+  sh.querySelector('#cancel').onclick = close; bg.classList.add('show');
+}
+// WHEN SHE POOPS, said quietly on the poop card (no colours): right after a meal, when it usually comes — her own
+// numbers once `poopModel` has them, a general "10–30 minutes" until then; and only when it has been clearly longer
+// than usual FOR HER — 1.5 × the median gap between her poops (14 days, 3 gaps needed), or POOP_QUIET while
+// there is not enough history — a plain line saying so.
+const POOP_QUIET = 30*3600000;
+function poopGap(p){
+  const t = state.log.filter(e => e.p===p && e.k==='poop' && e.t >= Date.now() - 14*86400000).map(e => e.t).sort((x,y) => x-y), g = [];
+  for(let i = 1; i < t.length; i++) g.push(t[i] - t[i-1]);
+  return g.length >= 3 ? median(g) : 0;
+}
+function poopHints(p){
+  const S = V[p], now = Date.now(); let h = '';
+  if(S.food && now - S.food <= 45*60000 && !(S.poop > S.food) && !poopLine(p)) h += `<div class="sub hint aftermeal">אם היא צריכה קקי, זה בדרך כלל 10–30 דקות אחרי ארוחה</div>`;
+  const g = poopGap(p), lim = g ? 1.5*g : POOP_QUIET;
+  if(S.poop && now - S.poop > lim) h += `<div class="sub hint poopgap">לא היה קקי כבר ${Math.floor((now - S.poop)/3600000)} שעות${g ? ', יותר מהרגיל אצלה' : ''}</div>`;
+  return h;
 }
 // "היום: חצץ 2 · פד 1" on the pee / poop tiles — today's count by place, best place first.
 function todayWhere(p, k){
@@ -2001,7 +2056,7 @@ function whereOf(p, k, t){   // " · where" of the pee / poop logged at t, if it
 function typeOf(p, k, t){   // " · what kind" of the poop logged at t — or a link to say so
   if(!hasType(p, k)) return '';
   const e = state.log.filter(x => x.p===p && x.k===k && x.t===t).pop();
-  return !e ? '' : KIND_LBL[e.q] ? typeTag(e.q) : ` · <button class="lnk" data-act="ptype" data-k="${k}">איזה סוג?</button>`;
+  return !e ? '' : KIND_LBL[e.q] ? typeTag(e.q, !!PETS[p].cycle) : ` · <button class="lnk" data-act="ptype" data-k="${k}">איזה סוג?</button>`;
 }
 function byOf(p, k, t){   // " · name" of whoever logged this event, if known
   for(let i = state.log.length-1; i >= 0; i--){ const e = state.log[i]; if(e.p===p && e.k===k && e.t===t) return USERS[e.by] ? ' · '+USERS[e.by] : ''; }
@@ -2011,7 +2066,7 @@ function logRow(e){
   const live = isLive(e);
   if(e.assumed) return `<div class="r guess" data-stay="${e.stay}" data-t="${e.t}">${ico('sleep','s')}<span>${live ? 'ישנה כנראה עכשיו' : 'ישנה'} <i class="by">משוער</i>${e.end ? ' · '+words(e.end-e.t) : ''}</span>
      <time>${dayLabel(e.t)} <bdi dir="ltr">${clock(e.t)}${e.end ? '–'+clock(e.end) : ''}</bdi></time></div>`;
-  return `<div class="r" ${live ? `data-live="${e.k}"` : `data-e="${state.log.indexOf(e)}"`}>${ico(iconOf(e.k),'s')}<span>${live ? ITEMS[e.k].live+' עכשיו' : e.k === 'swap' && CRATES[e.c] ? 'הועברה ל'+CRATES[e.c] : ITEMS[e.k].log}${e.k === 'crate' && PETS[e.p].cycle && (CRATES[e.c] || e.t >= SLEEP2_FROM) ? ' · '+CRATES[crateKind(e)] : ''}${isRetryStay(e) ? ' · ניסיון חוזר' : ''}${CRY_LBL[cryKind(e)] ? ' · '+CRY_LBL[cryKind(e)] : ''}${mealKind(e) ? ' · '+MEAL_LBL[mealKind(e)] : ''}${typeTag(e.q)}${e.n ? ' · '+esc(e.n) : ''}${afterCrate(e.p, e)}${PLAY[e.y] ? ' · '+PLAY[e.y] : e.y === 'play' ? ' · במשחק' : ''}${whereTag(e.w)}${waitTag(e)}${e.end ? ' · '+words(e.end-e.t) : ''}${USERS[e.by] ? `<i class="by">${USERS[e.by]}</i>` : ''}${fatLine(e) ? `<small class="ctx">${fatLine(e)}</small>` : ''}</span>
+  return `<div class="r" ${live ? `data-live="${e.k}"` : `data-e="${state.log.indexOf(e)}"`}>${ico(iconOf(e.k),'s')}<span>${live ? ITEMS[e.k].live+' עכשיו' : e.k === 'swap' && CRATES[e.c] ? 'הועברה ל'+CRATES[e.c] : lblOf(e)}${e.k === 'crate' && PETS[e.p].cycle && (CRATES[e.c] || e.t >= SLEEP2_FROM) ? ' · '+CRATES[crateKind(e)] : ''}${isRetryStay(e) ? ' · ניסיון חוזר' : ''}${CRY_LBL[cryKind(e)] ? ' · '+CRY_LBL[cryKind(e)] : ''}${mealKind(e) ? ' · '+MEAL_LBL[mealKind(e)] : ''}${typeTag(e.q, !!PETS[e.p].cycle)}${e.n ? ' · '+esc(e.n) : ''}${afterCrate(e.p, e)}${PLAY[e.y] ? ' · '+PLAY[e.y] : e.y === 'play' ? ' · במשחק' : ''}${whereTag(e.w)}${waitTag(e)}${e.end ? ' · '+words(e.end-e.t) : ''}${USERS[e.by] ? `<i class="by">${USERS[e.by]}</i>` : ''}${fatLine(e) ? `<small class="ctx">${fatLine(e)}</small>` : ''}</span>
      <time>${dayLabel(e.t)} <bdi dir="ltr">${clock(e.t)}${e.end ? '–'+clock(e.end) : ''}</bdi></time></div>`;
 }
 
@@ -2122,7 +2177,7 @@ function logText(p, from, to){
     for(const e of ev){
       const it = ITEMS[e.k];
       const live = isLive(e), time = e.end ? `${clock(e.t)}–${clock(e.end)}` : live ? `${clock(e.t)}–עכשיו` : clock(e.t);
-      const what = (live ? it.live : e.k === 'swap' && CRATES[e.c] ? 'הועברה ל'+CRATES[e.c] : it.log) + (e.k === 'crate' && PETS[e.p].cycle && (CRATES[e.c] || e.t >= SLEEP2_FROM) ? ` · ${CRATES[crateKind(e)]}` : '') + (e.assumed ? ' (משוער)' : '') + (!e.assumed && CRY_LBL[cryKind(e)] ? ` · ${CRY_LBL[cryKind(e)]}` : '') + (!e.assumed && mealKind(e) ? ` · ${MEAL_LBL[mealKind(e)]}` : '') + (PLAY[e.y] ? ` · ${PLAY[e.y]}` : e.y === 'play' ? ' · במשחק' : '') + (WHERE[e.w] ? ` · ${WHERE[e.w]}` : '') + (e.assumed ? '' : waitTag(e)) + (KIND_LBL[e.q] ? ` · ${KIND_LBL[e.q]}` : '') + (e.n ? ` · ${e.n}` : '') + (!e.assumed && fatLine(e) ? ` · ${fatLine(e)}` : '')
+      const what = (live ? it.live : e.k === 'swap' && CRATES[e.c] ? 'הועברה ל'+CRATES[e.c] : e.assumed ? it.log : lblOf(e)) + (e.k === 'crate' && PETS[e.p].cycle && (CRATES[e.c] || e.t >= SLEEP2_FROM) ? ` · ${CRATES[crateKind(e)]}` : '') + (e.assumed ? ' (משוער)' : '') + (!e.assumed && CRY_LBL[cryKind(e)] ? ` · ${CRY_LBL[cryKind(e)]}` : '') + (!e.assumed && mealKind(e) ? ` · ${MEAL_LBL[mealKind(e)]}` : '') + (PLAY[e.y] ? ` · ${PLAY[e.y]}` : e.y === 'play' ? ' · במשחק' : '') + (WHERE[e.w] ? ` · ${WHERE[e.w]}` : '') + (e.assumed ? '' : waitTag(e)) + (KIND_LBL[e.q] ? ` · ${KIND_LBL[e.q]}` : '') + (e.n ? ` · ${e.n}` : '') + (!e.assumed && fatLine(e) ? ` · ${fatLine(e)}` : '')
         + (e.end ? ` · ${words(e.end - e.t)}` : live ? ` · כבר ${words(Date.now() - e.t)}` : '') + (e.assumed ? '' : afterCrate(p, e));
       out.push(`${time}  ${what}`);
     }
@@ -2323,6 +2378,7 @@ document.getElementById('shell').addEventListener('click', e => {
   }
   else if(a==='brk') goBreak(pet);
   else if(a==='swap') askSwap(pet);
+  else if(a==='fcwhy') forecastWhy(pet);
   else if(a==='stillawake'){ awakeUntil = Date.now() + SLEEP_ASK; render(); }
   else if(a==='crfood'){   // the bowl inside the crate: the same "אכלה" as the food card
     const ask = () => askWhen(`${PETS[pet].name} · ${ITEMS.food.log} — מתי?`, ts => tapPoint(pet, 'food', ts, true));
@@ -2590,7 +2646,7 @@ function openEntrySheet(i){
          (hasType(e.p, e.k) ? `<div class="sub" style="margin:14px 0 8px">${KIND_Q[e.k]}</div><div class="chips">${Object.keys(kindsOf(e.p, e.k)).map(q => `<button data-q="${q}" class="${e.q===q?'sel':''}">${kindsOf(e.p, e.k)[q]}</button>`).join('')}</div>` : '')
        : (it.dur ? `<label class="field">התחלה ${timeField("aIn", clock(e.t))}</label><label class="field">סיום&nbsp; ${timeField("bIn", clock(e.end))}</label>` : '') +
          (isCrateE ? `<div class="sub" style="margin:12px 0 8px">איזה כלוב?</div><div class="chips">${Object.keys(CRATES).map(x => `<button data-c="${x}" class="${crateKind(e)===x?'sel':''}">${CRATES[x]}</button>`).join('')}</div>` : '') +
-         (prevStay ? `<div class="sub" style="margin:10px 0">היא רק עברה מכלוב לכלוב ולא באמת יצאה?</div><div class="chips"><button id="join">המשך של השהייה הקודמת (החלפת כלוב)</button></div>` : '') +
+         (prevStay ? `<div class="sub" style="margin:10px 0">היא לא באמת יצאה בין שתי השהיות (אכלה בכלוב, או רק עברה כלוב)?</div><div class="chips"><button id="join">המשך של השהייה הקודמת</button></div>` : '') +
          (canReopen ? `<div class="sub" style="margin:10px 0">נרשם בטעות כאילו נגמר?</div><div class="chips"><button id="reopen">עדיין נמשך (מ־${clock(e.t)})</button></div>` : '') +
          `<div class="sub">אפשר למחוק את הרישום הזה.</div>`,
     '<button class="btn danger" id="del">מחיקה</button>',
@@ -2638,12 +2694,12 @@ function openEntrySheet(i){
   const jn = sh.querySelector('#join');
   if(jn) jn.onclick = () => {
     close();
-    commit(`${name} · השהיות אוחדו (החלפת כלוב)`, () => {
+    commit(`${name} · השהיות אוחדו`, () => {
       const x = find(), pv = state.log.find(y => y.id === prevStay.id); if(!x || !pv) return;
       const from = crateKind(pv), to = ck;
       pv.c = from; pv.end = x.end;                                    // one stay, from the first entry to the last exit
       state.log = state.log.filter(y => y.id !== x.id);
-      state.log.push({p: e.p, k:'swap', t: x.t, c: to});              // where she changed crates
+      if(to !== from) state.log.push({p: e.p, k:'swap', t: x.t, c: to});   // where she changed crates — if she did
     });
   };
   const ro = sh.querySelector('#reopen');

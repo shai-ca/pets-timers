@@ -105,7 +105,7 @@
     // kochik's poop: what kind it was
     seed([]); tapPoint('kochik', 'poop');
     ok('after a poop: first where…', !!sh.querySelector('[data-w=out]')); sh.querySelector('[data-w=out]').click();
-    ok('…then what kind: fine, soft or diarrhoea', sh.querySelector('h3').textContent.includes('איך היה הקקי') && [...sh.querySelectorAll('[data-q]')].map(b => b.dataset.q).join() === 'ok,soft,dia');
+    ok('…then what kind: ordinary, soft, hard or diarrhoea', sh.querySelector('h3').textContent.includes('איך היה הקקי') && [...sh.querySelectorAll('[data-q]')].map(b => b.textContent).join() === 'רגיל,רך,קשה,שלשול');
     sh.querySelector('[data-q=dia]').click();
     ok('diarrhoea is saved and shown on the tile and in the list', logOf('kochik', 'poop')[0].q === 'dia' && logOf('kochik', 'poop')[0].w === 'out' && $q('.card.item [data-k=poop]').closest('.card').textContent.includes('שלשול') && $q('.card.log').textContent.includes('קקי · שלשול'));
     tapPoint('kochik', 'poop', Date.now() - 5*MIN); sh.querySelector('#cancel').click(); sh.querySelector('#cancel').click();
@@ -116,7 +116,8 @@
     ok('and it can be changed on the entry', logOf('kochik', 'poop')[0].q === 'ok');
     ok('the text log and the summary count it', (seed([{ p:'kochik', k:'poop', t: now - 10*MIN, q:'dia' }]), logText('kochik', midnight(), midnight() + 24*HOUR).includes('קקי · שלשול')) && stats('kochik', midnight(), midnight() + 24*HOUR).q.dia === 1);
     pet = 'kishmish'; seed([]); tapPoint('kishmish', 'poop'); sh.querySelector('#cancel').click();
-    ok('kishmish is not asked about the kind', !bg.classList.contains('show')); pet = 'kochik'; seed([]);
+    ok('kishmish is asked too, with the same four choices and a skip', bg.classList.contains('show') && sh.querySelectorAll('[data-q]').length === 4 && !!sh.querySelector('#cancel')); sh.querySelector('[data-q=dia]').click();
+    ok('for the puppy the kind is plain information — no warning colour on it', logOf('kishmish', 'poop').pop().q === 'dia' && !$q('#main .wh.floor') && $q('#main').textContent.includes('שלשול')); pet = 'kochik'; seed([]);
     $q('[data-act=pt][data-k=gel]').click(); ok('ear gel logged, counted in days', typeof KO().gel === 'number' && wordsLong(53*HOUR) === 'יומיים ו־5 שעות');
     done();
   } catch(e){ crashed(e); }

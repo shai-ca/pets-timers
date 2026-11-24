@@ -21,19 +21,25 @@
     ok('first thing on the page; play and free time locked, food available; a new round', $q('#side').firstElementChild === card() && !!$q('.card.playc.locked') && $q('.card.slim.locked').textContent.includes('אחרי פיפי') && !tile('food').disabled && roundStarts('kishmish').length === 2 && cur() === 'כלוב');
     $q('#undo').click();
     ok('undo takes back the "nothing" and the crate entry together', logOf('kishmish', 'none').length === 0 && stays().length === 1 && !card());
+    // under two hours since a pee nothing else starts one any more
     seed([{ ...K0, k:'crate', t: now - 200*MIN, end: now - 10*MIN }, pee(70)]);
-    tile('none').click(); ok('ten minutes after coming out of the crate, no pee since: a retry', !!card() && stays().length === 2);
+    tile('none').click(); ok('ten minutes after coming out of the crate, 70 minutes after a pee: only a note', !card() && stays().length === 1 && !$q('.card.playc.locked'));
     seed([{ ...K0, k:'sleep', t: now - 200*MIN, end: now - 15*MIN }, pee(70)]);
-    tile('none').click(); ok('after waking up: a retry', !!card());
+    tile('none').click(); ok('just woke up, 70 minutes after a pee: only a note', !card());
     seed([{ ...K0, k:'crate', t: now - 300*MIN, end: now - 110*MIN }, pee(70), { ...K0, k:'food', t: now - 20*MIN }]);
-    tile('none').click(); ok('twenty minutes after a meal, no pee since: a retry', !!card());
-    seed([{ ...K0, k:'crate', t: now - 300*MIN, end: now - 110*MIN }, { ...K0, k:'food', t: now - 50*MIN }, pee(40)]);
-    tile('none').click(); ok('…but not when she has peed since the meal', !card());
-    const rhythm = [0, 60, 120, 180, 240].map(m => pee(400 - m));   // a pee every hour, the last one 160 minutes ago
-    seed([{ ...K0, k:'crate', t: now - 600*MIN, end: now - 420*MIN }].concat(rhythm, [pee(50)]));
-    tile('none').click(); ok('50 minutes after a pee when she usually goes every hour or more: not yet', !card());
-    seed([{ ...K0, k:'crate', t: now - 600*MIN, end: now - 420*MIN }].concat(rhythm, [pee(65)]));
-    tile('none').click(); ok('65 minutes after: her usual time has come — a retry', !!card());
+    tile('none').click(); ok('twenty minutes after a meal, 70 minutes after a pee: only a note', !card());
+    seed([{ ...K0, k:'crate', t: now - 300*MIN, end: now - 130*MIN }, pee(119)]);
+    tile('none').click(); ok('1:59 after a pee: only a note', !card() && stays().length === 1);
+    seed([{ ...K0, k:'crate', t: now - 300*MIN, end: now - 130*MIN }, pee(121)]);
+    tile('none').click(); ok('2:01 after a pee: a retry', !!card() && stays().length === 2);
+    ok('the two hours are one named setting', RETRY.fresh === 2*HOUR);
+    // what is already in the list keeps the result it had: entries from before the rule changed
+    RETRY2_FROM = now - 30*MIN;
+    seed([{ ...K0, k:'crate', t: now - 300*MIN, end: now - 100*MIN }, pee(140), { ...K0, id:'oldn', k:'none', t: now - 90*MIN }, { ...K0, id:'olds', k:'crate', t: now - 88*MIN, end: now - 70*MIN }, pee(65), { ...K0, k:'crate', t: now - 60*MIN, end: now - 12*MIN }]);
+    ok('a "nothing" from before the change, ten minutes after waking and 50 after a pee, is still the retry it was — label and count', isRetryStay(state.log.find(e => e.id === 'olds')) && $q('.uni').textContent.includes('ניסיון חוזר') && retryStats('kishmish', ...today).n === 1);
+    tile('none').click();
+    ok('…while the same situation now is only a note', !card() && logOf('kishmish', 'none').length === 2 && retryStats('kishmish', ...today).n === 1);
+    RETRY2_FROM = -Infinity;
     seed([]); tile('none').click(); ok('no pee logged at all: a retry', !!card());
     // logged late: it must not put her into the crate in the past
     seed([{ ...K0, k:'crate', t: now - 300*MIN, end: now - 30*MIN }, pee(170)]);
@@ -54,7 +60,7 @@
     tapDur('kishmish', 'sleep'); ok('awake again: back to the countdown', card().classList.contains('wait'));
     tapDur('kishmish', 'crate'); ok('taken out with no result yet: "what happened on the gravel?"', card().classList.contains('again') && card().textContent.includes('מה קרה בחצץ'));
     // the two buttons
-    seed([{ ...K0, k:'crate', t: now - 300*MIN, end: now - 40*MIN }, pee(130), { ...K0, k:'none', t: now - 25*MIN }, { ...K0, k:'crate', t: now - 25*MIN + 1 }]);
+    seed([{ ...K0, k:'crate', t: now - 300*MIN, end: now - 40*MIN }, pee(170), { ...K0, k:'none', t: now - 25*MIN }, { ...K0, k:'crate', t: now - 25*MIN + 1 }]);
     $q('[data-act=rtnone]').click();
     ok('"nothing" on the card: out and straight back in, attempt 2, a fresh countdown', stays().length === 3 && !!stays()[1].end && !stays()[2].end && card().classList.contains('wait') && card().textContent.includes('ניסיון חוזר 2') && near(+$q('.card.retry [data-until]').dataset.until, now + 10*MIN));
     stays()[1].end = now - 16*MIN; logOf('kishmish', 'none')[1].t = now - 16*MIN; stays()[2].t = now - 16*MIN + 1; use(state); render();
@@ -65,15 +71,15 @@
     view = 'sum'; sumMode = 'day'; sumAnchor = now; render();
     ok('the summary counts them', $q('.rtsum').textContent.includes('ניסיונות חוזרים: 2') && $q('.rtsum').textContent.includes('הסתיימו בפיפי בחצץ: 1')); view = 'now';
     // closing, long stays, other ways it ends
-    seed([{ ...K0, k:'crate', t: now - 300*MIN, end: now - 5*MIN }, pee(130)]);
+    seed([{ ...K0, k:'crate', t: now - 300*MIN, end: now - 5*MIN }, pee(170)]);
     tile('none').click(); $q('[data-act=rtstop]').click();
     ok('× closes the card and unlocks play; she is still in the crate', !card() && !$q('.card.playc.locked') && logOf('kishmish', 'none')[0].x === 1 && !!K().crate.start);
     seed([{ ...K0, k:'crate', t: now - 300*MIN, end: now - 100*MIN }, pee(250), { ...K0, k:'none', t: now - 45*MIN }, { ...K0, k:'crate', t: now - 45*MIN + 1 }]);
     ok('still in the crate after 45 minutes: an ordinary stay, no card, sleep assumed as usual', !card() && !isRetryStay(stays()[1]) && retryStats('kishmish', ...today).n === 0 && K().sleep.assumed === true && K().sleep.start === stays()[1].t + ASSUME_SLEEP);
-    seed([{ ...K0, k:'crate', t: now - 300*MIN, end: now - 15*MIN }, pee(130), { ...K0, k:'none', t: now - 12*MIN }, { ...K0, k:'crate', t: now - 12*MIN + 1 }]);
+    seed([{ ...K0, k:'crate', t: now - 300*MIN, end: now - 15*MIN }, pee(170), { ...K0, k:'none', t: now - 12*MIN }, { ...K0, k:'crate', t: now - 12*MIN + 1 }]);
     tapPoint('kishmish', 'food');
     ok('eating does not take her out of the crate: the wait and its countdown go on', !!K().crate.start && stays().length === 2 && !stays()[1].end && card().classList.contains('due'));
-    seed([{ ...K0, k:'crate', t: now - 300*MIN, end: now - 15*MIN }, pee(130), { ...K0, k:'none', t: now - 12*MIN }, { ...K0, k:'crate', t: now - 12*MIN + 1 }]);
+    seed([{ ...K0, k:'crate', t: now - 300*MIN, end: now - 15*MIN }, pee(170), { ...K0, k:'none', t: now - 12*MIN }, { ...K0, k:'crate', t: now - 12*MIN + 1 }]);
     tapPoint('kishmish', 'pee'); sh.querySelector('[data-w=pad]').click();
     ok('pee on the pad ends the retry too, with no free time, counted as a miss', !card() && !$q('.card.slim.free') && $q('#main').textContent.includes('פספוסים 1'));
     seed([{ ...K0, k:'none', t: now - 190*MIN }]);
@@ -83,7 +89,7 @@
           { ...K0, k:'crate', t: now - 68*MIN, r: 10, end: now - 23*MIN }, { ...K0, k:'none', t: now - 63*MIN, x: 1 },
           { ...K0, k:'sleep', t: now - 48*MIN, end: now - 16*MIN }, { ...K0, k:'water', t: now - 23*MIN }, pee(19), { ...K0, k:'play', t: now - 16*MIN, y:'rope' }]);
     ok('a 45-minute stay with an old mark is an ordinary stay; the wheel is on play; the sleep ends with the stay', !$q('.uni').textContent.includes('ניסיון חוזר') && cur() === 'משחק' && logOf('kishmish', 'sleep')[0].end === now - 23*MIN && !$q('.duemsg'));
-    FAKE_HOUR = 2; seed([{ ...K0, k:'crate', t: now - 300*MIN, end: now - 15*MIN }, pee(130), { ...K0, k:'none', t: now - 5*MIN }, { ...K0, k:'crate', t: now - 5*MIN + 1 }]);
+    FAKE_HOUR = 2; seed([{ ...K0, k:'crate', t: now - 300*MIN, end: now - 15*MIN }, pee(170), { ...K0, k:'none', t: now - 5*MIN }, { ...K0, k:'crate', t: now - 5*MIN + 1 }]);
     ok('night mode hides the card', !card()); FAKE_HOUR = 12;
     pet = 'kochik'; seed([{ p:'kochik', k:'none', t: now - MIN }]); ok('none of this on kochik', !card() && !$q('.card.slim.locked') && logOf('kochik', 'crate').length === 0);
     done();

@@ -17,6 +17,7 @@ function reset(who = 'shai', showPet = 'kishmish'){
   if(typeof FAKE_HOUR !== 'undefined'){ FAKE_HOUR = 12; FAKE_PHONE = false; nightFull = false; }   // night.js and routine.js test the night screen and the phone layout
   if(typeof FAKE_TODAY !== 'undefined') FAKE_TODAY = null;
   if(typeof awakeUntil !== 'undefined') awakeUntil = 0;
+  if(typeof RETRY2_FROM !== 'undefined') RETRY2_FROM = -Infinity;   // the two-hour rule everywhere; retry.js also checks entries from before it
   if(typeof SLEEP2_FROM !== 'undefined') SLEEP2_FROM = Infinity;   // cases are written against the closed-box rules; crate2.js and sleep2.js move the cut-off
   if(typeof DUP_MS !== 'undefined') DUP_MS = 0;   // most cases tap the same button repeatedly on purpose; extras.js tests the guard
   close(); renderMe(); document.getElementById('toast').classList.remove('show'); render();

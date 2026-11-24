@@ -17,8 +17,11 @@
     logOf('kishmish', 'nofood')[0].t = now - 50*MIN; use(state); render();
     ok('45 minutes later it asks again, remembering the refusal', $n('.card.alertc.calm') === 0 && $n('.card.alertc') === 1 && alertText().includes('שווה להציע שוב'));
     tapPoint('kishmish', 'food'); ok('a meal clears it', $n('.card.alertc') === 0);
-    seed([{ p:'kishmish', k:'food', t: now - MIN }, { p:'kishmish', k:'pee', t: now - 6.2*HOUR, w:'pad' }, { p:'kishmish', k:'poop', t: now - 25*HOUR }]);
-    ok('6 hours without a pee while awake, 24 without a poop: "consider calling the vet"', $n('.card.alertc') === 2 && (alertText().match(/לשקול להתקשר לווטרינר/g) || []).length === 2);
+    seed([{ p:'kishmish', k:'food', t: now - MIN }, { p:'kishmish', k:'pee', t: now - 6.2*HOUR, w:'pad' }, { p:'kishmish', k:'poop', t: now - 49*HOUR }]);
+    ok('6 hours without a pee while awake, 48 without a poop: "consider calling the vet"', $n('.card.alertc') === 2 && (alertText().match(/לשקול להתקשר לווטרינר/g) || []).length === 2);
+    seed([{ p:'kishmish', k:'food', t: now - MIN }, { p:'kishmish', k:'poop', t: now - 26*HOUR }]);
+    ok('a day and two hours without a poop is no longer a red card', $n('.card.alertc') === 0);
+    seed([{ p:'kishmish', k:'food', t: now - MIN }, { p:'kishmish', k:'pee', t: now - 6.2*HOUR, w:'pad' }, { p:'kishmish', k:'poop', t: now - 49*HOUR }]);
     tapDur('kishmish', 'sleep'); ok('asleep: the pee alert waits, the poop one stays', $n('.card.alertc') === 1 && alertText().includes('בלי קקי'));
     pet = 'kochik'; seed([{ p:'kochik', k:'food', t: now - 9*HOUR }]); ok('no such alerts for kochik', $n('.card.alertc') === 0); pet = 'kishmish';
     // double taps

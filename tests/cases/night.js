@@ -14,7 +14,7 @@
     $q('.cryrow [data-act=dur][data-k=cry]').click(); ok('…and stops it', !K().cry.start && logOf('kishmish', 'cry').length === 1);
     tile('pee').click(); sh.querySelector('[data-w=gravel]').click();
     ok('a pee at night is logged as usual and takes her out of the crate', logOf('kishmish', 'pee').length === 2 && !K().crate.start);
-    seed([{ ...K0, k:'pee', t: now - 7*HOUR, w:'gravel' }, { ...K0, k:'poop', t: now - 25*HOUR }, { ...K0, k:'food', t: now - 9*HOUR }]);
+    seed([{ ...K0, k:'pee', t: now - 7*HOUR, w:'gravel' }, { ...K0, k:'poop', t: now - 49*HOUR }, { ...K0, k:'food', t: now - 9*HOUR }]);
     ok('the health alerts still show at night', $n('#side .card.alertc') === 2 && !$q('.card.alertc').textContent.includes('אוכל'));
     $q('[data-act=nightfull]').click();
     ok('"show everything": the full screen, still dark', !!$q('.cyc') && !!tile('food') && !$q('.nightc') && document.body.classList.contains('night'));
