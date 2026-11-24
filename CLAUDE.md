@@ -52,6 +52,8 @@ A single-page mobile web app (Hebrew, RTL) for tracking two pets:
 
 - **Self-update:** `selfUpdate()` (end of the script) fetches the published `index.html` uncached when the app comes to the front and every 5 minutes, and reloads if its inline `<script>` or `<style>` text differs from the running one. No version number to bump; it waits for saves, open sheets and the undo toast, and never reloads twice within two minutes.
 
+**Any "when?" sheet can place the time on another day:** `dayPick()` adds היום / אתמול / שלשום above the clock field (in `askWhen`, the tiles' "שעה אחרת" / "הוספה" / "שעת התחלה" sheets and "הוספת רישום"); `timeToTs` reads the choice from `dayBack`, which `sheet()` resets. So last night's vomiting, or a medicine break that began yesterday, can be logged the next morning.
+
 **Every logging button first asks when it happened** (`askWhen`): one big "עכשיו", a row of "לפני X דק׳", any number of minutes, or a clock time — the owner cannot always tap at the very minute. This covers the tiles' main buttons (moments and timers, start and stop), the "לא עשתה" / "שתתה" rows, the play kinds, "לא אכלה" and the retry card's buttons; not the medication checklist (it has its own time sheet). The tests switch it off (`ASK_WHEN = false`) except `when.js`.
 
 Every "when?" sheet (`chips()`) has quick "לפני 5 / 10 / 15…" buttons, a box for any number of minutes ago (`#agoIn`, handled in `sheet()` — a typed number wins over the clock field) and an exact time field.

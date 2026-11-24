@@ -118,6 +118,7 @@
   .sub.fc.now i{display:inline-block;background:#fab219} .sub.fc.late i{display:inline-block;background:#d03b3b}
   .chips.when [data-m="0"]{flex-basis:100%;background:var(--btn);border-color:var(--btn);color:#fff;font-size:17px;font-weight:600;padding:15px}
   .chips.when button{flex:1 1 28%;padding:11px 8px}
+  .chips.days{margin-bottom:10px} .chips.days button{flex:1}
   .chips.mini{margin:2px 0 10px;gap:6px} .chips.mini button{padding:6px 10px;font-size:13px}
   .chips.where button{flex:1 1 40%;padding:14px 10px;font-size:16px;font-weight:500}
   /* charts: status colours for "where" (validated for colour-blind separation), neutral bands */
@@ -1113,7 +1114,7 @@ function alertsHTML(p){
 let ASK_WHEN = true;
 function askWhen(title, go){
   if(!ASK_WHEN){ go(); return; }
-  sheet(title, chips([0,5,10,15,20,30,60]).replace('class="chips"', 'class="chips when"') + `<label class="field">או בשעה ${timeField("tIn", nowStr())}</label>`,
+  sheet(title, chips([0,5,10,15,20,30,60,120,180]).replace('class="chips"', 'class="chips when"') + `<div class="sub" style="margin:4px 0 8px">או ביום ובשעה:</div>${dayPick()}<label class="field">בשעה ${timeField("tIn", nowStr())}</label>`,
     cancelBtn, () => { const v = timeVal('tIn'); if(!v) return; close(); const ts = timeToTs(v); go(Date.now() - ts < 60000 ? undefined : ts); },
     ts => go(Date.now() - ts < 1000 ? undefined : ts));
 }
@@ -1293,11 +1294,11 @@ function groupedHTML(p, from, to){
 }
 // Add an entry at a chosen time (for something that was missed), from the list's header.
 function openAddSheet(p){
-  const kinds = PETS[p].cycle ? ['pee','poop','none','food'] : ['pee','poop','food'];
+  const kinds = PETS[p].cycle ? ['pee','poop','none','food'] : ['pee','poop','food','vomit'];
   let k = kinds[0];
   sheet(`${PETS[p].name} · הוספת רישום`,
     `<div class="chips">${kinds.map(x => `<button data-kind="${x}" class="${x===k?'sel':''}">${ITEMS[x].log}</button>`).join('')}</div>
-     <div class="sub" style="margin-bottom:8px">מתי?</div>${chips([5,10,15,30,60])}<label class="field">או בשעה ${timeField("tIn", nowStr())}</label>`,
+     <div class="sub" style="margin-bottom:8px">מתי?</div>${chips([5,10,15,30,60])}<div class="sub" style="margin:4px 0 8px">או ביום ובשעה:</div>${dayPick()}<label class="field">בשעה ${timeField("tIn", nowStr())}</label>`,
     cancelBtn, () => { const v = timeVal('tIn'); if(!v) return; close(); tapPoint(p, k, timeToTs(v)); }, ts => tapPoint(p, k, ts));
   sh.querySelectorAll('[data-kind]').forEach(b => b.onclick = () => { k = b.dataset.kind; sh.querySelectorAll('[data-kind]').forEach(x => x.classList.toggle('sel', x === b)); });
 }
@@ -1473,7 +1474,7 @@ function render(){
     h += `<h2>היום לפי סבבים<small>לחיצה על רישום לתיקון · <button class="lnk" data-act="prevdays">ימים קודמים</button> · <button class="lnk" data-act="addev">הוספת רישום</button></small></h2><div class="card log uni">${groupedHTML(pet, a.getTime(), b.getTime())}</div>`;
   } else {
     const items = state.log.filter(e => e.p===pet).slice(-25).reverse();
-    h += `<h2>היסטוריה<small>לחיצה על רישום לתיקון או מחיקה</small></h2><div class="card log">` + (items.length ? items.map(logRow).join('') : `<div class="empty">אין עדיין רישומים</div>`) + `</div>`;
+    h += `<h2>היסטוריה<small>לחיצה על רישום לתיקון או מחיקה · <button class="lnk" data-act="addev">הוספת רישום</button></small></h2><div class="card log">` + (items.length ? items.map(logRow).join('') : `<div class="empty">אין עדיין רישומים</div>`) + `</div>`;
   }
   document.getElementById('main').innerHTML = h;
 }
@@ -2056,11 +2057,17 @@ document.getElementById('undo').onclick = () => {
 const bg = document.getElementById('sheetBg'), sh = document.getElementById('sheet');
 bg.onclick = e => { if(e.target===bg) close(); };
 function close(){ bg.classList.remove('show'); }
+// A clock time typed into a sheet -> a moment. On the day chosen with the "היום / אתמול / שלשום" buttons (`dayBack`,
+// reset every time a sheet opens); for today, a time that has not come yet means yesterday's.
+let dayBack = 0;
 function timeToTs(v){
   const [hh,mm] = v.split(':').map(Number); const d = new Date(); d.setHours(hh,mm,0,0);
-  if(d.getTime() > Date.now()+60000) d.setDate(d.getDate()-1);
+  if(dayBack) d.setDate(d.getDate()-dayBack);
+  else if(d.getTime() > Date.now()+60000) d.setDate(d.getDate()-1);
   return d.getTime();
 }
+// For things noticed late, or logged the next morning: which day the clock time below belongs to.
+const dayPick = () => `<div class="chips days"><button data-day="0" class="sel">היום</button><button data-day="1">אתמול</button><button data-day="2">שלשום</button></div>`;
 const ago = m => Date.now() - m*60000;
 const nowStr = () => clock(Date.now());
 // "How long ago" choices: quick buttons, plus a box for any number of minutes (the time is worked out from it).
@@ -2095,6 +2102,8 @@ document.addEventListener('keydown', e => {
 });
 function sheet(title, body, footL, onOk, onChip){
   sh.innerHTML = `<h3>${title}</h3>${body}<div class="foot">${footL}<button class="btn primary" id="ok">שמירה</button></div>`;
+  dayBack = 0;
+  sh.querySelectorAll('[data-day]').forEach(b => b.onclick = () => { dayBack = +b.dataset.day; sh.querySelectorAll('[data-day]').forEach(x => x.classList.toggle('sel', x === b)); });
   sh.querySelectorAll('[data-m]').forEach(b => b.onclick = () => { close(); onChip(ago(+b.dataset.m)); });
   // A number typed into "לפני … דקות" wins over the clock field: save at now minus that many minutes.
   const ag = sh.querySelector('#agoIn');
@@ -2118,7 +2127,7 @@ function openSheet(p, k){
   const it = ITEMS[k], name = PETS[p].name, start = V[p][k] && V[p][k].start;
   const running = () => state.log.filter(e => e.p===p && e.k===k && e.end == null);
   if(!it.dur){
-    sheet(`${name} · ${it.log} — מתי?`, chips([5,10,15,30,60,120,180]) + `<label class="field">או בשעה ${timeField("tIn", nowStr())}</label>`,
+    sheet(`${name} · ${it.log} — מתי?`, chips([5,10,15,30,60,120,180]) + `<div class="sub" style="margin:4px 0 8px">או ביום ובשעה:</div>${dayPick()}<label class="field">בשעה ${timeField("tIn", nowStr())}</label>`,
       cancelBtn, () => { const v=timeVal('tIn'); if(!v) return; close(); logAt(p,k,timeToTs(v)); },
       ts => logAt(p,k,ts));
   } else if(start){
@@ -2126,7 +2135,7 @@ function openSheet(p, k){
     const setStart = ts => commit(`${name} · שעת ההתחלה עודכנה`, () => { const o = running().sort((x,y) => x.t-y.t); if(o[0]) o[0].t = Math.min(ts, Date.now()); });
     // …or record that it already ended earlier (she woke up a while ago and nobody tapped).
     const endAt = ts => commit(`${name} · ${it.stop}`, () => { const t = Math.min(ts, Date.now()); if(k === 'crate') leaveCrate(p, t); else stopDur(p, k, t); });
-    sheet(`${name} · ${it.startQ}`, chips([5,10,15,30,60,120,180]) + `<label class="field">או בשעה ${timeField("tIn", clock(start))}</label>
+    sheet(`${name} · ${it.startQ}`, chips([5,10,15,30,60,120,180]) + `<div class="sub" style="margin:4px 0 8px">או ביום ובשעה:</div>${dayPick()}<label class="field">בשעה ${timeField("tIn", clock(start))}</label>
        <div class="sub" style="margin:14px 0 8px">כבר נגמר ולא סימנו? מתי זה נגמר:</div><label class="field">נגמר ב־ ${timeField("eIn", "")}</label>`,
       '<button class="btn danger" id="del">מחיקה</button>',
       () => {
@@ -2149,7 +2158,7 @@ function openSheet(p, k){
       <div class="sub" style="margin:14px 0 8px">או לפי השעה:</div>` : '';
     sheet(`${name} · ${it.lbl.replace(' אחרונה','').replace(' אחרון','')} — הוספה`,
       rel + `<div class="sub" style="margin-bottom:8px">התחיל ועדיין נמשך:</div>` + chips([5,10,15,30,60,120]) +
-      `<label class="field">או התחלה ב־ ${timeField("aIn", "")}</label><label class="field">סיום&nbsp; ${timeField("bIn", "")}</label>
+      `<div class="sub" style="margin:4px 0 8px">או ביום ובשעה:</div>${dayPick()}<label class="field">התחלה ב־ ${timeField("aIn", "")}</label><label class="field">סיום&nbsp; ${timeField("bIn", "")}</label>
        <div class="sub">בלי שעת סיום = עדיין נמשך. עם שעת סיום = משהו שכבר נגמר.</div>`,
       cancelBtn, () => {
         // No end time means it is still going on: start the timer from the given time. (The end used to
