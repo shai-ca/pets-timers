@@ -1309,13 +1309,16 @@ let FAKE_HOUR = null, FAKE_PHONE = null, nightFull = false;
 function isNight(){ const h = FAKE_HOUR != null ? FAKE_HOUR : new Date().getHours(); return h >= NIGHT.from || h < NIGHT.to; }
 const PHONE_MQ = window.matchMedia ? window.matchMedia('(min-width:760px)') : null;
 function isPhone(){ return FAKE_PHONE != null ? FAKE_PHONE : !(PHONE_MQ && PHONE_MQ.matches); }
-// WHEN SHE LAST WOKE UP: the end of her last sleep (logged, or assumed in an ordinary crate stay) or of her last
-// ordinary crate stay. A retry wait does not count as a sleep. 0 while she is asleep or in the crate.
+// WHEN SHE LAST WOKE UP: the end of her last sleep — marked, or estimated (not the estimate inside a retry wait).
+// Time in the crate is not sleep by itself: in a crate where nothing is estimated she can be awake in it for an
+// hour, and the timer must say so (24.11). Only when no sleep is known at all does the end of her last ordinary
+// crate stay stand in. 0 while she is asleep.
 function awakeSince(p){
-  const S = V[p], now = Date.now(); if(S.sleep.start || S.crate.start) return 0;
+  const S = V[p], now = Date.now(); if(S.sleep.start) return 0;
   const rs = new Set(state.log.filter(e => e.p===p && isRetryStay(e)).map(e => e.id));
-  return Math.max(0, ...S.spans.filter(sp => sp.end != null && sp.end <= now && !(sp.assumed && rs.has(sp.stay))).map(sp => sp.end),
-    ...state.log.filter(e => e.p===p && e.k==='crate' && e.end != null && e.end <= now && !rs.has(e.id)).map(e => e.end));
+  const slept = S.spans.filter(sp => sp.end != null && sp.end <= now && !(sp.assumed && rs.has(sp.stay))).map(sp => sp.end);
+  if(slept.length) return Math.max(...slept);
+  return Math.max(0, ...state.log.filter(e => e.p===p && e.k==='crate' && e.end != null && e.end <= now && !rs.has(e.id)).map(e => e.end));
 }
 const AWAKE = {warn:45*60000, max:60*60000};
 // WHAT A CRY MEANT, read from what happened around it (nothing is asked, nothing is stored):

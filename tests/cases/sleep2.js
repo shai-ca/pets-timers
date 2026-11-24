@@ -70,6 +70,14 @@
     seed(base5.concat([stay(60)])); $q('.uni .r.guess').click();
     ok('an estimated row can be corrected or deleted from the list as before', bg.classList.contains('show') && !!sh.querySelector('#del') && sh.querySelector('#aIn').value === clock(now - 50*MIN));
     sh.querySelector('#del').click(); ok('deleted', mine().length === 0);
+    // the awake timer counts from her last real sleep, not from leaving a crate she was awake in
+    const sl = () => $q('#sec-rest .card.item');
+    seed([{ ...K0, k:'crate', t: now - 140*MIN, end: now - 100*MIN, c:'mesh' }, { ...K0, k:'sleep', t: now - 130*MIN, end: now - 100*MIN }, { ...K0, k:'pee', t: now - 95*MIN, w:'gravel' }, { ...K0, k:'crate', t: now - 60*MIN, end: now - 20*MIN, c:'mesh' }, { ...K0, k:'none', t: now - 18*MIN, x: 1 }]);
+    ok('forty minutes awake in the crate, then out: awake since she last slept (100 minutes), not since she came out', awakeSince('kishmish') === now - 100*MIN && sl().textContent.includes('ערה כבר') && +sl().querySelector('[data-since]').dataset.since === now - 100*MIN && sl().classList.contains('warn') && $q('.cyc').textContent.includes('לכלוב לישון'));
+    seed([{ ...K0, k:'crate', t: now - 140*MIN, end: now - 100*MIN, c:'mesh' }, { ...K0, k:'sleep', t: now - 130*MIN, end: now - 100*MIN }, stay(50)]);
+    ok('awake inside the crate: the timer runs there too, and nothing tells her to go to the crate', awakeSince('kishmish') === now - 100*MIN && sl().textContent.includes('ערה כבר') && sl().classList.contains('warn') && !$q('.cyc').textContent.includes('לכלוב לישון'));
+    seed([{ ...K0, k:'crate', t: now - 60*MIN, end: now - 20*MIN, c:'mesh' }]);
+    ok('no sleep known at all: it falls back to when she came out of the crate', awakeSince('kishmish') === now - 20*MIN);
     // "did she fall asleep?" — asked after five quiet minutes in the crate when nothing says she is asleep
     const q = () => $q('.sleepq');
     seed([stay(4)]); ok('four minutes in: not yet', !q());
