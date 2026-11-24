@@ -35,7 +35,7 @@
       ok('it shows as a running row in the list', !!$q('.uni .r[data-live=crate]'));
       $q('.uni .r[data-live=crate]').click(); ok('the running row opens the start-time sheet', sh.querySelector('h3').textContent.includes('מתי נכנסה')); type('40'); sh.querySelector('#ok').click();
       ok('start moved to 40 minutes ago', near(K().crate.start, now - 40*MIN) && logOf('kishmish', 'crate').length === 1);
-      ok('in the crate she is taken to be asleep', !!K().sleep.start && K().sleep.assumed && $n('.card.item.live') === 2);
+      ok('she ate a moment ago, inside that stay: not taken to be asleep over it', !K().sleep.start && $n('.card.item.live') === 1);
       tapDur('kishmish', 'cry');
       ok('crying runs alongside the crate, and means awake', !!K().cry.start && !!K().crate.start && !K().sleep.start && $n('.card.item.live') === 2);
       tapDur('kishmish', 'cry'); tapDur('kishmish', 'crate');

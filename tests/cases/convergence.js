@@ -16,7 +16,16 @@
       for(const p of Object.keys(PETS)){
         const x = expected(state.log, p), a = tiles(p);
         if(typeof mealKinds === 'function' && PETS[p].cycle){   // the food tile follows meals: more than two hours after the last meal (worked out here independently)
-          let lastMeal = 0; for(const e of state.log.filter(e => e.p === p && e.k === 'food').sort((u, v) => u.t - v.t)) if(e.m === 'meal' || (e.m !== 'bite' && (!lastMeal || e.t - lastMeal > 2*HOUR))) lastMeal = e.t;
+          // …or logged at the food step of the round (out of the crate, a pee / poop since, no meal or "did not eat" yet)
+          const L = state.log.filter(e => e.p === p).sort((u, v) => u.t - v.t), kind = new Map(); let lastMeal = 0;
+          for(const e of L){ if(e.k !== 'food') continue;
+            const d0 = new Date(e.t); d0.setHours(0, 0, 0, 0);
+            const lo = Math.max(d0.getTime(), ...L.filter(c => c.k === 'crate' && c.end != null && c.end <= e.t).map(c => c.end));
+            const inCr = L.some(c => c.k === 'crate' && c.t < e.t && (c.end == null || c.end > e.t)), before = L.slice(0, L.indexOf(e)).filter(x => x.t >= lo && !ITEMS[x.k].dur && !ITEMS[x.k].hid);
+            const step = !inCr && e.y !== 'play' && !(before.length && before[before.length - 1].k === 'brk') && before.some(x => x.k === 'pee' || x.k === 'poop') && !before.some(x => x.k === 'nofood' || kind.get(x) === 'meal');
+            const k = e.m === 'meal' || e.m === 'bite' ? e.m : (!lastMeal || step || e.t - lastMeal > 2*HOUR) ? 'meal' : 'bite';
+            kind.set(e, k); if(k === 'meal') lastMeal = e.t;
+          }
           x.point.food = lastMeal;
         }
         for(const k of ['food','pee','poop','gel','none']) if((a[k] || 0) !== (x.point[k] || 0)) return `${who}: ${p}.${k} tile ${a[k]} vs list ${x.point[k]}`;

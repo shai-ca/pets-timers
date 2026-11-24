@@ -12,7 +12,7 @@
     }
     seed(L.filter(e => e.t < now && (e.end || 0) < now));
     const hints = [...document.querySelectorAll('.sub.hint')].map(e => e.textContent).join(' | ');
-    ok('usual gap between pees and meal-to-poop time are shown', hints.includes('בדרך כלל כל') && hints.includes('אחרי אוכל'));
+    ok('usual gap between pees and meal-to-poop time are shown', /בדרך כלל (כל|מחזיקה)/.test(hints) && hints.includes('אחרי אוכל'));
     ok('today\'s count by place on the tiles (when there is something today)', !logOf(P, 'pee').some(e => e.t >= m0) || hints.includes('היום: '));
     const f = peeForecast(P); ok('forecast window: last pee + the middle half of her gaps', f && f.from > K().pee && f.to >= f.from && !!$q('.sub.fc'));
     view = 'sum'; sumMode = 'week'; sumAnchor = now - 24*HOUR; render();

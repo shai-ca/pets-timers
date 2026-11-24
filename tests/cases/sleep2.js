@@ -12,7 +12,14 @@
     const mine = () => K().spans.filter(sp => sp.stay === 'now'), hint = () => { const e = $q('#sec-rest .newcrate'); return e ? e.textContent : ''; };
     // before the cut-off nothing changes
     seed([{ ...K0, id:'old', k:'crate', t: now - 6*D, end: now - 6*D + 60*MIN }, { ...K0, k:'cry', t: now - 6*D + 20*MIN, end: now - 6*D + 25*MIN }, { ...K0, k:'water', t: now - 6*D + 40*MIN }]);
-    ok('a stay from before the move is estimated exactly as it was: two minutes in, crying splits, nothing else does', canon(K().spans) === canon([{ t: now - 6*D + 2*MIN, end: now - 6*D + 20*MIN, assumed: true, stay: 'old' }, { t: now - 6*D + 27*MIN, end: now - 6*D + 60*MIN, assumed: true, stay: 'old' }]));
+    ok('a stay from before the move keeps its two minutes — and nothing is estimated over what she was seen doing there either (a drink at :40)', canon(K().spans) === canon([{ t: now - 6*D + 2*MIN, end: now - 6*D + 20*MIN, assumed: true, stay: 'old' }, { t: now - 6*D + 27*MIN, end: now - 6*D + 40*MIN, assumed: true, stay: 'old' }, { t: now - 6*D + 42*MIN, end: now - 6*D + 60*MIN, assumed: true, stay: 'old' }]));
+    // the 24.11 case: in at 09:46, ate and drank at 09:50 — the estimate begins after that, with no one-minute piece before it
+    seed([{ ...K0, id:'old', k:'crate', t: now - 6*D, end: now - 6*D + 70*MIN }, { ...K0, k:'water', t: now - 6*D + 3*MIN }, { ...K0, k:'food', t: now - 6*D + 3*MIN + 3000 }]);
+    ok('ate and drank three minutes in: asleep from two minutes after that, and no sliver before it', canon(K().spans) === canon([{ t: now - 6*D + 5*MIN + 3000, end: now - 6*D + 70*MIN, assumed: true, stay: 'old' }]));
+    seed([{ ...K0, id:'old', k:'crate', t: now - 6*D, end: now - 6*D + 70*MIN }, { ...K0, k:'cry', t: now - 6*D + 5*MIN, end: now - 6*D + 8*MIN }, { ...K0, k:'cry', t: now - 6*D + 12*MIN, end: now - 6*D + 15*MIN }, { ...K0, k:'cry', t: now - 6*D + 67*MIN, end: now - 6*D + 70*MIN }]);
+    ok('a piece of under five minutes cut short by a cry is dropped; a long one stays', canon(K().spans) === canon([{ t: now - 6*D + 17*MIN, end: now - 6*D + 67*MIN, assumed: true, stay: 'old' }]));
+    seed([{ ...K0, id:'old', k:'crate', t: now - 6*D, end: now - 6*D + 5*MIN }]);
+    ok('a short piece that ends with the stay itself is kept', canon(K().spans) === canon([{ t: now - 6*D + 2*MIN, end: now - 6*D + 5*MIN, assumed: true, stay: 'old' }]));
     // a new crate: nothing is estimated
     seed([stay(40)]);
     ok('a crate with no marked sleeps: no estimate, and the sleep card asks for a mark', mine().length === 0 && !K().sleep.start && hint() === 'כלוב חדש: סמנו ידנית מתי נרדמה (0 מתוך 5)' && !$q('.zz'));
