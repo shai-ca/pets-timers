@@ -46,6 +46,35 @@
     seed([{ p:'kishmish', k:'pee', t: now - 6.5*HOUR, w:'gravel' }, { p:'kishmish', k:'food', t: now - HOUR }, { p:'kishmish', k:'crate', t: now - 30*MIN }]);
     ok('asleep by assumption: no "take her out" and no vet alert meanwhile', !$q('.duemsg') && $n('.card.alertc') === 0);
     ok('how long she usually takes to fall asleep uses logged sleeps only', typicalSleep('kishmish') === '');
+    // GUARD (24.11: a 19-minute assumed sleep vanished when the stay it was in came to count as a retry wait).
+    // Once a stay is over, its assumed sleep changes only through what the owner does to that stay.
+    const K0 = { p:'kishmish' };
+    seed([{ ...K0, k:'crate', t: now - 380*MIN, end: now - 300*MIN }, { ...K0, k:'pee', t: now - 298*MIN, w:'gravel' }, { ...K0, k:'none', t: now - 140*MIN }, { ...K0, id:'short', k:'crate', t: now - 140*MIN + 1, end: now - 119*MIN }]);
+    const mine = () => canon(K().spans.filter(sp => sp.end != null && sp.end <= now - 100*MIN)), total = () => K().spans.filter(sp => sp.end != null && sp.end <= now - 100*MIN).reduce((m, sp) => m + sp.end - sp.t, 0);
+    const want = mine(), wantTotal = total(), changed = [];
+    ok('a 21-minute stay right after "nothing" is a retry wait — and still has its assumed sleep', isRetryStay(state.log.find(e => e.id === 'short')) && K().spans.some(sp => sp.stay === 'short' && sp.t === now - 140*MIN + 1 + A && sp.end === now - 119*MIN) && wantTotal === 78*MIN + 19*MIN - 1);
+    const then = (name, fn) => { fn(); if(bg.classList.contains('show')){ const g = sh.querySelector('[data-w=gravel]'); if(g) g.click(); else close(); } if(mine() !== want || total() !== wantTotal) changed.push(name); };
+    then('nothing (starts a retry, back into the crate)', () => tile('none').click());
+    then('nothing on the retry card', () => $q('[data-act=rtnone]').click());
+    then('pee on the retry card', () => $q('[data-act=rtpee]').click());
+    then('poop', () => tapPoint('kishmish', 'poop'));
+    then('meal', () => tapPoint('kishmish', 'food'));
+    then('did not eat', () => logNoFood('kishmish', true));
+    then('water', () => tapPoint('kishmish', 'water'));
+    then('play', () => logPlay('kishmish', 'rope', true));
+    then('play with food', () => logPlay('kishmish', 'kong', true));
+    then('into the crate', () => tapDur('kishmish', 'crate'));
+    then('crying now', () => tapDur('kishmish', 'cry'));
+    then('crying stops', () => tapDur('kishmish', 'cry'));
+    then('out of the crate', () => tapDur('kishmish', 'crate'));
+    then('nothing again', () => tapPoint('kishmish', 'none'));
+    then('closing the retry card', () => { const x = $q('[data-act=rtstop]'); if(x) x.click(); });
+    then('a pee logged for an hour ago', () => tapPoint('kishmish', 'pee', now - 60*MIN));
+    then('a sleep logged now', () => tapDur('kishmish', 'sleep'));
+    then('night', () => { FAKE_HOUR = 2; render(); FAKE_HOUR = 12; render(); });
+    ok('nothing done afterwards changes a finished stay\'s assumed sleep or the total' + (changed.length ? ' — changed by: ' + changed.join(', ') : ''), changed.length === 0);
+    state.log.find(e => e.id === 'short').ns = 1; use(state); render();
+    ok('…only what she says about that stay does', mine() !== want && !K().spans.some(sp => sp.stay === 'short'));
     pet = 'kochik'; seed([{ p:'kochik', k:'food', t: now - HOUR }]); ok('nothing is assumed for kochik', KO().spans.length === 0); pet = 'kishmish';
     done();
   } catch(e){ crashed(e); }

@@ -557,7 +557,7 @@ function derive(s){
     }
     const scan = retryScan(p, s.log);
     S.retryStays = scan.stays; S.retryNones = scan.nones;
-    S.spans = sleepSpans(p, s.log, now, scan.stays);
+    S.spans = sleepSpans(p, s.log, now);
     for(const sp of S.spans){
       if(sp.t > now) continue;
       if(sp.end == null){ if(!(S.sleep.start <= sp.t)){ S.sleep.start = sp.t; S.sleep.assumed = !!sp.assumed; S.sleep.stay = sp.stay; } }
@@ -576,15 +576,16 @@ const ASSUME_SLEEP = 2*60000;
 // Retries: a crate stay counts as one when it began within `gap` of a "לא עשתה" and lasted at most `max`;
 // a "לא עשתה" stops calling for a retry after `life`. (Defined here because `derive` runs while the page loads.)
 const RETRY = {gap:30*60000, max:30*60000, life:3*3600000, wait:10*60000, fresh:2*3600000, after:60*60000};
-function sleepSpans(p, log, now, retryIds){
+function sleepSpans(p, log, now){
   const L = log.filter(e => e.p===p), sleeps = L.filter(e => e.k==='sleep'), cries = L.filter(e => e.k==='cry');
   const out = sleeps.map(e => ({t:e.t, end: e.end == null ? null : e.end, id:e.id}));
   if(PETS[p].cycle) for(const c of L){
     if(c.k !== 'crate' || c.ns) continue;
     const cEnd = c.end == null ? now : c.end;
     if(sleeps.some(x => x.t < cEnd && (x.end == null ? now : x.end) > c.t)) continue;
-    // A retry wait is a wait, not a nap: nothing is assumed in it. If it runs on past RETRY.max it is an ordinary stay from there.
-    const awake = [[c.t, c.t + (retryIds && retryIds.has(c.id) ? RETRY.max : ASSUME_SLEEP)]].concat(cries.filter(x => x.t <= cEnd && (x.end == null ? now : x.end) >= c.t)
+    // One rule for every stay. It must NOT depend on what kind of stay this later turns out to be (a retry wait, say):
+    // on 24.11 such a dependence made a sleep that had been shown all morning disappear.
+    const awake = [[c.t, c.t + ASSUME_SLEEP]].concat(cries.filter(x => x.t <= cEnd && (x.end == null ? now : x.end) >= c.t)
       .map(x => [x.t, x.end == null ? Infinity : x.end + ASSUME_SLEEP])).sort((a,b) => a[0]-b[0]);
     const add = (a, b, open) => { if(b - a >= 60000 || open) out.push({t:a, end: open ? null : b, assumed:true, stay:c.id}); };   // only the last stretch of a running stay is still going
     let cur = c.t;

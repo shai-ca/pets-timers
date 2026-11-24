@@ -39,10 +39,10 @@
     seed([{ ...K0, k:'crate', t: now - 300*MIN, end: now - 160*MIN }, pee(150)]);
     tile('none').click();
     const wait = () => stays()[1], shift = m => { const d = wait().t - (now - m*MIN); logOf('kishmish', 'none').forEach(e => e.t -= d); wait().t -= d; if(wait().end) wait().end -= d; use(state); render(); };
-    shift(4); ok('four minutes in: six to go', card().classList.contains('wait') && near(+$q('.card.retry [data-until]').dataset.until, now + 6*MIN) && !K().sleep.start);
+    shift(4); ok('four minutes in: six to go', card().classList.contains('wait') && near(+$q('.card.retry [data-until]').dataset.until, now + 6*MIN));
+    ok('she is taken to be asleep there like in any crate stay — and the countdown goes on regardless', K().sleep.assumed === true && K().sleep.start === wait().t + ASSUME_SLEEP && card().classList.contains('wait'));
     shift(11); ok('time is up: the row says "to the gravel", nothing else changes', card().classList.contains('due') && $q('.rt-go').textContent === 'לחצץ' && !$q('.card.retry [data-until]') && !!$q('[data-act=rtpee]'));
-    ok('a retry wait is not a nap: no sleep is assumed in it', !K().sleep.start && K().spans.length === 1 && !$q('.uni .r.guess[data-stay="' + wait().id + '"]'));
-    shift(4); tapDur('kishmish', 'sleep');
+    shift(4); assumeSheet(wait().id); sh.querySelector('#aIn').value = clock(now - 2*MIN); sh.querySelector('#ok').click();
     ok('she fell asleep in the crate (marked): the countdown stops — "when she wakes, straight to the gravel"', card().classList.contains('asleep') && card().textContent.includes('כשהיא מתעוררת, ישר לחצץ') && !$q('.card.retry [data-until]'));
     tapDur('kishmish', 'sleep'); ok('awake again: back to the countdown', card().classList.contains('wait'));
     tapDur('kishmish', 'crate'); ok('taken out with no result yet: "what happened on the gravel?"', card().classList.contains('again') && card().textContent.includes('מה קרה בחצץ'));
@@ -62,7 +62,7 @@
     tile('none').click(); $q('[data-act=rtstop]').click();
     ok('× closes the card and unlocks play; she is still in the crate', !card() && !$q('.card.playc.locked') && logOf('kishmish', 'none')[0].x === 1 && !!K().crate.start);
     seed([{ ...K0, k:'crate', t: now - 300*MIN, end: now - 100*MIN }, pee(250), { ...K0, k:'none', t: now - 45*MIN }, { ...K0, k:'crate', t: now - 45*MIN + 1 }]);
-    ok('still in the crate after 45 minutes: an ordinary stay, no card, sleep assumed from the half hour', !card() && !isRetryStay(stays()[1]) && retryStats('kishmish', ...today).n === 0 && K().sleep.assumed === true && K().sleep.start === stays()[1].t + RETRY.max);
+    ok('still in the crate after 45 minutes: an ordinary stay, no card, sleep assumed as usual', !card() && !isRetryStay(stays()[1]) && retryStats('kishmish', ...today).n === 0 && K().sleep.assumed === true && K().sleep.start === stays()[1].t + ASSUME_SLEEP);
     seed([{ ...K0, k:'crate', t: now - 300*MIN, end: now - 15*MIN }, pee(130), { ...K0, k:'none', t: now - 12*MIN }, { ...K0, k:'crate', t: now - 12*MIN + 1 }]);
     tapPoint('kishmish', 'food');
     ok('eating takes her out of the crate; the card asks what happened on the gravel', !K().crate.start && card().classList.contains('again'));
