@@ -7,10 +7,6 @@
     ok('a "drank" button for the puppy', !!$q('[data-act=pt][data-k=water]'));
     $q('[data-act=pt][data-k=water]').click();
     ok('drinking is logged and shown', logOf('kishmish', 'water').length === 1 && typeof K().water === 'number' && $q('.uni').textContent.includes('שתתה') && !bg.classList.contains('show'));
-    tile('none').click();
-    ok('the retry card says when she last drank', $q('.card.retry').textContent.includes('שתתה לאחרונה'));
-    seed([{ p:'kishmish', k:'none', t: now - MIN }]);
-    ok('…or that no drinking was logged', $q('.card.retry').textContent.includes('לא נרשמה שתייה'));
     // alerts
     seed([{ p:'kishmish', k:'food', t: now - 3*HOUR }, { p:'kishmish', k:'pee', t: now - 5*HOUR, w:'gravel' }, { p:'kishmish', k:'poop', t: now - 20*HOUR }]);
     ok('nothing alarming: no alerts', $n('.card.alertc') === 0);

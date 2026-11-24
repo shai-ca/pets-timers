@@ -63,7 +63,7 @@
       for(const k of ['pee','poop','none','food','water']){
         seed([{ p:'kishmish', k:'crate', t: now - 60*MIN }, { p:'kishmish', k:'sleep', t: now - 50*MIN }]);
         tapPoint('kishmish', k); close();
-        ok(`logging "${ITEMS[k].log}" ends the crate stay and the sleep`, !K().crate.start && !K().sleep.start && !!logOf('kishmish', 'crate')[0].end && logOf('kishmish', 'sleep')[0].end === logOf('kishmish', 'crate')[0].end);
+        ok(`logging "${ITEMS[k].log}" ends the crate stay and the sleep`, (k === 'none' ? logOf('kishmish', 'crate').length === 2 : !K().crate.start) && !K().sleep.start && !!logOf('kishmish', 'crate')[0].end && logOf('kishmish', 'sleep')[0].end === logOf('kishmish', 'crate')[0].end);
       }
       seed([{ p:'kishmish', k:'crate', t: now - 60*MIN }, { p:'kishmish', k:'sleep', t: now - 50*MIN }]);
       tapPoint('kishmish', 'pee', now - 20*MIN); close();

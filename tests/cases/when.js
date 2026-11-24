@@ -27,10 +27,10 @@
     // play, "did not eat", the retry card
     $q('[data-act=play][data-k=rope]').click(); chip(10).click(); ok('play kind, 10 minutes ago', near(logOf('kishmish', 'play')[0].t, now - 10*MIN));
     $q('[data-act=nofood]').click(); chip(0).click(); ok('"did not eat" now', logOf('kishmish', 'nofood').length === 1);
-    seed([{ p:'kishmish', k:'crate', t: now - 120*MIN, end: now - 30*MIN }, { p:'kishmish', k:'none', t: now - 20*MIN }]);
-    $q('[data-act=rtcrate]').click(); chip(5).click();
+    seed([{ p:'kishmish', k:'crate', t: now - 120*MIN, end: now - 30*MIN }]);
+    tile('none').click(); chip(5).click();
     const C = logOf('kishmish', 'crate').pop();
-    ok('retry: "went back in 5 minutes ago" counts her time in the crate from then', near(C.t, now - 5*MIN) && retry('kishmish').state === 'wait' && +$q('.card.retry [data-since]').dataset.since === C.t);
+    ok('retry: "nothing, 5 minutes ago" puts her back in the crate then, with 5 minutes left on the countdown', near(C.t, now - 5*MIN) && retry('kishmish').state === 'wait' && near(+$q('.card.retry [data-until]').dataset.until, now + 5*MIN));
     $q('[data-act=rtstop]').click(); ok('closing the card does not ask when', !bg.classList.contains('show') && !$q('.card.retry'));
     // the double-tap question comes first, then "when"
     seed([]); DUP_MS = 2*60000;
