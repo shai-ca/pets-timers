@@ -59,6 +59,12 @@
     ok('logged in the minute the round begins: the meal and the cry belong to the new round', newest.includes('אכלה') && newest.includes('בכתה') && !prev.includes('אכלה') && !prev.includes('בכתה'));
     ok('…a pee in that minute stays with the round that is ending, and so does anything from a minute earlier', prev.includes('פיפי') && !newest.includes('פיפי') && prev.includes('שתתה') && !newest.includes('שתתה'));
     ok('nothing saved moved: only where the row is listed', state.log.find(e => e.id === 'meal').t === T - 30000 && noDiff(diff(base, state)));
+    seed([{ ...K0, k:'crate', t: T - 120*MIN, end: T - 20*MIN }, { ...K0, k:'poop', t: T, w:'gravel' }, { ...K0, k:'pee', t: T + 15000, w:'gravel' }, { ...K0, k:'none', t: T - 5*MIN }, { ...K0, k:'play', t: T + 15000, y:'kong' }, { ...K0, id:'in', k:'crate', t: T, end: T + 30*MIN }]);
+    const r2 = [...document.querySelectorAll('.uni .rd')].map(r => r.textContent);
+    ok('a poop stamped at the crate\'s own time, and a pee seconds after it in that minute, belong to the round that is ending; a kong then is in the new one', r2[1].includes('קקי') && r2[1].includes('פיפי') && !r2[0].includes('קקי') && !r2[0].includes('פיפי') && r2[0].includes('קונג') && state.log.find(e => e.id === 'in').end === T + 30*MIN);
+    seed([{ ...K0, k:'poop', t: T, w:'gravel' }, { ...K0, k:'crate', t: T }]);
+    const r3 = [...document.querySelectorAll('.uni .rd')];
+    ok('with no earlier round it is listed before the first round', r3.length === 2 && r3[1].textContent.includes('לפני הסבב הראשון') && r3[1].textContent.includes('קקי'));
     // 4. a cry timer left running
     seed([{ ...K0, k:'crate', t: now - 60*MIN }, { ...K0, k:'cry', t: now - 20*MIN }]);
     tile('food').click();

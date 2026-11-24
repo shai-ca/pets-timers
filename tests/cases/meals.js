@@ -44,7 +44,7 @@
     const at = (d, h, m) => m0 - d*24*HOUR + h*HOUR + m*MIN, A = [];
     for(let d = 1; d <= 5; d++) for(const [h, m] of [[7, 0], [12, 30], [18, 0]]) A.push({ ...K0, k:'food', t: at(d, h, m) }, { ...K0, k:'food', t: at(d, h, m + 40 + d) }, { ...K0, k:'poop', t: at(d, h, m + 60 + (d % 3)), w:'gravel' });
     seed(A);
-    ok('bites are not meal times and not the anchor of the poop forecast', canon(mealTimes('kishmish')) === canon([420, 750, 1080]) && poopModel('kishmish').anchor === 'food' && Math.abs(poopModel('kishmish').med - 61*MIN) <= MIN);
+    ok('bites are not the anchor of the poop forecast', poopModel('kishmish').anchor === 'food' && Math.abs(poopModel('kishmish').med - 61*MIN) <= MIN);
     seed([{ ...K0, k:'crate', t: now - 400*MIN, end: now - 200*MIN }, food(100), { ...K0, k:'pee', t: now - 70*MIN, w:'gravel' }, food(20)]);
     tile('none').click(); ok('a bite 20 minutes ago is not "after a meal": "nothing" stays a note', kinds() === 'meal,bite' && !$q('.card.retry'));
     pet = 'kochik'; seed([{ p:'kochik', k:'food', t: now - 100*MIN }, { p:'kochik', k:'food', t: now - 30*MIN }]);

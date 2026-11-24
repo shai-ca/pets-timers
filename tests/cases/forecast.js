@@ -45,7 +45,7 @@
     }
     seed(A);
     ok('steady after meals: the poop forecast uses meals', poopModel('kishmish').anchor === 'food' && typical('kishmish', 'poop').includes('אחרי אוכל') && Math.abs(poopModel('kishmish').med - 30*MIN) <= MIN);
-    ok('her meal times, from her own days', canon(mealTimes('kishmish')) === canon([420, 750, 1080]) && $q('#sec-food').textContent.includes('אוכלת בדרך כלל בסביבות') && $q('#sec-food').textContent.includes('07:00 · 12:30 · 18:00'));
+    ok('no clock-time habits on the food card any more', !$q('#sec-food').textContent.includes('אוכלת בדרך כלל'));
     ok('no poop forecast until the anchor has happened', !$q('#sec-potty .fc'));
     seed(A.concat([{ ...K0, k:'food', t: now - 10*MIN }]));
     ok('after a meal: "next poop expected around…" from her own delays', !!$q('#sec-potty .fc') && $q('#sec-potty .fc').textContent.includes('הקקי הבא צפוי בסביבות') && $q('#sec-potty .fc').textContent.includes(clock(now - 10*MIN + 30*MIN)));
@@ -54,7 +54,27 @@
     seed(B);
     ok('steady after waking up: the forecast uses that instead', poopModel('kishmish').anchor === 'wake' && typical('kishmish', 'poop').includes('אחרי שהתעוררה'));
     seed(A.slice(0, 5));
-    ok('too little data: no forecasts at all', poopModel('kishmish') === null && mealTimes('kishmish').length === 0 && typical('kishmish', 'poop') === '' && !$q('#sec-food').textContent.includes('אוכלת בדרך כלל'));
+    ok('too little data: no forecasts at all', poopModel('kishmish') === null && mealGap('kishmish') === 0 && typical('kishmish', 'poop') === '' && !$q('#sec-food').textContent.includes('אוכלת בדרך כלל'));
+    // the next meal: the last MEAL plus her usual gap between meals
+    const fl = () => { const e = $q('#sec-food .fc'); return e ? e.textContent : ''; }, meals = offs => offs.map(m => ({ ...K0, k:'food', t: now - m*MIN }));
+    seed(meals([730, 590, 440, 300, 150, 20]));   // gaps 140, 150, 140, 150, 130 -> median 140
+    ok('"next meal at about" = last meal + the median gap between her meals', mealGap('kishmish') === 140*MIN && fl() === 'הארוחה הבאה בערך ב־' + clock(now - 20*MIN + 140*MIN));
+    seed(meals([730, 590, 440, 300, 150, 20]).concat([{ ...K0, k:'food', t: now - 5*MIN }]));
+    ok('a bite does not move it', fl() === 'הארוחה הבאה בערך ב־' + clock(now - 20*MIN + 140*MIN));
+    seed(meals([430, 290, 140, 20]));
+    ok('fewer than four gaps: no line', mealGap('kishmish') === 0 && fl() === '');
+    seed(meals([24*60 + 600, 24*60 + 460, 24*60 + 320, 24*60 + 180, 20]));
+    ok('the night is not one of her gaps', mealGap('kishmish') === 0);
+    seed(meals([1000, 860, 710, 570, 420, 210]));
+    ok('more than an hour past the expected time: the line steps aside', mealGap('kishmish') === 150*MIN && fl() === '');
+    FAKE_HOUR = 2; seed(meals([730, 590, 440, 300, 150, 20])); nightFull = true; render();
+    ok('nothing at night', fl() === ''); FAKE_HOUR = 12; nightFull = false;
+    // "usually … after …" on the poop card only from seven poops
+    const P = n => { const L = []; for(let d = 1; d <= n; d++) L.push({ ...K0, k:'food', t: at(d, 7, 0) }, { ...K0, k:'poop', t: at(d, 7, 29 + (d % 3)), w:'gravel' }); return L; };
+    seed(P(6).concat([{ ...K0, k:'food', t: now - 10*MIN }]));
+    ok('six poops: no "usually", no forecast — the general after-meal note instead', poopModel('kishmish') === null && typical('kishmish', 'poop') === '' && !$q('#sec-potty .fc') && $q('#sec-potty .aftermeal').textContent.includes('10–30 דקות אחרי ארוחה'));
+    seed(P(7).concat([{ ...K0, k:'food', t: now - 10*MIN }]));
+    ok('seven: her own numbers', !!poopModel('kishmish') && $q('#sec-potty').textContent.includes('בדרך כלל') && $q('#sec-potty').textContent.includes('אחרי אוכל') && !$q('#sec-potty .aftermeal'));
     done();
   } catch(e){ crashed(e); }
 })();
