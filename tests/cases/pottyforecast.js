@@ -30,27 +30,12 @@
     ok('a 30-minute nap: the ordinary "good time to try", not "straight to the gravel"', gv().startsWith('זה זמן טוב לנסות') && !what().includes('ישר לחצץ'));
     seed([{...K0, k:'pee', t: now - 120*MIN, w:'gravel'}, {...K0, k:'crate', t: now - 70*MIN}, {...K0, k:'sleep', t: now - 65*MIN, end: now - 3*MIN}]);
     ok('woke in the crate: "straight to the gravel" there too', gv().startsWith('ישר לחצץ') && what().includes('ישר לחצץ'));
-    // --- the usual gap leaves out gaps she mostly slept through
+    // --- the usual gap still counts gaps she slept through (owner, 25.11: the "less than half asleep" filter left 3 gaps)
     const at = (dayBack, hh, mm) => { const d = new Date(now); d.setDate(d.getDate() - dayBack); d.setHours(hh, mm, 0, 0); return d.getTime(); };
-    // yesterday: 05:10, 09:10 (4:00, slept 05:20–08:50), 11:40, 14:20 (a 30-min nap in it), 17:10, 20:10, 22:50
-    // → gaps 240 (slept), 150, 160, 170, 180, 160: median 160 of five (it would be 165 of six)
     const pees = [[5,10],[9,10],[11,40],[14,20],[17,10],[20,10],[22,50]].map(([a,b]) => ({...K0, k:'pee', t: at(1, a, b), w:'gravel'}));
-    const sl = [{...K0, k:'sleep', t: at(1, 5, 20), end: at(1, 8, 50)}, {...K0, k:'sleep', t: at(1, 12, 0), end: at(1, 12, 30)}];
+    const sl = [{...K0, k:'sleep', t: at(1, 5, 20), end: at(1, 8, 50)}];
     seed(pees.concat(sl, [{...K0, k:'pee', t: now - 60*MIN, w:'gravel'}]));
-    const u = usualPeeGap('kishmish', now);
-    ok('a gap she slept most of is left out; one with a short nap stays', !!u && u.n === 5 && u.med === 160*MIN);
-    const L = state.log.filter(e => e.p === 'kishmish');
-    const u2 = usualPeeGap('kishmish', now, L);
-    ok('the same from a list passed in (as needsPee reads it)', !!u2 && u2.n === 5 && u2.med === 160*MIN);
-    seed(pees.concat([{...K0, k:'pee', t: now - 60*MIN, w:'gravel'}]));
-    ok('without that sleep the gap counts (six gaps)', usualPeeGap('kishmish', now).n === 6);
-    RETRY3_FROM = -Infinity;   // retry past 80% of 160 = 128 minutes (of 165 it would be 132)
-    const p0 = now - 140*MIN;
-    seed(pees.concat(sl, [{...K0, k:'pee', t: p0, w:'gravel'}, {...K0, id:'n1', k:'none', t: p0 + 130*MIN}]));
-    ok('"לא עשתה" 130 min after a pee: a retry by the new usual gap (128)', V.kishmish.retryNones.has(state.log.find(e => e.id === 'n1')));
-    seed(pees.concat([{...K0, k:'pee', t: p0, w:'gravel'}, {...K0, id:'n2', k:'none', t: p0 + 130*MIN}]));
-    ok('…with the slept-through gap counted (132) it would have been a note', !V.kishmish.retryNones.has(state.log.find(e => e.id === 'n2')));
-    RETRY3_FROM = Infinity;
+    ok('a gap she slept through still counts (six gaps)', usualPeeGap('kishmish', now).n === 6);
     // --- step 4: poop by meals
     seed([{...K0, k:'pee', t: now - 30*MIN, w:'gravel'}, {...K0, k:'food', t: now - 12*MIN, m:'meal'}]);
     ok('12 min after a meal: "a poop is possible", until meal + 30', $q('#sec-potty .mealpoop').textContent.includes('קקי אפשרי') && $q('#sec-potty .mealpoop').textContent.includes(clock(now - 12*MIN + 30*MIN)));

@@ -19,6 +19,7 @@ function reset(who = 'shai', showPet = 'kishmish'){
   if(typeof awakeUntil !== 'undefined') awakeUntil = 0;
   if(typeof RETRY2_FROM !== 'undefined') RETRY2_FROM = -Infinity;   // the two-hour rule everywhere; retry.js also checks entries from before it
   if(typeof RETRY3_FROM !== 'undefined') RETRY3_FROM = Infinity;   // …not yet her own rhythm (25.11); rhythm.js moves it
+  if(typeof CRATE_TREAT_FROM !== 'undefined') CRATE_TREAT_FROM = Infinity;   // no treat delay in the crate (25.11); sleepcrate.js moves it
   if(typeof SLEEP2_FROM !== 'undefined') SLEEP2_FROM = Infinity;   // cases are written against the closed-box rules; crate2.js and sleep2.js move the cut-off
   if(typeof DUP_MS !== 'undefined') DUP_MS = 0;   // most cases tap the same button repeatedly on purpose; extras.js tests the guard
   close(); renderMe(); document.getElementById('toast').classList.remove('show'); render();

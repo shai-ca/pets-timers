@@ -889,29 +889,14 @@ let RETRY3_FROM = Date.UTC(2026, 10, 25, 11, 0);   // 25.11.2026 13:00 in Israel
 // From her log of 22–25.11: 13 of 16 pees with a known waking came 0–15 min after it, but 4 of 12 outings after a
 // marked sleep of 45 min or more were "לא עשתה" — so "straight to the gravel" yes, "she will pee" only likely; 3 of 6
 // poops came 3–30 min after food — "possible", not "usually". Every number lives here (defined this early because
-// `derive` runs while the page loads, and `usualPeeGap` → `sleptMost` reads it):
+// `derive` runs while the page loads). (A filter leaving out gaps she slept through was tried and dropped, 25.11: she
+// sleeps most of the day, and it left 3 gaps.):
 //  nap / napFor — waking from a sleep this long or longer (marked or estimated): "ישר לחצץ" in "מה עושים עכשיו?" and on
 //                 the gravel card, for napFor after waking, while no pee / poop / "לא עשתה" has been logged since;
-//  sleepShare   — a gap between two pees counts toward her usual gap (`usualPeeGap`) only if she slept less than this
-//                 share of it (a gap she mostly slept through says nothing about how long she holds it awake);
 //  mealPoop     — up to this long after a MEAL (not a bite) with no poop since: "קקי אפשרי" on the poop card and
 //                 "כדאי לנסות חצץ לפני כלוב" on the crate card (out of the crate only);
 //  mealTry      — the gravel card's "good time to try" window after a meal (`TRY.food`).
-const POTTY_CUE = {nap:45*60000, napFor:30*60000, sleepShare:.5, mealPoop:30*60000, mealTry:[10*60000, 15*60000]};
-// Did she sleep at least POTTY_CUE.sleepShare of [a, b)? Sleep = marked + estimated (`sleepSpans`). For a list passed
-// in (`needsPee` judging a past "לא עשתה" from `retryScan`'s copy) the spans are worked out from that list, once per
-// list; otherwise the shown ones (`V[p].spans`). Only sleep inside [a, b) counts, and a sleep still running is cut at
-// b, so the answer for a gap that ended before t does not depend on "now".
-const SPAN_CACHE = new WeakMap();
-function sleptMost(p, a, b, log){
-  let sp;
-  if(log && log !== state.log){ let m = SPAN_CACHE.get(log); if(!m) SPAN_CACHE.set(log, m = {}); sp = m[p] || (m[p] = sleepSpans(p, log, Date.now())); }
-  else sp = V && V[p] && V[p].spans || [];
-  const iv = sp.filter(x => x.t < b && (x.end == null || x.end > a)).map(x => [Math.max(a, x.t), Math.min(b, x.end == null ? b : x.end)]).sort((x, y) => x[0] - y[0]);
-  let s = 0, cur = a;
-  for(const [x, y] of iv){ const f = Math.max(x, cur); if(y > f){ s += y - f; cur = y; } }   // overlapping pieces counted once
-  return b > a && s >= POTTY_CUE.sleepShare * (b - a);
-}
+const POTTY_CUE = {nap:45*60000, napFor:30*60000, mealPoop:30*60000, mealTry:[10*60000, 15*60000]};
 // HOW LONG SHE TAKES TO FALL ASLEEP, from her own entries: every sleep she marked by hand that began in a quiet
 // stretch of a crate stay gives one sample — the time from the start of that stretch (going in, the end of a
 // cry, the last thing she was seen doing) to "נרדמה" — filed under the crate she was in. Entries written by
@@ -2636,7 +2621,7 @@ function usualPeeGap(p, t, log){
   const ts = (log || state.log).filter(e => e.p===p && e.k==='pee' && e.t < t).map(e => e.t).sort((x,y) => x-y), g = [];
   for(let i = 1; i < ts.length; i++){
     const a = ts[i-1], b = ts[i], d = b - a;
-    if(b >= from && d >= R.minGap && d <= R.maxGap && !touchesNight(a, b) && !sleptMost(p, a, b, log)) g.push(d);   // sleptMost: POTTY_CUE.sleepShare
+    if(b >= from && d >= R.minGap && d <= R.maxGap && !touchesNight(a, b)) g.push(d);
   }
   return g.length >= R.min ? {med: median(g), n: g.length} : null;
 }
@@ -2812,7 +2797,7 @@ function poopHints(p){
   if(S.poop && now - S.poop > lim) h += `<div class="sub hint poopgap">לא היה קקי כבר ${Math.floor((now - S.poop)/3600000)} שעות${g ? ', יותר מהרגיל אצלה' : ''}</div>`;
   return h;
 }
-// ---------- POTTY BY WAKING AND BY MEALS: what the cards say (settings and `sleptMost` in POTTY_CUE, near RETRY) ----------
+// ---------- POTTY BY WAKING AND BY MEALS: what the cards say (settings in POTTY_CUE, near RETRY) ----------
 // Waking: she just woke from a sleep of POTTY_CUE.nap or more (marked or estimated; pieces that touch are one sleep),
 // at most POTTY_CUE.napFor ago, and no pee / poop / "לא עשתה" since → {t: woke, len}. In or out of the crate.
 function napWake(p){
