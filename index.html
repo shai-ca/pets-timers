@@ -1173,7 +1173,7 @@ function retryScan(p, log){
     else if(e.k === 'crate'){
       const cand = !!(last && last.k === 'none' && last.calls && e.t - last.t <= RETRY.gap);
       if(cand) stays.add(e.id);
-      if(e.end != null && !(cand && e.end - e.t <= RETRY.max)) wakes.push(e.end);
+      if(e.end != null && !(cand && e.end - e.t <= RETRY.max) && !selfExit(p, e.end, log)) wakes.push(e.end);   // v3: an exit of her own never calls a retry
     }
   }
   return {stays, nones};
@@ -1341,8 +1341,49 @@ function peeGapsObs(p, from, to, opts){
   const attempts = L.filter(e => e.k==='none' && e.t >= from && e.t < to).map(e => ({t: e.t, outcome: 'none', note: 'no pee observed in that attempt'}));
   return {gaps, attempts};
 }
-// advice(p) -> {level:'none'|'info'|'act', text, why}. STUB — Agent B (Kishmish) fills it.
-function advice(p){ return {level: 'none', text: '', why: ''}; }
+// advice(p) -> {level:'none'|'info'|'act', text, why}. Kishmish only (Kochik: always none — Agent C). Exactly one calm
+// line or none, in this order: (1) safety — a red card (`alerts`: food / pee / poop) or past wake-by ("כדאי להעיר")
+// already speaks: none; (2) an instruction already on screen — a retry, the gravel clock, "זמן להוציא לצרכים",
+// "ישר לחצץ" after a nap, the wheel's "להוציא לחצץ" / "לכלוב לישון", awake too long in the crate, free time over, a
+// pee window open or past, a meal due, a cry running: none; (3) calm states — asleep before wake-by → "let her sleep";
+// awake in the crate quietly (a kong / lick mat too) or in the pen → "she can keep herself busy"; nothing due → "no need
+// to do anything"; too little in the list to judge → "not enough data yet". Never a claim about her health.
+const ADVICE = {
+  sleep: 'אפשר לתת לה להמשיך לישון', busy: 'היא יכולה להעסיק את עצמה',
+  idle: 'אין צורך לעשות דבר כרגע', thin: 'עוד אין מספיק נתונים להעריך',
+};
+function advice(p){
+  const none = {level: 'none', text: '', why: ''};
+  if(!PETS[p] || !PETS[p].cycle || !V || !V[p]) return none;
+  const S = V[p], now = Date.now(), asleep = !!(S.sleep && S.sleep.start), inCrate = !!(S.crate && S.crate.start);
+  const say = (k, why) => ({level: 'info', text: ADVICE[k], why});
+  // (1) safety first: a red card or "wake her" already on screen
+  if(alerts(p).length) return none;
+  const wb = asleep ? wakeBy(p) : null;
+  if(wb && wb.past) return none;
+  // (2) an instruction already on screen
+  if(retry(p) || (S.gravel && S.gravel.start) || (S.cry && S.cry.start) || pottyDue(p) || napWake(p) || crateOver(p)) return none;
+  const ft = freeTime(p); if(ft && ft.phase !== 'run' && !inCrate) return none;
+  const pen = !!(S.pen && S.pen.start), carrier = !!(S.carrier && S.carrier.start), awake = !asleep && !inCrate;
+  if(awake && S.pee && now - S.pee >= 3*3600000) return none;                                  // the wheel: "להוציא לחצץ"
+  const aw = awakeSince(p);
+  if(awake && !pen && !carrier && aw && now - aw >= AWAKE.warn) return none;                   // the sleep tile is orange / "לכלוב לישון"
+  // (3) calm states
+  if(asleep){
+    const we = wakeExpect(p, now);
+    const how = we.words === 'likely' ? 'לפי השינות שלה, סביר שתמשיך לישון עוד זמן מה. ' : '';
+    return say('sleep', how + (wb ? `לא מעירים בגלל אורך השינה; רק לפי הפיפי או האוכל, עד ${clock(wb.t)} לכל המאוחר (${wb.why}).` : 'לא מעירים בגלל אורך השינה.'));
+  }
+  if(!S.pee || !S.food || now - S.pee > 12*3600000) return say('thin', 'צריך פיפי וארוחה רשומים מהשעות האחרונות כדי לדעת מה צפוי.');
+  if(inCrate){
+    const st = S.crate.start, toy = state.log.some(e => e.p===p && e.k==='play' && (e.y === 'kong' || e.y === 'lick') && e.t >= st && e.t <= now);
+    return say('busy', toy ? 'ערה בכלוב עם קונג או משטח ליקוק, בלי בכי.' : 'ערה בכלוב, בלי בכי מסומן.');
+  }
+  if(pen) return say('busy', 'בגדר — הזדמנות לזמן עצמאי. אם היא בוכה, מסמנים בכי.');
+  const pf = peeForecast(p); if(pf && pf.state !== 'soon') return none;                           // the pee window is open / past
+  const mg = mealGap(p); if(mg && S.food + mg <= now) return none;                                // a meal is about due
+  return say('idle', pf ? `הפיפי הבא צפוי ${clock(pf.from)}–${clock(pf.to)}; אין עכשיו שום דבר שצריך לעשות.` : 'אין עכשיו שום דבר שצריך לעשות.');
+}
 // adviceHTML(p): the advice slot in the side column (Agent E draws it). Empty while `advice` says nothing.
 function adviceHTML(p){ const a = advice(p); return a.level === 'none' ? '' : `<div class="card slim advice ${a.level}"><span><b>${esc(a.text)}</b>${a.why ? `<small>${esc(a.why)}</small>` : ''}</span></div>`; }
 // KOCHIK'S PERSONAL BASELINE (v3, Agent C). Derived from the list every time, nothing stored. Per metric three views:
@@ -1468,10 +1509,121 @@ function kochikBaselineText(p, now, opts){
 // Planning (Agent D) and the UI (Agent E) only CALL these — they never compute their own predictions.
 // wakeExpect(p, now?) → {state:'asleep'|'awake'|'unknown', since, sleepOn: sleepOn(...) | null,
 //   likely: {from, to} | null  (a range, never a point), wakeBy: ts | null (safety rule, unchanged), words, src, n}
-function wakeExpect(p, now){ return {state:'unknown', since:null, sleepOn:null, likely:null, wakeBy:null, words:'unknown', src:'stub', n:0}; }
+// Kishmish: asleep = `V[p].sleep` (src 'marked' or 'estimated'); `since` = the start of the running sleep EPISODE
+// (pieces joined as in `episodes`: a short waking with nothing logged in between is the same sleep). `likely` = from
+// the 25% to the 75% point of her CONDITIONAL continuation — the chance she sleeps on, given how long she has slept
+// already (`sleepOn` step by step) — so a nap already longer than her usual one still gets a range ahead of now.
+// Never "typical nap minus elapsed". Under SLEEP_ON.minEp marked episodes, or a sleep touching the night (NIGHTS.learn): likely null.
+// `wakeBy` = `wakeBy(p)` unchanged (the only rule that may say "wake her"). Awake: state 'awake', since = `awakeSince`.
+// Kochik: asleep only from a running MARKED sleep; else 'unknown'; likely always null. `now` shifts the elapsed time
+// only (the list is read as it is now).
+const WAKE_RANGE = {lo: .75, hi: .25, cap: 24};   // survival 75% → 25%; at most 24 steps (6 h) ahead
+let wakeCache = {v: null, m: {}};
+function wakeCurve(p, elapsed, now){   // [{at, s}] conditional survival from now, one SLEEP_ON.step at a time
+  const key = p + '|' + Math.round(elapsed / 60000) + '|' + Math.floor(now / 60000);
+  if(wakeCache.v !== V) wakeCache = {v: V, m: {}};
+  if(wakeCache.m[key]) return wakeCache.m[key];
+  const S = SLEEP_ON.step, out = {so: sleepOn(p, elapsed, {now}), pts: [{at: now, s: 1}]};
+  if(out.so.words !== 'unknown'){
+    let s = 1;
+    for(let k = 0; k < WAKE_RANGE.cap && s > WAKE_RANGE.hi; k++){
+      const q = k === 0 ? out.so.pAtLeast[0].p : sleepOn(p, elapsed + k*S, {now}).pAtLeast[0].p;
+      s *= q; out.pts.push({at: now + (k + 1)*S, s});
+    }
+  }
+  return (wakeCache.m[key] = out);
+}
+function napSurv(p, elapsed, now){   // the share of her naps (life table) that last at least `elapsed`; null with too few
+  const S = SLEEP_ON.step, key = p + '|s|' + Math.floor(elapsed / S) + '|' + Math.floor(now / 60000);
+  if(wakeCache.v !== V) wakeCache = {v: V, m: {}};
+  if(key in wakeCache.m) return wakeCache.m[key];
+  let s = 1;
+  for(let k = 0; k < Math.floor(elapsed / S); k++){ const so = sleepOn(p, k*S, {now}); if(so.words === 'unknown'){ s = null; break; } s *= so.pAtLeast[0].p; }
+  return (wakeCache.m[key] = s);
+}
+function survAt(pts, lvl){   // when the conditional survival first falls to `lvl` (linear inside a step); the last point if never
+  for(let i = 1; i < pts.length; i++) if(pts[i].s <= lvl){ const a = pts[i-1], b = pts[i]; return a.at + (b.at - a.at) * (a.s - lvl) / Math.max(1e-9, a.s - b.s); }
+  return pts[pts.length-1].at;
+}
+function wakeExpect(p, now){
+  now = now != null ? now : Date.now();
+  const out = {state:'unknown', since:null, sleepOn:null, likely:null, wakeBy:null, words:'unknown', src:'none', n:0};
+  if(!PETS[p] || !V || !V[p]) return out;
+  const S = V[p], sl = S.sleep || {};
+  if(!PETS[p].cycle){
+    if(sl.start && !sl.assumed){ out.state = 'asleep'; out.since = sl.start; out.src = 'marked'; }
+    return out;
+  }
+  if(!sl.start){ out.state = 'awake'; out.since = awakeSince(p) || null; out.src = 'marked'; return out; }
+  const ep = episodes(p, sl.start - 86400000, now + 1, {now}).filter(e => e.end == null).pop();
+  out.state = 'asleep'; out.src = sl.assumed ? 'estimated' : 'marked';
+  out.since = ep ? Math.min(ep.t, sl.start) : sl.start;
+  const wb = wakeBy(p); out.wakeBy = wb ? wb.t : null;
+  const c = wakeCurve(p, Math.max(0, now - out.since), now);
+  out.sleepOn = c.so; out.words = c.so.words; out.n = c.so.n;
+  // her naps are learned by day only (`learnEpisodes`): a sleep touching the night gets no range
+  if(c.so.words !== 'unknown' && !touchesNight(out.since, now)) out.likely = {from: survAt(c.pts, WAKE_RANGE.lo), to: survAt(c.pts, WAKE_RANGE.hi)};
+  return out;
+}
 // pottyExpect(p, now?) → {pee: {from, to, trigger:'wake'|'gap'|'age'|'none', src:'learned'|'rule'|'none', n} | null,
 //   poop: {from, to, trigger:'meal'|'wake'|'gap'|'none', src, n} | null}
-function pottyExpect(p, now){ return {pee:null, poop:null}; }
+// PEE — waking is the trigger while she sleeps (Kishmish; not yet WAKE.sleepNoPee from the pee, `peeAsleep`): expected
+// within PEE_WAKE (15 min) of waking, so from the wake range's start to its end + 15 min (src 'learned' with a wake
+// range, else 'rule': now … wake-by + 15 min, or to:null). Awake (or asleep 4 h from the pee): her usual gap
+// (`usualPeeGap`, 85–115% after the last pee; trigger 'gap', src 'learned', n gaps), with too few gaps by age
+// (85–100% of `holdHours`; 'age', 'rule'). A "לא עשתה" never moves the gap: it is "no pee seen in that attempt"
+// (`peeGapsObs.attempts`), not a pee. `peeForecast` / `forecastLine` / `peeWindow` read the same window (`peeGapWin`).
+// POOP — the existing rules wrapped: a meal in the last POTTY_CUE.mealPoop with no poop since ('meal', 'rule');
+// else her own delay after a meal / waking (`poopModel`, 25th–75th percentile; 'meal' / 'wake', 'learned'); else her
+// usual gap ± a quarter (`poopGap`; 'gap', 'learned'). Nothing known: trigger 'none'.
+function peeGapWin(p, now){   // the pee window from the last pee: her usual gap, or by age
+  const last = V[p].pee; if(typeof last !== 'number') return null;
+  const u = usualPeeGap(p, now), h = holdHours(p) * 3600000;
+  if(!u && !h) return null;
+  return {from: last + (u ? PEE_RHYTHM.from * u.med : PEE_RHYTHM.from * h), to: last + (u ? PEE_RHYTHM.to * u.med : h), last, med: u ? u.med : 0, n: u ? u.n : 0, byAge: !u};
+}
+function pottyExpect(p, now){
+  now = now != null ? now : Date.now();
+  if(!PETS[p] || !V || !V[p]) return {pee: null, poop: null};
+  const S = V[p], none = {from: null, to: null, trigger: 'none', src: 'none', n: 0};
+  let pee = none;
+  if(PETS[p].cycle && peeAsleep(p) === 'wake'){
+    const w = wakeExpect(p, now);
+    pee = w.likely ? {from: w.likely.from, to: w.likely.to + PEE_WAKE, trigger: 'wake', src: 'learned', n: w.n}
+      : {from: now, to: w.wakeBy ? w.wakeBy + PEE_WAKE : null, trigger: 'wake', src: 'rule', n: w.n};
+  } else {
+    const g = peeGapWin(p, now);
+    if(g) pee = {from: g.from, to: g.to, trigger: g.byAge ? 'age' : 'gap', src: g.byAge ? 'rule' : 'learned', n: g.n};
+  }
+  let poop = none;
+  const mc = mealPoopCue(p), m = poopModel(p);
+  if(mc) poop = {from: mc, to: mc + POTTY_CUE.mealPoop, trigger: 'meal', src: 'rule', n: 0};
+  else if(typeof S.poop === 'number'){
+    if(m && m.last != null && m.last > S.poop) poop = {from: m.last + quantile(m.g, .25), to: m.last + quantile(m.g, .75), trigger: m.anchor === 'food' ? 'meal' : 'wake', src: 'learned', n: m.g.length};
+    else { const g = poopGap(p); if(g){ const n = state.log.filter(e => e.p===p && e.k==='poop' && e.t >= now - 14*86400000).length - 1; poop = {from: S.poop + .75*g, to: S.poop + 1.25*g, trigger: 'gap', src: 'learned', n}; } }
+  }
+  return {pee, poop};
+}
+// sleepOrigin(p, span) -> {origin:'self'|'placed'|'unknown', basis:'observed'|'inferred'} — how a sleep began, read from
+// where she was at its start (nothing stored): 'self' = the crate door was open (a `cset`), or she was in the pen;
+// 'placed' = a crate stay with the door closed (she had been put in); 'unknown' = no `cset` yet said how the door was,
+// or in the carrier / anywhere else. `basis`: 'observed' when the sleep's start was marked by hand, 'inferred' when it
+// was the app's estimate (an assumed span, or "התעוררה" on an estimate, `a:1`). `span`: a `V[p].spans` item, a sleep
+// entry, or an `episodes` item (its first piece decides).
+function sleepOrigin(p, span){
+  const t = span.t, L = state.log.filter(e => e.p===p);
+  const first = span.pieces ? span.pieces[0] : null;
+  const ent = !span.pieces && span.id ? L.find(e => e.id === span.id) : null;
+  const est = first ? first.src !== 'marked' : !!(span.assumed || span.a || (ent && ent.a));
+  const basis = est ? 'inferred' : 'observed';
+  const within = k => L.some(e => e.k === k && e.t <= t && (e.end == null || e.end > t));
+  if(within('pen')) return {origin: 'self', basis};
+  if(within('carrier')) return {origin: 'unknown', basis};
+  const door = crateSetup(p, t).door, inC = !!crateAt(p, t);
+  if(door === 'open') return {origin: 'self', basis};
+  if(inC && door === 'closed') return {origin: 'placed', basis};
+  return {origin: 'unknown', basis};
+}
 // kochikExpect(now?) → {gap, from, to, cap, sick, n, src:'learned'|'cap', drinkFrom?, drinkTo?}  (Agent C)
 //  gap  = the 25th percentile of her daytime pee gaps (10 min – PLAN.kochikLong, last PLAN.days, none touching the night
 //         22:30–07:00 — a night gap is never read as holding ability), needs PLAN.kochikMinGaps gaps, capped at cap;
@@ -2303,21 +2455,28 @@ function wakeBy(p){
   c.sort((x, y) => x[0] - y[0]);
   return {t: c[0][0], why: c[0][1], past: now >= c[0][0]};
 }
-// "היא עדיין ישנה?" (owner, 25.11): once her EXPECTED wake has passed — the sleep's start + her usual nap (`kishStats`,
-// the same nap the planning tab uses) — while she is still recorded asleep (marked or estimated), by day, and the
-// wake-by time has NOT passed (then "כדאי להעיר אותה" stays instead). "עדיין ישנה" hides it for WAKE.askAgain on this
-// phone (nothing saved); "התעוררה" ends the sleep now or at a chosen time (the usual "when?").
+// "היא עדיין ישנה?" (owner, 25.11; v3 timing): while she is still recorded asleep (marked or estimated), by day, and the
+// wake-by time has NOT passed (then "כדאי להעיר אותה" stays instead), once she has PROBABLY woken or is about to: with
+// her own marked sleeps, once this sleep is longer than STILL_ASK of her naps (the life table of `sleepOn` from the
+// start, `napSurv`; on 23–25.11 her continuation never fell under one half, so a conditional test would never ask);
+// with too few of them (`sleepOn` 'unknown'), as before — the sleep's start + the planning tab's nap
+// (`kishStats(now).nap`). The card shows `wakeExpect`'s forward range. A question only: it never says "wake her". "עדיין ישנה" hides it for
+// WAKE.askAgain on this phone (nothing saved); "התעוררה" ends the sleep now or at a chosen time (the usual "when?").
+const STILL_ASK = .5;
 let stillUntil = 0;
 function stillAsleep(p){
   const S = V[p], st = S.sleep && S.sleep.start, now = Date.now();
   if(!PETS[p].cycle || !st || touchesNight(st, now) || stillUntil > now) return null;
   const wb = wakeBy(p); if(wb && wb.past) return null;
+  const w = wakeExpect(p, now);
+  if(w.sleepOn && w.words !== 'unknown') return w.likely && napSurv(p, now - w.since, now) < STILL_ASK ? {since: w.since, likely: w.likely, src: 'learned'} : null;
   const exp = st + kishStats(now).nap;
-  return now >= exp ? {exp, since: st} : null;
+  return now >= exp ? {exp, since: st, src: 'rule'} : null;
 }
 function stillAsleepHTML(p){
   const a = stillAsleep(p); if(!a) return '';
-  return `<div class="card slim sleepq still"><span><b>היא עדיין ישנה?</b><small>ישנה מ־<bdi dir="ltr">${clock(a.since)}</bdi> · בדרך כלל מתעוררת בערך עכשיו (צפוי ${clock(a.exp)})</small></span>
+  const when = a.src === 'learned' ? `לפי השינות שלה, ייתכן שהיא כבר מתעוררת (בערך <bdi dir="ltr">${clock(a.likely.from)}–${clock(a.likely.to)}</bdi>)` : `בדרך כלל מתעוררת בערך עכשיו (צפוי ${clock(a.exp)})`;
+  return `<div class="card slim sleepq still"><span><b>היא עדיין ישנה?</b><small>ישנה מ־<bdi dir="ltr">${clock(a.since)}</bdi> · ${when}</small></span>
     <span class="rt-a"><button class="go" data-act="wokeup">התעוררה</button><button class="btn" data-act="stillasleep">עדיין ישנה</button></span></div>`;
 }
 function sleepPeeNote(p){   // asleep by day, past the age limit from the pee but not yet WAKE.sleepNoPee: information only
@@ -2489,7 +2648,7 @@ function freeCardHTML(p){
 function routineTap(p){
   const r = routine(p);
   if(!r || r.done) return ['crate'];
-  if(r.brk || r.retry) return [];          // during a retry the card at the top says what to do
+  if(r.brk || r.retry || r.free) return [];   // during a retry the card at the top says what to do; free time: nothing to press
   return r.i === 0 ? ['crate'] : r.i === 2 ? ['play','food'] : ['pee','poop','none'];
 }
 // Put the routine on hold (vet, a trip…): just an entry in the log. Whatever is logged next resumes it.
@@ -2519,6 +2678,11 @@ function routine(p){
   if(meal){ const mi = ev.indexOf(meal), after = ev.find((e, j) => went(e) && j > mi); return after ? {i:4, t:after.t, done:true, next:0} : {i:4, t:meal.t, next:0, retry:!!rt}; }
   const first = ev.find(went);
   if(first) return {i:2, t:first.t, next:3};
+  // v3 (owner, 25.11): she came out on her own (door open), or is in the carrier / the pen, and nothing has happened
+  // since — the wheel follows her and does not insist on "טיול וצרכים": free time, no current step (`free`: why).
+  const mvE = ['pen', 'carrier'].map(k => S[k] && S[k].start ? {k, t: S[k].start} : null).filter(Boolean).sort((a, b) => b.t - a.t)[0];
+  const sx = out ? selfExit(p, out) : null;
+  if(!rt && (mvE || sx)) return {free: mvE ? mvE.k : sx, i:-1, t: mvE ? Math.max(mvE.t, out) : out, next:-1};
   return out || rt ? {i:1, t: out || rt.none.t, next:2, retry:!!rt} : null;
 }
 // Rounds are a view of the log, not separate data: a round begins each time she goes into the crate
@@ -2654,12 +2818,24 @@ function tryNowHTML(p){
   const head = h.nap ? 'ישר לחצץ' : h.meal ? 'זה זמן טוב לצאת לחצץ' : 'זה זמן טוב לנסות';
   return `<small class="trynow">${head} · ${ago} ${h.why}${h.nap ? ` (ישנה ${words(h.nap)})` : ''}</small>`;
 }
+// INDEPENDENCE (owner, 25.11): she moves between steps on her own — the door open, she comes out, plays, goes back in.
+// selfExit(p, t, log?) -> 'door' | 'carrier' | 'pen' | null: a crate stay ended at t with the door OPEN (`crateSetup`),
+// or ended by a carrier / pen start at t. Such an exit is not "taken out": no take-out reminder (`pottyDue`), no step
+// "טיול וצרכים" by itself (`routine` shows free time), no retry trigger (`retryScan`). Derived, nothing stored.
+function selfExit(p, t, log){
+  const L = (log || state.log).filter(e => e.p===p);
+  if(!t || !L.some(e => e.k==='crate' && e.end === t)) return null;
+  const mv = L.find(e => (e.k==='carrier' || e.k==='pen') && e.t === t);
+  if(mv) return mv.k;
+  return crateSetup(p, t, log).door === 'open' ? 'door' : null;
+}
 function pottyDue(p){
   const S = V[p], c = [];
   if((S.sleep && S.sleep.start) || (S.crate && S.crate.start) || retry(p)) return null;   // a retry has its own card
   // A crate stay that a drink (v3) or the carrier / pen ended is not "taken out of the crate" for the reminder, and a
   // sleep that ended with it neither (a drink ending a marked sleep OUT of the crate keeps the reminder, as before).
-  const byMove = t => state.log.some(e => e.p===p && (e.k==='water' || e.k==='carrier' || e.k==='pen') && e.t === t) && state.log.some(e => e.p===p && e.k==='crate' && e.end === t);
+  // v3: an exit with the crate door open is hers, not "taken out" (`selfExit`).
+  const byMove = t => (state.log.some(e => e.p===p && (e.k==='water' || e.k==='carrier' || e.k==='pen') && e.t === t) && state.log.some(e => e.p===p && e.k==='crate' && e.end === t)) || !!selfExit(p, t);
   if(S.sleep && S.sleep.lastEnd && !byMove(S.sleep.lastEnd)) c.push([S.sleep.lastEnd, 'אחרי שינה']);
   if(S.crate && S.crate.lastEnd && !byMove(S.crate.lastEnd)) c.push([S.crate.lastEnd, 'אחרי יציאה מהכלוב']);
   if(typeof S.food === 'number') c.push([S.food, 'אחרי אוכל']);
@@ -2956,6 +3132,7 @@ function weightSheet(p){
       commit(`${name} · משקל ${kg.toFixed(1)} ק״ג`, () => state.log.push({p, k:'weight', t, kg}));
     });
 }
+const FREE_LBL = {door:'זמן עצמאי', pen:'בגדר', carrier:'במנשא'};   // the wheel's centre in free time (`routine().free`)
 function cycleHTML(p){
   const S = V[p], now = Date.now(), rn = roundStarts(p).pop(), r = routine(p);
   const inCrate = !!(S.crate && S.crate.start), over = crateOver(p), asleep = !!(S.sleep && S.sleep.start), due = pottyDue(p);
@@ -2979,6 +3156,7 @@ function cycleHTML(p){
   const since = t => `כבר <span data-words="${t}">${words(now-t)}</span>`;
   const centre = (asleep ? ico('sleep','s zzi') : '') + (!r ? `<span>הגלגל מתקדם לבד<br>לפי מה שמסמנים למטה</span>`
     : r.brk ? `<b>הפסקה</b><span>${since(r.t)}</span>`
+    : r.free ? `<b>${FREE_LBL[r.free]}</b><span>${since(r.t)}</span>`
     : r.done ? `<b>הסבב הושלם</b><span>${since(r.t)}</span>`
     : `<b>${CYCLE[ci].n}</b><span>${since(r.t)}</span>${inCrate ? `<span>מ־<bdi dir="ltr">${clock(r.t)}</bdi></span>` : ''}`);
   // What moves the wheel on: always something on the tiles below.
@@ -2993,8 +3171,11 @@ function cycleHTML(p){
   const what = wb && wb.past ? `כדאי להעיר את ${nm} ולצאת לחצץ (${wb.why}).` : r && r.retry ? (asleep ? `נותנים לה לישון. כשהיא מתעוררת, ישר לחצץ.` : `ניסיון חוזר: עושים מה שכתוב בכרטיס שלמעלה, עד ש${nm} עושה פיפי.`)
     : !r ? `כש${nm} נכנסת לכלוב, לוחצים <b>״נכנסה לכלוב״</b> בכרטיס הכלוב למטה.`
     : r.brk ? `בהפסקה. כל דבר שמסמנים למטה מחזיר את ${nm} לשגרה.`
+    : r.free === 'door' ? `${nm} יצאה בעצמה מהכלוב הפתוח. לא צריך להוציא אותה עכשיו; מה שהיא עושה מסמנים למטה.`
+    : r.free === 'pen' ? `${nm} בגדר, זמן עצמאי. מה שהיא עושה מסמנים למטה.`
+    : r.free === 'carrier' ? `טיול במנשא לא משנה את השגרה. מה שהיא עושה מסמנים למטה.`
     : r.done ? `הסבב הושלם. כש${nm} חוזרת לכלוב, לוחצים <b>״נכנסה לכלוב״</b>.`
-    : ci === 0 ? `${nm} בכלוב. כשמוציאים אותה, לוחצים <b>״יצאה מהכלוב״</b> בכרטיס הכלוב.`
+    : ci === 0 ? (crateSetup(p, now).door === 'open' ? `${nm} בכלוב, הדלת פתוחה: היא יכולה לצאת ולחזור בעצמה. כשהיא יוצאת, לוחצים <b>״יצאה מהכלוב״</b>.` : `${nm} בכלוב. כשמוציאים אותה, לוחצים <b>״יצאה מהכלוב״</b> בכרטיס הכלוב.`)
     : ci === 1 ? `מוציאים את ${nm} לצרכים, ואז לוחצים למטה מה קרה: <b>פיפי</b>, <b>קקי</b> או <b>״לא עשתה״</b>.`
     : ci === 2 ? `זמן משחק. אפשר לסמן במה שיחקה. כש${nm} אוכלת, לוחצים <b>״אכלה״</b>.`
     : `אחרי האוכל מוציאים שוב לצרכים, ואז לוחצים <b>פיפי</b>, <b>קקי</b> או <b>״לא עשתה״</b>.`;
@@ -3178,12 +3359,12 @@ function usualPeeGap(p, t, log){
 }
 function quantile(sorted, q){ const i = (sorted.length-1)*q, lo = Math.floor(i), hi = Math.ceil(i); return sorted[lo] + (sorted[hi]-sorted[lo])*(i-lo); }
 // `state`: "soon" before the window, "now" inside it, "late" after it.
+// v3: the window is `pottyExpect`'s (one reading for the tracking cards, the take-out reminder and planning). While she
+// sleeps `pottyExpect` says "on waking"; the card then shows that line (`peeCardLines`), and this stays the gap window.
 function peeForecast(p){
-  const last = V[p].pee, now = Date.now(); if(typeof last !== 'number') return null;
-  const u = usualPeeGap(p, now), h = holdHours(p) * 3600000;
-  if(!u && !h) return null;
-  const from = last + (u ? PEE_RHYTHM.from * u.med : PEE_RHYTHM.from * h), to = last + (u ? PEE_RHYTHM.to * u.med : h);
-  return {from, to, last, med: u ? u.med : 0, n: u ? u.n : 0, byAge: !u, state: now < from ? 'soon' : now <= to ? 'now' : 'late'};
+  const now = Date.now(), x = pottyExpect(p, now).pee, g = peeGapWin(p, now); if(!g) return null;
+  const from = x && (x.trigger === 'gap' || x.trigger === 'age') ? x.from : g.from, to = x && (x.trigger === 'gap' || x.trigger === 'age') ? x.to : g.to;
+  return {from, to, last: g.last, med: g.med, n: g.n, byAge: g.byAge, state: now < from ? 'soon' : now <= to ? 'now' : 'late'};
 }
 function forecastLine(p){
   const f = peeForecast(p); if(!f) return '';
