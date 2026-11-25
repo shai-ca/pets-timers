@@ -6,30 +6,14 @@
     const now = Date.now(), m0 = midnight(), late = now - m0 > 420*MIN && m0 + 24*HOUR - now > 30*MIN, K0 = { p:'kishmish' };
     if(!late){ ok('skipped (too close to midnight)', true); done(); return; }
     FAKE_TODAY = '2026-11-24';   // two months old: about three hours
-    // 2. the pee window: her 24.11 numbers — gaps of 93…284 minutes, last pee 60 minutes ago
+    // 2. the pee window: since 25.11 it comes from her own rhythm (rhythm.js); the age limit is only a note
     const gaps = [93, 167, 167, 196, 205, 230, 249, 273, 284]; let t = now - 60*MIN; const pees = [{ ...K0, k:'pee', t, w:'gravel' }];
     for(const g of gaps.slice().reverse()){ t -= g*MIN; pees.unshift({ ...K0, k:'pee', t, w:'gravel' }); }
     seed(pees);
-    const f = peeForecast('kishmish'), last = now - 60*MIN;
-    ok('the window starts at her 25th percentile and ends at the age limit, not after it', Math.abs(f.from - (last + 167*MIN)) < 1000 && f.to === last + 3*HOUR && f.capped === true && $q('#sec-potty .fc').textContent.includes(clock(last + 167*MIN) + '–' + clock(last + 180*MIN)));
-    ok('that she usually holds longer is a note, not a longer window', $q('#sec-potty .longer').textContent.includes('בדרך כלל מחזיקה יותר') && $q('#sec-potty .longer').textContent.includes('3 שעות ו־25'));
-    const potty = () => $q('#sec-potty').textContent, count = (h, n) => h.split(n).length - 1;
-    ok('…and her usual gap is written once: no separate "usually every…" line beside it', count(potty(), '3 שעות ו־25') === 1 && !potty().includes('בדרך כלל כל') && potty().includes('לפי הגיל: עד כ־3 שעות'));
-    const flat = m => { let u = now - 60*MIN; const L = [{ ...K0, k:'pee', t: u, w:'gravel' }]; for(let i = 0; i < 6; i++){ u -= m*MIN; L.unshift({ ...K0, k:'pee', t: u, w:'gravel' }); } return L; };
-    seed(flat(190));
-    ok('ten minutes from the age guideline: no "more / less" note, just the usual gap', !$q('#sec-potty .longer') && !$q('#sec-potty .shorter') && potty().includes('בדרך כלל כל 3 שעות ו־10'));
-    seed(flat(150));
-    ok('half an hour under it: "usually holds less", with the number once', $q('#sec-potty .shorter').textContent === 'בדרך כלל מחזיקה פחות: כ־שעתיים ו־30 דק׳' && !potty().includes('בדרך כלל כל'));
-    seed(flat(195));
-    ok('exactly fifteen minutes over: the note', !!$q('#sec-potty .longer') && !potty().includes('בדרך כלל כל'));
-    seed(pees);
+    const potty = () => $q('#sec-potty').textContent;
+    ok('the age line says the limit and, when known, how long she usually holds; nothing about "more / less"', potty().includes('לפי הגיל: עד כ־3 שעות') && !$q('#sec-potty .longer') && !$q('#sec-potty .shorter') && !potty().includes('בדרך כלל כל'));
     $q('[data-act=fcwhy]').click();
-    ok('the small "?" explains where the window comes from', bg.classList.contains('show') && sh.textContent.includes('תחילת החלון') && sh.textContent.includes('רבע מהמרווחים') && sh.textContent.includes('מגבלת הגיל')); close();
-    FAKE_TODAY = '2027-06-20'; render();   // nine months: eight hours at most — no cap in practice
-    ok('an older puppy with a higher limit gets the full window and no note', Math.abs(peeForecast('kishmish').to - (last + 249*MIN)) < 1000 && !$q('#sec-potty .longer'));
-    FAKE_TODAY = '2026-10-10'; render();   // under a month: one hour — the start is past the limit too
-    ok('when even the start is past the limit the line is just "until…"', peeForecast('kishmish').from === peeForecast('kishmish').to && $q('#sec-potty .fc').textContent.includes('עד ' + clock(last + HOUR)));
-    FAKE_TODAY = '2026-11-24';
+    ok('the small "?" explains where the window comes from', bg.classList.contains('show') && sh.textContent.includes('מאיפה החלון')); close();
     // 3. the wheel while she sleeps in a retry
     seed([{ ...K0, k:'crate', t: now - 400*MIN, end: now - 20*MIN }, { ...K0, k:'pee', t: now - 200*MIN, w:'gravel' }]);
     tile('none').click();

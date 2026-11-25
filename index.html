@@ -529,6 +529,7 @@
   .scr b{position:absolute;top:20px;left:0;right:0;font-size:19px;font-weight:700;font-variant-numeric:tabular-nums}
   .scr span{font-size:13px;font-weight:600;margin-top:4px} .scr small{font-size:11.5px;color:var(--muted)}
   .gauge .gg{cursor:pointer}
+  .gravel small.trynow{color:var(--ok);font-weight:600}
   .gl{position:relative;height:15px;font-size:11px;line-height:15px;color:var(--muted);font-variant-numeric:tabular-nums}
   .gl span{position:absolute;left:0;white-space:nowrap} .gl .glw{color:var(--ink);font-weight:500}
   .gauge.in .glw{color:var(--warn)} .gauge.past .glw{color:var(--alert)}
@@ -839,6 +840,7 @@ const SLEEP_PIECE = 5*60000;
 // a "לא עשתה" stops calling for a retry after `life`. (Defined here because `derive` runs while the page loads.)
 const RETRY = {gap:30*60000, max:30*60000, life:3*3600000, wait:10*60000, fresh:2*3600000, after:60*60000};   // fresh: under this long since a pee, "לא עשתה" starts no retry
 let RETRY2_FROM = Date.UTC(2026, 10, 24, 15, 5);   // 24.11.2026 17:05 in Israel; tests move it
+let RETRY3_FROM = Date.UTC(2026, 10, 25, 11, 0);   // 25.11.2026 13:00 in Israel (the publish): her own rhythm decides (PEE_RHYTHM.retry); tests move it
 // HOW LONG SHE TAKES TO FALL ASLEEP, from her own entries: every sleep she marked by hand that began in a quiet
 // stretch of a crate stay gives one sample — the time from the start of that stretch (going in, the end of a
 // cry, the last thing she was seen doing) to "נרדמה" — filed under the crate she was in. Entries written by
@@ -910,6 +912,8 @@ function sleepSpans(p, log, now){
 // "לא עשתה" is just a note in the list.
 function needsPee(L, t, wakes, meals){
   const pees = L.filter(e => e.k==='pee' && e.t < t).map(e => e.t).sort((x,y) => x-y), last = pees.length ? pees[pees.length-1] : 0;
+  // Since RETRY3_FROM (owner, 25.11): past PEE_RHYTHM.retry of her usual gap as known at t; 2 h without enough data.
+  if(t >= RETRY3_FROM){ const u = L.length && usualPeeGap(L[0].p, t, L); return !last || t - last > (u ? PEE_RHYTHM.retry * u.med : RETRY.fresh); }
   if(!last || t - last > RETRY.fresh) return true;
   // Since RETRY2_FROM that is the whole rule: under RETRY.fresh from a pee, "לא עשתה" is only a note. (On 24.11 there
   // were ten outings with nothing and she pees every three and a half hours.) Earlier entries keep the triggers
@@ -1459,7 +1463,8 @@ function openScores(p){
 }
 function holdHint(p){
   const h = holdHours(p); if(!h) return '';
-  return `<div class="sub hint byage x">לפי הגיל: ${h === 1 ? 'עד כשעה' : h === 2 ? 'עד כשעתיים' : `עד כ־${h} שעות`}</div>`;
+  const u = PETS[p].cycle && usualPeeGap(p, Date.now());
+  return `<div class="sub hint byage x">לפי הגיל: ${h === 1 ? 'עד כשעה' : h === 2 ? 'עד כשעתיים' : `עד כ־${h} שעות`}${u ? ` · בדרך כלל מחזיקה <bdi dir="ltr">${hmm(u.med)}</bdi>` : ''}</div>`;
 }
 function openProfileSheet(p){
   const name = PETS[p].name, cur = V[p].born, today = todayIL(), dmy = s => s.split('-').reverse().map(Number).join('.');
@@ -1955,6 +1960,19 @@ function openAddSheet(p){
 }
 // When a puppy needs to go out (trainer's list): after waking up, leaving the crate, playing or eating.
 // Returns the latest such moment if nothing (pee, poop, or "went out, nothing") was logged since.
+// "זה זמן טוב לנסות" (owner, 25.11): right after she wakes (up to TRY.wake) and 10–20 minutes after she ate or drank,
+// with nothing logged in potty since — only out of the crate and awake. A hint on the gravel card; the window is unchanged.
+const TRY = {wake:[0, 10*60000], food:[10*60000, 20*60000]};
+function tryNow(p){
+  const S = V[p], now = Date.now();
+  if(!PETS[p].cycle || (S.sleep && S.sleep.start) || (S.crate && S.crate.start)) return null;
+  const done = Math.max(S.pee || 0, S.poop || 0, S.none || 0), c = [];
+  if(S.sleep && S.sleep.lastEnd) c.push([S.sleep.lastEnd, TRY.wake, 'אחרי שהתעוררה']);
+  const fw = state.log.filter(e => e.p===p && (e.k==='food' || e.k==='water') && e.t <= now).sort((x,y) => y.t - x.t)[0];
+  if(fw) c.push([fw.t, TRY.food, fw.k === 'water' ? 'אחרי שתייה' : 'אחרי אוכל']);
+  const hit = c.filter(([t, [a, b]]) => t > done && now - t >= a && now - t <= b).sort((x,y) => y[0] - x[0])[0];
+  return hit ? {t: hit[0], why: hit[2]} : null;
+}
 function pottyDue(p){
   const S = V[p], c = [];
   if((S.sleep && S.sleep.start) || (S.crate && S.crate.start) || retry(p)) return null;   // a retry has its own card
@@ -2133,7 +2151,7 @@ function render(){
     const gravelRow = gv
       ? `<div class="card slim gravel on"><span><b>בחצץ כבר <span class="rt-t" data-since="${gv}">${dur(Date.now() - gv)}</span></b><small>מה קרה? הלחיצה עוצרת את השעון ושומרת כמה זמן זה לקח</small></span>
           <span class="rt-a"><button class="go" data-act="pt" data-k="pee">פיפי</button><button class="go" data-act="pt" data-k="poop">קקי</button><button class="btn" data-act="pt" data-k="none">לא עשתה</button><button class="rt-x" data-act="dur" data-k="gravel" aria-label="${ITEMS.gravel.stop}" title="${ITEMS.gravel.stop}">×</button></span></div>`
-      : `<div class="card slim gravel ${tap.includes('none') ? 'nowt' : ''}"><span><b>יוצאים לחצץ?</b><small>${uw && uw.n >= 3 ? `בדרך כלל עושה פיפי תוך ${words(uw.ms)}` : 'השעון מודד כמה זמן לקח ומה יצא'}${ln ? ` · לא עשתה לאחרונה: ${dayLabel(ln)} <bdi dir="ltr">${clock(ln)}</bdi>` : ''}</small></span>
+      : `<div class="card slim gravel ${tap.includes('none') ? 'nowt' : ''}"><span><b>יוצאים לחצץ?</b>${tryNow(pet) ? `<small class="trynow">זה זמן טוב לנסות · ${tryNow(pet).t >= Date.now() - 60000 ? 'עכשיו' : words(Date.now() - tryNow(pet).t)} ${tryNow(pet).why}</small>` : ''}<small>${uw && uw.n >= 3 ? `בדרך כלל עושה פיפי תוך ${words(uw.ms)}` : 'השעון מודד כמה זמן לקח ומה יצא'}${ln ? ` · לא עשתה לאחרונה: ${dayLabel(ln)} <bdi dir="ltr">${clock(ln)}</bdi>` : ''}</small></span>
           <span class="rt-a"><button class="go" data-act="dur" data-k="gravel">${ITEMS.gravel.start}</button><button class="btn" data-act="pt" data-k="none">לא עשתה</button></span></div>`;
     const pottySec = sec('2 · 5', 'צרכים', tap.includes('pee') || !!rt, gravelRow + tileOf('pee') + tileOf('poop'), 'potty');
     // Just woken up or out of the crate: on a phone the potty tiles come to the top of the page, above the wheel.
@@ -2283,7 +2301,7 @@ function peeGaps(p){   // gaps between consecutive pees in the last 7 days; nigh
 }
 function typical(p, k){
   const since = Date.now() - 7*86400000, ev = kk => state.log.filter(e => e.p===p && e.k===kk && e.t >= since).map(e => e.t), g = [];
-  if(k === 'pee'){ const pg = peeGaps(p), f = PETS[p].cycle && peeForecast(p); return pg.length >= 4 && !(f && Math.abs(f.vsAge) >= PEE_VS_AGE) ? `בדרך כלל כל ${words(median(pg))}` : ''; }   // not twice: the age note already says it
+  if(k === 'pee'){ if(PETS[p].cycle && holdHours(p)) return ''; const pg = peeGaps(p); return pg.length >= 4 ? `בדרך כלל כל ${words(median(pg))}` : ''; }   // a puppy: the age line says it ("בדרך כלל מחזיקה …")
   if(k === 'poop'){ const m = poopModel(p); return m ? `בדרך כלל ${words(m.med)} ${POOP_AFTER[m.anchor]}` : ''; }
   return '';
 }
@@ -2329,38 +2347,61 @@ function mealLine(p){
   const next = last + g; if(Date.now() > next + 3600000) return '';   // long past: the food alert speaks instead
   return `<div class="sub hint fc">הארוחה הבאה בערך ב־<bdi dir="ltr">${clock(next)}</bdi></div>`;
 }
-// Forecast of the next pee from her own rhythm: the last pee plus the middle half of her usual gaps
-// (25th to 75th percentile), so it is a window, not a single time. Needs at least 4 gaps.
-// `state`: "soon" before the window, "now" inside it, "late" after it.
-function quantile(sorted, q){ const i = (sorted.length-1)*q, lo = Math.floor(i), hi = Math.ceil(i); return sorted[lo] + (sorted[hi]-sorted[lo])*(i-lo); }
-function peeForecast(p){
-  const last = V[p].pee, g = peeGaps(p).sort((x,y) => x-y);
-  if(typeof last !== 'number' || g.length < 4) return null;
-  // The window never runs past what a puppy of her age can hold: its end is the earlier of the 75th percentile and
-  // the age limit. When she usually holds longer than the limit, that is said as a note — the window is not stretched.
-  const lim = holdHours(p) ? last + holdHours(p)*3600000 : Infinity, q25 = quantile(g, .25), q75 = quantile(g, .75), med = median(g);
-  const to = Math.min(last + q75, lim), from = Math.min(last + q25, to), now = Date.now();
-  return {from, to, q25, q75, last, capped: last + q75 > lim, med, vsAge: lim < Infinity ? med - holdHours(p)*3600000 : 0, state: now < from ? 'soon' : now <= to ? 'now' : 'late'};
+// THE PEE WINDOW, from her own rhythm (owner's spec, 25.11; it replaced the 25th–75th percentile capped at the age
+// limit, which came out too early). Her usual gap = the median of the gaps between consecutive pees over the last
+// PEE_RHYTHM.days days, leaving out nights (a gap touching 23:00–05:00), gaps over maxGap (a pad pee in the pen,
+// which is not tracked — 23.11 had 6:10 with eight "לא עשתה") and under minGap. The window is from … to of that gap
+// after the last pee; the age limit is only a note now. With fewer than `min` gaps: by age (85%–100% of it).
+// `retry`: "לא עשתה" starts a retry only past that share of her usual gap (see `needsPee`). All the numbers live here.
+const PEE_RHYTHM = {days:3, from:.85, to:1.15, retry:.80, min:5, maxGap:5*3600000, minGap:10*60000, night:[23, 5]};
+function touchesNight(a, b){   // does [a, b] reach into 23:00–05:00 on any night?
+  const d = sod(a); d.setDate(d.getDate() - 1);
+  for(; d.getTime() <= b; d.setDate(d.getDate() + 1)){
+    const n0 = new Date(d); n0.setHours(PEE_RHYTHM.night[0], 0, 0, 0);
+    const n1 = new Date(d); n1.setDate(n1.getDate() + 1); n1.setHours(PEE_RHYTHM.night[1], 0, 0, 0);
+    if(a < n1.getTime() && b > n0.getTime()) return true;
+  }
+  return false;
 }
-const PEE_VS_AGE = 15*60000;
+// Her usual gap as of time t (only pees before t count, so a past "לא עשתה" is judged by what was known then).
+function usualPeeGap(p, t, log){
+  const R = PEE_RHYTHM, from = t - R.days*86400000;
+  const ts = (log || state.log).filter(e => e.p===p && e.k==='pee' && e.t < t).map(e => e.t).sort((x,y) => x-y), g = [];
+  for(let i = 1; i < ts.length; i++){
+    const a = ts[i-1], b = ts[i], d = b - a;
+    if(b >= from && d >= R.minGap && d <= R.maxGap && !touchesNight(a, b)) g.push(d);
+  }
+  return g.length >= R.min ? {med: median(g), n: g.length} : null;
+}
+function quantile(sorted, q){ const i = (sorted.length-1)*q, lo = Math.floor(i), hi = Math.ceil(i); return sorted[lo] + (sorted[hi]-sorted[lo])*(i-lo); }
+// `state`: "soon" before the window, "now" inside it, "late" after it.
+function peeForecast(p){
+  const last = V[p].pee, now = Date.now(); if(typeof last !== 'number') return null;
+  const u = usualPeeGap(p, now), h = holdHours(p) * 3600000;
+  if(!u && !h) return null;
+  const from = last + (u ? PEE_RHYTHM.from * u.med : PEE_RHYTHM.from * h), to = last + (u ? PEE_RHYTHM.to * u.med : h);
+  return {from, to, last, med: u ? u.med : 0, n: u ? u.n : 0, byAge: !u, state: now < from ? 'soon' : now <= to ? 'now' : 'late'};
+}
 function forecastLine(p){
   const f = peeForecast(p); if(!f) return '';
-  const span = f.from === f.to ? `עד <bdi dir="ltr">${clock(f.to)}</bdi>` : `בין <bdi dir="ltr">${clock(f.from)}–${clock(f.to)}</bdi>`;
+  const span = `בין <bdi dir="ltr">${clock(f.from)}–${clock(f.to)}</bdi>`;
   const quiet = (V[p].sleep && V[p].sleep.start) || (V[p].crate && V[p].crate.start);   // asleep or in the crate: no alarm colours
   const why = ` <button class="lnk fcq" data-act="fcwhy" aria-label="איך זה מחושב?">?</button>`;
-  // Her usual gap against the age guideline — said only when they differ by PEE_VS_AGE or more; this line then carries the number, once.
-  const note = Math.abs(f.vsAge) >= PEE_VS_AGE ? `<div class="sub hint x ${f.vsAge > 0 ? 'longer' : 'shorter'}">בדרך כלל מחזיקה ${f.vsAge > 0 ? 'יותר' : 'פחות'}: כ־${words(f.med)}</div>` : '';
-  if(f.state === 'soon') return `<div class="sub fc">הפיפי הבא צפוי ${span}${why}</div>${note}`;
-  if(f.state === 'now') return `<div class="sub fc ${quiet ? '' : 'now'}"><i></i>הפיפי הבא צפוי עכשיו · עד <bdi dir="ltr">${clock(f.to)}</bdi>${why}</div>${note}`;
-  return `<div class="sub fc ${quiet ? '' : 'late'}"><i></i>הפיפי היה צפוי עד <bdi dir="ltr">${clock(f.to)}</bdi>${why}</div>${note}`;
+  // where the window comes from, in one short line (the owner asked for it on the card)
+  const src = `<div class="sub hint fcsrc">${f.byAge ? 'לפי הגיל · עוד אין מספיק מרווחים שלה' : `לפי ${f.n} מרווחים מ־${PEE_RHYTHM.days} הימים האחרונים`}</div>`;
+  if(f.state === 'soon') return `<div class="sub fc">הפיפי הבא צפוי ${span}${why}</div>${src}`;
+  if(f.state === 'now') return `<div class="sub fc ${quiet ? '' : 'now'}"><i></i>הפיפי הבא צפוי עכשיו · עד <bdi dir="ltr">${clock(f.to)}</bdi>${why}</div>${src}`;
+  return `<div class="sub fc ${quiet ? '' : 'late'}"><i></i>הפיפי היה צפוי עד <bdi dir="ltr">${clock(f.to)}</bdi>${why}</div>${src}`;
 }
 function forecastWhy(p){   // where the window comes from, in plain words
   const f = peeForecast(p); if(!f) return;
-  const h = holdHours(p);
+  const h = holdHours(p), R = PEE_RHYTHM, pc = x => Math.round(x * 100) + '%';
   sh.innerHTML = `<h3>${PETS[p].name} · מאיפה החלון של הפיפי?</h3>
-    <div class="sub" style="font-size:14px;line-height:1.6;margin-bottom:16px">
-      <b>תחילת החלון</b> (<bdi dir="ltr">${clock(f.last + f.q25)}</bdi>): הפיפי האחרון ב־<bdi dir="ltr">${clock(f.last)}</bdi> ועוד ${words(f.q25)} — רבע מהמרווחים שלה בין פיפי לפיפי בשבוע האחרון היו קצרים מזה.<br>
-      <b>סוף החלון</b>: הפיפי האחרון ועוד ${words(f.q75)} (שלושה רבעים מהמרווחים שלה היו קצרים מזה)${h ? `, אבל לא יותר ממגבלת הגיל — כ־${h} שעות מהפיפי האחרון, כלומר <bdi dir="ltr">${clock(f.last + h*3600000)}</bdi>` : ''}.
+    <div class="sub" style="font-size:14px;line-height:1.6;margin-bottom:16px">${f.byAge
+      ? `עוד אין מספיק מרווחים שלה (צריך ${R.min}), אז החלון הוא לפי הגיל: מ־${pc(R.from)} של כ־${h} שעות ועד ${h} שעות אחרי הפיפי האחרון (<bdi dir="ltr">${clock(f.last)}</bdi>).`
+      : `<b>המרווח הרגיל שלה: ${words(f.med)}</b> — החציון של ${f.n} מרווחים בין פיפי לפיפי ב־${R.days} הימים האחרונים. לא נספרים מרווחים של לילה (שנוגעים ב־${pad(R.night[0])}:00–${pad(R.night[1])}:00) ומרווחים של יותר מ־${words(R.maxGap)} ביום (כנראה פיפי על הפד שלא נרשם).<br>
+      <b>החלון</b>: מ־${pc(R.from)} ועד ${pc(R.to)} מהמרווח הזה אחרי הפיפי האחרון (<bdi dir="ltr">${clock(f.last)}</bdi>), כלומר <bdi dir="ltr">${clock(f.from)}–${clock(f.to)}</bdi>.${h ? `<br>לפי הגיל אפשר לצפות עד כ־${h} שעות; זו רק הערה, היא לא קובעת את החלון.` : ''}<br>
+      <b>ניסיון חוזר</b>: "לא עשתה" מתחיל ניסיון חוזר רק אחרי ${pc(R.retry)} מהמרווח הרגיל (עכשיו ${words(R.retry * f.med)}).`}
     </div><div class="foot"><span></span><button class="btn primary" id="cancel">סגירה</button></div>`;
   sh.querySelector('#cancel').onclick = close; bg.classList.add('show');
 }

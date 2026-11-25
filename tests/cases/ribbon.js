@@ -27,7 +27,7 @@
     ok('…and a mark: what and when', $q('.ribbon .pbar .ptip').textContent.includes('פיפי ' + clock(a + 121*MIN)) && $q('.ribbon .pbar .ptip').textContent.includes('על החצץ'));
     $q('.uni .rbar .pt').dispatchEvent(new MouseEvent('pointerover', {bubbles:true}));
     ok('hover works on the round bars too; each shows its start and end', $q('.uni .rbar .ptip').textContent.includes('–') && !!$q('.uni .rbar .rends'));
-    ok('wide parts carry their start time on them', [...document.querySelectorAll('.ribbon .pt i')].some(i => i.textContent === clock(a)) && [...document.querySelectorAll('.ribbon .pt')].every(p => !p.querySelector('i') || parseFloat(p.style.width) >= 13));
+    ok('wide parts carry their start time on them', $n('.ribbon .pt i') > 0 && [...document.querySelectorAll('.ribbon .pt')].every(p => (parseFloat(p.style.width) >= 13) === !!p.querySelector('i') && (!p.querySelector('i') || p.dataset.tip.includes(p.querySelector('i').textContent + '–'))));
     seed(state.log.concat([{...K0, k:'poop', t: a + 122*MIN, w:'pad'}]));
     ok('a poop on the pad is a red mark', !!$q('.ribbon .mk.poop.bad'));
     V2 = false;
