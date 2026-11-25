@@ -1720,7 +1720,7 @@ function openAddSheet(p){
   let k = kinds[0];
   sheet(`${PETS[p].name} · הוספת רישום`,
     `<div class="chips">${kinds.map(x => `<button data-kind="${x}" class="${x===k?'sel':''}">${ITEMS[x].log}</button>`).join('')}</div>
-     <div class="sub" style="margin-bottom:8px">מתי?</div>${chips([5,10,15,30,60])}<div class="sub" style="margin:4px 0 8px">או ביום ובשעה:</div>${dayPick()}<label class="field">בשעה ${timeField("tIn", nowStr())}</label>`,
+     <div class="sub" style="margin-bottom:8px">מתי?</div>${chips([5,10,15,30,60])}<div class="sub" style="margin:4px 0 8px">או ביום ובשעה:</div>${dayPick(7)}<label class="field">בשעה ${timeField("tIn", nowStr())}</label>`,
     cancelBtn, () => { const v = timeVal('tIn'); if(!v) return; close(); tapPoint(p, k, timeToTs(v)); }, ts => tapPoint(p, k, ts));
   sh.querySelectorAll('[data-kind]').forEach(b => b.onclick = () => { k = b.dataset.kind; sh.querySelectorAll('[data-kind]').forEach(x => x.classList.toggle('sel', x === b)); });
 }
@@ -2573,7 +2573,8 @@ function timeToTs(v){
   return d.getTime();
 }
 // For things noticed late, or logged the next morning: which day the clock time below belongs to.
-const dayPick = () => `<div class="chips days"><button data-day="0" class="sel">היום</button><button data-day="1">אתמול</button><button data-day="2">שלשום</button></div>`;
+// `n` days to choose from: today, yesterday, the day before, then weekday names ("הוספת רישום" offers a week — a bath is often entered days later).
+const dayPick = (n = 3) => `<div class="chips days">${Array.from({length:n}, (_, i) => `<button data-day="${i}" class="${i ? '' : 'sel'}">${['היום','אתמול','שלשום'][i] || 'יום '+DOW[new Date(Date.now() - i*86400000).getDay()]}</button>`).join('')}</div>`;
 const ago = m => Date.now() - m*60000;
 const nowStr = () => clock(Date.now());
 // "How long ago" choices: quick buttons, plus a box for any number of minutes (the time is worked out from it).

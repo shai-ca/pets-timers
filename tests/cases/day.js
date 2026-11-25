@@ -21,7 +21,7 @@
     $q('[data-act=edit][data-k=vomit]').click();
     ok('the tile\'s "other time" sheet has the day choice as well', sh.querySelectorAll('[data-day]').length === 3); close();
     $q('[data-act=addev]').click();
-    ok('kochik\'s history has "add an entry", with vomiting among the kinds and the day choice', !!sh.querySelector('[data-kind=vomit]') && sh.querySelectorAll('[data-day]').length === 3);
+    ok('kochik\'s history has "add an entry", with vomiting among the kinds and the day choice', !!sh.querySelector('[data-kind=vomit]') && sh.querySelectorAll('[data-day]').length === 7);
     sh.querySelector('[data-kind=vomit]').click(); sh.querySelector('[data-day="1"]').click(); set('tIn', '06:10'); sh.querySelector('#ok').click(); close();
     ok('…and it logs on the chosen day', logOf('kochik', 'vomit').some(e => e.t === at(1, 6, 10)));
     // today: a clock time that has not come yet still means yesterday's, as before

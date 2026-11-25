@@ -15,6 +15,12 @@
     seed([{ p:'kishmish', k:'bath', t: now - 12*DAY }]);
     ok('twelve days ago: past due', !!card().querySelector('.bathdue'));
     ok('not a column in the summary', !PETS.kishmish.items.includes('bath') && !PETS.kochik.items.includes('bath'));
+    seed([]); openAddSheet('kishmish');
+    ok('"הוספת רישום" offers a week of days and the bath', $n('[data-day]') === 7 && !!sh.querySelector('[data-kind=bath]'));
+    sh.querySelector('[data-kind=bath]').click(); sh.querySelector('[data-day="3"]').click();
+    sh.querySelector('#tIn').value = '18:00'; sh.querySelector('#ok').click();
+    const d3 = new Date(now - 3*DAY); d3.setHours(18, 0, 0, 0);
+    ok('a bath three days ago at 18:00', logOf('kishmish', 'bath').length === 1 && logOf('kishmish', 'bath')[0].t === d3.getTime());
     reset('shai', 'kochik'); seed([{ p:'kochik', k:'bath', t: now - 3*DAY }]);
     ok('Kochik has one too', !!card() && card().textContent.includes('עוד 7 ימים'));
     done();
