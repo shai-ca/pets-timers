@@ -402,14 +402,14 @@
   }
   /* ---------- tablets and up: each step's tiles in its own panel, panels side by side ---------- */
   @media (min-width:760px){
-    main.grps{grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;grid-template-areas:"crate potty" "food potty" "play play" "bath ."}
+    main.grps{grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;grid-template-areas:"crate potty" "food potty" "play play" "bath bath"}
     main.grps > .grp{grid-column:auto;background:color-mix(in srgb,var(--card) 62%,transparent);border:1px solid var(--line);border-radius:26px;padding:16px 16px 18px}
     main.grps > .grp.now{border-color:color-mix(in srgb,var(--btn) 60%,transparent);box-shadow:0 0 0 1px color-mix(in srgb,var(--btn) 60%,transparent), 0 10px 30px -18px color-mix(in srgb,var(--btn) 70%,transparent)}
     main.grps > .grp > h2.sec{margin:0 2px 4px;font-size:15.5px}
     main.grps > .grp .card{box-shadow:none}
     main.grps > .grp .card.nowt{box-shadow:0 0 0 2px var(--btn)}
     #sec-crate{grid-area:crate} #sec-potty{grid-area:potty} #sec-play{grid-area:play} #sec-food{grid-area:food} #sec-meds{grid-area:meds} #sec-vomit{grid-area:vomit} #sec-bath{grid-area:bath}
-    main.grps.solo{grid-template-areas:"food potty" "vomit meds" "bath ."}
+    main.grps.solo{grid-template-areas:"food potty" "vomit meds" "bath bath"}
     main.grps > .card.log{max-width:none}
     main.grps > h2{margin-top:6px}
     .grp.flash{animation:flash 1.4s ease-out}
@@ -435,8 +435,8 @@
   }
   @media (min-width:1860px){
     .wrap{max-width:1760px}
-    main.grps{grid-template-columns:repeat(3,minmax(0,1fr));grid-template-areas:"crate potty food" "play potty bath"}
-    main.grps.solo{grid-template-areas:"food potty meds" "vomit bath meds"}
+    main.grps{grid-template-columns:repeat(3,minmax(0,1fr));grid-template-areas:"crate potty food" "play potty food" "bath bath bath"}
+    main.grps.solo{grid-template-areas:"food potty meds" "vomit potty meds" "bath bath bath"}
   }
 
   /* ================= DESIGN V2 (on trial, switch at the bottom; everything here is under .v2) ================= */
@@ -514,7 +514,7 @@
   .pbar .mk .hit{fill:transparent;stroke:none}
   .ptip{font-size:12.5px;color:var(--ink);min-height:18px;margin-top:2px;font-variant-numeric:tabular-nums}
   .gauge{margin:6px 0 2px;max-width:320px}
-  .gauge .gg{position:relative;height:8px;border-radius:5px;background:var(--seg);overflow:hidden}
+  .gauge .gg{position:relative;height:8px;border-radius:5px;background:var(--seg);overflow:visible}
   .gauge .gw{position:absolute;top:0;bottom:0;background:color-mix(in srgb,var(--warn) 40%,transparent)}
   .gauge .gf{position:absolute;left:0;top:0;bottom:0;border-radius:5px;background:var(--acc);opacity:.85}
   .gauge.in .gf{background:var(--warn);opacity:1} .gauge.past .gf{background:var(--alert);opacity:1}
@@ -528,7 +528,36 @@
   .scr.hi .rv{stroke:var(--ok)} .scr.mid .rv{stroke:var(--warn)} .scr.lo .rv{stroke:var(--alert)}
   .scr b{position:absolute;top:20px;left:0;right:0;font-size:19px;font-weight:700;font-variant-numeric:tabular-nums}
   .scr span{font-size:13px;font-weight:600;margin-top:4px} .scr small{font-size:11.5px;color:var(--muted)}
-  .gauge .gg{cursor:pointer}
+  .gauge .gg{cursor:pointer;overflow:visible}
+  .gauge .gnow{position:absolute;top:-4px;bottom:-4px;width:3px;margin-left:-1.5px;border-radius:2px;background:var(--ink);pointer-events:none}   /* where we are now (owner, 25.11) */
+  .card.slim.withrt{flex-wrap:wrap}
+  .card.slim.spraydry > span{display:flex;flex-direction:column;gap:2px} .card.slim.spraydry small{font-size:12.5px;color:var(--muted)}
+  .sub.hint.calm{color:var(--ink)} .sub.hint.plan{color:var(--ink);font-weight:500} .sub.hint.old{color:var(--warn)}
+  .card.notes{display:flex;flex-direction:column;gap:10px}
+  .note-add{display:flex;gap:8px;align-items:flex-end} .note-add textarea,.note-ed{flex:1;width:100%;font:inherit;font-size:14.5px;border:1px solid var(--line);border-radius:12px;padding:8px 10px;background:var(--bg);color:var(--ink);resize:vertical}
+  .note-add textarea.bad,.note-ed.bad{border-color:var(--alert)}
+  .note-r{display:flex;align-items:center;gap:10px;justify-content:space-between;padding:8px 0;border-top:1px solid var(--line);cursor:pointer}
+  .note-r > span{display:flex;flex-direction:column;min-width:0} .note-r .nt{white-space:pre-wrap;overflow-wrap:anywhere} .note-r small{font-size:12px;color:var(--muted)}
+  .note-r.done .nt{color:var(--muted)}
+  .note-f{display:flex;justify-content:space-between;font-size:13px}
+  main.grps > #sec-notes{grid-column:1/-1}
+  /* "טיפוח": compact tiles in a grid — two a row on a phone (the last, weight, a full row), all five in a row on a wide screen */
+  .groom{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+  .groom .g-weight{grid-column:1/-1}
+  .groom .card.item{display:flex;flex-direction:column;align-items:stretch;gap:6px;padding:12px;width:auto;height:auto;min-width:0}
+  .groom .card.item > div:nth-child(2){flex:1;min-width:0}
+  .groom .card.item .ic{width:34px;height:34px;border-radius:10px}
+  .groom .card.item .big,.groom .card.item .big.txt{font-size:17px;line-height:1.3}
+  .groom .card.item .acts{flex-direction:column;align-items:stretch;gap:2px}
+  .groom .card.item .go{min-width:0;width:100%;padding:9px 10px;font-size:14px}
+  .groom .card.item .ghost{font-size:12px}
+  .groom .gauge{max-width:none}
+  @media (min-width:760px){ .groom{grid-template-columns:repeat(5,minmax(0,1fr))} .groom .g-weight{grid-column:auto} }
+  .wchart{width:100%;max-width:420px;height:auto;margin-top:8px;direction:ltr}
+  .wchart .wl{fill:none;stroke:var(--acc);stroke-width:2} .wchart .wd{fill:var(--acc)} .wchart .wt{font-size:11px;fill:var(--ink);text-anchor:middle} .wchart .wx{font-size:10px;fill:var(--muted)}
+  .rt-head{flex:1 1 100%;display:flex;align-items:center;justify-content:space-between;gap:8px;padding-bottom:8px;margin-bottom:2px;border-bottom:1px solid var(--line)}
+  .rt-head > span{display:flex;flex-direction:column} .rt-head small{font-size:12px;color:var(--muted)} .rt-head .rt-m{font-size:14px}
+  .card.withrt.due .rt-head .rt-m{color:var(--btn);font-weight:600}
   .gravel small.trynow{color:var(--ok);font-weight:600}
   .gl{position:relative;height:15px;font-size:11px;line-height:15px;color:var(--muted);font-variant-numeric:tabular-nums}
   .gl span{position:absolute;left:0;white-space:nowrap} .gl .glw{color:var(--ink);font-weight:500}
@@ -543,16 +572,16 @@
     .v2 main.grps > .grp{background:none;border:0;padding:0;box-shadow:none;border-radius:0}
     .v2 main.grps > .grp.now{box-shadow:none}
     .v2 main.grps > .grp > h2.sec{margin:0 2px 2px;font-size:14px}
-    .v2 main.grps{grid-template-areas:"crate potty" "food potty" "play bath"}
-    .v2 main.grps.solo{grid-template-areas:"food potty" "meds vomit" "meds bath"}
+    .v2 main.grps{grid-template-areas:"crate potty" "food potty" "play play" "bath bath"}
+    .v2 main.grps.solo{grid-template-areas:"food potty" "meds vomit" "bath bath"}
     .v2 main.grps > .ribbon{grid-column:1/-1}
   }
   @media (min-width:1000px){
     .v2 #side > .card.cyc{padding:18px}
   }
   @media (min-width:1860px){
-    .v2 main.grps{grid-template-areas:"crate potty food" "play potty bath"}
-    .v2 main.grps.solo{grid-template-areas:"food potty meds" "vomit bath meds"}
+    .v2 main.grps{grid-template-areas:"crate potty food" "play potty food" "bath bath bath"}
+    .v2 main.grps.solo{grid-template-areas:"food potty meds" "vomit potty meds" "bath bath bath"}
   }
 </style>
 </head>
@@ -585,6 +614,11 @@ const ICONS = {
   poop:'<path d="M6.8 19.5h10.4a2.6 2.6 0 0 0 .5-5.15A2.4 2.4 0 0 0 15.4 10h-.2a2.8 2.8 0 0 0-2.6-4.9c-.1 1.2-.9 2.1-2 2.5A2.4 2.4 0 0 0 8.6 10h-.1a2.4 2.4 0 0 0-2.2 4.35A2.6 2.6 0 0 0 6.8 19.5Z"/><path d="M8.6 14.4h6.8M10 10h4"/>',
   sleep:'<path d="M19.5 14.3A7.6 7.6 0 0 1 9.7 4.5a7.6 7.6 0 1 0 9.8 9.8Z"/><path d="M16.5 3.5v3M15 5h3"/>',
   cry:'<circle cx="12" cy="12" r="8.5"/><path d="M8.4 10.4q1-.9 2 0M13.6 10.4q1-.9 2 0M9.6 16.2q2.4-1.6 4.8 0"/><path d="M8.2 12.6c.5.8.9 1.4.9 1.9a.9.9 0 0 1-1.8 0c0-.5.4-1.1.9-1.9Z" fill="currentColor" stroke="none"/>',
+  flea:'<path d="M12 3.5c2.8 3.6 6 7.2 6 10.5a6 6 0 0 1-12 0c0-3.3 3.2-6.9 6-10.5Z"/><path d="M12 10.5v6M9 13.5h6"/>',
+  brush:'<path d="M5 19.5 15.5 9"/><rect x="13.2" y="3.6" width="7" height="5.2" rx="1.2" transform="rotate(45 16.7 6.2)"/><path d="M14.6 4.2l-1.2-1.2M17.8 7.4l1.2 1.2"/>',
+  teeth:'<path d="M8 4c-2.5 0-4 1.8-4 4.3 0 3.2 1.5 4.6 2 7.7.4 2.4.9 4.5 2.2 4.5 1.6 0 1.4-4.8 3.8-4.8s2.2 4.8 3.8 4.8c1.3 0 1.8-2.1 2.2-4.5.5-3.1 2-4.5 2-7.7C20 5.8 18.5 4 16 4c-1.6 0-2.6.8-4 .8S9.6 4 8 4Z"/>',
+  weight:'<rect x="4" y="5" width="16" height="15" rx="3"/><path d="M8.5 10a3.5 3.5 0 0 1 7 0"/><path d="M12 10l1.6-1.8"/>',
+  note:'<path d="M6 3.5h9l3 3v14H6Z"/><path d="M9 10h6M9 13.5h6M9 17h4"/>',
   bath:'<path d="M3.5 12h17v1.5a5.5 5.5 0 0 1-5.5 5.5H9a5.5 5.5 0 0 1-5.5-5.5Z"/><path d="M6.5 12V6a2.2 2.2 0 0 1 4.2-.9"/><path d="M7.5 19l-1 1.5M16.5 19l1 1.5"/>',
   crate:'<rect x="3.5" y="6.5" width="17" height="12.5" rx="2.2"/><path d="M8 6.5V19M12 6.5V19M16 6.5V19M9.5 6.5V5a2.5 2.5 0 0 1 5 0v1.5"/>',
   water:'<path d="M6.6 5h10.8l-1.3 13.1a1.6 1.6 0 0 1-1.6 1.4H9.5a1.6 1.6 0 0 1-1.6-1.4L6.6 5Z"/><path d="M7.3 10.6c1.6-1 3.1 1 4.7 0s3.1-1 4.7 0"/>',
@@ -620,6 +654,12 @@ const ITEMS = {
   gel:{lbl:'מאז הג׳ל לאוזן האחרון',btn:'נתתי ג׳ל',log:'ג׳ל לאוזן',slow:true,note:'לפי הצורך · בערך פעם ב־3 ימים'},
   // Bath (both dogs, 25.11): the owner bathes them at least every BATH_DAYS days; the tile says by when the next one is due.
   bath:{lbl:'מאז המקלחת האחרונה',btn:'קילחתי',log:'מקלחת',slow:true},
+  // GROOMING (25.11): Frontline Spray, brushing, teeth, weight — point kinds like the bath; a vet note is kept out of the lists.
+  flea:{lbl:'ספריי פרונטליין',btn:'ריססתי',log:'ריסוס פרונטליין',slow:true},
+  brush:{lbl:'סירוק אחרון',btn:'סירקתי',log:'סירוק',slow:true},
+  teeth:{lbl:'צחצוח שיניים אחרון',btn:'צחצחתי',log:'צחצוח שיניים',slow:true},
+  weight:{lbl:'משקל',btn:'שקלתי',log:'משקל',slow:true},
+  note:{log:'הערה לווטרינר',hid:true},
   sleep:{dur:true,lbl:'שינה אחרונה',live:'ישנה',start:'נרדמה',stop:'התעוררה',log:'ישנה',startQ:'מתי נרדמה?'},
   cry:{dur:true,lbl:'בכי אחרון',live:'בוכה',start:'בוכה',stop:'נרגעה',log:'בכתה',startQ:'מתי התחילה לבכות?'},
   crate:{dur:true,lbl:'כלוב אחרון',live:'בכלוב',start:'נכנסה לכלוב',stop:'יצאה מהכלוב',log:'בכלוב',startQ:'מתי נכנסה לכלוב?'},
@@ -657,7 +697,7 @@ const WHERE_SHORT = {out:'בחוץ', gravel:'חצץ', balcony:'רצפת המרפ
 const hasWhere = k => k==='pee' || k==='poop';
 // Strictly inside a crate stay (a meal that ENDED a stay under the old rule sits on its edge and does not count).
 const inCrate = e => PETS[e.p].cycle && state.log.some(s => s.p===e.p && s.k==='crate' && s.t < e.t && (s.end == null || s.end > e.t));
-const lblOf = e => e.k === 'play' && inCrate(e) ? 'קיבלה בכלוב' : e.k === 'food' && inCrate(e) ? 'אכלה בכלוב' : ITEMS[e.k].log;
+const lblOf = e => e.k === 'play' && inCrate(e) ? 'קיבלה בכלוב' : e.k === 'food' && inCrate(e) ? 'אכלה בכלוב' : e.k === 'weight' && typeof e.kg === 'number' ? `משקל ${e.kg.toFixed(1)} ק״ג` : ITEMS[e.k].log;
 // What a poop was like, stored as `q` on the entry — for Kochik, whose diarrhoea comes and goes.
 const POOP = {ok:'רגיל', soft:'רך', hard:'קשה', dia:'שלשול'};
 // What came up when she vomited, also stored as `q`: digestive fluids, or food.
@@ -1269,6 +1309,9 @@ function commit(msg, mutate, opts){
   if(!(opts && opts.quiet)) showToast(msg, {before, after});
 }
 function tapPoint(p, k, t, sure, extra){
+  if(!groomOk){ const c = groomClash(p, k, t || Date.now()); if(c){
+    sheet(`${PETS[p].name} · ${ITEMS[k].log}`, `<div class="sub" style="font-size:14.5px;margin-bottom:6px">${c.msg}</div><div class="sub">אחרי ריסוס פרונטליין לא מקלחים ולא משתמשים בשמפו 48 שעות.</div>`, cancelBtn, () => { close(); groomOk = true; try { tapPoint(p, k, t, true, extra); } finally { groomOk = false; } });
+    sh.querySelector('#ok').textContent = 'לרשום בכל זאת'; return; } }
   if(!t && !sure){ const d = recentDouble(p, e => e.k === k); if(d){ askAgain(d, ITEMS[k].log, () => tapPoint(p, k, undefined, true, extra)); return; } }
   t = t || Date.now();
   let e = {p, k, t, ...(extra || {})};
@@ -1773,12 +1816,13 @@ function freeTime(p){
   return {t:pe.t, phase: el < FREE.min*60000 ? 'run' : el < FREE.max*60000 ? 'end' : 'over'};
 }
 // One quiet row: what to do, and the two things that can happen. No questions.
-function retryHTML(p){
-  const r = retry(p); if(!r) return '';
+// ONE CARD FOR THE RETRY AND THE GRAVEL (owner, 25.11): while a retry is on, its lines (try number, countdown /
+// "לחצץ" / "when she wakes", ×) are the head of the gravel row, and the potty section moves to the top of the page.
+// The same buttons and handlers as the separate card had; display only.
+function retryHead(r){
   const txt = r.state === 'wait' ? `לנסות שוב בעוד <b class="rt-t" data-until="${r.until}">${mmss(r.until - Date.now())}</b>`
     : r.state === 'due' ? `<b class="rt-go">לחצץ</b>` : r.state === 'asleep' ? `כשהיא מתעוררת, ישר לחצץ` : `מה קרה בחצץ?`;
-  return `<div class="card slim retry ${r.state}"><span><small>ניסיון חוזר${r.tries > 1 ? ' '+r.tries : ''}</small><span class="rt-m">${txt}</span></span>
-    <span class="rt-a"><button class="go" data-act="rtpee">פיפי</button><button class="btn" data-act="rtnone">לא עשתה</button><button class="rt-x" data-act="rtstop" aria-label="לסיים את הניסיון החוזר" title="לסיים את הניסיון החוזר">×</button></span></div>`;
+  return `<div class="rt-head"><span><small>ניסיון חוזר${r.tries > 1 ? ' '+r.tries : ''}</small><span class="rt-m">${txt}</span></span><button class="rt-x" data-act="rtstop" aria-label="לסיים את הניסיון החוזר" title="לסיים את הניסיון החוזר">×</button></div>`;
 }
 function retryAct(p, a, k, sure, t){
   const r = retry(p); if(!r) return;
@@ -1923,7 +1967,7 @@ function dayParts(p, a, b){
 const hmm = ms => { const m = Math.round(ms / 60000); return `${Math.floor(m/60)}:${pad(m % 60)}`; };
 // A bar of [a, b): the three parts in colour, and under it what she did (pee / poop / meal / play; a pee or poop that
 // was not on the gravel or outside is red). Time runs left to right, like the summary's charts.
-function partsBar(p, a, b, dp){
+function partsBar(p, a, b, dp, hint){
   const W = Math.max(1, b - a), pc = t => ((t - a) / W * 100).toFixed(2);
   const bar = dp.segs.map(s => { const wd = (s.b - s.a) / W * 100; return `<span class="pt ${s.k}" style="left:${pc(s.a)}%;width:${wd.toFixed(2)}%" data-tip="${PART[s.k]} ${clock(s.a)}–${s.b >= Date.now() - 1000 ? 'עכשיו' : clock(s.b)} · ${words(s.b - s.a)}">${wd >= 13 ? `<i>${clock(s.a)}</i>` : ''}</span>`; }).join('');   // a part wide enough carries its start time
   const mk = state.log.filter(e => e.p===p && e.t >= a && e.t < b && (e.k==='pee' || e.k==='poop' || e.k==='play' || (e.k==='food' && mealKind(e) === 'meal'))).map(e => {
@@ -1931,7 +1975,7 @@ function partsBar(p, a, b, dp){
     const tip = `${e.k === 'food' ? 'ארוחה' : e.k === 'play' ? 'משחק' + (PLAY[e.y] ? ' · ' + PLAY[e.y] : '') : ITEMS[e.k].log} ${clock(e.t)}${WHERE[e.w] ? ' · ' + WHERE[e.w] : ''}`;
     return `<svg class="i mk ${e.k} ${bad ? 'bad' : ''}" viewBox="0 0 24 24" style="left:${pc(e.t)}%" data-tip="${tip}"><rect class="hit" x="-4" y="-4" width="32" height="32"/>${ICONS[e.k === 'play' ? 'ball' : e.k]}</svg>`;
   }).join('');
-  return `<div class="pbar" dir="ltr"><div class="pb">${bar}</div><div class="pm">${mk}</div><div class="ptip" dir="rtl">${PBAR_HINT}</div></div>`;
+  return `<div class="pbar" dir="ltr"><div class="pb">${bar}</div><div class="pm">${mk}</div><div class="ptip" dir="rtl">${hint ? PBAR_HINT : ''}</div></div>`;
 }
 function ribbonHTML(p){
   const now = Date.now(), a = sod(now).getTime(), all = now - a, dp = dayParts(p, a, now);
@@ -1941,7 +1985,7 @@ function ribbonHTML(p){
   return `<div class="card ribbon">
     <div class="rb-h"><b>היום במבט אחד</b><small>מ־00:00 עד עכשיו</small></div>${sleepGoalHTML(p)}
     <div class="rtot">${ks.map(k => `<div class="${k}"><span><i></i>${k === 'out' ? 'בחוץ · משחק וחופש' : PART[k]}</span><b>${hmm(dp.tot[k])}</b><small>${Math.round(dp.tot[k] / all * 100)}%</small></div>`).join('')}</div>
-    ${partsBar(p, a, now, dp)}<div class="ticks" dir="ltr">${ticks.join('')}</div>
+    ${partsBar(p, a, now, dp, true)}<div class="ticks" dir="ltr">${ticks.join('')}</div>
     <div class="rlg">${ico('pee','s')}פיפי ${ico('poop','s')}קקי ${ico('food','s')}ארוחה ${ico('ball','s')}משחק <em>אדום: לא בחצץ</em></div></div>`;
 }
 function roundBar(p, r, to){   // new design: the round as a bar, with how much of it she slept and was out
@@ -2043,6 +2087,7 @@ function todayTotal(p, k){
 
 // ---------- render ----------
 function render(){
+  { const ni = document.getElementById('noteIn'); if(ni){ noteDraft[ni.dataset.p] = ni.value; noteFocus = document.activeElement === ni; } }
   V = derive(state);   // also by the clock: an assumed sleep begins a couple of minutes after she goes in, with no tap
   const night = isNight(), slim = night && !nightFull && view === 'now' && PETS[pet].cycle;
   document.body.className = document.documentElement.className = 'p-'+pet + (isDark() ? ' night' : '') + (V2 ? ' v2' : '');   // the colours follow the light (20:00 – sunrise); `night` above is the cut-down screen
@@ -2075,9 +2120,12 @@ function render(){
 
   // Alerts, the retry card and the wheel live in the side column: on a computer it stays in place while
   // the tiles scroll; on a phone it is simply the top of the page.
-  let sideHTML = P.cycle ? alertsHTML(pet) + retryHTML(pet) + sleepAskHTML(pet) + (V2 ? scoresHTML(pet) : '') + cycleHTML(pet) : '';
+  let sideHTML = P.cycle ? alertsHTML(pet) + sleepAskHTML(pet) + (V2 ? scoresHTML(pet) : '') + cycleHTML(pet) : '';
 
   const tap = P.cycle ? routineTap(pet) : [];
+  // the "טיפוח" group (owner, 25.11): compact tiles side by side, not a tall column, in the order of how often each is
+  // done — brushing, teeth, bath, spray, weight
+  const groomTiles = () => `<div class="groom">${['brush', 'teeth', 'bath', 'flea', 'weight'].map(k => tileOf(k).replace('class="card item ', `class="card item g-${k} `)).join('')}</div>`;
   const tileOf = k => {
     const it = ITEMS[k], nowt = tap.includes(k) ? 'nowt' : ''; let h = '';
     if(!it.dur){
@@ -2085,10 +2133,11 @@ function render(){
       h += `<div class="card item ${nowt} ${openX.has(pet+k) ? 'open' : ''}">
         <div class="ic">${ico(k)}</div>
         <div><div class="lbl">${P.cycle && k === 'food' ? 'מאז הארוחה האחרונה' : it.lbl}</div>   <!-- the clock counts from the last MEAL; a bite is the line under it -->
-          ${it.slow ? `<div class="big txt ${t?'':'none'}">${t ? wordsLong(Date.now()-t) : '–'}</div>`
+          ${k === 'weight' ? `<div class="big txt ${t?'':'none'}">${weightOf(pet).last ? `${weightOf(pet).last.kg.toFixed(1)} ק״ג` : '–'}</div>`
+          : it.slow ? `<div class="big txt ${t?'':'none'}">${t ? wordsLong(Date.now()-t) : '–'}</div>`
                     : `<div class="big ${t?'':'none'}" ${t?`data-since="${t}"`:''}>${t ? dur(Date.now()-t) : '–'}</div>`}
           <div class="sub">${t ? `${dayLabel(t)} ב־${clock(t)}${whereOf(pet,k,t) || (hasWhere(k) ? ` · <button class="lnk" data-act="where" data-k="${k}">איפה?</button>` : '')}${typeOf(pet,k,t)}${byOf(pet,k,t)}` : 'עוד לא נרשם'}</div>
-          ${P.cycle && k === 'pee' ? forecastLine(pet) + (V2 ? gaugeHTML(peeWindow(pet), 'לחלון', 'הפיפי האחרון ב־') : '') : ''}${k === 'pee' ? holdHint(pet) : ''}${P.cycle && k === 'poop' ? poopLine(pet) + (V2 ? gaugeHTML(poopWindow(pet), 'לחלון', 'הקקי האחרון ב־') : '') + poopHints(pet) : ''}${P.cycle && k === 'food' && S.bite > (S.food || 0) ? `<div class="sub hint bite">ביס אחרון ב־<bdi dir="ltr">${clock(S.bite)}</bdi> · לא מאפס את השעון</div>` : ''}${P.cycle && k === 'food' ? mealLine(pet) + (V2 ? gaugeHTML(mealWindow(pet), 'לארוחה', 'הארוחה האחרונה ב־') : '') : ''}${k === 'bath' ? bathLine(pet) + (V2 ? gaugeHTML(bathWindow(pet), 'למקלחת', 'המקלחת האחרונה ב־') : '') : ''}${todayWhere(pet,k) ? `<div class="sub hint x">${todayWhere(pet,k)}</div>` : ''}${P.cycle && typical(pet,k) ? `<div class="sub hint x">${typical(pet,k)}</div>` : ''}${it.note ? `<div class="sub hint x">${it.note}</div>` : ''}MOREBTN</div>
+          ${P.cycle && k === 'pee' ? forecastLine(pet) + (V2 ? gaugeHTML(peeWindow(pet), 'לחלון', 'הפיפי האחרון ב־') : '') : ''}${k === 'pee' ? holdHint(pet) : ''}${P.cycle && k === 'poop' ? poopLine(pet) + (V2 ? gaugeHTML(poopWindow(pet), 'לחלון', 'הקקי האחרון ב־') : '') + poopHints(pet) : ''}${P.cycle && k === 'food' && S.bite > (S.food || 0) ? `<div class="sub hint bite">ביס אחרון ב־<bdi dir="ltr">${clock(S.bite)}</bdi> · לא מאפס את השעון</div>` : ''}${P.cycle && k === 'food' ? mealLine(pet) + (V2 ? gaugeHTML(mealWindow(pet), 'לארוחה', 'הארוחה האחרונה ב־') : '') : ''}${k === 'bath' ? bathLine(pet) + (V2 && !noBathUntil(pet) ? gaugeHTML(bathWindow(pet), 'למקלחת', 'המקלחת האחרונה ב־') : '') : ''}${GROOM[pet] && ['flea','brush','teeth','weight'].includes(k) ? groomLine(pet, k) : ''}${todayWhere(pet,k) ? `<div class="sub hint x">${todayWhere(pet,k)}</div>` : ''}${P.cycle && typical(pet,k) ? `<div class="sub hint x">${typical(pet,k)}</div>` : ''}${it.note ? `<div class="sub hint x">${it.note}</div>` : ''}MOREBTN</div>
         <div class="acts"><button class="go" data-act="pt" data-k="${k}">${it.btn}</button>
           <button class="ghost" data-act="edit" data-k="${k}">${ico('clock','s')}שעה אחרת</button>
           ${P.cycle && k === 'food' ? `<button class="ghost" data-act="nofood">${ico('none','s')}לא אכלה</button>` : ''}</div></div>`;
@@ -2130,7 +2179,7 @@ function render(){
     // By topic, each in its own box (the owner's grouping): food and water · pee and poop · medicines and ear gel · vomiting.
     const has = k => P.items.includes(k), t = k => has(k) ? tileOf(k) : '';
     const groups = [['food', 'אוכל ושתייה', t('food') + (has('food') ? waterRowHTML(pet) : '') + (P.treats ? treatCardHTML(pet) : '')],
-      ['potty', 'פיפי וקקי', t('pee') + t('poop')], ['meds', has('gel') && P.meds ? 'תרופות וג׳ל לאוזן' : P.meds ? 'תרופות' : 'ג׳ל לאוזן', medHTML + t('gel')], ['vomit', 'הקאות', t('vomit')], ['bath', 'מקלחת', P.bath ? tileOf('bath') : '']];
+      ['potty', 'פיפי וקקי', t('pee') + t('poop')], ['meds', has('gel') && P.meds ? 'תרופות וג׳ל לאוזן' : P.meds ? 'תרופות' : 'ג׳ל לאוזן', medHTML + t('gel')], ['vomit', 'הקאות', t('vomit')], ['bath', 'טיפוח', P.bath ? groomTiles() : '']];
     h += groups.filter(g => g[2]).map(g => sec('', g[1], false, g[2], g[0])).join('');
   }
   else {
@@ -2148,25 +2197,31 @@ function render(){
     const gv = (S.gravel || {}).start, uw = usualWait(pet, ['pee'], Date.now() - 14*86400000, Date.now() + 1);
     // One start / stop unit: "יצאנו לחצץ" starts the clock, and what happened there stops it — so every trip has
     // how long it took and how it ended. (Without the clock the three buttons below work as always.)
-    const gravelRow = gv
-      ? `<div class="card slim gravel on"><span><b>בחצץ כבר <span class="rt-t" data-since="${gv}">${dur(Date.now() - gv)}</span></b><small>מה קרה? הלחיצה עוצרת את השעון ושומרת כמה זמן זה לקח</small></span>
+    const rh = rt ? retryHead(rt) : '', rc = rt ? ` retry withrt ${rt.state}` : '';
+    const gravelRow = rt && !gv
+      ? `<div class="card slim gravel${rc}">${rh}<span><b>יוצאים לחצץ?</b><small>${uw && uw.n >= 3 ? `בדרך כלל עושה פיפי תוך ${words(uw.ms)}` : 'השעון מודד כמה זמן לקח ומה יצא'}</small></span>
+          <span class="rt-a"><button class="go" data-act="dur" data-k="gravel">${ITEMS.gravel.start}</button><button class="btn" data-act="pt" data-k="pee">פיפי</button><button class="btn" data-act="pt" data-k="none">לא עשתה</button></span></div>`
+      : gv
+      ? `<div class="card slim gravel on${rc}">${rh}<span><b>בחצץ כבר <span class="rt-t" data-since="${gv}">${dur(Date.now() - gv)}</span></b><small>מה קרה? הלחיצה עוצרת את השעון ושומרת כמה זמן זה לקח</small></span>
           <span class="rt-a"><button class="go" data-act="pt" data-k="pee">פיפי</button><button class="go" data-act="pt" data-k="poop">קקי</button><button class="btn" data-act="pt" data-k="none">לא עשתה</button><button class="rt-x" data-act="dur" data-k="gravel" aria-label="${ITEMS.gravel.stop}" title="${ITEMS.gravel.stop}">×</button></span></div>`
       : `<div class="card slim gravel ${tap.includes('none') ? 'nowt' : ''}"><span><b>יוצאים לחצץ?</b>${tryNow(pet) ? `<small class="trynow">זה זמן טוב לנסות · ${tryNow(pet).t >= Date.now() - 60000 ? 'עכשיו' : words(Date.now() - tryNow(pet).t)} ${tryNow(pet).why}</small>` : ''}<small>${uw && uw.n >= 3 ? `בדרך כלל עושה פיפי תוך ${words(uw.ms)}` : 'השעון מודד כמה זמן לקח ומה יצא'}${ln ? ` · לא עשתה לאחרונה: ${dayLabel(ln)} <bdi dir="ltr">${clock(ln)}</bdi>` : ''}</small></span>
           <span class="rt-a"><button class="go" data-act="dur" data-k="gravel">${ITEMS.gravel.start}</button><button class="btn" data-act="pt" data-k="none">לא עשתה</button></span></div>`;
     const pottySec = sec('2 · 5', 'צרכים', tap.includes('pee') || !!rt, gravelRow + tileOf('pee') + tileOf('poop'), 'potty');
     // Just woken up or out of the crate: on a phone the potty tiles come to the top of the page, above the wheel.
-    const pottyTop = !!pottyDue(pet) && isPhone();
+    const pottyTop = (!!pottyDue(pet) && isPhone()) || !!rt;   // a retry: the one gravel card goes to the top, on every screen
     if(!pottyTop) h += pottySec;
     h += sec('3', 'משחק וחופש', tap.includes('play'), playCardHTML(pet, tap.includes('play')) + freeCardHTML(pet), 'play');
     h += sec('4', 'אוכל ושתייה', tap.includes('food'), tileOf('food') +
 waterRowHTML(pet) + (P.treats ? treatCardHTML(pet) : ''), 'food');
-    if(P.bath) h += sec('', 'מקלחת', false, tileOf('bath'), 'bath');
+    if(P.bath) h += sec('', 'טיפוח', false, groomTiles(), 'bath');
     // Sleep and crying sit right under the wheel, always at hand: in the crate she is either asleep or crying.
-    if(pottyTop) sideHTML = alertsHTML(pet) + retryHTML(pet) + sleepAskHTML(pet) + pottySec + (V2 ? scoresHTML(pet) : '') + cycleHTML(pet);
+    if(pottyTop) sideHTML = alertsHTML(pet) + sleepAskHTML(pet) + pottySec + (V2 ? scoresHTML(pet) : '') + cycleHTML(pet);
     sideHTML += `<section class="duo" id="sec-rest">${tileOf('sleep')}${tileOf('cry')}</section>`;
   }
 
+  if(P.cycle) sideHTML = sprayCardHTML(pet) + sideHTML; else h = sprayCardHTML(pet) + h;
   side.innerHTML = sideHTML;
+  h += noteCardHTML(pet);
   if(P.cycle){
     const a = sod(Date.now()), b = new Date(a); b.setDate(b.getDate()+1);
     if(V2) h += ribbonHTML(pet);
@@ -2176,6 +2231,78 @@ waterRowHTML(pet) + (P.treats ? treatCardHTML(pet) : ''), 'food');
     h += `<h2>היסטוריה<small>לחיצה על רישום לתיקון או מחיקה · <button class="lnk" data-act="addev">הוספת רישום</button></small></h2><div class="card log">` + (items.length ? items.map(logRow).join('') : `<div class="empty">אין עדיין רישומים</div>`) + `</div>`;
   }
   document.getElementById('main').innerHTML = h;
+  if(noteFocus){ const ni = document.getElementById('noteIn'); if(ni){ ni.focus(); ni.setSelectionRange(ni.value.length, ni.value.length); } }
+}
+// NOTES FOR THE VET (owner, 25.11): `note` entries (text in `n`, up to NOTE_MAX, shown only as text; `done` = when it
+// was dealt with). Open ones newest first; dealt-with ones folded. Kept out of every list and count (`hid`).
+const NOTE_MAX = 500, noteDraft = {}; let noteFocus = false, notesDoneOpen = false;
+const notesOf = p => state.log.filter(e => e.p===p && e.k==='note' && e.n).sort((x,y) => y.t - x.t);
+function noteCardHTML(p){
+  const all = notesOf(p), open = all.filter(e => !e.done), done = all.filter(e => e.done);
+  const row = e => `<div class="note-r ${e.done ? 'done' : ''}" data-note="${esc(e.id)}"><span><span class="nt">${esc(e.n)}</span><small>${dayLabel(e.t)} <bdi dir="ltr">${clock(e.t)}</bdi>${byName(e.by) ? ' · ' + byName(e.by) : ''}${e.done ? ` · טופל ${dayLabel(e.done)}` : ''}</small></span>${e.done ? '' : `<button class="btn" data-act="notedone" data-k="${esc(e.id)}">טופל</button>`}</div>`;
+  return `<section class="grp" id="sec-notes"><h2 class="sec">הערות לווטרינר${open.length ? ` <i>${open.length}</i>` : ''}</h2><div class="card notes">
+    <div class="note-add"><textarea id="noteIn" data-p="${p}" maxlength="${NOTE_MAX}" rows="2" placeholder="מה לשאול או להראות בביקור הבא">${esc(noteDraft[p] || '')}</textarea><button class="btn primary" data-act="noteadd">הוספה</button></div>
+    ${open.length ? open.map(row).join('') : '<div class="sub">אין הערות פתוחות</div>'}
+    <div class="note-f">${open.length ? '<button class="lnk" data-act="notecopy">העתקה</button>' : '<span></span>'}${done.length ? `<button class="lnk" data-act="notesdone">${notesDoneOpen ? 'להסתיר' : 'טופלו'} (${done.length})</button>` : ''}</div>
+    ${notesDoneOpen ? done.map(row).join('') : ''}</div></section>`;
+}
+function noteAdd(p){
+  const ni = document.getElementById('noteIn'), n = ni.value.replace(/\s+$/,'').trim().slice(0, NOTE_MAX);
+  if(!n){ ni.classList.add('bad'); ni.focus(); return; }
+  noteDraft[p] = ''; ni.value = ''; noteFocus = false;
+  commit(`${PETS[p].name} · הערה לווטרינר נוספה`, () => state.log.push({p, k:'note', t: Date.now(), n}));
+}
+function noteSheet(id){
+  const e = state.log.find(x => x.id === id); if(!e) return;
+  const name = PETS[e.p].name;
+  sh.innerHTML = `<h3>${name} · הערה לווטרינר</h3><textarea id="noteEd" maxlength="${NOTE_MAX}" rows="4" class="note-ed">${esc(e.n)}</textarea>
+    <div class="foot"><button class="btn danger" id="del">מחיקה</button><span style="display:flex;gap:8px">${e.done ? '<button class="btn" id="reopen">להחזיר לפתוחות</button>' : '<button class="btn" id="dn">טופל</button>'}<button class="btn primary" id="ok">שמירה</button></span></div>`;
+  const find = () => state.log.find(x => x.id === id);
+  sh.querySelector('#ok').onclick = () => { const v = sh.querySelector('#noteEd').value.trim().slice(0, NOTE_MAX); if(!v){ sh.querySelector('#noteEd').classList.add('bad'); return; } close(); if(v !== e.n) commit(`${name} · ההערה עודכנה`, () => { const x = find(); if(x) x.n = v; }); };
+  sh.querySelector('#del').onclick = () => { close(); commit(`${name} · ההערה נמחקה`, () => { state.log = state.log.filter(x => x.id !== id); }); };
+  const dn = sh.querySelector('#dn'); if(dn) dn.onclick = () => { close(); commit(`${name} · ההערה טופלה`, () => { const x = find(); if(x) x.done = Date.now(); }); };
+  const ro = sh.querySelector('#reopen'); if(ro) ro.onclick = () => { close(); commit(`${name} · ההערה הוחזרה`, () => { const x = find(); if(x) delete x.done; }); };
+  bg.classList.add('show');
+}
+// The summary's grooming line (how many of each in the period) and the weight over time (every weighing, not only
+// the period: there are few, and the trend is the point).
+function groomSumHTML(p, from, to){
+  const n = k => state.log.filter(e => e.p===p && e.k===k && e.t >= from && e.t < to).length;
+  const parts = [['bath','מקלחות'], ['flea','ריסוסים'], ['brush','סירוקים'], ['teeth','צחצוחים']].map(([k, l]) => `${l} ${n(k)}`).join(' · ');
+  const W = state.log.filter(e => e.p===p && e.k==='weight' && typeof e.kg === 'number').sort((x,y) => x.t - y.t);
+  let chart = '';
+  if(W.length){
+    const t0 = W[0].t, t1 = Math.max(W[W.length-1].t, t0 + 86400000), lo = Math.min(...W.map(w => w.kg)), hi = Math.max(...W.map(w => w.kg)), pad = Math.max(.1, (hi - lo) * .2);
+    const X = t => 20 + (t - t0) / (t1 - t0) * 260, Y = kg => 70 - (kg - (lo - pad)) / ((hi + pad) - (lo - pad)) * 56;
+    const pts = W.map(w => `${X(w.t).toFixed(1)},${Y(w.kg).toFixed(1)}`).join(' ');
+    chart = `<svg class="wchart" viewBox="0 0 300 92" role="img" aria-label="משקל לאורך זמן">
+      ${W.length > 1 ? `<polyline points="${pts}" class="wl"/>` : ''}${W.map(w => `<circle cx="${X(w.t).toFixed(1)}" cy="${Y(w.kg).toFixed(1)}" r="3.5" class="wd"/><text x="${X(w.t).toFixed(1)}" y="${(Y(w.kg) - 8).toFixed(1)}" class="wt">${w.kg.toFixed(1)}</text>`).join('')}
+      <text x="20" y="88" class="wx">${ddmm(t0)}</text>${W.length > 1 ? `<text x="280" y="88" class="wx" text-anchor="end">${ddmm(W[W.length-1].t)}</text>` : ''}</svg>`;
+  }
+  return `<h2>טיפוח ומשקל</h2><div class="card groomsum"><div class="sub">${parts}</div>${chart || '<div class="sub">עוד לא נרשם משקל</div>'}</div>`;
+}
+function toastOnly(m){   // a message with no undo (like the export's "copied")
+  document.getElementById('toastMsg').textContent = m; document.getElementById('toastWhere').innerHTML = ''; lastUndo = null; document.getElementById('undo').hidden = true;
+  const t = document.getElementById('toast'); t.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 3500);
+}
+async function noteCopy(p){
+  const txt = notesOf(p).filter(e => !e.done).slice().reverse().map(e => { const d = new Date(e.t); return `${d.getDate()}.${d.getMonth()+1}: ${e.n}`; }).join('\n');
+  const head = `הערות לווטרינר · ${PETS[p].name}\n`;
+  try { await navigator.clipboard.writeText(head + txt); toastOnly('ההערות הועתקו'); }
+  catch(_){ sh.innerHTML = `<h3>להעתיק את ההערות</h3><textarea class="note-ed" rows="8" readonly>${esc(head + txt)}</textarea><div class="foot"><span></span><button class="btn primary" id="cancel">סגירה</button></div>`; sh.querySelector('#cancel').onclick = close; bg.classList.add('show'); const ta = sh.querySelector('textarea'); ta.focus(); ta.select(); }
+}
+// WEIGHT: a number (kg, one decimal) and when.
+function weightSheet(p){
+  const name = PETS[p].name, w = weightOf(p).last;
+  sheet(`${name} · משקל`, `<label class="field">משקל <input type="text" id="kgIn" inputmode="decimal" value="${w ? w.kg.toFixed(1) : ''}" placeholder="למשל 2.3" autocomplete="off" style="direction:ltr;width:6em"> ק״ג</label>
+     <div class="sub" style="margin:10px 0 8px">מתי?</div>${dayPick(7)}<label class="field">בשעה ${timeField("tIn", nowStr())}</label>`,
+    cancelBtn, () => {
+      const el = sh.querySelector('#kgIn'), kg = Math.round(parseFloat(String(el.value).replace(',', '.')) * 10) / 10;
+      if(!(kg >= 0.2 && kg <= 30)){ el.classList.add('bad'); el.focus(); return; }
+      const v = timeVal('tIn'); if(!v) return;
+      const t = Math.min(timeToTs(v), Date.now()); close();
+      commit(`${name} · משקל ${kg.toFixed(1)} ק״ג`, () => state.log.push({p, k:'weight', t, kg}));
+    });
 }
 function cycleHTML(p){
   const S = V[p], now = Date.now(), rn = roundStarts(p).pop(), r = routine(p);
@@ -2447,14 +2574,14 @@ function gaugeHTML(w, noun, lastLbl){
   const labels = `<div class="gl" dir="ltr"><span>${lab(w.last)}</span><span class="glw" style="${wpos}">${wl}</span></div>`;
   // hover / tap: when each part is (`showTip`, like the day ribbon)
   const tw = point ? `צפוי בערך ב־${when(w.from)}` : `החלון הצפוי: ${when(w.from)}–${when(w.to)}`, tf = `${lastLbl}${when(w.last)} · עברו ${fm(now - w.last)}`;
-  return `<div class="gauge ${cls}">${labels}<div class="gg" dir="ltr" data-tip="${tf} · ${tw}" title="${tf} · ${tw}"><span class="gw" style="left:${a.toFixed(1)}%;width:${(b - a).toFixed(1)}%" data-tip="${tw}" title="${tw}"></span><span class="gf" style="width:${pc(now).toFixed(1)}%" data-tip="${tf}" title="${tf}"></span></div><small>${st}</small><div class="ptip"></div></div>`;
+  return `<div class="gauge ${cls}">${labels}<div class="gg" dir="ltr" data-tip="${tf} · ${tw}" title="${tf} · ${tw}"><span class="gw" style="left:${a.toFixed(1)}%;width:${(b - a).toFixed(1)}%" data-tip="${tw}" title="${tw}"></span><span class="gf" style="width:${pc(now).toFixed(1)}%" data-tip="${tf}" title="${tf}"></span><span class="gnow" style="left:${pc(now).toFixed(1)}%" title="עכשיו ${clock(now)}"></span></div><small>${st}</small><div class="ptip"></div></div>`;
 }
 const peeWindow = p => { const f = peeForecast(p); return f && {last: f.last, from: f.from, to: f.to, end: f.to + (f.to - f.last) * .2}; };
 function mealWindow(p){   // the same reading as `mealLine`: last meal + her usual gap
   const g = mealGap(p), last = V[p].food; if(!g || !last || isNight() || Date.now() > last + g + 3600000) return null;
   return {last, from: last + g, to: last + g, end: last + 1.25*g};
 }
-function bathWindow(p){ const t = V[p].bath; if(!t) return null; const due = sod(t); due.setDate(due.getDate() + BATH_DAYS); return {last: t, from: due.getTime(), to: due.getTime(), end: due.getTime() + 86400000}; }   // one day: the tenth, the same date as the line above
+function bathWindow(p){ const t = V[p].bath; if(!t) return null; const due = bathDue(p); return {last: t, from: due.getTime(), to: due.getTime(), end: due.getTime() + 86400000}; }   // one day: the due day, the same date as the line above
 function sleepWindow(p){   // awake out of the crate: an hour awake is the trainer's limit (`AWAKE`)
   const S = V[p], aw = awakeSince(p);
   if(!aw || (S.sleep && S.sleep.start) || (S.crate && S.crate.start) || aw < Date.now() - 4*3600000) return null;
@@ -2462,13 +2589,82 @@ function sleepWindow(p){   // awake out of the crate: an hour awake is the train
 }
 const BATH_DAYS = 10;
 function bathLine(p){
-  const t = V[p].bath;
+  const t = V[p].bath, nb = noBathUntil(p);
+  if(nb) return `<div class="sub hint nobath"><b>לא לקלח עד ${dayName(nb)} <bdi dir="ltr">${clock(nb)}</bdi></b> · 48 שעות מהריסוס</div>`;
   if(!t) return `<div class="sub hint">לא יותר מ־${BATH_DAYS} ימים בין מקלחות</div>`;
-  const due = sod(t); due.setDate(due.getDate() + BATH_DAYS);
+  const due = bathDue(p);
   const left = Math.round((due - sod(Date.now())) / 86400000);
   if(left < 0) return `<div class="sub hint bathdue"><b>עברו יותר מ־${BATH_DAYS} ימים: הגיע הזמן למקלחת</b></div>`;
   return `<div class="sub hint">${left === 0 ? '<b>היום הגיע הזמן למקלחת</b>' : left === 1 ? 'המקלחת הבאה עד מחר' : `המקלחת הבאה עד ${due.getDate()}.${due.getMonth()+1} (עוד ${left} ימים)`}</div>`;
 }
+// GROOMING SETTINGS per dog (owner, 25.11). Frontline Spray, per our 250 mL bottle's label: 2–4 sprays per kg (low /
+// medium / high), protection 30 days, no bath or shampoo 48 h before or after, let it dry naturally, away from heat
+// until dry. `pump`: mL per spray, shown next to the count. Display only — the label and the vet decide.
+const GROOM = {
+  kochik:   {flea:30, level:4, pump:1.5, brush:1, teeth:1, weigh:30},   // kidney disease: weight loss matters
+  kishmish: {flea:30, level:2, pump:1.5, brush:1, teeth:1, weigh:14},   // a growing puppy
+};
+const FLEA_NO_BATH = 48*3600000, FLEA_DRY = 2*3600000, FLEA_PLAN = 5;   // FLEA_PLAN: days before a spray to suggest the bath
+const dayName = t => { const d = dayLabel(t); return d === 'היום' || d === 'אתמול' ? d : (sod(t).getTime() - sod(Date.now()).getTime() === 86400000 ? 'מחר' : `יום ${DOW[new Date(t).getDay()]} ${d}`); };
+const lastOf = (p, k) => state.log.filter(e => e.p===p && e.k===k && e.t <= Date.now()).sort((x,y) => y.t - x.t)[0];
+function weightOf(p){ const w = state.log.filter(e => e.p===p && e.k==='weight' && typeof e.kg === 'number').sort((x,y) => y.t - x.t); return {last: w[0], prev: w[1]}; }
+function fleaDue(p){ const t = V[p].flea; if(!t) return null; const d = sod(t); d.setDate(d.getDate() + GROOM[p].flea); return d; }
+function noBathUntil(p){ const t = V[p].flea, now = Date.now(); return t && now - t < FLEA_NO_BATH ? t + FLEA_NO_BATH : 0; }
+// The bath's due day, kept 48 hours clear of the next spray: one that would fall within 48 h of it moves to two days before.
+function bathDue(p){
+  const t = V[p].bath, due = sod(t); due.setDate(due.getDate() + BATH_DAYS);
+  const f = fleaDue(p);
+  if(f && Math.abs(f - due) < FLEA_NO_BATH){ const d = new Date(f); d.setDate(d.getDate() - 2); return d; }
+  return due;
+}
+// The spray count from her latest weight: ⌈kg × sprays per kg⌉, and the mL that makes.
+function fleaDose(p){
+  const w = weightOf(p).last; if(!w) return null;
+  const n = Math.ceil(w.kg * GROOM[p].level - 1e-9);
+  return {n, ml: n * GROOM[p].pump, kg: w.kg, old: Date.now() - w.t > GROOM[p].weigh * 86400000, t: w.t};
+}
+function groomLine(p, k){
+  const G = GROOM[p], now = Date.now(), t = V[p][k], days = t ? Math.floor((sod(now) - sod(t)) / 86400000) : null, H = (x, cls='') => `<div class="sub hint ${cls}">${x}</div>`;
+  if(k === 'flea'){
+    const due = fleaDue(p), d = fleaDose(p), lvl = {2:'נמוך', 3:'בינוני', 4:'גבוה'}[G.level] || '';
+    let h = '';
+    if(due){ const left = Math.round((due - sod(now)) / 86400000);
+      h += H(left < 0 ? '<b>הגיע הזמן לריסוס</b>' : left === 0 ? '<b>היום הגיע הזמן לריסוס</b>' : `הריסוס הבא: ${due.getDate()}.${due.getMonth()+1} (עוד ${left} ימים)`);
+      if(left >= 0 && left <= FLEA_PLAN){ const b = new Date(due); b.setDate(b.getDate() - 2); h += H(`מקלחת עד ${dayName(b.getTime())}, ריסוס ב־${dayName(due.getTime())}`, 'plan'); }
+    } else h += H(`כל ${G.flea} יום`);
+    h += d ? H(`<b>${d.n} ריסוסים</b> (${d.ml.toFixed(1).replace(/\.0$/, '')} מ״ל) · ${d.kg.toFixed(1)} ק״ג × ${G.level} לק״ג (${lvl})${d.old ? ' · המשקל ישן, אולי המינון לא מעודכן' : ''}`, d.old ? 'old' : '') : H('צריך לרשום משקל כדי לחשב כמה ריסוסים');
+    h += H('חמישית מהריסוסים לכל אחד מ־5 האזורים · לפנים: לרסס על מטלית ולמרוח', 'x');
+    return h;
+  }
+  if(k === 'brush' || k === 'teeth'){
+    const what = k === 'brush' ? 'מהסירוק' : 'מהצחצוח';
+    if(k === 'brush' && V[p].flea && now - V[p].flea < FLEA_DRY) return H('<b>לא לסרק עד שהפרווה יבשה לגמרי</b> (אחרי הריסוס)', 'calm');
+    if(days != null && days > G[k]) return H(`עברו ${days === 2 ? 'יומיים' : days + ' ימים'} ${what}`, 'calm');
+    return H(G[k] === 1 ? 'כל יום' : `כל ${G[k]} ימים`, 'x');
+  }
+  if(k === 'weight'){
+    const w = weightOf(p); if(!w.last) return '';
+    let h = '';
+    if(w.prev){ const dkg = w.last.kg - w.prev.kg; h += H(dkg === 0 ? `ללא שינוי מ־${dayLabel(w.prev.t)}` : `${dkg > 0 ? '+' : '−'}${Math.abs(dkg).toFixed(1)} ק״ג מאז ${dayLabel(w.prev.t)}`); }
+    if(now - w.last.t > G.weigh * 86400000) h += H('כדאי לשקול שוב', 'calm');
+    return h;
+  }
+  return '';
+}
+// Right after a spray (FLEA_DRY): one calm card on that dog's screen.
+function sprayCardHTML(p){
+  const t = V[p].flea, now = Date.now(); if(!t || now - t >= FLEA_DRY || t > now) return '';
+  return `<div class="card slim spraydry"><span><b>${PETS[p].name} רוססה ב־<bdi dir="ltr">${clock(t)}</bdi></b>
+    <small>בלי פן ובלי תנור עד שהפרווה יבשה לגמרי (החומר דליק) · לשמור על חדר חמים</small>
+    <small>להפריד בין הכלבות עד שהפרווה יבשה (שלא ילקקו זו את זו)</small></span>${ico('flea','s')}</div>`;
+}
+// A bath within 48 h after a spray, or a spray within 48 h after a bath: ask first (like "already logged").
+function groomClash(p, k, t){
+  const other = k === 'bath' ? 'flea' : k === 'flea' ? 'bath' : null; if(!other) return null;
+  const o = state.log.filter(e => e.p===p && e.k===other && e.t <= t && t - e.t < FLEA_NO_BATH).sort((x,y) => y.t - x.t)[0];
+  return o ? {o, ago: t - o.t, msg: k === 'bath' ? `עברו רק ${words(t - o.t)} מהריסוס. לרשום בכל זאת?` : `עברו רק ${words(t - o.t)} מהמקלחת. לרשום בכל זאת?`} : null;
+}
+let groomOk = false;   // set for one call when the owner confirmed a 48-hour clash
 function poopHints(p){
   const S = V[p], now = Date.now(); let h = '';
   if(S.food && now - S.food <= 45*60000 && !(S.poop > S.food) && !poopLine(p)) h += `<div class="sub hint aftermeal">אם היא צריכה קקי, זה בדרך כלל 10–30 דקות אחרי ארוחה</div>`;
@@ -2514,7 +2710,7 @@ let sumFilter = null;   // one kind ("pee", "crate"…) the summary is narrowed 
 const DAY = 86400000;
 const DOW = ['א׳','ב׳','ג׳','ד׳','ה׳','ו׳','ש׳'];
 const MONTHS = ['ינואר','פברואר','מרץ','אפריל','מאי','יוני','יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר'];
-const SUM_LBL = {food:'אוכל', pee:'פיפי', poop:'קקי', sleep:'שינה', cry:'בכי', crate:'כלוב', gel:'ג׳ל לאוזן', bath:'מקלחות', none:'לא עשתה', vomit:'הקאות', treat:'חטיפים'};
+const SUM_LBL = {food:'אוכל', pee:'פיפי', poop:'קקי', sleep:'שינה', cry:'בכי', crate:'כלוב', gel:'ג׳ל לאוזן', bath:'מקלחות', flea:'ריסוסים', brush:'סירוקים', teeth:'צחצוחים', weight:'שקילות', note:'הערות', none:'לא עשתה', vomit:'הקאות', treat:'חטיפים'};
 function sod(t){ const d = new Date(t); d.setHours(0,0,0,0); return d; }
 function ddmm(t){ const d = new Date(t); return `${d.getDate()}.${d.getMonth()+1}`; }
 function hm(ms){ const m = Math.round(ms/60000); return `${Math.floor(m/60)}:${pad(m%60)}`; }
@@ -2707,6 +2903,7 @@ function renderSummary(){
     `<button class="${tcls(k)}" data-act="filt" data-k="${k}"><div class="ic">${ico(k)}</div><b class="t">${st[k].ms ? words(st[k].ms) : '–'}</b>
       <span>${SUM_LBL[k]} · ${st[k].n===1 ? 'פעם אחת' : st[k].n+' פעמים'}</span>
       ${multi && days > 1 && st[k].ms ? `<small>ממוצע ${words(st[k].ms/days)} ליום</small>` : ''}</button>`).join('') + `</div>`;
+  if(!F) h += groomSumHTML(pet, from, to);
   if(P.meds && !F){
     const m = V[pet].meds[dayKey(from)] || {};
     const offDay = state.log.some(e => e.p===pet && e.k==='medoff' && e.t < to && (e.end == null ? Date.now() : e.end) > from);   // a break from the medicines touched this day
@@ -2801,9 +2998,11 @@ document.getElementById('shell').addEventListener('pointerover', e => { const t 
 document.getElementById('shell').addEventListener('pointerout', e => {   // moving off a bar (a mouse) clears its line; a tap keeps it
   if(e.pointerType !== 'mouse') return;
   const b = e.target.closest && e.target.closest('.pbar, .gauge'); if(!b || (e.relatedTarget && b.contains(e.relatedTarget))) return;
-  const t = b.querySelector('.ptip'); if(t) t.textContent = b.classList.contains('pbar') ? PBAR_HINT : ''; b.querySelectorAll('.tipon').forEach(x => x.classList.remove('tipon'));
+  const t = b.querySelector('.ptip'); if(t) t.textContent = b.closest('.ribbon') ? PBAR_HINT : ''; b.querySelectorAll('.tipon').forEach(x => x.classList.remove('tipon'));
 });
 document.getElementById('shell').addEventListener('click', e => {
+  const nr = e.target.closest('.note-r[data-note]');
+  if(nr && !e.target.closest('button')){ noteSheet(nr.dataset.note); return; }
   const tip = e.target.closest('.pbar [data-tip], .gauge [data-tip]');
   if(tip){ showTip(tip); return; }
   const go = e.target.closest('[data-go]');
@@ -2830,6 +3029,10 @@ document.getElementById('shell').addEventListener('click', e => {
     view = 'sum'; sumMode = 'day'; sumFilter = null; sumAnchor = d.getTime(); render(); window.scrollTo(0, 0);
   }
   else if(a==='scores') openScores(pet);
+  else if(a==='noteadd') noteAdd(pet);
+  else if(a==='notecopy') noteCopy(pet);
+  else if(a==='notesdone'){ notesDoneOpen = !notesDoneOpen; render(); }
+  else if(a==='notedone') commit(`${PETS[pet].name} · ההערה טופלה`, () => { const x = state.log.find(e => e.id === k); if(x) x.done = Date.now(); });
   else if(a==='more'){ openX.has(pet+k) ? openX.delete(pet+k) : openX.add(pet+k); render(); }
   else if(a==='brk') goBreak(pet);
   else if(a==='swap') askSwap(pet);
@@ -2849,6 +3052,7 @@ document.getElementById('shell').addEventListener('click', e => {
   else if(a==='nofood') askWhen(`${PETS[pet].name} · לא אכלה — מתי?`, ts => logNoFood(pet, false, ts));
   else if(a==='where'){ const e = state.log.filter(x => x.p===pet && x.k===k).pop(); if(e) whereSheet(e.id); }
   else if(a==='ptype'){ const e = state.log.filter(x => x.p===pet && x.k===k).pop(); if(e) typeSheet(e.id); }
+  else if(a==='pt' && k === 'weight') weightSheet(pet);
   else if(a==='pt'){
     const ask = () => askWhen(`${PETS[pet].name} · ${ITEMS[k].log} — מתי?`, ts => tapPoint(pet, k, ts, true));
     const d = recentDouble(pet, e => e.k === k);
@@ -2858,7 +3062,7 @@ document.getElementById('shell').addEventListener('click', e => {
     const running = !!V[pet][k].start;
     askWhen(`${PETS[pet].name} · ${running ? ITEMS[k].stop : ITEMS[k].start} — מתי?`, ts => running ? (ts ? endDurAt(pet, k, ts) : tapDur(pet, k)) : tapDur(pet, k, ts));
   }
-  else if(a==='edit') openSheet(pet, k);
+  else if(a==='edit') k === 'weight' ? weightSheet(pet) : openSheet(pet, k);
   else if(a==='med'){ if(medsOf(pet)[k]) openMedSheet(pet, k); else setMed(pet, k, Date.now()); }
 });
 function showToast(msg, undo){

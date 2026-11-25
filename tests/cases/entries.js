@@ -57,7 +57,7 @@
       $q('[data-act=edit][data-k=crate]').click(); sh.querySelector('#eIn').value = clock(now - 20*MIN); sh.querySelector('#ok').click();
       ok('"the stay already ended at…" also ends the sleep at that time', !K().crate.start && !K().sleep.start && clock(logOf('kishmish', 'sleep')[0].end) === clock(now - 20*MIN) && logOf('kishmish', 'sleep')[0].end === logOf('kishmish', 'crate')[0].end);
       seed([{ p:'kishmish', k:'none', t: now - 30*MIN }, { p:'kishmish', k:'crate', t: now - 29*MIN, r: 10 }, { p:'kishmish', k:'sleep', t: now - 25*MIN }]);
-      $q('[data-act=rtpee]').click(); close();
+      $q('.card.retry [data-act=pt][data-k=pee]').click(); close();
       ok('taking her out from the retry card ends the sleep too', !K().crate.start && !K().sleep.start && !!logOf('kishmish', 'sleep')[0].end);
       // taken out to pee / poop, eating, drinking: none of it happens in the crate or asleep
       for(const k of ['pee','poop','none','food','water']){

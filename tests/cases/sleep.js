@@ -55,8 +55,8 @@
     ok('a 21-minute stay right after "nothing" is a retry wait — and still has its assumed sleep', isRetryStay(state.log.find(e => e.id === 'short')) && K().spans.some(sp => sp.stay === 'short' && sp.t === now - 140*MIN + 1 + A && sp.end === now - 119*MIN) && wantTotal === 78*MIN + 19*MIN - 1);
     const then = (name, fn) => { fn(); if(bg.classList.contains('show')){ const g = sh.querySelector('[data-w=gravel]'); if(g) g.click(); else close(); } if(mine() !== want || total() !== wantTotal) changed.push(name); };
     then('nothing (starts a retry, back into the crate)', () => tile('none').click());
-    then('nothing on the retry card', () => $q('[data-act=rtnone]').click());
-    then('pee on the retry card', () => $q('[data-act=rtpee]').click());
+    then('nothing on the retry card', () => $q('.card.retry [data-act=pt][data-k=none]').click());
+    then('pee on the retry card', () => $q('.card.retry [data-act=pt][data-k=pee]').click());
     then('poop', () => tapPoint('kishmish', 'poop'));
     then('meal', () => tapPoint('kishmish', 'food'));
     then('did not eat', () => logNoFood('kishmish', true));
@@ -103,7 +103,7 @@
     // the guard again, on a finished split stay
     seed([{ ...K0, id:'st', k:'crate', t: now - 200*MIN, end: now - 110*MIN }, { ...K0, k:'cry', t: now - 160*MIN, end: now - 155*MIN }, { ...K0, k:'pee', t: now - 108*MIN, w:'gravel' }]);
     const want2 = mine(), bad2 = [], then2 = (name, fn) => { fn(); if(bg.classList.contains('show')){ const g = sh.querySelector('[data-w=gravel]'); if(g) g.click(); else close(); } if(mine() !== want2) bad2.push(name); };
-    then2('nothing', () => tile('none').click()); then2('pee on the card', () => { const b = $q('[data-act=rtpee]'); if(b) b.click(); }); then2('crate in', () => tapDur('kishmish', 'crate')); then2('woke up', () => tapDur('kishmish', 'sleep')); then2('cry', () => tapDur('kishmish', 'cry')); then2('cry stops', () => tapDur('kishmish', 'cry')); then2('crate out', () => tapDur('kishmish', 'crate')); then2('meal', () => tapPoint('kishmish', 'food'));
+    then2('nothing', () => tile('none').click()); then2('pee on the card', () => { const b = $q('.card.retry [data-act=pt][data-k=pee]'); if(b) b.click(); }); then2('crate in', () => tapDur('kishmish', 'crate')); then2('woke up', () => tapDur('kishmish', 'sleep')); then2('cry', () => tapDur('kishmish', 'cry')); then2('cry stops', () => tapDur('kishmish', 'cry')); then2('crate out', () => tapDur('kishmish', 'crate')); then2('meal', () => tapPoint('kishmish', 'food'));
     ok('nothing done afterwards changes the two pieces of a finished stay' + (bad2.length ? ' — changed by: ' + bad2.join(', ') : ''), K().spans.filter(sp => sp.stay === 'st').length === 2 && bad2.length === 0);
     pet = 'kochik'; seed([{ p:'kochik', k:'food', t: now - HOUR }]); ok('nothing is assumed for kochik', KO().spans.length === 0); pet = 'kishmish';
     done();

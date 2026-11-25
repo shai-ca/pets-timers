@@ -17,8 +17,8 @@
     ok('more than two hours since a pee: a retry', !!card() && stays().length === 2 && !!K().crate.start);
     const N = logOf('kishmish', 'none')[0], C = stays()[1];
     ok('the crate entry is written with it, by itself, a moment after the "nothing"', C.t === N.t + 1 && !('r' in C) && isRetryStay(C));
-    ok('one quiet row: countdown from ten minutes, two buttons, a small ×', card().classList.contains('slim') && card().classList.contains('wait') && near(+$q('.card.retry [data-until]').dataset.until, now + 10*MIN) && card().textContent.includes('לנסות שוב בעוד') && $n('.card.retry .go, .card.retry .btn') === 2 && !!$q('[data-act=rtpee]') && !!$q('[data-act=rtnone]') && !!$q('.rt-x[data-act=rtstop]') && !$q('[data-act=rtcrate]') && !card().textContent.includes('שתתה'));
-    ok('first thing on the page; play and free time locked, food available; a new round', $q('#side').firstElementChild === card() && !!$q('.card.playc.locked') && $q('.card.slim.locked').textContent.includes('אחרי פיפי') && !tile('food').disabled && roundStarts('kishmish').length === 2 && cur() === 'כלוב');
+    ok('one card: the retry head (countdown from ten minutes, a small ×) on the gravel row (יצאנו לחצץ · פיפי · לא עשתה)', card().classList.contains('slim') && card().classList.contains('wait') && near(+$q('.card.retry [data-until]').dataset.until, now + 10*MIN) && card().textContent.includes('לנסות שוב בעוד') && $n('.card.retry .go, .card.retry .btn') === 3 && !!$q('.card.retry [data-act=dur][data-k=gravel]') && $n('.card.slim.gravel') === 1 && !!$q('.card.retry [data-act=pt][data-k=pee]') && !!$q('.card.retry [data-act=pt][data-k=none]') && !!$q('.rt-x[data-act=rtstop]') && !$q('[data-act=rtcrate]') && !card().textContent.includes('שתתה'));
+    ok('one card (retry + gravel), with the potty section first on the page; play and free time locked, food available; a new round', $q('#side').firstElementChild.id === 'sec-potty' && $q('#sec-potty').firstElementChild.nextElementSibling === card() && !!$q('.card.playc.locked') && $q('.card.slim.locked').textContent.includes('אחרי פיפי') && !tile('food').disabled && roundStarts('kishmish').length === 2 && cur() === 'כלוב');
     $q('#undo').click();
     ok('undo takes back the "nothing" and the crate entry together', logOf('kishmish', 'none').length === 0 && stays().length === 1 && !card());
     // under two hours since a pee nothing else starts one any more
@@ -54,17 +54,17 @@
     const wait = () => stays()[1], shift = m => { const d = wait().t - (now - m*MIN); logOf('kishmish', 'none').forEach(e => e.t -= d); wait().t -= d; if(wait().end) wait().end -= d; use(state); render(); };
     shift(4); ok('four minutes in: six to go', card().classList.contains('wait') && near(+$q('.card.retry [data-until]').dataset.until, now + 6*MIN));
     ok('she is taken to be asleep there like in any crate stay — and the countdown goes on regardless', K().sleep.assumed === true && K().sleep.start === wait().t + ASSUME_SLEEP && card().classList.contains('wait'));
-    shift(11); ok('time is up: the row says "to the gravel", nothing else changes', card().classList.contains('due') && $q('.rt-go').textContent === 'לחצץ' && !$q('.card.retry [data-until]') && !!$q('[data-act=rtpee]'));
+    shift(11); ok('time is up: the row says "to the gravel", nothing else changes', card().classList.contains('due') && $q('.rt-go').textContent === 'לחצץ' && !$q('.card.retry [data-until]') && !!$q('.card.retry [data-act=pt][data-k=pee]'));
     shift(4); assumeSheet(wait().id); sh.querySelector('#aIn').value = clock(now - 2*MIN); sh.querySelector('#ok').click();
     ok('she fell asleep in the crate (marked): the countdown stops — "when she wakes, straight to the gravel"', card().classList.contains('asleep') && card().textContent.includes('כשהיא מתעוררת, ישר לחצץ') && !$q('.card.retry [data-until]'));
     tapDur('kishmish', 'sleep'); ok('awake again: back to the countdown', card().classList.contains('wait'));
     tapDur('kishmish', 'crate'); ok('taken out with no result yet: "what happened on the gravel?"', card().classList.contains('again') && card().textContent.includes('מה קרה בחצץ'));
     // the two buttons
     seed([{ ...K0, k:'crate', t: now - 300*MIN, end: now - 40*MIN }, pee(170), { ...K0, k:'none', t: now - 25*MIN }, { ...K0, k:'crate', t: now - 25*MIN + 1 }]);
-    $q('[data-act=rtnone]').click();
+    $q('.card.retry [data-act=pt][data-k=none]').click();
     ok('"nothing" on the card: out and straight back in, attempt 2, a fresh countdown', stays().length === 3 && !!stays()[1].end && !stays()[2].end && card().classList.contains('wait') && card().textContent.includes('ניסיון חוזר 2') && near(+$q('.card.retry [data-until]').dataset.until, now + 10*MIN));
     stays()[1].end = now - 16*MIN; logOf('kishmish', 'none')[1].t = now - 16*MIN; stays()[2].t = now - 16*MIN + 1; use(state); render();
-    $q('[data-act=rtpee]').click();
+    $q('.card.retry [data-act=pt][data-k=pee]').click();
     ok('a pee asks where', bg.classList.contains('show') && !!sh.querySelector('[data-w=gravel]')); sh.querySelector('[data-w=gravel]').click();
     ok('pee on the gravel ends the retry, unlocks play and starts free time', !card() && !$q('.card.playc.locked') && !!$q('.card.slim.free.run') && cur() === 'משחק' && !K().crate.start);
     ok('both waits are labelled in the list; one of the two ended with a pee on the gravel', ($q('.uni').textContent.match(/ניסיון חוזר/g) || []).length === 2 && canon(retryStats('kishmish', ...today)) === canon({ n: 2, good: 1 }));

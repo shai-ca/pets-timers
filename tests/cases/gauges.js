@@ -34,6 +34,7 @@
     const bt = new Date(now - 4*24*HOUR), due = new Date(bt); due.setHours(0, 0, 0, 0); due.setDate(due.getDate() + 10);
     ok('bath: one count, to the tenth day (the same date as the line above it), dates on the bar', card('bath').querySelector('.gauge small').textContent.includes('עוד 6 ימים') && card('bath').querySelector('.gl .glw').textContent === `${due.getDate()}.${due.getMonth()+1}` && card('bath').textContent.includes('(עוד 6 ימים)'));
     ok('the meal bar: the last meal at the start, the next one at its place, apart', card('food').querySelector('.gl span').textContent === clock(V.kishmish.food) && card('food').querySelector('.gl .glw').getBoundingClientRect().left > card('food').querySelector('.gl span').getBoundingClientRect().right);
+    ok('a bold "now" line on the bar, where the fill ends', !!card('pee').querySelector('.gauge .gnow') && Math.abs(parseFloat(card('pee').querySelector('.gauge .gnow').style.left) - parseFloat(card('pee').querySelector('.gauge .gf').style.width)) < 0.2);
     ok('Kochik (16 years old): no sleep goal', sleepGoal('kochik') === 0);
     seed(L.concat([{...K0, k:'crate', t: now - 5*MIN}]));
     ok('in the crate: no "time to sleep" bar', !$q('#sec-rest .gauge:not(.goal)') && !!$q('#sec-rest .gauge.goal'));

@@ -4,7 +4,7 @@
     reset();
     const now = Date.now(), DAY = 86400000;
     seed([]);
-    const card = () => $q('#sec-bath .card.item');
+    const card = () => $q('#sec-bath .card.item.g-bath');
     ok('Kishmish has a bath tile, empty at first', !!card() && card().textContent.includes('עוד לא נרשם') && card().textContent.includes('לא יותר מ־10 ימים'));
     tile('bath').click();
     ok('one tap logs a bath', logOf('kishmish', 'bath').length === 1 && V.kishmish.bath > 0 && card().textContent.includes('עוד 10 ימים'));
