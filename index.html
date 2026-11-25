@@ -1347,6 +1347,17 @@ function advice(p){ return {level: 'none', text: '', why: ''}; }
 function adviceHTML(p){ const a = advice(p); return a.level === 'none' ? '' : `<div class="card slim advice ${a.level}"><span><b>${esc(a.text)}</b>${a.why ? `<small>${esc(a.why)}</small>` : ''}</span></div>`; }
 // kochikBaseline(p) -> {enough:false} for now. STUB — Agent C (Kochik) fills it.
 function kochikBaseline(p){ return {enough: false}; }
+// PREDICTION CONTRACTS consumed by tracking, advice, summary and planning (v3). Stubs here; the owners fill them:
+//   wakeExpect   — Agent B (Kishmish).  pottyExpect — Agent B (Kishmish).  kochikExpect — Agent C (Kochik).
+// Planning (Agent D) and the UI (Agent E) only CALL these — they never compute their own predictions.
+// wakeExpect(p, now?) → {state:'asleep'|'awake'|'unknown', since, sleepOn: sleepOn(...) | null,
+//   likely: {from, to} | null  (a range, never a point), wakeBy: ts | null (safety rule, unchanged), words, src, n}
+function wakeExpect(p, now){ return {state:'unknown', since:null, sleepOn:null, likely:null, wakeBy:null, words:'unknown', src:'stub', n:0}; }
+// pottyExpect(p, now?) → {pee: {from, to, trigger:'wake'|'gap'|'age'|'none', src:'learned'|'rule'|'none', n} | null,
+//   poop: {from, to, trigger:'meal'|'wake'|'gap'|'none', src, n} | null}
+function pottyExpect(p, now){ return {pee:null, poop:null}; }
+// kochikExpect(now?) → {gap, from, to, cap, sick, n, src:'learned'|'cap', drinkFrom?, drinkTo?}  (wraps today's kochikGap rules)
+function kochikExpect(now){ return {gap:null, from:null, to:null, cap:null, sick:false, n:0, src:'stub'}; }
 function setState(s){ state = s; V = derive(state); }
 setState(state);
 
