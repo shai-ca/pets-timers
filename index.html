@@ -533,6 +533,7 @@
   .gauge .gg{cursor:pointer;overflow:visible}
   .gauge .gnow{position:absolute;top:-4px;bottom:-4px;width:3px;margin-left:-1.5px;border-radius:2px;background:var(--ink);pointer-events:none}   /* where we are now (owner, 25.11) */
   .card.slim.withrt{flex-wrap:wrap}
+  .gravel .rt-a .gend{font-weight:600}
   .wake{display:block;margin-top:6px;color:var(--ink);font-size:13px} .wake small{display:block;font-size:12px;color:var(--muted)}
   .wake.past b{color:var(--warn)} .wake.then{color:var(--muted);font-size:12.5px;margin-top:3px}
   .card.slim.spraydry > span{display:flex;flex-direction:column;gap:2px} .card.slim.spraydry small{font-size:12.5px;color:var(--muted)}
@@ -788,7 +789,7 @@ const ITEMS = {
   swap:{icon:'crate',log:'הועברה לכלוב אחר'},
   // On the gravel, waiting for her to go: an optional timer ("יצאנו לחצץ") that the next pee / poop / "לא עשתה"
   // ends, so each of them knows how long it took. Not listed as a row of its own (`nolist`).
-  gravel:{dur:true,icon:'pee',lbl:'בחצץ',live:'בחצץ',start:'יצאנו לחצץ',stop:'חזרנו בלי לסמן',log:'בחצץ',startQ:'מתי יצאתם לחצץ?',nolist:true},
+  gravel:{dur:true,icon:'pee',lbl:'בחצץ',live:'בחצץ',start:'יצאנו לחצץ',stop:'סיום היציאה לחצץ',log:'בחצץ',startQ:'מתי יצאתם לחצץ?',nolist:true},
   born:{icon:'paw',log:'תאריך לידה',hid:true},
   med_am:{icon:'pill',log:'תרופת בוקר'},
   med_pm:{icon:'pill',log:'תרופת ערב'}
@@ -1493,18 +1494,30 @@ function leaveCrate(p, t){
 // sometimes her bowl inside the (mesh) crate. They only mean she is awake: a marked sleep still running ends.
 const OUT_KINDS = {pee:1, poop:1, none:1};
 const AWAKE_KINDS = {food:1, water:1, play:1, nofood:1};
-// HOW LONG IT TOOK HER ON THE GRAVEL. The running "gravel" timer ends at the pee / poop / "לא עשתה" that follows
-// (or when she goes into the crate); one forgotten for more than an hour is dropped rather than believed.
+// HOW LONG IT TOOK HER ON THE GRAVEL — one OUTING (owner, 25.11): after "יצאנו לחצץ" she may do a pee AND a poop, so
+// a pee or poop does not end the clock; only "לא עשתה" or "סיום" do (or going into the crate). Before 25.11 the first
+// result ended it — those entries keep their `end` at that result. One left running for more than an hour ends at its
+// last result, or is dropped if nothing happened in it.
 const GRAVEL_MAX = 60*60000, GRAVEL_OPTS = [2, 5, 10, 15, 20];
-function endGravel(p, t){
+function endGravel(p, t, staleOnly){   // staleOnly: a pee / poop only tidies up an outing left running past GRAVEL_MAX
   const g = state.log.filter(e => e.p===p && e.k==='gravel' && e.end == null);
-  for(const e of g){ if(e.t < t && t - e.t <= GRAVEL_MAX) e.end = t; else state.log = state.log.filter(x => x !== e); }
+  for(const e of g){
+    if(e.t < t && t - e.t <= GRAVEL_MAX){ if(!staleOnly) e.end = t; continue; }
+    const res = state.log.filter(x => x.p===p && (x.k==='pee' || x.k==='poop') && x.t > e.t && x.t - e.t <= GRAVEL_MAX).sort((x,y) => y.t - x.t)[0];
+    if(res) e.end = res.t; else state.log = state.log.filter(x => x !== e);
+  }
 }
-// The wait behind a pee / poop / "לא עשתה": what she said afterwards (`g`, minutes), else the timer that ended with it.
+// The gravel outing a result belongs to: started before it and still running then (or ended at / after it).
+const gravelOf = e => state.log.find(x => x.p===e.p && x.k==='gravel' && x.t < e.t && e.t - x.t <= GRAVEL_MAX && (x.end == null || x.end >= e.t));
+// The wait behind a pee / poop / "לא עשתה": what she said afterwards (`g`, minutes), else the time since the outing began.
+function gravelDone(p, from){   // what this outing has had so far: "נרשם: פיפי 17:40 · קקי 17:42"
+  const r = state.log.filter(e => e.p===p && (e.k==='pee' || e.k==='poop') && e.t > from).sort((x,y) => x.t - y.t);
+  return r.length ? `נרשם: ${r.map(e => `${ITEMS[e.k].log} <bdi dir="ltr">${clock(e.t)}</bdi>`).join(' · ')} · אפשר להוסיף, או "סיום"` : '';
+}
 function waitOf(e){
   if(!(e.k === 'pee' || e.k === 'poop' || e.k === 'none')) return null;
   if(typeof e.g === 'number' && e.g > 0) return e.g * 60000;
-  const g = state.log.find(x => x.p===e.p && x.k==='gravel' && x.end === e.t && x.t < e.t);
+  const g = gravelOf(e);
   return g ? e.t - g.t : null;
 }
 const waitTag = e => { const w = waitOf(e); return w == null ? '' : ` · אחרי ${words(w)} בחצץ`; };
@@ -1521,7 +1534,7 @@ function pottyInCrate(x){
   if(c && !state.log.some(e => e.p===x.p && e.k==='crate' && e !== c && e.t > c.t)) delete c.end;
 }
 function impliesOut(p, k, t){
-  if(PETS[p].cycle && OUT_KINDS[k]) endGravel(p, t);
+  if(PETS[p].cycle && OUT_KINDS[k]) endGravel(p, t, k !== 'none');   // a pee / poop keeps the outing going (a second result may follow)
   if(!PETS[p].cycle || !(OUT_KINDS[k] || AWAKE_KINDS[k])) return;
   const open = kk => state.log.filter(e => e.p===p && e.k===kk && e.end == null).sort((x,y) => x.t-y.t)[0];
   const c = open('crate'), sl = open('sleep');
@@ -2032,7 +2045,7 @@ function retryAct(p, a, k, sure, t){
     if(d){ askAgain(d, ITEMS[kind].log, () => retryAct(p, a, k, true)); return; }
     if(contraGuard(p, kind, t, () => retryAct(p, a, k, true, t))) return;
     let e = {p, k: kind, t: now};
-    commit(`${name} · ${ITEMS[e.k].log}`, () => { endGravel(p, now); if(open) leaveCrate(p, now); if(kind === 'none') e = pushNone(p, now); else state.log.push(e); });
+    commit(`${name} · ${ITEMS[e.k].log}`, () => { if(kind === 'none') endGravel(p, now); if(open) leaveCrate(p, now); if(kind === 'none') e = pushNone(p, now); else state.log.push(e); });
     stillCrying(p, now, () => { if(e.k === 'pee' && e.id) whereSheet(e.id); });
   }
   // Closing the card only hides it and unlocks play. What happened is still a retry if it turns out to be one.
@@ -2425,8 +2438,8 @@ function render(){
       ? `<div class="card slim gravel${rc}">${rh}<span><b>יוצאים לחצץ?</b><small>${uw && uw.n >= 3 ? `בדרך כלל עושה פיפי תוך ${words(uw.ms)}` : 'השעון מודד כמה זמן לקח ומה יצא'}</small></span>
           <span class="rt-a"><button class="go" data-act="dur" data-k="gravel">${ITEMS.gravel.start}</button><button class="btn" data-act="pt" data-k="pee">פיפי</button><button class="btn" data-act="pt" data-k="none">לא עשתה</button></span></div>`
       : gv
-      ? `<div class="card slim gravel on${rc}">${rh}<span><b>בחצץ כבר <span class="rt-t" data-since="${gv}">${dur(Date.now() - gv)}</span></b><small>מה קרה? הלחיצה עוצרת את השעון ושומרת כמה זמן זה לקח</small></span>
-          <span class="rt-a"><button class="go" data-act="pt" data-k="pee">פיפי</button><button class="go" data-act="pt" data-k="poop">קקי</button><button class="btn" data-act="pt" data-k="none">לא עשתה</button><button class="rt-x" data-act="dur" data-k="gravel" aria-label="${ITEMS.gravel.stop}" title="${ITEMS.gravel.stop}">×</button></span></div>`
+      ? `<div class="card slim gravel on${rc}">${rh}<span><b>בחצץ כבר <span class="rt-t" data-since="${gv}">${dur(Date.now() - gv)}</span></b><small>${gravelDone(pet, gv) || 'פיפי וקקי נרשמים והשעון ממשיך · "לא עשתה" או "סיום" סוגרים את היציאה'}</small></span>
+          <span class="rt-a"><button class="go" data-act="pt" data-k="pee">פיפי</button><button class="go" data-act="pt" data-k="poop">קקי</button><button class="btn" data-act="pt" data-k="none">לא עשתה</button><button class="btn gend" data-act="dur" data-k="gravel">סיום</button></span></div>`
       : `<div class="card slim gravel ${tap.includes('none') ? 'nowt' : ''}"><span><b>יוצאים לחצץ?</b>${tryNowHTML(pet)}<small>${uw && uw.n >= 3 ? `בדרך כלל עושה פיפי תוך ${words(uw.ms)}` : 'השעון מודד כמה זמן לקח ומה יצא'}${ln ? ` · לא עשתה לאחרונה: ${dayLabel(ln)} <bdi dir="ltr">${clock(ln)}</bdi>` : ''}</small></span>
           <span class="rt-a"><button class="go" data-act="dur" data-k="gravel">${ITEMS.gravel.start}</button><button class="btn" data-act="pt" data-k="none">לא עשתה</button></span></div>`;
     const pottySec = sec('2 · 5', 'צרכים', tap.includes('pee') || !!rt, gravelRow + gravelRatesHTML(pet) + tileOf('pee') + tileOf('poop'), 'potty');
@@ -3149,11 +3162,18 @@ function gravelRates(p, now = Date.now()){
   const wakes = V[p].spans.filter(s => s.end != null && s.end <= now).map(s => s.end);
   const meals = L.filter(e => mealKind(e) === 'meal').map(e => e.t), crates = L.filter(e => e.k === 'crate').map(e => e.t);
   const before = (ts, t, w) => ts.some(x => x <= t && t - x <= w);
+  // one gravel outing with a pee AND a poop is one outing (owner, 25.11): grouped by the outing they belong to
+  const groups = new Map();
   for(const o of L){
     if(!['pee', 'poop', 'none'].includes(o.k) || o.t < from || o.t > now) continue;
-    const good = o.k !== 'none' && (o.w === 'gravel' || o.w === 'out');
-    const hit = {wake: before(wakes, o.t, RATES.wake), meal: before(meals, o.t, RATES.meal), crate: crates.some(x => x >= o.t && x - o.t <= RATES.crate)};
-    for(const k in hit) if(hit[k]){ r[k].n++; if(good) r[k].good++; }
+    const g = gravelOf(o), key = g ? g.id || g : o.id || o;
+    const x = groups.get(key) || {first: o.t, last: o.t, good: false};
+    x.first = Math.min(x.first, o.t); x.last = Math.max(x.last, o.t); x.good = x.good || (o.k !== 'none' && (o.w === 'gravel' || o.w === 'out'));
+    groups.set(key, x);
+  }
+  for(const o of groups.values()){
+    const hit = {wake: before(wakes, o.first, RATES.wake), meal: before(meals, o.first, RATES.meal), crate: crates.some(x => x >= o.last && x - o.last <= RATES.crate)};
+    for(const k in hit) if(hit[k]){ r[k].n++; if(o.good) r[k].good++; }
   }
   return r;
 }

@@ -28,7 +28,9 @@
     ok('"יצאנו לחצץ": the gravel clock runs', !!(K().gravel || {}).start);
     click('.gravel [data-act=pt][data-k=pee]');
     pick('[data-w=gravel]');
-    ok('פיפי from the gravel card, "על החצץ": saved with the place and the time on the gravel; the clock stopped', last('pee').w === 'gravel' && !(K().gravel || {}).start && waitOf(last('pee')) != null);
+    ok('פיפי from the gravel card, "על החצץ": saved with the place and the time on the gravel; the outing stays open', last('pee').w === 'gravel' && !!(K().gravel || {}).start && waitOf(last('pee')) != null);
+    click('.gravel .gend');
+    ok('"סיום" closes the outing', !(K().gravel || {}).start);
     ok('the routine moves to play', cur() === 'play');
     // play, meal, a bite and its correction
     click('#sec-play [data-act=play][data-k=rope]');
