@@ -6,6 +6,10 @@
     class FD extends RealDate { constructor(...a){ if(a.length) super(...a); else super(NOW); } static now(){ return NOW; } }
     window.Date = FD;
     reset();
+    // Planning is checked against the marked stand-ins: the contracts are pinned to "nothing known" (restored at the end).
+    const realC = {wakeExpect, pottyExpect, kochikExpect};
+    const noC = () => { wakeExpect = () => ({state:'unknown', since:null, sleepOn:null, likely:null, wakeBy:null, words:'unknown', src:'stub', n:0}); pottyExpect = () => ({pee:null, poop:null}); kochikExpect = () => ({gap:null, from:null, to:null, cap:null, sick:false, n:0, src:'stub'}); };
+    noC();
     const at = (off, h, m = 0) => new RealDate(2026, 10, 25 + off, h, m).getTime(), K0 = {p:'kishmish'}, C0 = {p:'kochik'};
     const hist = () => {
       const L = [];
@@ -110,6 +114,7 @@
     ok('no data at all: still draws; nothing high-confidence', $n('#main .pl-lane') === 3 && M.free.every(x => x.conf === 'medium'));
     ok('nothing was ever written', commits === 0);
     ok('the 15-minute margin is gone', PLAN.pad === undefined);
+    ({wakeExpect, pottyExpect, kochikExpect} = realC);
     view = 'now'; window.Date = RealDate;
     done();
   } catch(e){ crashed(e); }

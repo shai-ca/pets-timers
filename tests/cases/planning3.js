@@ -98,9 +98,10 @@
     pottyExpect = () => ({pee: {from: at(0, 12, 5), to: at(0, 12, 20), trigger: 'gap', src: 'learned', n: 9}, poop: null});
     M = plan(hist().concat(away(2, 90)));
     ok('pottyExpect: her pee window ending at 12:20 closes the outing', M.free.every(f => f.a >= at(0, 12, 20) || f.b <= at(0, 12, 20)) && /חלון הפיפי/.test(M.ks.sleeps[0].why));
-    ({wakeExpect, kochikExpect, pottyExpect} = real);
+    wakeExpect = () => ({state:'unknown', since:null, sleepOn:null, likely:null, wakeBy:null, words:'unknown', src:'stub', n:0}); pottyExpect = () => ({pee:null, poop:null}); kochikExpect = () => ({gap:null, from:null, to:null, cap:null, sick:false, n:0, src:'stub'});
     M = plan(hist().concat(away(2, 90)));
-    ok('stubs back: the marked stand-ins are used (adapter), the plan still works', M.dur.wake === 'adapter' && M.kg.src === 'adapter' && M.free.length >= 1);
+    ok('contracts say nothing: the marked stand-ins are used (adapter), the plan still works', M.dur.wake === 'adapter' && M.kg.src === 'adapter' && M.free.length >= 1);
+    ({wakeExpect, kochikExpect, pottyExpect} = real);
     view = 'now'; window.Date = RealDate;
     done();
   } catch(e){ crashed(e); }
