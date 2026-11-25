@@ -500,12 +500,19 @@
   .pbar .mk{position:absolute;width:15px;height:15px;transform:translateX(-50%);color:var(--acc)}
   .pbar .mk.pee,.pbar .mk.poop{color:var(--ok)} .pbar .mk.bad{color:var(--alert)}
   .ribbon .ticks{position:relative;height:14px;font-size:11px;color:var(--muted);margin-top:-2px}
+  .ribbon .ptip{order:1}
   .ribbon .ticks span{position:absolute;transform:translateX(-50%)}
   .ribbon .ticks span:first-child{transform:none}
   .rlg{display:flex;flex-wrap:wrap;align-items:center;gap:4px 6px;font-size:12px;color:var(--muted)}
   .rlg svg.i{width:14px;height:14px} .rlg em{font-style:normal;color:var(--alert);margin-inline-start:6px}
   .rbar{padding:2px 0 8px} .rbar .pb{height:16px;border-radius:6px} .rbar .pm{height:15px} .rbar .mk{width:13px;height:13px}
   .rbar small{font-size:12px;color:var(--muted)}
+  .pbar .pt,.pbar .mk{cursor:pointer}
+  .pbar .pt.tipon{outline:2px solid var(--ink);outline-offset:-2px;z-index:1}
+  .pbar .mk.tipon{transform:translateX(-50%) scale(1.3)}
+  .pbar .mk .hit{fill:transparent;stroke:none}
+  .ptip{font-size:12.5px;color:var(--ink);min-height:18px;margin-top:2px;font-variant-numeric:tabular-nums}
+  .rends{display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-top:-2px}
   @media (min-width:760px){
     .v2 main.grps > .grp{background:none;border:0;padding:0;box-shadow:none;border-radius:0}
     .v2 main.grps > .grp.now{box-shadow:none}
@@ -1828,12 +1835,13 @@ const hmm = ms => { const m = Math.round(ms / 60000); return `${Math.floor(m/60)
 // was not on the gravel or outside is red). Time runs left to right, like the summary's charts.
 function partsBar(p, a, b, dp){
   const W = Math.max(1, b - a), pc = t => ((t - a) / W * 100).toFixed(2);
-  const bar = dp.segs.map(s => `<span class="pt ${s.k}" style="left:${pc(s.a)}%;width:${((s.b - s.a) / W * 100).toFixed(2)}%" title="${PART[s.k]} ${clock(s.a)}–${clock(s.b)}"></span>`).join('');
+  const bar = dp.segs.map(s => `<span class="pt ${s.k}" style="left:${pc(s.a)}%;width:${((s.b - s.a) / W * 100).toFixed(2)}%" data-tip="${PART[s.k]} ${clock(s.a)}–${s.b >= Date.now() - 1000 ? 'עכשיו' : clock(s.b)} · ${words(s.b - s.a)}"></span>`).join('');
   const mk = state.log.filter(e => e.p===p && e.t >= a && e.t < b && (e.k==='pee' || e.k==='poop' || e.k==='play' || (e.k==='food' && mealKind(e) === 'meal'))).map(e => {
     const bad = (e.k==='pee' || e.k==='poop') && WHERE[e.w] && e.w !== 'gravel' && e.w !== 'out';
-    return `<svg class="i mk ${e.k} ${bad ? 'bad' : ''}" viewBox="0 0 24 24" style="left:${pc(e.t)}%">${ICONS[e.k === 'play' ? 'ball' : e.k]}</svg>`;
+    const tip = `${e.k === 'food' ? 'ארוחה' : e.k === 'play' ? 'משחק' + (PLAY[e.y] ? ' · ' + PLAY[e.y] : '') : ITEMS[e.k].log} ${clock(e.t)}${WHERE[e.w] ? ' · ' + WHERE[e.w] : ''}`;
+    return `<svg class="i mk ${e.k} ${bad ? 'bad' : ''}" viewBox="0 0 24 24" style="left:${pc(e.t)}%" data-tip="${tip}"><rect class="hit" x="-4" y="-4" width="32" height="32"/>${ICONS[e.k === 'play' ? 'ball' : e.k]}</svg>`;
   }).join('');
-  return `<div class="pbar" dir="ltr"><div class="pb">${bar}</div><div class="pm">${mk}</div></div>`;
+  return `<div class="pbar" dir="ltr"><div class="pb">${bar}</div><div class="pm">${mk}</div><div class="ptip" dir="rtl">ריחוף או נגיעה על הפס מראים שעות</div></div>`;
 }
 function ribbonHTML(p){
   const now = Date.now(), a = sod(now).getTime(), all = now - a, dp = dayParts(p, a, now);
@@ -1848,7 +1856,7 @@ function ribbonHTML(p){
 }
 function roundBar(p, r, to){   // new design: the round as a bar, with how much of it she slept and was out
   const b = Math.min(r.end || Date.now(), to, Date.now()), dp = dayParts(p, r.t, b);
-  return b > r.t ? `<div class="rbar">${partsBar(p, r.t, b, dp)}<small>שינה ${hmm(dp.tot.sleep)} · ערה בכלוב ${hmm(dp.tot.crate)} · בחוץ ${hmm(dp.tot.out)}</small></div>` : '';
+  return b > r.t ? `<div class="rbar">${partsBar(p, r.t, b, dp)}<div class="rends" dir="ltr"><span>${clock(r.t)}</span><span>${r.end && r.end <= Date.now() ? clock(b) : 'עכשיו'}</span></div><small>שינה ${hmm(dp.tot.sleep)} · ערה בכלוב ${hmm(dp.tot.crate)} · בחוץ ${hmm(dp.tot.out)}</small></div>` : '';
 }
 // Add an entry at a chosen time (for something that was missed), from the list's header.
 function openAddSheet(p){
@@ -2616,7 +2624,12 @@ document.getElementById('dsw').addEventListener('click', e => {
   V2 = !V2; try { localStorage.setItem(LS_KEY+'-v2', V2 ? '1' : '0'); } catch(_){}
   render(); window.scrollTo(0, 0);
 });
+// The bars of the new design: hovering (computer) or tapping (phone) a part or a mark writes its times under the bar.
+function showTip(el){ const t = el.closest('.pbar'); if(!t) return; t.querySelector('.ptip').textContent = el.dataset.tip; t.querySelectorAll('.tipon').forEach(x => x.classList.remove('tipon')); el.classList.add('tipon'); }
+document.getElementById('shell').addEventListener('pointerover', e => { const t = e.target.closest && e.target.closest('.pbar [data-tip]'); if(t) showTip(t); });
 document.getElementById('shell').addEventListener('click', e => {
+  const tip = e.target.closest('.pbar [data-tip]');
+  if(tip){ showTip(tip); return; }
   const go = e.target.closest('[data-go]');
   if(go){ goSec(go.dataset.go); return; }
   if(e.target.id === 'sumDate'){ try{ e.target.showPicker(); }catch(_){} return; }
