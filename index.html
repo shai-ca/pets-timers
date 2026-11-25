@@ -488,7 +488,7 @@ document.getElementById('mark').innerHTML = `<svg viewBox="0 0 24 24">${ICONS.pa
 // ---------- model ----------
 const PETS = {
   kochik:   {name:'קוצ׳יק', born:'2010-03-20', treats:true, items:['food','pee','poop','vomit','gel'], meds:true, poopType:true, where:['out','gravel','balcony','home','pad']},   // Kochik is an adult: outside is the norm; on the balcony she goes on the gravel or just on its floor
-  kishmish: {name:'קישמיש', born:'2026-09-20', poopType:true, items:['crate','pee','poop','food','sleep','cry'], cycle:true, where:['gravel','pad','floor','out']}   // not "in the crate": she does not go there (the owner's working assumption)
+  kishmish: {name:'קישמיש', born:'2026-09-20', poopType:true, items:['crate','pee','poop','food','sleep','cry'], cycle:true, where:['gravel','pad','floor','crate','out']}   // "in the crate" since 25.11: she pooped there once (`pottyInCrate`)
 };
 const ITEMS = {
   food:{lbl:'מאז האוכל האחרון',btn:'אכלה',log:'אכלה'},
@@ -1199,6 +1199,14 @@ function usualWait(p, kinds, from, to){   // median wait for these kinds in a pe
   const g = state.log.filter(e => e.p===p && kinds.includes(e.k) && e.t >= from && e.t < to).map(waitOf).filter(w => w != null);
   return g.length ? {ms: median(g), n: g.length} : null;
 }
+// "בכלוב" (offered for Kishmish since 25.11, when she pooped in the crate): the pee / poop did not take her out.
+// Logging it ended the running stay at its time (`impliesOut`); choosing "in the crate" reopens that stay —
+// unless a later crate stay has begun since. A sleep it ended stays ended: she was awake to do it.
+function pottyInCrate(x){
+  if(!x || !PETS[x.p].cycle || !OUT_KINDS[x.k]) return;
+  const c = state.log.find(e => e.p===x.p && e.k==='crate' && e.end === x.t);
+  if(c && !state.log.some(e => e.p===x.p && e.k==='crate' && e !== c && e.t > c.t)) delete c.end;
+}
 function impliesOut(p, k, t){
   if(PETS[p].cycle && OUT_KINDS[k]) endGravel(p, t);
   if(!PETS[p].cycle || !(OUT_KINDS[k] || AWAKE_KINDS[k])) return;
@@ -1687,7 +1695,7 @@ function groupedHTML(p, from, to){
   // time or seconds after it — happened before she went in, so it is listed with the round that is ending.
   const at = e => {
     if(WITH_NEW_ROUND[e.k] && !e.assumed){ const r = rs.find(r => r.t > e.t && min(r.t) === min(e.t)); if(r) return r.t; }
-    if(OUT_KINDS[e.k]){ const r = rs.find(r => r.t <= e.t && min(r.t) === min(e.t)); if(r) return r.t - 1; }
+    if(OUT_KINDS[e.k] && e.w !== 'crate'){ const r = rs.find(r => r.t <= e.t && min(r.t) === min(e.t)); if(r) return r.t - 1; }
     return e.t;
   };
   const rows = ev => ev.length ? ev.map(logRow).join('') : `<div class="empty">אין רישומים</div>`;
@@ -2514,7 +2522,7 @@ function whereSheet(id){
     <div class="foot"><span></span><button class="btn" id="cancel">דילוג</button></div>`;
   sh.querySelectorAll('[data-w]').forEach(b => b.onclick = () => {
     close();
-    commit('', () => { const x = find(); if(x) x.w = b.dataset.w; }, {quiet:true});   // the undo toast of the pee itself stays up
+    commit('', () => { const x = find(); if(!x) return; if(b.dataset.w === 'crate' && x.w !== 'crate') pottyInCrate(x); x.w = b.dataset.w; }, {quiet:true});   // the undo toast of the pee itself stays up
     next();
   });
   sh.querySelector('#cancel').onclick = () => { close(); next(); };
@@ -2766,6 +2774,7 @@ function openEntrySheet(i){
       if(d.getTime() === e.t && w === e.w && q === e.q && mk === mk0 && nm === (e.n || '') && gm === e.g) return;
       commit(`${name} · ${it.log} עודכן`, () => {
         const x = find(); if(!x) return;
+        if(w === 'crate' && x.w !== 'crate') pottyInCrate(x);   // before the time moves: the stay ended at the old time
         if(w) x.w = w; else delete x.w;
         if(q) x.q = q; else delete x.q;
         if(nm) x.n = nm; else delete x.n;

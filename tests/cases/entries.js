@@ -5,7 +5,7 @@
     const now = Date.now(), near = (a, b) => Math.abs(a - b) < 3000, late = now - midnight() > 200*MIN;
     const type = v => { const a = sh.querySelector('#agoIn'); a.value = v; a.dispatchEvent(new Event('input', { bubbles: true })); };
     tapPoint('kishmish', 'pee');
-    ok('after a pee the app asks where: gravel first, no "in the crate"', bg.classList.contains('show') && [...sh.querySelectorAll('[data-w]')].map(b => b.dataset.w).join() === 'gravel,pad,floor,out');
+    ok('after a pee the app asks where: gravel first, "in the crate" too (since 25.11)', bg.classList.contains('show') && [...sh.querySelectorAll('[data-w]')].map(b => b.dataset.w).join() === 'gravel,pad,floor,crate,out');
     sh.querySelector('#cancel').click();
     ok('skipped -> the tile offers "where?"', !logOf('kishmish', 'pee')[0].w && !!$q('[data-act=where][data-k=pee]'));
     $q('[data-act=where][data-k=pee]').click(); sh.querySelector('[data-w=pad]').click();
