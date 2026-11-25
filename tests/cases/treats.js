@@ -68,7 +68,8 @@
     ok('the same whatever period is shown', w === txt && $q('.fat30').textContent === txt); sumMode = 'day'; sumAnchor = now;
     seed([fat(3, 'shai'), dia(1)]); view = 'sum'; render(); ok('one', $q('.fat30').textContent.includes('שלשול אחד') && $q('.fat30').textContent.includes('הוא היה בתוך 24 שעות אחרי חטיף שומני'));
     seed([dia(1), dia(30)]); view = 'sum'; render(); ok('none of them', $q('.fat30').textContent.includes('2 שלשולים') && $q('.fat30').textContent.includes('אף אחד מהם לא היה'));
-    seed([{ ...KO0, k:'food', t: now - HOUR }, fat(2, 'shai'), { ...KO0, k:'treat', t: now - 3*HOUR, q:'reg' }]); view = 'sum'; render();
+    const early = Math.max(m0 + MIN, now - 3*HOUR), later = Math.max(m0 + 2*MIN, now - 2*HOUR);   // both today, also just after midnight
+    seed([{ ...KO0, k:'food', t: now - HOUR }, { ...KO0, k:'treat', t: later, q:'fat', by:'shai' }, { ...KO0, k:'treat', t: early, q:'reg' }]); view = 'sum'; render();
     ok('no diarrhoea: it says so; and the period\'s tiles count the treats', $q('.fat30').textContent.includes('לא נרשמו שלשולים') && [...document.querySelectorAll('.tile')].some(t => t.textContent.includes('חטיפים') && t.querySelector('b').textContent === '2' && t.textContent.includes('שומניים 1')));
     pet = 'kishmish'; render(); ok('nothing of this in kishmish\'s summary', !$q('.fat30') && ![...document.querySelectorAll('.tile')].some(t => t.textContent.includes('חטיפים'))); view = 'now';
     done();
