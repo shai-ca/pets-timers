@@ -74,6 +74,7 @@
     $q('.water [data-act=pt][data-k=water]').click(); sh.querySelector('[data-m="0"]').click();
     ok('"she drank" now: logged with who saw it, shown on the row and in the history', logOf('kochik', 'water').length === 1 && logOf('kochik', 'water')[0].by === 'shai' && !('w' in logOf('kochik', 'water')[0]) && $q('.water').textContent.includes('פעם אחרונה: היום') && $q('#main .log').textContent.includes('שתתה') && $q('#main .log .by').textContent === 'שי');
     DUP_MS = 0; $q('.water [data-act=pt][data-k=water]').click(); sh.querySelector('[data-day="1"]').click(); sh.querySelector('#tIn').value = '21:00'; sh.querySelector('#ok').click();
+    ok('an earlier time than the last one asks first ("כבר רשום מאוחר יותר")', !!sh.querySelector('#addb')); sh.querySelector('#addb').click();
     ok('another time works: yesterday at 21:00', logOf('kochik', 'water').length === 2 && logOf('kochik', 'water')[0].t === midnight() - 3*HOUR);
     $q('.r[data-e="' + state.log.indexOf(logOf('kochik', 'water')[0]) + '"]').click(); sh.querySelector('#del').click();
     ok('the entry can be deleted from the history like any other', logOf('kochik', 'water').length === 1);

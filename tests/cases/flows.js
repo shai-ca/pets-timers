@@ -71,14 +71,9 @@
     ok('"הוספת רישום": a bath three days ago at 18:00', logOf('kishmish', 'bath').some(e => e.t === d3.getTime()));
     click('#sec-bath [data-act=pt][data-k=bath]');
     ok('"קילחתי"', logOf('kishmish', 'bath').length === 2);
-    // the extra lines: in the new design behind "עוד"; in the old one shown as always
+    // the extra lines simply show (no "עוד", owner 25.11), and the cards have no "שעה אחרת" (the main button asks when)
     const peeCard = () => $q('#sec-potty [data-act=pt][data-k=pee]').closest('.card');
-    if(V2){
-      const more = peeCard().querySelector('[data-act=more]');
-      ok('new design: the pee card folds its extra lines behind "עוד"', !!more && [...peeCard().querySelectorAll('.hint.x')].every(x => !x.getClientRects().length));
-      more.click();
-      ok('"עוד" unfolds them', [...peeCard().querySelectorAll('.hint.x')].every(x => x.getClientRects().length > 0));
-    } else ok('old design: the extra lines are shown and there is no "עוד"', !peeCard().querySelector('[data-act=more]') || !peeCard().querySelector('[data-act=more]').getClientRects().length);
+    ok('no "עוד" and no "שעה אחרת" on the cards; the extra lines show', !peeCard().querySelector('[data-act=more]') && !$q('.card.item [data-act=edit][data-k=pee]') && [...peeCard().querySelectorAll('.hint.x')].every(x => x.getClientRects().length > 0));
     // a step of the routine jumps to its cards
     click('button[data-go=food]');
     ok('a step of the routine jumps to its cards', $q('#sec-food').classList.contains('flash') || [...$q('#sec-food').querySelectorAll('.card')].some(c => c.classList.contains('flash')));

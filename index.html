@@ -448,12 +448,12 @@
   .dsw .lnk{color:var(--muted)}
   .morebtn{display:none}
   .v2 .morebtn{display:inline-block;margin-top:2px;font-size:12.5px;color:var(--acc);padding:2px 0}
-  .v2 .card.item:not(.open) .hint.x{display:none}
+  /* (25.11 the owner: "עוד" revealed one line — the lines now simply show; `x` / "עוד" left unused) */
   /* flatter: no box around a group, just its heading */
   .v2 h2.sec{margin:14px 2px 0;font-size:13px;color:var(--muted);font-weight:600}
   .v2 h2.sec.now{color:var(--ink)}
   .v2 .grp{gap:8px}
-  .v2 .card{border-radius:16px;box-shadow:none}
+  .v2 .card{border-radius:16px;box-shadow:none;border-color:transparent}   /* one flat colour, no outline (owner, 25.11) */
   /* tiles as rows: icon · clock and one line · the button */
   .v2 .item{grid-template-columns:38px minmax(0,1fr) auto;gap:12px;padding:12px 14px}
   .v2 .item .ic{width:38px;height:38px;border-radius:12px}
@@ -2366,10 +2366,9 @@ function render(){
           <div class="sub">${t ? `${dayLabel(t)} ב־${clock(t)}${whereOf(pet,k,t) || (hasWhere(k) ? ` · <button class="lnk" data-act="where" data-k="${k}">איפה?</button>` : '')}${typeOf(pet,k,t)}${byOf(pet,k,t)}` : 'עוד לא נרשם'}</div>
           ${P.cycle && k === 'pee' ? peeCardLines(pet) : ''}${k === 'pee' ? holdHint(pet) : ''}${P.cycle && k === 'poop' ? mealPoopHTML(pet) + poopLine(pet) + (V2 && !mealPoopCue(pet) ? gaugeHTML(poopWindow(pet), 'לחלון', 'הקקי האחרון ב־') : '') + poopHints(pet) : ''}${P.cycle && k === 'food' && S.bite > (S.food || 0) ? `<div class="sub hint bite">ביס אחרון ב־<bdi dir="ltr">${clock(S.bite)}</bdi> · לא מאפס את השעון</div>` : ''}${P.cycle && k === 'food' ? mealLine(pet) + (V2 ? gaugeHTML(mealWindow(pet), 'לארוחה', 'הארוחה האחרונה ב־') : '') : ''}${k === 'bath' ? bathLine(pet) + (V2 && !noBathUntil(pet) ? gaugeHTML(bathWindow(pet), 'למקלחת', 'המקלחת האחרונה ב־') : '') : ''}${GROOM[pet] && ['flea','brush','teeth','weight'].includes(k) ? groomLine(pet, k) : ''}${todayWhere(pet,k) ? `<div class="sub hint x">${todayWhere(pet,k)}</div>` : ''}${P.cycle && typical(pet,k) ? `<div class="sub hint x">${typical(pet,k)}</div>` : ''}${it.note ? `<div class="sub hint x">${it.note}</div>` : ''}MOREBTN</div>
         <div class="acts"><button class="go" data-act="pt" data-k="${k}">${it.btn}</button>
-          <button class="ghost" data-act="edit" data-k="${k}">${ico('clock','s')}שעה אחרת</button>
           ${P.cycle && k === 'food' ? `<button class="ghost" data-act="nofood">${ico('none','s')}לא אכלה</button>` : ''}</div></div>`;
       // "עוד" (new design): the reference lines (class `x`) fold away until asked for; the old design shows them as always.
-      h = h.replace('MOREBTN', /class="sub hint[^"]*\bx\b/.test(h) ? `<button class="lnk morebtn" data-act="more" data-k="${k}">${openX.has(pet+k) ? 'פחות' : 'עוד'}</button>` : '');
+      h = h.replace('MOREBTN', '');   // no "עוד" (owner, 25.11): it only ever hid a line or two
     } else {
       const d = S[k] || {}, live = !!d.start, tt = todayTotal(pet,k);
       let lbl, big, sub;
@@ -2610,7 +2609,7 @@ function openHelp(){
       <p><b>מסמנים רק בכרטיסים.</b> בכל כרטיס יש כפתור: נכנסה לכלוב, פיפי, קקי, לא עשתה, אכלה וכו׳.</p>
       <p><b>הגלגל מתקדם לבד.</b> הוא מראה באיזה שלב של השגרה נמצאים (כלוב ← טיול וצרכים ← משחק ← אוכל ← צרכים) ומה השלב הבא. לחיצה על שלב בגלגל מקפיצה לכרטיסים שלו.</p>
       <p><b>״עכשיו בשגרה״.</b> הכרטיסים עם התווית הזו הם מה שצריך לסמן עכשיו כדי להתקדם.</p>
-      <p><b>שכחתם לסמן בזמן?</b> ״שעה אחרת״ בכרטיס, ושם בוחרים לפני כמה דקות זה קרה.</p>
+      <p><b>שכחתם לסמן בזמן?</b> כל כפתור שואל ״מתי?״: עכשיו, לפני כמה דקות, או שעה אחרת.</p>
       <p><b>טעיתם?</b> ״ביטול״ בפס השחור למטה, או לחיצה על הרישום ברשימה כדי לתקן או למחוק. הגלגל מתעדכן בהתאם.</p>
     </div>
     <div class="foot"><span></span><button class="btn primary" id="cancel">הבנתי</button></div>`;
@@ -3872,7 +3871,7 @@ document.getElementById('shell').addEventListener('click', e => {
   else if(a==='ptype'){ const e = state.log.filter(x => x.p===pet && x.k===k).pop(); if(e) typeSheet(e.id); }
   else if(a==='pt' && k === 'weight') weightSheet(pet);
   else if(a==='pt'){
-    const ask = () => askWhen(`${PETS[pet].name} · ${ITEMS[k].log} — מתי?`, ts => tapPoint(pet, k, ts, true));
+    const ask = () => askWhen(`${PETS[pet].name} · ${ITEMS[k].log} — מתי?`, ts => ts ? logAt(pet, k, ts) : tapPoint(pet, k, ts, true));   // an earlier time: logAt asks if a later one is already logged
     const d = recentDouble(pet, e => e.k === k);
     if(d) askAgain(d, ITEMS[k].log, ask); else ask();
   }

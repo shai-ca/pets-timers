@@ -24,9 +24,9 @@
         ok('a future time is refused', bg.classList.contains('show') && sh.querySelector('#tIn').classList.contains('bad')); close();
       }
       // "how many minutes ago"
-      $q('[data-act=edit][data-k=poop]').click(); type('23'); sh.querySelector('#ok').click(); close();
+      openSheet('kishmish', 'poop'); type('23'); sh.querySelector('#ok').click(); close();
       ok('poop logged 23 minutes ago', near(K().poop, now - 23*MIN));
-      $q('[data-act=edit][data-k=poop]').click(); type('5000'); sh.querySelector('#ok').click();
+      openSheet('kishmish', 'poop'); type('5000'); sh.querySelector('#ok').click();
       ok('a silly number is refused', bg.classList.contains('show') && sh.querySelector('#agoIn').classList.contains('bad') && logOf('kishmish', 'poop').length === 1); close();
       // running timers are entries
       $q('[data-act=edit][data-k=crate]').click(); ok('add sheet: end time empty by default', sh.querySelector('#bIn').value === '');

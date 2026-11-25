@@ -18,7 +18,7 @@
     ok('the day before yesterday works too', logOf('kochik', 'pee')[0].t === at(2, 9, 30));
     tile('poop').click();
     ok('the choice does not stick: the next sheet starts on "today"', sh.querySelector('[data-day].sel').dataset.day === '0'); close();
-    $q('[data-act=edit][data-k=vomit]').click();
+    openSheet('kochik', 'vomit');
     ok('the tile\'s "other time" sheet has the day choice as well', sh.querySelectorAll('[data-day]').length === 3); close();
     $q('[data-act=addev]').click();
     ok('kochik\'s history has "add an entry", with vomiting among the kinds and the day choice', !!sh.querySelector('[data-kind=vomit]') && sh.querySelectorAll('[data-day]').length === 7);
