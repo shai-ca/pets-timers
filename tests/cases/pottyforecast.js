@@ -39,6 +39,7 @@
     // --- step 4: poop by meals
     seed([{...K0, k:'pee', t: now - 30*MIN, w:'gravel'}, {...K0, k:'food', t: now - 12*MIN, m:'meal'}]);
     ok('12 min after a meal: "a poop is possible", until meal + 30', $q('#sec-potty .mealpoop').textContent.includes('קקי אפשרי') && $q('#sec-potty .mealpoop').textContent.includes(clock(now - 12*MIN + 30*MIN)));
+    ok('while the after-meal line shows, the usual-window bar ("עוד … לחלון") is hidden', !$q('#sec-potty [data-act=pt][data-k=poop]').closest('.card').querySelector('.gauge') && !$q('#sec-potty [data-act=pt][data-k=poop]').closest('.card').textContent.includes('לחלון'));
     ok('…the crate card says "gravel before the crate"', !!$q('#sec-crate .mealcrate') && $q('#sec-crate .mealcrate').textContent === 'כדאי לנסות חצץ לפני כלוב');
     ok('…and the gravel card "a good time to go to the gravel"', gv().startsWith('זה זמן טוב לצאת לחצץ') && gv().includes('אחרי ארוחה'));
     seed([{...K0, k:'pee', t: now - 30*MIN, w:'gravel'}, {...K0, k:'food', t: now - 20*MIN, m:'meal'}]);
