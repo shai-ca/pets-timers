@@ -63,7 +63,8 @@
       for(const k of ['pee','poop','none','food','water']){
         seed([{ p:'kishmish', k:'crate', t: now - 60*MIN }, { p:'kishmish', k:'sleep', t: now - 50*MIN }]);
         tapPoint('kishmish', k); close();
-        if(k === 'food' || k === 'water') ok(`logging "${ITEMS[k].log}" leaves her in the crate — but awake: the marked sleep ends`, !!K().crate.start && logOf('kishmish', 'crate').length === 1 && !K().sleep.start && !!logOf('kishmish', 'sleep')[0].end);
+        if(k === 'water') ok('logging "שתתה" takes her out of the crate and wakes her, at its own time (v3, owner)', !K().crate.start && logOf('kishmish', 'crate').length === 1 && !!logOf('kishmish', 'crate')[0].end && !K().sleep.start && !!logOf('kishmish', 'sleep')[0].end);
+        else if(k === 'food') ok(`logging "${ITEMS[k].log}" leaves her in the crate — but awake: the marked sleep ends`, !!K().crate.start && logOf('kishmish', 'crate').length === 1 && !K().sleep.start && !!logOf('kishmish', 'sleep')[0].end);
         else ok(`logging "${ITEMS[k].log}" ends the crate stay and the sleep`, (k === 'none' ? logOf('kishmish', 'crate').length === 2 : !K().crate.start) && !K().sleep.start && !!logOf('kishmish', 'crate')[0].end && logOf('kishmish', 'sleep')[0].end === logOf('kishmish', 'crate')[0].end);
       }
       seed([{ p:'kishmish', k:'crate', t: now - 60*MIN }, { p:'kishmish', k:'sleep', t: now - 50*MIN }]);

@@ -8,11 +8,11 @@
       log: [ { p:'kochik', k:'food', t: early, by:'shai' }, { p:'kochik', k:'med_am', t: early + MIN },
              { p:'kishmish', k:'pee', t: now - 22*HOUR }, { p:'kishmish', k:'pee', t: now - 50*MIN, w:'gravel' }, { p:'kishmish', k:'food', t: now - 2*HOUR },
              { p:'kishmish', k:'crate', t: now - 5*HOUR, end: now - 4*HOUR }, { p:'kishmish', k:'crate', t: now - 5*HOUR, end: now - 4.5*HOUR },
-             { p:'kishmish', k:'sleep', t: now - 9*HOUR, end: now - 8*HOUR }, { p:'kishmish', k:'pen', t: 5 }, null ] };
+             { p:'kishmish', k:'sleep', t: now - 9*HOUR, end: now - 8*HOUR }, { p:'kishmish', k:'bogus', t: 5 }, null ] };
     const a = norm(clone(v1)), b = norm(clone(v1));
     ok('every phone derives the same ids', canon(a) === canon(b) && a.log.every(e => e.id));
     ok('idempotent: normalising again changes nothing', canon(norm(clone(a))) === canon(a));
-    ok('version stamped, unknown kinds and junk dropped, old pet objects kept aside', a.v === 2 && !a.kishmish && a.legacy.kishmish.pee === now - 22*HOUR && a.log.every(e => e && e.k !== 'pen'));
+    ok('version stamped, unknown kinds and junk dropped, old pet objects kept aside', a.v === 2 && !a.kishmish && a.legacy.kishmish.pee === now - 22*HOUR && a.log.every(e => e && e.k !== 'bogus'));
     ok('both of the look-alike crate stays survive', a.log.filter(e => e.k === 'crate' && e.end).length === 2);
     use(a, clone(a)); render();
     ok('the running crate timer became an entry and still runs from the same time', K().crate.start === now - 40*MIN && logOf('kishmish', 'crate').some(e => e.end == null && e.t === now - 40*MIN) && !!$q('.card.item.live'));
