@@ -97,7 +97,7 @@ function strHash(s){ let h = 0; for(let i = 0; i < s.length; i++) h = (h * 31 + 
     ok('peeGapsObs: gaps with afterWake, "לא עשתה" as an attempt with no pee observed', pg.gaps.length === 2 && pg.gaps[0].afterWake === true && pg.gaps[1].afterWake === false && pg.gaps[0].gap === 3*HOUR && pg.gaps.every(g => g.outcome === 'pee' && g.night === false)
       && pg.attempts.length === 1 && pg.attempts[0].outcome === 'none' && pg.attempts[0].note === 'no pee observed in that attempt');
     // ---- stubs and hooks
-    ok('advice / kochikBaseline are stubs; adviceHTML empty', canon(advice('kishmish')) === canon({level:'none', text:'', why:''}) && canon(kochikBaseline('kochik')) === canon({enough:false}) && adviceHTML('kishmish') === '');
+    ok('advice is a stub; no Kochik data → kochikBaseline enough:false, no text (Agent C); adviceHTML empty', canon(advice('kishmish')) === canon({level:'none', text:'', why:''}) && kochikBaseline('kochik').enough === false && kochikBaselineText('kochik') === '' && adviceHTML('kishmish') === '');
     ok('nightCardsHTML is the night screen', typeof nightCardsHTML === 'function');
     // ---- new kinds: kept by norm, labelled, listed
     const kinds = [{ ...K0, k:'cset', t: now - 50*MIN, door:'open', cover:'uncovered' }, { ...K0, k:'carrier', t: now - 40*MIN, end: now - 35*MIN }, { ...K0, k:'pen', t: now - 30*MIN, end: now - 25*MIN }, { ...K0, k:'away', t: now - 20*MIN, end: now - 10*MIN, ctx:'room', res:'calm' }];

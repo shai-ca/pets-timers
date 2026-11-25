@@ -1345,8 +1345,124 @@ function peeGapsObs(p, from, to, opts){
 function advice(p){ return {level: 'none', text: '', why: ''}; }
 // adviceHTML(p): the advice slot in the side column (Agent E draws it). Empty while `advice` says nothing.
 function adviceHTML(p){ const a = advice(p); return a.level === 'none' ? '' : `<div class="card slim advice ${a.level}"><span><b>${esc(a.text)}</b>${a.why ? `<small>${esc(a.why)}</small>` : ''}</span></div>`; }
-// kochikBaseline(p) -> {enough:false} for now. STUB — Agent C (Kochik) fills it.
-function kochikBaseline(p){ return {enough: false}; }
+// KOCHIK'S PERSONAL BASELINE (v3, Agent C). Derived from the list every time, nothing stored. Per metric three views:
+//  short — the last KOCHIK_BASE.short full days (rolling, ends at today's midnight);
+//  long  — KOCHIK_BASE.long days ending at the latest week boundary (KOCHIK_BASE.weekday, 00:00), so it moves once a week;
+//  refs  — FIXED periods that never move: her first full week of data, then each finished calendar month.
+// Each period carries its own logging frequency (entries / day, days with a pee, share of daytime hours with any entry),
+// so a drop in logging is never read as a drop in peeing. Counts per day are over days with any entry. Drinks are a COUNT
+// of "שתתה" taps, never an amount. No score, no target, no diagnosis; the text (kochikBaselineText) says at most
+// "similar" / "different — worth a look (less / more X)" / "logging changed", and nothing before KOCHIK_BASE.minDays.
+const KOCHIK_BASE = {
+  short: 7, long: 30, weekday: 0,            // long = 30 days before the latest Sunday 00:00
+  minDays: 21,                               // days of data before any comparison text
+  firstRef: 7, minRefDays: 7,                // the first full week; a month counts once it has 7 days of data
+  minObs: {days: 4, gaps: 4, poops: 5},      // per metric: fewer days with entries / gaps / marked poops → it says nothing
+  logRatio: 1.5,                             // logging is comparable when each logging measure is within this factor
+  spreadK: 1, floor: {perDay: .5, gap: 20*60000, share: .15},   // a difference must exceed max(spreadK × spread, floor)
+  dayHours: [7, 22],                         // the hours counted for "share of hours logged" (nights are mostly unlogged)
+  max: 2,                                    // at most this many metrics named in the text
+};
+const KB_SKIP = {born: 1, cset: 1};
+const POOP_Q = q => q === 'ok' || q === 'soft' || q === 'dia' ? q : 'unmarked';
+const MONTHS_HE = ['ינואר', 'פברואר', 'מרץ', 'אפריל', 'מאי', 'יוני', 'יולי', 'אוגוסט', 'ספטמבר', 'אוקטובר', 'נובמבר', 'דצמבר'];
+const KB_METRICS = [
+  {key: 'pee', kind: 'perDay', less: 'פחות פיפי', more: 'יותר פיפי'},
+  {key: 'drink', kind: 'perDay', less: 'פחות פעמים ששתתה', more: 'יותר פעמים ששתתה'},
+  {key: 'meal', kind: 'perDay', less: 'פחות ארוחות', more: 'יותר ארוחות'},
+  {key: 'poop', kind: 'perDay', less: 'פחות קקי', more: 'יותר קקי'},
+  {key: 'vomit', kind: 'perDay', less: 'פחות הקאות', more: 'יותר הקאות'},
+  {key: 'gap', kind: 'gap', less: 'פחות זמן בין פיפי לפיפי', more: 'יותר זמן בין פיפי לפיפי'},
+  {key: 'dia', kind: 'share', less: 'פחות שלשולים', more: 'יותר שלשולים'},
+];
+function kbAdd(t, n){ const d = new Date(t); d.setDate(d.getDate() + n); return d.getTime(); }
+function kbSpread(v){ const n = v.length; if(!n) return {n: 0, mean: null, sd: null}; const m = v.reduce((a, b) => a + b, 0) / n; return {n, mean: m, sd: n > 1 ? Math.sqrt(v.reduce((a, x) => a + (x - m) ** 2, 0) / (n - 1)) : 0}; }
+// One period [from, to) (both local midnights) of dog p; L = her entries sorted by time.
+function kbStats(p, from, to, L){
+  const B = KOCHIK_BASE, E = L.filter(e => e.t >= from && e.t < to && !KB_SKIP[e.k]), days = [], byDay = {};
+  for(let d = from; d < to; d = kbAdd(d, 1)) days.push(d);
+  for(const e of E) (byDay[dayKey(e.t)] = byDay[dayKey(e.t)] || []).push(e);
+  const logged = days.filter(d => byDay[dayKey(d)]);
+  const per = f => kbSpread(logged.map(d => byDay[dayKey(d)].filter(f).length));
+  const pees = E.filter(e => e.k === 'pee').map(e => e.t), g = [];
+  for(let i = 1; i < pees.length; i++){ const a = pees[i-1], b = pees[i], d = b - a; if(d >= 10*60000 && d <= PLAN.kochikLong && !planNight(a, b)) g.push(d); }
+  g.sort((x, y) => x - y);
+  const pk = {ok: 0, soft: 0, dia: 0, unmarked: 0};
+  for(const e of E) if(e.k === 'poop') pk[POOP_Q(e.q)]++;
+  const marked = pk.ok + pk.soft + pk.dia;
+  const W = E.filter(e => e.k === 'weight' && typeof e.kg === 'number');
+  let meds = null;
+  if(PETS[p] && PETS[p].meds){
+    meds = {given: 0, due: 0};
+    const off = L.filter(e => e.k === 'medoff');
+    for(const d of days){
+      const d1 = kbAdd(d, 1); if(off.some(e => e.t < d1 && (e.end == null ? Infinity : e.end) > d)) continue;
+      for(const s of ['am', 'pm']){ meds.due++; if((byDay[dayKey(d)] || []).some(e => e.k === 'med_' + s)) meds.given++; }
+    }
+    meds.share = meds.due ? meds.given / meds.due : null;
+  }
+  const sl = E.filter(e => e.k === 'sleep' && e.end != null);
+  const hrs = new Set(E.filter(e => { const h = new Date(e.t).getHours(); return h >= B.dayHours[0] && h < B.dayHours[1]; }).map(e => dayKey(e.t) + ' ' + new Date(e.t).getHours()));
+  return {from, to, days: days.length,
+    pee: per(e => e.k === 'pee'), drink: per(e => e.k === 'water'), meal: per(e => e.k === 'food'), poop: per(e => e.k === 'poop'), vomit: per(e => e.k === 'vomit'),
+    gap: {n: g.length, med: g.length ? quantile(g, .5) : null, q25: g.length ? quantile(g, .25) : null, q75: g.length ? quantile(g, .75) : null},
+    poopKind: {...pk, n: marked, dia: marked ? pk.dia / marked : null},
+    weight: {n: W.length, first: W.length ? W[0].kg : null, last: W.length ? W[W.length-1].kg : null, mean: W.length ? W.reduce((a, e) => a + e.kg, 0) / W.length : null},
+    meds, sleep: {n: sl.length, hoursPerDay: logged.length ? sl.reduce((a, e) => a + (e.end - e.t), 0) / 3600000 / logged.length : null},
+    logging: {entries: E.length, entriesPerDay: days.length ? E.length / days.length : 0, days: days.length, daysLogged: logged.length,
+      daysWithPee: logged.filter(d => byDay[dayKey(d)].some(e => e.k === 'pee')).length, hoursShare: days.length ? hrs.size / (days.length * (B.dayHours[1] - B.dayHours[0])) : 0}};
+}
+// Is logging in period a comparable to period b? Entries / day, share of daytime hours logged, share of days with a pee.
+function kbLogOK(a, b){
+  const r = KOCHIK_BASE.logRatio, near = (x, y) => x > 0 && y > 0 ? Math.max(x / y, y / x) <= r : x === y;
+  return near(a.entriesPerDay, b.entriesPerDay) && near(a.hoursShare, b.hoursShare) && near(a.daysWithPee / (a.days || 1), b.daysWithPee / (b.days || 1));
+}
+// a (recent) against b (reference): {logging: comparable?, m: {key: {v:'same'|'less'|'more'|'few', diff, thr}}}.
+function kbCompare(a, b){
+  const B = KOCHIK_BASE, m = {};
+  for(const x of KB_METRICS){
+    let diff = null, thr = null, few = false;
+    if(x.kind === 'perDay'){ const s = a[x.key], r = b[x.key]; few = s.n < B.minObs.days || r.n < B.minObs.days; if(!few){ diff = s.mean - r.mean; thr = Math.max(B.spreadK * r.sd, B.floor.perDay); } }
+    else if(x.kind === 'gap'){ few = a.gap.n < B.minObs.gaps || b.gap.n < B.minObs.gaps; if(!few){ diff = a.gap.med - b.gap.med; thr = Math.max(B.spreadK * (b.gap.q75 - b.gap.q25), B.floor.gap); } }
+    else { const s = a.poopKind, r = b.poopKind; few = s.n < B.minObs.poops || r.n < B.minObs.poops; if(!few){ diff = s.dia - r.dia; thr = Math.max(B.floor.share, 2 * Math.sqrt(r.dia * (1 - r.dia) / s.n)); } }
+    m[x.key] = {v: few ? 'few' : Math.abs(diff) > thr ? (diff < 0 ? 'less' : 'more') : 'same', diff, thr};
+  }
+  return {logging: kbLogOK(a.logging, b.logging), m};
+}
+// kochikBaseline(p, now?, opts?) → {enough, days, asOf, short, long, refs:[{id, label, ...stats}], logging:{short, long, refs},
+//   cmp:{long, first}}  (cmp = short against long / against the first fixed week; null when either is missing).
+function kochikBaseline(p, now, opts){
+  const B = KOCHIK_BASE, o = opts || {}; now = now != null ? now : Date.now();
+  const L = (o.log || state.log).filter(e => e.p === p && e.t <= now && !KB_SKIP[e.k]).sort((x, y) => x.t - y.t);
+  if(!L.length) return {enough: false, days: 0, asOf: null, short: null, long: null, refs: [], logging: {short: null, long: null, refs: []}, cmp: null};
+  const today = sod(now).getTime(), start = sod(L[0].t).getTime(), d0 = kbAdd(start, 1);
+  const days = Math.round((today - start) / 86400000);
+  let wk = today; while(new Date(wk).getDay() !== B.weekday) wk = kbAdd(wk, -1);
+  const short = kbStats(p, kbAdd(today, -B.short), today, L), long = kbStats(p, kbAdd(wk, -B.long), wk, L);
+  const refs = [];
+  if(kbAdd(d0, B.firstRef) <= today) refs.push({id: 'first', label: 'השבוע הראשון', ...kbStats(p, d0, kbAdd(d0, B.firstRef), L)});
+  for(let m = new Date(start); ; m.setMonth(m.getMonth() + 1)){
+    m.setDate(1); m.setHours(0, 0, 0, 0);
+    const a = Math.max(m.getTime(), d0), e = new Date(m); e.setMonth(e.getMonth() + 1);
+    if(e.getTime() > today) break;
+    if(Math.round((e.getTime() - a) / 86400000) >= B.minRefDays) refs.push({id: dayKey(m.getTime()).slice(0, 7), label: `${MONTHS_HE[m.getMonth()]} ${m.getFullYear()}`, ...kbStats(p, a, e.getTime(), L)});
+  }
+  const first = refs.find(r => r.id === 'first');
+  return {enough: days >= B.minDays, days, asOf: wk, short, long, refs,
+    logging: {short: short.logging, long: long.logging, refs: refs.map(r => ({id: r.id, ...r.logging}))},
+    cmp: {long: kbCompare(short, long), first: first ? kbCompare(short, first) : null}};
+}
+// kochikBaselineText(p, now?) → one short line or ''. Agent E decides where it goes; the how-it-is-computed details stay
+// behind "איך זה מחושב". Short (last 7 days) against long (30 days to the week boundary) only.
+function kochikBaselineText(p, now, opts){
+  const b = kochikBaseline(p, now, opts);
+  if(!b.enough || !b.cmp) return '';
+  const c = b.cmp.long, keys = KB_METRICS.filter(x => c.m[x.key].v !== 'few');
+  if(!keys.length) return '';
+  if(!c.logging) return 'התיעוד השתנה, אי אפשר להשוות';
+  const d = keys.filter(x => c.m[x.key].v === 'less' || c.m[x.key].v === 'more').slice(0, KOCHIK_BASE.max);
+  return d.length ? `שונה מהשבועות הקודמים — כדאי לשים לב (${d.map(x => x[c.m[x.key].v]).join(' · ')})` : 'דומה לשבועות הקודמים';
+}
 // PREDICTION CONTRACTS consumed by tracking, advice, summary and planning (v3). Stubs here; the owners fill them:
 //   wakeExpect   — Agent B (Kishmish).  pottyExpect — Agent B (Kishmish).  kochikExpect — Agent C (Kochik).
 // Planning (Agent D) and the UI (Agent E) only CALL these — they never compute their own predictions.
@@ -1356,8 +1472,30 @@ function wakeExpect(p, now){ return {state:'unknown', since:null, sleepOn:null, 
 // pottyExpect(p, now?) → {pee: {from, to, trigger:'wake'|'gap'|'age'|'none', src:'learned'|'rule'|'none', n} | null,
 //   poop: {from, to, trigger:'meal'|'wake'|'gap'|'none', src, n} | null}
 function pottyExpect(p, now){ return {pee:null, poop:null}; }
-// kochikExpect(now?) → {gap, from, to, cap, sick, n, src:'learned'|'cap', drinkFrom?, drinkTo?}  (wraps today's kochikGap rules)
-function kochikExpect(now){ return {gap:null, from:null, to:null, cap:null, sick:false, n:0, src:'stub'}; }
+// kochikExpect(now?) → {gap, from, to, cap, sick, n, src:'learned'|'cap', drinkFrom?, drinkTo?}  (Agent C)
+//  gap  = the 25th percentile of her daytime pee gaps (10 min – PLAN.kochikLong, last PLAN.days, none touching the night
+//         22:30–07:00 — a night gap is never read as holding ability), needs PLAN.kochikMinGaps gaps, capped at cap;
+//  cap  = PLAN.kochikMax, PLAN.kochikSick after diarrhoea / vomiting in the last 24 h (sick = true);
+//  from = her last pee + gap, to = her last pee + cap (null without a pee); src 'cap' = too few gaps, the cap alone;
+//  drinkFrom / drinkTo = a drink after her last pee + PLAN.drink (30–90 min). kochikGap is a thin wrapper of the same rules.
+function kochikRhythm(now, log){
+  now = now != null ? now : Date.now();
+  const L = (log || state.log).filter(e => e.p==='kochik' && e.t <= now), from = now - PLAN.days*86400000;
+  const ts = L.filter(e => e.k==='pee').map(e => e.t).sort((x,y) => x-y), g = [];
+  for(let i = 1; i < ts.length; i++){ const a = ts[i-1], b = ts[i], d = b - a; if(b >= from && d >= 10*PL_M && d <= PLAN.kochikLong && !planNight(a, b)) g.push(d); }
+  g.sort((x,y) => x-y);
+  const sick = L.filter(e => e.t >= now - 24*PL_H && ((e.k==='poop' && e.q==='dia') || e.k==='vomit')).sort((x,y) => x.t-y.t).pop() || null;
+  const cap = sick ? PLAN.kochikSick : PLAN.kochikMax, q = g.length >= PLAN.kochikMinGaps ? quantile(g, PLAN.kochikQ) : 0;
+  const lastPee = ts.length ? ts[ts.length-1] : null;
+  const water = L.filter(e => e.k==='water').sort((x,y) => x.t-y.t).pop();
+  return {gap: q ? Math.min(q, cap) : cap, q, n: g.length, g, cap, sick, lastPee, drink: water && (lastPee == null || water.t > lastPee) ? water.t : null};
+}
+function kochikExpect(now){
+  const r = kochikRhythm(now), out = {gap: r.gap, from: r.lastPee != null ? r.lastPee + r.gap : null, to: r.lastPee != null ? r.lastPee + r.cap : null,
+    cap: r.cap, sick: !!r.sick, n: r.n, src: r.q ? 'learned' : 'cap'};
+  if(r.drink != null){ out.drinkFrom = r.drink + PLAN.drink[0]; out.drinkTo = r.drink + PLAN.drink[1]; }
+  return out;
+}
 function setState(s){ state = s; V = derive(state); }
 setState(state);
 
@@ -3632,16 +3770,8 @@ function planNight(a, b){   // does [a, b] reach into 22:30–07:00 on any night
 }
 function planDays(p, now){ return new Set(state.log.filter(e => e.p===p && e.t <= now && e.t >= now - PLAN.days*86400000).map(e => dayKey(e.t))).size; }
 const plTod = t => (t - sod(t).getTime()) / PL_H;
-// KOCHIK'S RHYTHM: the 25th percentile of her daytime gaps, capped (lower after diarrhoea or vomiting).
-function kochikGap(now){
-  const L = state.log.filter(e => e.p==='kochik' && e.t <= now), from = now - PLAN.days*86400000;
-  const ts = L.filter(e => e.k==='pee').map(e => e.t).sort((x,y) => x-y), g = [];
-  for(let i = 1; i < ts.length; i++){ const a = ts[i-1], b = ts[i], d = b - a; if(b >= from && d >= 10*PL_M && d <= PLAN.kochikLong && !planNight(a, b)) g.push(d); }
-  g.sort((x,y) => x-y);
-  const sick = L.filter(e => e.t >= now - 24*PL_H && ((e.k==='poop' && e.q==='dia') || e.k==='vomit')).sort((x,y) => x.t-y.t).pop() || null;
-  const cap = sick ? PLAN.kochikSick : PLAN.kochikMax, q = g.length >= PLAN.kochikMinGaps ? quantile(g, PLAN.kochikQ) : 0;
-  return {gap: q ? Math.min(q, cap) : cap, q, n: g.length, g, cap, sick};
-}
+// KOCHIK'S RHYTHM: the rules live in `kochikRhythm` / `kochikExpect` (model section); this keeps planning's old shape.
+function kochikGap(now){ const r = kochikRhythm(now); return {gap: r.gap, q: r.q, n: r.n, g: r.g, cap: r.cap, sick: r.sick}; }
 function kochikFirstPee(now){   // when her day usually starts: the median first pee after 06:00
   const by = {};
   for(const e of state.log) if(e.p==='kochik' && e.k==='pee' && e.t <= now && e.t >= now - PLAN.days*86400000 && plTod(e.t) >= 6 && plTod(e.t) < 11){ const k = dayKey(e.t); if(!(by[k] <= plTod(e.t))) by[k] = plTod(e.t); }
