@@ -15,7 +15,7 @@
     }
     sessionStorage.removeItem('load-test'); FAKE_HOUR = 12; FAKE_PHONE = false; SLEEP2_FROM = Infinity; render();   // the checks below describe the day screen
     ok('the saved list was read while loading', state.log.length === 7 && me === 'shai');
-    ok('the page rendered from it', $n('.card.item') === 6 && !!$q('.cyc') && $q('.rc b').textContent === 'כלוב');
+    ok('the page rendered from it', $n('.card.item') === 7 && !!$q('.cyc') && $q('.rc b').textContent === 'כלוב');
     ok('derived values are there straight away: assumed sleep, a retry stay, the checklist', !!K().sleep.start && K().sleep.assumed === true && isRetryStay(state.log.find(e => e.id === 'b')) && !!medsOf('kochik').am);
     done();
   } catch(e){ crashed(e); }

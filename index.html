@@ -401,14 +401,14 @@
   }
   /* ---------- tablets and up: each step's tiles in its own panel, panels side by side ---------- */
   @media (min-width:760px){
-    main.grps{grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;grid-template-areas:"crate potty" "food potty" "play play"}
+    main.grps{grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;grid-template-areas:"crate potty" "food potty" "play play" "bath ."}
     main.grps > .grp{grid-column:auto;background:color-mix(in srgb,var(--card) 62%,transparent);border:1px solid var(--line);border-radius:26px;padding:16px 16px 18px}
     main.grps > .grp.now{border-color:color-mix(in srgb,var(--btn) 60%,transparent);box-shadow:0 0 0 1px color-mix(in srgb,var(--btn) 60%,transparent), 0 10px 30px -18px color-mix(in srgb,var(--btn) 70%,transparent)}
     main.grps > .grp > h2.sec{margin:0 2px 4px;font-size:15.5px}
     main.grps > .grp .card{box-shadow:none}
     main.grps > .grp .card.nowt{box-shadow:0 0 0 2px var(--btn)}
-    #sec-crate{grid-area:crate} #sec-potty{grid-area:potty} #sec-play{grid-area:play} #sec-food{grid-area:food} #sec-meds{grid-area:meds} #sec-vomit{grid-area:vomit}
-    main.grps.solo{grid-template-areas:"food potty" "vomit meds"}
+    #sec-crate{grid-area:crate} #sec-potty{grid-area:potty} #sec-play{grid-area:play} #sec-food{grid-area:food} #sec-meds{grid-area:meds} #sec-vomit{grid-area:vomit} #sec-bath{grid-area:bath}
+    main.grps.solo{grid-template-areas:"food potty" "vomit meds" "bath ."}
     main.grps > .card.log{max-width:none}
     main.grps > h2{margin-top:6px}
     .grp.flash{animation:flash 1.4s ease-out}
@@ -434,8 +434,8 @@
   }
   @media (min-width:1860px){
     .wrap{max-width:1760px}
-    main.grps{grid-template-columns:repeat(3,minmax(0,1fr));grid-template-areas:"crate potty food" "play potty food"}
-    main.grps.solo{grid-template-areas:"food potty meds" "vomit potty meds"}
+    main.grps{grid-template-columns:repeat(3,minmax(0,1fr));grid-template-areas:"crate potty food" "play potty bath"}
+    main.grps.solo{grid-template-areas:"food potty meds" "vomit bath meds"}
   }
 </style>
 </head>
@@ -467,6 +467,7 @@ const ICONS = {
   poop:'<path d="M6.8 19.5h10.4a2.6 2.6 0 0 0 .5-5.15A2.4 2.4 0 0 0 15.4 10h-.2a2.8 2.8 0 0 0-2.6-4.9c-.1 1.2-.9 2.1-2 2.5A2.4 2.4 0 0 0 8.6 10h-.1a2.4 2.4 0 0 0-2.2 4.35A2.6 2.6 0 0 0 6.8 19.5Z"/><path d="M8.6 14.4h6.8M10 10h4"/>',
   sleep:'<path d="M19.5 14.3A7.6 7.6 0 0 1 9.7 4.5a7.6 7.6 0 1 0 9.8 9.8Z"/><path d="M16.5 3.5v3M15 5h3"/>',
   cry:'<circle cx="12" cy="12" r="8.5"/><path d="M8.4 10.4q1-.9 2 0M13.6 10.4q1-.9 2 0M9.6 16.2q2.4-1.6 4.8 0"/><path d="M8.2 12.6c.5.8.9 1.4.9 1.9a.9.9 0 0 1-1.8 0c0-.5.4-1.1.9-1.9Z" fill="currentColor" stroke="none"/>',
+  bath:'<path d="M3.5 12h17v1.5a5.5 5.5 0 0 1-5.5 5.5H9a5.5 5.5 0 0 1-5.5-5.5Z"/><path d="M6.5 12V6a2.2 2.2 0 0 1 4.2-.9"/><path d="M7.5 19l-1 1.5M16.5 19l1 1.5"/>',
   crate:'<rect x="3.5" y="6.5" width="17" height="12.5" rx="2.2"/><path d="M8 6.5V19M12 6.5V19M16 6.5V19M9.5 6.5V5a2.5 2.5 0 0 1 5 0v1.5"/>',
   water:'<path d="M6.6 5h10.8l-1.3 13.1a1.6 1.6 0 0 1-1.6 1.4H9.5a1.6 1.6 0 0 1-1.6-1.4L6.6 5Z"/><path d="M7.3 10.6c1.6-1 3.1 1 4.7 0s3.1-1 4.7 0"/>',
   none:'<circle cx="12" cy="12" r="8.5"/><path d="M6.2 17.8 17.8 6.2"/>',
@@ -487,8 +488,8 @@ document.getElementById('mark').innerHTML = `<svg viewBox="0 0 24 24">${ICONS.pa
 
 // ---------- model ----------
 const PETS = {
-  kochik:   {name:'קוצ׳יק', born:'2010-03-20', treats:true, items:['food','pee','poop','vomit','gel'], meds:true, poopType:true, where:['out','gravel','balcony','home','pad']},   // Kochik is an adult: outside is the norm; on the balcony she goes on the gravel or just on its floor
-  kishmish: {name:'קישמיש', born:'2026-09-20', poopType:true, items:['crate','pee','poop','food','sleep','cry'], cycle:true, where:['gravel','pad','floor','crate','out']}   // "in the crate" since 25.11: she pooped there once (`pottyInCrate`)
+  kochik:   {name:'קוצ׳יק', born:'2010-03-20', treats:true, bath:true, items:['food','pee','poop','vomit','gel'], meds:true, poopType:true, where:['out','gravel','balcony','home','pad']},   // Kochik is an adult: outside is the norm; on the balcony she goes on the gravel or just on its floor
+  kishmish: {name:'קישמיש', born:'2026-09-20', poopType:true, bath:true, items:['crate','pee','poop','food','sleep','cry'], cycle:true, where:['gravel','pad','floor','crate','out']}   // "in the crate" since 25.11: she pooped there once (`pottyInCrate`)
 };
 const ITEMS = {
   food:{lbl:'מאז האוכל האחרון',btn:'אכלה',log:'אכלה'},
@@ -499,6 +500,8 @@ const ITEMS = {
   // Vomiting (Kochik): rare, so counted in days and hours; what came up is asked right after (`q`: bile / food).
   vomit:{lbl:'מאז ההקאה האחרונה',btn:'הקיאה',log:'הקיאה',slow:true},
   gel:{lbl:'מאז הג׳ל לאוזן האחרון',btn:'נתתי ג׳ל',log:'ג׳ל לאוזן',slow:true,note:'לפי הצורך · בערך פעם ב־3 ימים'},
+  // Bath (both dogs, 25.11): the owner bathes them at least every BATH_DAYS days; the tile says by when the next one is due.
+  bath:{lbl:'מאז המקלחת האחרונה',btn:'קילחתי',log:'מקלחת',slow:true},
   sleep:{dur:true,lbl:'שינה אחרונה',live:'ישנה',start:'נרדמה',stop:'התעוררה',log:'ישנה',startQ:'מתי נרדמה?'},
   cry:{dur:true,lbl:'בכי אחרון',live:'בוכה',start:'בוכה',stop:'נרגעה',log:'בכתה',startQ:'מתי התחילה לבכות?'},
   crate:{dur:true,lbl:'כלוב אחרון',live:'בכלוב',start:'נכנסה לכלוב',stop:'יצאה מהכלוב',log:'בכלוב',startQ:'מתי נכנסה לכלוב?'},
@@ -1713,7 +1716,7 @@ function groupedHTML(p, from, to){
 }
 // Add an entry at a chosen time (for something that was missed), from the list's header.
 function openAddSheet(p){
-  const kinds = (PETS[p].cycle ? ['pee','poop','none','food'] : ['pee','poop','food','vomit']).concat(PETS[p].treats ? ['treat'] : []);
+  const kinds = (PETS[p].cycle ? ['pee','poop','none','food'] : ['pee','poop','food','vomit']).concat(PETS[p].treats ? ['treat'] : [], PETS[p].bath ? ['bath'] : []);
   let k = kinds[0];
   sheet(`${PETS[p].name} · הוספת רישום`,
     `<div class="chips">${kinds.map(x => `<button data-kind="${x}" class="${x===k?'sel':''}">${ITEMS[x].log}</button>`).join('')}</div>
@@ -1837,7 +1840,7 @@ function render(){
           ${it.slow ? `<div class="big txt ${t?'':'none'}">${t ? wordsLong(Date.now()-t) : '–'}</div>`
                     : `<div class="big ${t?'':'none'}" ${t?`data-since="${t}"`:''}>${t ? dur(Date.now()-t) : '–'}</div>`}
           <div class="sub">${t ? `${dayLabel(t)} ב־${clock(t)}${whereOf(pet,k,t) || (hasWhere(k) ? ` · <button class="lnk" data-act="where" data-k="${k}">איפה?</button>` : '')}${typeOf(pet,k,t)}${byOf(pet,k,t)}` : 'עוד לא נרשם'}</div>
-          ${P.cycle && k === 'pee' ? forecastLine(pet) : ''}${k === 'pee' ? holdHint(pet) : ''}${P.cycle && k === 'poop' ? poopLine(pet) + poopHints(pet) : ''}${P.cycle && k === 'food' && S.bite > (S.food || 0) ? `<div class="sub hint bite">ביס אחרון ב־<bdi dir="ltr">${clock(S.bite)}</bdi> · לא מאפס את השעון</div>` : ''}${P.cycle && k === 'food' ? mealLine(pet) : ''}${todayWhere(pet,k) ? `<div class="sub hint">${todayWhere(pet,k)}</div>` : ''}${P.cycle && typical(pet,k) ? `<div class="sub hint">${typical(pet,k)}</div>` : ''}${it.note ? `<div class="sub hint">${it.note}</div>` : ''}</div>
+          ${P.cycle && k === 'pee' ? forecastLine(pet) : ''}${k === 'pee' ? holdHint(pet) : ''}${P.cycle && k === 'poop' ? poopLine(pet) + poopHints(pet) : ''}${P.cycle && k === 'food' && S.bite > (S.food || 0) ? `<div class="sub hint bite">ביס אחרון ב־<bdi dir="ltr">${clock(S.bite)}</bdi> · לא מאפס את השעון</div>` : ''}${P.cycle && k === 'food' ? mealLine(pet) : ''}${k === 'bath' ? bathLine(pet) : ''}${todayWhere(pet,k) ? `<div class="sub hint">${todayWhere(pet,k)}</div>` : ''}${P.cycle && typical(pet,k) ? `<div class="sub hint">${typical(pet,k)}</div>` : ''}${it.note ? `<div class="sub hint">${it.note}</div>` : ''}</div>
         <div class="acts"><button class="go" data-act="pt" data-k="${k}">${it.btn}</button>
           <button class="ghost" data-act="edit" data-k="${k}">${ico('clock','s')}שעה אחרת</button>
           ${P.cycle && k === 'food' ? `<button class="ghost" data-act="nofood">${ico('none','s')}לא אכלה</button>` : ''}</div></div>`;
@@ -1877,7 +1880,7 @@ function render(){
     // By topic, each in its own box (the owner's grouping): food and water · pee and poop · medicines and ear gel · vomiting.
     const has = k => P.items.includes(k), t = k => has(k) ? tileOf(k) : '';
     const groups = [['food', 'אוכל ושתייה', t('food') + (has('food') ? waterRowHTML(pet) : '') + (P.treats ? treatCardHTML(pet) : '')],
-      ['potty', 'פיפי וקקי', t('pee') + t('poop')], ['meds', has('gel') && P.meds ? 'תרופות וג׳ל לאוזן' : P.meds ? 'תרופות' : 'ג׳ל לאוזן', medHTML + t('gel')], ['vomit', 'הקאות', t('vomit')]];
+      ['potty', 'פיפי וקקי', t('pee') + t('poop')], ['meds', has('gel') && P.meds ? 'תרופות וג׳ל לאוזן' : P.meds ? 'תרופות' : 'ג׳ל לאוזן', medHTML + t('gel')], ['vomit', 'הקאות', t('vomit')], ['bath', 'מקלחת', P.bath ? tileOf('bath') : '']];
     h += groups.filter(g => g[2]).map(g => sec('', g[1], false, g[2], g[0])).join('');
   }
   else {
@@ -1907,6 +1910,7 @@ function render(){
     h += sec('3', 'משחק וחופש', tap.includes('play'), playCardHTML(pet, tap.includes('play')) + freeCardHTML(pet), 'play');
     h += sec('4', 'אוכל ושתייה', tap.includes('food'), tileOf('food') +
 waterRowHTML(pet) + (P.treats ? treatCardHTML(pet) : ''), 'food');
+    if(P.bath) h += sec('', 'מקלחת', false, tileOf('bath'), 'bath');
     // Sleep and crying sit right under the wheel, always at hand: in the crate she is either asleep or crying.
     if(pottyTop) sideHTML = alertsHTML(pet) + retryHTML(pet) + sleepAskHTML(pet) + pottySec + cycleHTML(pet);
     sideHTML += `<section class="duo" id="sec-rest">${tileOf('sleep')}${tileOf('cry')}</section>`;
@@ -2129,6 +2133,15 @@ function poopGap(p){
   for(let i = 1; i < t.length; i++) g.push(t[i] - t[i-1]);
   return g.length >= 3 ? median(g) : 0;
 }
+const BATH_DAYS = 10;
+function bathLine(p){
+  const t = V[p].bath;
+  if(!t) return `<div class="sub hint">לא יותר מ־${BATH_DAYS} ימים בין מקלחות</div>`;
+  const due = sod(t); due.setDate(due.getDate() + BATH_DAYS);
+  const left = Math.round((due - sod(Date.now())) / 86400000);
+  if(left < 0) return `<div class="sub hint bathdue"><b>עברו יותר מ־${BATH_DAYS} ימים: הגיע הזמן למקלחת</b></div>`;
+  return `<div class="sub hint">${left === 0 ? '<b>היום הגיע הזמן למקלחת</b>' : left === 1 ? 'המקלחת הבאה עד מחר' : `המקלחת הבאה עד ${due.getDate()}.${due.getMonth()+1} (עוד ${left} ימים)`}</div>`;
+}
 function poopHints(p){
   const S = V[p], now = Date.now(); let h = '';
   if(S.food && now - S.food <= 45*60000 && !(S.poop > S.food) && !poopLine(p)) h += `<div class="sub hint aftermeal">אם היא צריכה קקי, זה בדרך כלל 10–30 דקות אחרי ארוחה</div>`;
@@ -2174,7 +2187,7 @@ let sumFilter = null;   // one kind ("pee", "crate"…) the summary is narrowed 
 const DAY = 86400000;
 const DOW = ['א׳','ב׳','ג׳','ד׳','ה׳','ו׳','ש׳'];
 const MONTHS = ['ינואר','פברואר','מרץ','אפריל','מאי','יוני','יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר'];
-const SUM_LBL = {food:'אוכל', pee:'פיפי', poop:'קקי', sleep:'שינה', cry:'בכי', crate:'כלוב', gel:'ג׳ל לאוזן', none:'לא עשתה', vomit:'הקאות', treat:'חטיפים'};
+const SUM_LBL = {food:'אוכל', pee:'פיפי', poop:'קקי', sleep:'שינה', cry:'בכי', crate:'כלוב', gel:'ג׳ל לאוזן', bath:'מקלחות', none:'לא עשתה', vomit:'הקאות', treat:'חטיפים'};
 function sod(t){ const d = new Date(t); d.setHours(0,0,0,0); return d; }
 function ddmm(t){ const d = new Date(t); return `${d.getDate()}.${d.getMonth()+1}`; }
 function hm(ms){ const m = Math.round(ms/60000); return `${Math.floor(m/60)}:${pad(m%60)}`; }
