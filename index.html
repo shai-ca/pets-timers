@@ -954,11 +954,11 @@ try {
 if(!base) base = clone(state);
 try { const p = localStorage.getItem(LS_KEY+'-tab'); if(p && PETS[p]) pet = p; } catch(e){}
 try { const u = localStorage.getItem(LS_KEY+'-user'); if(USERS[u]) me = u; } catch(e){}
-// DESIGN V2 (25.11, on trial): a display choice of this phone only (`localStorage`, never the list). Off by default;
+// DESIGN V2 (25.11): a display choice of this phone only (`localStorage`, never the list). On by default;
 // "עיצוב חדש" at the bottom of the screen turns it on and off. Everything it changes is CSS under `.v2` plus a few
 // additions (the step strip, "עוד", the day ribbon); every button keeps its `data-act`, so the actions are the same code.
-let V2 = false;
-try { V2 = localStorage.getItem(LS_KEY+'-v2') === '1'; } catch(e){}
+let V2 = true;   // the default since 25.11 evening (the owner: "תפעיל את העיצוב החדש"); a phone that chose the old one keeps it
+try { V2 = localStorage.getItem(LS_KEY+'-v2') !== '0'; } catch(e){}
 const openX = new Set();   // tiles whose extra lines are unfolded ("עוד"), this session only
 function saveLocal(){ try{ localStorage.setItem(LS_DATA, JSON.stringify({state, base})); }catch(e){} }
 
