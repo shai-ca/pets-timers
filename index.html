@@ -587,58 +587,101 @@
     .v2 main.grps{grid-template-areas:"crate potty food" "play potty food" "bath bath bath"}
     .v2 main.grps.solo{grid-template-areas:"food potty meds" "vomit potty meds" "bath bath bath"}
   }
-  /* ================= PLANNING ("תכנון") — one block; both designs, light and dark ================= */
-  :root{--pl-need:#d9b48b; --pl-free:#7fbf9b; --pl-uns:#e3dfd9; --pl-kish:#b97a3e; --pl-kish-mid:#dfc09c; --pl-kish-soft:#f1e2cf;
-    --pl-koch:#6a7079; --pl-koch-soft:#e6e8ec; --pl-mk:#3d4148}
-  .night{--pl-need:#a97d4f; --pl-free:#4f9a74; --pl-uns:#3a342e; --pl-kish:#c98f55; --pl-kish-mid:#6f5236; --pl-kish-soft:#3a2c1f;
-    --pl-koch:#a3a9b1; --pl-koch-soft:#2e3036; --pl-mk:#e4e6ea}
-  .pl-head{display:flex;flex-direction:column;gap:4px;margin-bottom:12px} .pl-head small{color:var(--muted);font-size:12.5px}
-  .pl-top{display:flex;align-items:center;justify-content:space-between;gap:10px} .pl-top b{font-size:17px}
+  /* ================= PLANNING ("תכנון") — redesigned 25.11: my day first; three levels; certainty as hatching ================= */
+  :root{--pl-free:#8db59a; --pl-free-ink:#24513a; --pl-free-soft:#e6f0e8; --pl-sup:#ecdcc6; --pl-sup-ink:#6b4d2c; --pl-care:#c98b54; --pl-care-ink:#fff;
+    --pl-both:#9c5a2c; --pl-off:#ece8e3; --pl-grid:rgba(60,45,30,.09);
+    --pl-kish:#b97a3e; --pl-kish-mid:#dfc09c; --pl-kish-soft:#f1e2cf; --pl-koch:#6a7079; --pl-koch-soft:#e9ebee; --pl-mk:#3d4148; --pl-uns:#e3dfd9; --pl-hatch:rgba(255,255,255,.5)}
+  .night{--pl-free:#5f9a77; --pl-free-ink:#cfeedd; --pl-free-soft:#1b2e24; --pl-sup:#4a3a2a; --pl-sup-ink:#eedbc2; --pl-care:#b97c48; --pl-care-ink:#1c1209;
+    --pl-both:#e0a06a; --pl-off:#2a231c; --pl-grid:rgba(255,240,220,.08);
+    --pl-kish:#c98f55; --pl-kish-mid:#6f5236; --pl-kish-soft:#3a2c1f; --pl-koch:#a3a9b1; --pl-koch-soft:#2e3036; --pl-mk:#e4e6ea; --pl-uns:#3a342e; --pl-hatch:rgba(0,0,0,.35)}
+  .pl-top{display:flex;justify-content:flex-start;margin-bottom:10px}
   .pl-tabs{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
-  .pl-chip{border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:999px;padding:6px 13px;font:inherit;font-size:13.5px;cursor:pointer}
+  .pl-chip{border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:999px;padding:5px 13px;font:inherit;font-size:13px;cursor:pointer}
   .night .pl-chip{background:var(--surf)}
   .pl-chip.on{background:var(--ink);border-color:var(--ink);color:var(--bg)}
-  .pl-tl{margin-bottom:12px}
-  .pl-lane{display:flex;align-items:center;gap:8px;margin-bottom:6px}
-  .pl-who{flex:0 0 46px;font-size:12px;color:var(--muted);text-align:right}
-  .pl-b{position:relative;flex:1;height:22px;border-radius:7px;background:var(--pl-uns);overflow:hidden}
-  .pl-b.me{height:30px}
-  .pl-s{position:absolute;top:0;bottom:0;cursor:pointer}
-  .pl-s.need{background:var(--pl-need)} .pl-s.free{background:var(--pl-free)} .pl-s.uns{background:var(--pl-uns)}
-  .pl-s.k-out{background:var(--pl-kish)} .pl-s.k-crate{background:var(--pl-kish-mid)} .pl-s.k-sleep{background:var(--pl-kish-soft)}
-  .pl-s.k-sleep.uns{background:repeating-linear-gradient(135deg,var(--pl-kish-soft) 0 6px,var(--pl-uns) 6px 9px)}
-  .pl-s.c-ok{background:var(--pl-koch-soft)} .pl-s.c-pee,.pl-s.c-med,.pl-s.c-bath,.pl-s.c-spray{background:var(--pl-koch)}
-  .pl-s.c-med{background:repeating-linear-gradient(135deg,var(--pl-koch) 0 6px,var(--pl-koch-soft) 6px 8px)}
-  .pl-s.tipon,.pl-mk.tipon{outline:2px solid var(--ink);outline-offset:-2px;z-index:1}
-  .pl-mk{position:absolute;top:3px;bottom:3px;width:4px;margin-left:-2px;border-radius:2px;background:var(--pl-mk);opacity:.55;cursor:pointer}
-  .pl-now{position:absolute;top:0;bottom:0;width:2px;background:var(--ink)}
-  .pl-ticks{position:relative;height:15px;margin-inline-start:54px;font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums}
+  /* the hero: the one thing to know when opening the tab */
+  .pl-hero{display:flex;flex-direction:column;gap:4px;margin-bottom:12px;padding:18px}
+  .pl-hero.now{background:var(--pl-free-soft);border-color:color-mix(in srgb,var(--pl-free) 55%,transparent)}
+  .pl-eye{font-size:12.5px;color:var(--muted);letter-spacing:.02em}
+  .pl-hero.now .pl-eye,.pl-hero.next .pl-eye{color:var(--pl-free-ink);font-weight:600}
+  .pl-big{font-size:32px;font-weight:700;line-height:1.15;font-variant-numeric:tabular-nums;letter-spacing:-.4px}
+  .pl-big.sup{font-size:24px;color:var(--pl-sup-ink)}
+  .pl-meta{font-size:14px;color:var(--ink);font-variant-numeric:tabular-nums}
+  .pl-cert{color:var(--muted)} .pl-cert.high{color:var(--pl-free-ink)}
+  .pl-why{margin:4px 0 0;font-size:13.5px;color:var(--muted);line-height:1.5}
+  .pl-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-top:12px;padding-top:12px;border-top:1px solid var(--line)}
+  .pl-stats span{display:flex;flex-direction:column;font-size:11.5px;color:var(--muted);line-height:1.3;min-width:0}
+  .pl-stats b{font-size:16px;color:var(--ink);font-variant-numeric:tabular-nums;font-weight:600}
+  .pl-next{margin-top:10px;font-size:13px;color:var(--ink)} .pl-next em,.pl-care em{font-style:normal;color:var(--pl-both);font-weight:600}
+  /* the timeline */
+  .pl-tl{margin-bottom:12px;padding:14px 14px 10px}
+  .pl-tlh{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:10px;flex-wrap:wrap}
+  .pl-lg{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:12px;color:var(--muted)}
+  .pl-lg i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-inline-end:4px;vertical-align:-1px}
+  .pl-lg .lv-free{background:var(--pl-free)} .pl-lg .lv-sup{background:var(--pl-sup)} .pl-lg .lv-care{background:var(--pl-care)}
+  .pl-lg .lv-est{background:var(--pl-care);opacity:.55}
+  .pl-stage{position:relative}
+  .pl-lanes{position:relative}
+  .pl-grid{position:absolute;left:0;right:46px;top:0;bottom:5px;pointer-events:none;z-index:2}
+  .pl-grid i{position:absolute;top:0;bottom:0;width:1px;background:var(--pl-grid)}
+  .pl-now{position:absolute;top:-4px;bottom:0;width:2px;margin-left:-1px;border-radius:2px;background:var(--ink)}
+  .pl-now::before{content:"";position:absolute;top:-3px;left:-3px;width:8px;height:8px;border-radius:50%;background:var(--ink)}
+  .pl-lane{display:flex;align-items:center;gap:6px;margin-bottom:5px}
+  .pl-b{position:relative;flex:1;height:18px;border-radius:6px;background:var(--pl-off);overflow:hidden}
+  .pl-lane.me .pl-b{height:40px;border-radius:9px}
+  .pl-lane.me{margin-bottom:9px}
+  .pl-who{flex:0 0 40px;font-size:11.5px;color:var(--muted);text-align:left} .pl-lane.me .pl-who{color:var(--ink);font-weight:600;font-size:12.5px}
+  .pl-s{position:absolute;top:0;bottom:0;cursor:pointer;border-inline:1px solid var(--card);overflow:hidden}
+  .pl-lane.me .pl-s{border-radius:7px;border:1.5px solid var(--card)}
+  .pl-s{container-type:inline-size}
+  @container (max-width:46px){ .pl-s i{display:none !important} }   /* a label only where it fits whole */
+  .pl-s i{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-style:normal;font-size:11px;font-weight:600;white-space:nowrap;overflow:hidden;direction:rtl;pointer-events:none}
+  .pl-lane:not(.me) .pl-s i{font-size:10px;font-weight:500}
+  .pl-s.lv-free{background:var(--pl-free);color:var(--pl-free-ink)} .night .pl-s.lv-free{color:#0f2419}
+  .pl-s.lv-sup{background:var(--pl-sup);color:var(--pl-sup-ink)}
+  .pl-s.lv-care{background:var(--pl-care);color:var(--pl-care-ink)} .pl-s.lv-care.both{background:var(--pl-both);color:#fff}
+  .pl-s.lv-off{background:var(--pl-off);color:var(--muted)}
+  .pl-s.est{opacity:.58} .pl-lane.me .pl-s.est{opacity:.6}   /* a projection of her usual rhythm, not what is happening now */
+  .pl-s.k-out{background:var(--pl-kish);color:#fff} .pl-s.k-crate{background:var(--pl-kish-mid)} .pl-s.k-sleep{background:var(--pl-kish-soft);color:var(--pl-sup-ink)}
+  .pl-s.k-sleep.uns{background:var(--pl-kish-soft)}
+  .pl-s.c-ok{background:var(--pl-koch-soft)} .pl-s.c-pee,.pl-s.c-med,.pl-s.c-bath,.pl-s.c-spray{background:var(--pl-koch);color:#fff}
+  .night .pl-s.c-pee,.night .pl-s.c-med,.night .pl-s.c-bath,.night .pl-s.c-spray{color:#15161a}
+  .pl-s.tipon,.pl-mk.tipon{outline:2px solid var(--ink);outline-offset:-2px;z-index:3}
+  .pl-mk{position:absolute;top:3px;bottom:3px;width:3px;margin-left:-1.5px;border-radius:2px;background:var(--pl-mk);opacity:.45;cursor:pointer;z-index:1}
+  .pl-ticks{position:relative;height:16px;margin-right:46px;font-size:10.5px;color:var(--muted);font-variant-numeric:tabular-nums}
   .pl-ticks span{position:absolute;transform:translateX(-50%)}
-  .pl-tl .ptip{margin-top:6px;min-height:34px}
-  .pl-lg{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12.5px;color:var(--ink);margin-top:6px}
-  .pl-lg i{display:inline-block;width:11px;height:11px;border-radius:3px;margin-inline-end:5px;vertical-align:-1px}
-  .pl-lg .need{background:var(--pl-need)} .pl-lg .free{background:var(--pl-free)} .pl-lg .uns{background:var(--pl-uns);border:1px solid var(--faint)}
-  .pl-range{display:block;color:var(--muted);font-size:12px;margin-top:4px}
-  .pl-cards{display:grid;gap:10px;margin-bottom:12px}
-  .pl-card{display:flex;flex-direction:column;gap:5px;border-inline-start:5px solid var(--pl-uns)}
-  .pl-card.free{border-inline-start-color:var(--pl-free)} .pl-card.need{border-inline-start-color:var(--pl-need)}
-  .pl-card.need.kochik{border-inline-start-color:var(--pl-koch)}
-  .pl-card small{color:var(--muted);font-size:13px} .pl-card small em{font-style:normal;color:var(--warn);font-weight:600}
-  .pl-ch{display:flex;justify-content:space-between;gap:10px;align-items:baseline} .pl-ch span{font-variant-numeric:tabular-nums;font-weight:500}
-  .pl-conf{align-self:flex-start;font-size:12px;border-radius:999px;padding:2px 9px;background:var(--pl-uns);color:var(--ink)}
-  .pl-conf.high{background:var(--pl-free);color:#10231a} .night .pl-conf.high{color:#fff}
-  .pl-do{margin:2px 0 0;padding-inline-start:18px;font-size:13.5px;line-height:1.5} .pl-do .pl-note{color:var(--muted)}
-  .pl-ics{align-self:flex-start;margin-top:4px;padding:7px 12px;font-size:13px}
-  .pl-all{text-align:center;margin:-2px 0 12px;font-size:13px}
+  @media (max-width:560px){ .pl-ticks span.odd{display:none} }
+  .pl-tl .ptip{margin-top:6px;min-height:36px;font-size:12.5px;line-height:1.45}
+  .pl-range{display:block;color:var(--muted);font-size:11.5px;margin-top:2px}
+  /* my windows */
+  .pl-list{margin-bottom:12px} .pl-h{display:block;font-size:15px;margin-bottom:6px}
+  .pl-list ul,.pl-care ul{list-style:none;margin:0;padding:0}
+  .pl-w{position:relative;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 10px;padding:10px 0;border-top:1px solid var(--line)}
+  .pl-w:first-child{border-top:0}
+  .pl-w > *{grid-column:1} .pl-w > .pl-ics{grid-column:2;grid-row:1 / span 3;align-self:center}
+  .pl-wt{display:flex;align-items:baseline;gap:10px;font-size:16px;font-weight:600;font-variant-numeric:tabular-nums} .pl-wt span{font-size:13px;font-weight:500;color:var(--muted)}
+  .pl-wm{display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:12px}
+  .pl-badge{border-radius:999px;padding:1px 8px;font-weight:600;font-size:11.5px} .pl-badge.free{background:var(--pl-free);color:var(--pl-free-ink)} .night .pl-badge.free{color:#0f2419}
+  .pl-badge.sup{background:var(--pl-sup);color:var(--pl-sup-ink)}
+  .pl-long{color:var(--pl-free-ink);font-weight:600} .pl-w.longest{padding-inline-start:10px;box-shadow:inset -3px 0 0 var(--pl-free)}
+  .pl-w small{color:var(--muted);font-size:12.5px;line-height:1.45} .pl-w .pl-do{color:var(--ink)}
+  .pl-ics{display:inline-flex;align-items:center;gap:4px;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:10px;padding:6px 9px;font:inherit;font-size:12px;cursor:pointer}
+  .night .pl-ics{background:var(--surf)} .pl-ics svg.i{width:14px;height:14px}
+  .pl-ics.mini{padding:3px 6px;margin-inline-start:6px;vertical-align:middle} .pl-ics.mini span{display:none}
+  @media (max-width:420px){ .pl-w > .pl-ics span{display:none} .pl-w > .pl-ics{padding:7px} }
+  .pl-care{margin-bottom:12px} .pl-care summary,.pl-info summary{cursor:pointer;font-weight:600;font-size:14px}
+  .pl-care li{padding:6px 0;border-top:1px solid var(--line);font-size:13.5px} .pl-care li:first-child{border-top:0} .pl-care .lnk{margin-top:6px;font-size:13px}
   .pl-want{display:flex;flex-direction:column;gap:8px;margin-bottom:12px}
-  .pl-want input{width:84px;border:1px solid var(--line);border-radius:999px;padding:6px 10px;font:inherit;font-size:13.5px;background:var(--card);color:var(--ink)}
+  .pl-want input{width:84px;border:1px solid var(--line);border-radius:999px;padding:5px 10px;font:inherit;font-size:13px;background:var(--card);color:var(--ink)}
   .night .pl-want input{background:var(--bg)}
   .pl-fit{margin:0;padding-inline-start:20px;display:flex;flex-direction:column;gap:8px} .pl-fit small{display:block;color:var(--muted);font-size:12.5px}
+  .pl-fit .pl-do{margin:2px 0 0;padding-inline-start:18px;font-size:13px;line-height:1.5} .pl-fit .pl-note{color:var(--muted)}
+  .pl-conf{font-size:12px;border-radius:999px;padding:1px 8px;background:var(--pl-off);color:var(--ink)} .pl-conf.high{background:var(--pl-free);color:var(--pl-free-ink)}
   .pl-none{margin:0;font-size:13.5px}
-  .pl-info{display:flex;flex-direction:column;gap:6px} .pl-info small{color:var(--muted);font-size:12.5px;line-height:1.5}
-  .pl-empty{color:var(--muted)}
-  .v2 .pl-card{border-radius:16px}
-  @media (min-width:760px){ .pl-cards{grid-template-columns:repeat(2,minmax(0,1fr))} }
+  .pl-info{display:flex;flex-direction:column;gap:6px} .pl-info small{display:block;color:var(--muted);font-size:12.5px;line-height:1.55;margin-top:6px}
+  .pl-empty{color:var(--muted);margin:0}
+  .v2 .pl-hero,.v2 .pl-tl,.v2 .pl-list{border-radius:16px}
+  @media (min-width:760px){ .pl-big{font-size:38px} .pl-lane.me .pl-b{height:44px} }
   /* ================= end of PLANNING ================= */
 </style>
 </head>
@@ -3509,10 +3552,6 @@ function planLanes(M){
   const koch = [{k: 'c-ok', a: from, b: to, tip: 'קוצ׳יק: לא צריכה כלום (צפוי)'}].concat(M.needs.filter(n => n.dog === 'kochik').map(n => ({k: 'c-' + n.kind, a: n.a, b: n.b, tip: `${n.title} ${clock(n.a)}–${clock(n.b)} · ${n.why}`})));
   return {me, kish, koch};
 }
-function planBarHTML(M, segs, cls, marks){
-  const W = Math.max(1, M.to - M.from), pc = t => ((Math.max(M.from, Math.min(M.to, t)) - M.from) / W * 100).toFixed(2);
-  return `<div class="pl-b ${cls}">${segs.map(s => `<span class="pl-s ${s.k}" style="left:${pc(s.a)}%;width:${(pc(s.b) - pc(s.a)).toFixed(2)}%" data-tip="${esc(s.tip)}"></span>`).join('')}${(marks || []).map(m => `<span class="pl-mk" style="left:${pc(m.t)}%" data-tip="${esc(m.tip)}"></span>`).join('')}${M.day ? '' : `<span class="pl-now" style="left:0"></span>`}</div>`;
-}
 const plSpan = (a, b) => `<bdi dir="ltr">${clock(a)}–${clock(b)}</bdi>`;
 const plDayWord = (M, t) => M && sod(t).getTime() !== sod(Date.now()).getTime() ? 'מחר ' : '';
 // The calendar: one VEVENT per window, local time in Asia/Jerusalem, made here as a file (no server, nothing saved).
@@ -3562,31 +3601,99 @@ function planWantHTML(Ms){
   else msg = best ? `${best.f.endDog ? `המגבלה היא ${PL_DOG[best.f.endDog]}` : 'המגבלה'}: ${best.f.endWhy}.` : 'המגבלה היא קישמיש: אין היום ומחר שינה צפויה בכלוב אחרי פיפי בחצץ שמספיקה ליציאה.';
   return `<p class="pl-none">אין חלון של ${words(W)}. ${msg}</p>${best ? `<p class="pl-none">הכי קרוב: ${plDayWord(best.M, best.f.a)}${plSpan(best.f.a, best.f.b)} (${words(best.f.b - best.f.a)})</p>` : ''}`;
 }
+// MY DAY, three levels (owner, 25.11 redesign — the forecast itself, `planBuild`, is unchanged): טיפול = a need of
+// either dog (± margin); פנוי = a free window as planBuild found it; בהשגחה = everything else she is home for — mostly
+// Kishmish resting in the crate without a full free window (short, not yet asleep, no gravel pee before), when she
+// could do something nearby but may be called. Certainty is separate: `est` marks what is a projection of her usual
+// rhythm (later rounds, tomorrow, a medium-confidence window) rather than what is happening now.
+const PL_LV = {care: 'טיפול', free: 'פנוי', sup: 'בהשגחה', off: 'לילה'};
+function planLevels(M){
+  const from = M.from, to = M.to, cuts = new Set([from, to]);
+  for(const x of M.needs.concat(M.free, M.blocks, M.ks ? M.ks.ph : [])) for(const t of [x.a, x.b]) if(t > from && t < to) cuts.add(t);
+  const c = [...cuts].sort((x,y) => x-y), out = [];
+  const firstWake = M.day ? M.from : (M.ks && M.ks.sleeps.length && M.ks.sleeps[0].cur ? M.ks.sleeps[0].wake : (M.ks && M.ks.ph[0] ? M.ks.ph[0].b : M.from));
+  for(let i = 0; i < c.length - 1; i++){
+    const t = (c[i] + c[i+1]) / 2, ns = M.needs.filter(x => x.a <= t && t < x.b), f = M.free.find(x => x.a <= t && t < x.b);
+    const ph = M.ks && M.ks.ph.find(x => x.a <= t && t < x.b), sl = M.ks && M.ks.sleeps.find(x => x.a <= t && t < x.wake);
+    let k, what, why, both = false;
+    if(ns.length){ k = 'care'; const dogs = new Set(ns.map(n => n.dog)); both = dogs.has('kishmish') && dogs.has('kochik'); what = ns.map(n => n.title).join(' · '); why = ns.map(n => n.why).join(' · '); }
+    else if(f){ k = 'free'; what = 'שתיהן מסודרות'; why = `קישמיש ישנה בכלוב אחרי פיפי בחצץ, וקוצ׳יק לא צריכה כלום · נגמר כי ${f.endWhy}`; }
+    else if(ph && ph.night){ k = 'off'; what = 'בוקר'; why = `קישמיש מתעוררת בסביבות ${clock(ph.b)}`; }
+    else if(ph && ph.k === 'out'){ k = 'care'; what = 'קישמיש ערה'; why = 'בגילה, כשהיא ערה צריך להיות איתה'; }
+    else { k = 'sup'; what = ph && ph.k === 'crate' ? 'קישמיש בכלוב ונרדמת' : 'קישמיש נחה בכלוב';
+      why = planWhy(M, t).tip.replace(/^לא פנוי:\s*/, '').replace(/^לא בטוח:\s*/, ''); }
+    const est = !!M.day || c[i] >= firstWake - 60000 || (f && f.conf !== 'high');
+    const last = out[out.length-1];
+    if(last && last.k === k && last.what === what && last.est === est && last.both === both) last.b = c[i+1];
+    else out.push({k, a: c[i], b: c[i+1], what, why, est, both, conf: f ? f.conf : null, f: f || null});
+  }
+  return out;
+}
+const plDur = ms => { const m = Math.round(ms / PL_M); return m < 60 ? `${m} דק׳` : `${Math.floor(m/60)}:${pad(m % 60)} ש׳`; };
+const plIn = ms => ms <= 60000 ? 'עכשיו' : `בעוד ${words(ms)}`;
+const plCert = x => x.k === 'free' ? (x.conf === 'high' ? 'ודאות גבוהה' : 'ודאות בינונית') : x.est ? 'הערכה לפי הימים האחרונים' : 'לפי מה שקורה עכשיו';
+function planTimelineHTML(M, lv, ln){
+  const W = Math.max(1, M.to - M.from), pc = t => ((Math.max(M.from, Math.min(M.to, t)) - M.from) / W * 100);
+  const seg = (x, cls, label) => { const w = pc(x.b) - pc(x.a);
+    return `<span class="pl-s ${cls}${x.est ? ' est' : ''}" style="left:${pc(x.a).toFixed(2)}%;width:${w.toFixed(2)}%" data-tip="${esc(x.tip)}">${label ? `<i>${label}</i>` : ''}</span>`; };
+  const meSegs = lv.map(x => seg({...x, tip: `${PL_LV[x.k]} · ${clock(x.a)}–${clock(x.b)} · ${plDur(x.b - x.a)} · ${x.what}${x.why ? ' · ' + x.why : ''}${x.k === 'free' || x.k === 'sup' ? ' · ' + plCert(x) : ''}`},
+    `lv-${x.k}${x.both ? ' both' : ''}${x.k === 'free' ? ' free' : ''}`, x.k === 'care' ? (x.both ? 'שתיהן' : 'טיפול') : x.k === 'free' ? 'פנוי' : x.k === 'sup' ? 'השגחה' : ''));
+  const kSegs = ln.kish.map(x => seg({...x, est: !M.day && x.a >= (lv.find(y => y.est) || {a: Infinity}).a}, x.k, /k-sleep/.test(x.k) ? 'ישנה' : /k-out/.test(x.k) ? 'ערה' : ''));
+  const cSegs = ln.koch.map(x => seg(x, x.k, x.k === 'c-pee' ? 'פיפי' : x.k === 'c-med' ? 'תרופה' : x.k === 'c-bath' ? 'מקלחת' : ''));
+  const ticks = [], grid = [];
+  for(let h = Math.ceil(plTod(M.from)); planAt(M.day0, h) < M.to; h++){ const x = pc(planAt(M.day0, h)).toFixed(2); grid.push(`<i style="left:${x}%"></i>`); ticks.push(`<span class="${h % 2 ? 'odd' : ''}" style="left:${x}%">${pad(h)}</span>`); }
+  const lane = (who, inner, cls, marks) => `<div class="pl-lane ${cls}"><div class="pl-b">${inner}${(marks || []).map(m => `<span class="pl-mk" style="left:${pc(m.t).toFixed(2)}%" data-tip="${esc(m.tip)}"></span>`).join('')}</div><span class="pl-who">${PL_DOG[who]}</span></div>`;
+  return `<div class="pl-stage pbar" dir="ltr"><div class="pl-lanes"><div class="pl-grid">${grid.join('')}${M.day ? '' : `<b class="pl-now" style="left:${pc(M.now).toFixed(2)}%"></b>`}</div>
+    ${lane('me', meSegs.join(''), 'me')}${lane('kishmish', kSegs.join(''), 'kish')}${lane('kochik', cSegs.join(''), 'koch', M.marks)}</div>
+    <div class="pl-ticks">${ticks.join('')}</div><div class="ptip" dir="rtl">נגיעה או ריחוף על הפס: שעות, משך וסיבה</div></div>`;
+}
 function planHTML(){
   const now = Date.now(), Ms = [planBuild(0), planBuild(1)], M = Ms[planDay ? 1 : 0];
   const cal = []; planLast = {cal};
-  const ics = it => { cal.push(it); return `<button class="btn pl-ics" data-pl="ics" data-i="${cal.length - 1}">הוספה ללוח השנה</button>`; };
-  const head = `<div class="card pl-head"><div class="pl-top"><b>תכנון</b><span class="pl-tabs"><button class="pl-chip ${planDay ? '' : 'on'}" data-pl="day" data-v="0">היום</button><button class="pl-chip ${planDay ? 'on' : ''}" data-pl="day" data-v="1">מחר</button></span></div>
-    <small>מחושב מהרישומים של ${PLAN.days} הימים האחרונים · לא נשמר כלום</small></div>`;
-  if(M.from >= M.to) return head + `<div class="card pl-empty">לילה. התכנון של היום נגמר ב־22:30 — אפשר לראות את מחר.</div>`;
-  const ln = planLanes(M), W = M.to - M.from, step = W > 10*PL_H ? 3 : W > 4*PL_H ? 2 : 1, ticks = [];
-  for(let h = Math.ceil(plTod(M.from)); planAt(M.day0, h) < M.to; h++) if(h % step === 0) ticks.push(`<span style="left:${((planAt(M.day0, h) - M.from) / W * 100).toFixed(2)}%">${pad(h)}</span>`);
-  const lane = (who, segs, cls, marks) => `<div class="pl-lane"><span class="pl-who">${PL_DOG[who]}</span>${planBarHTML(M, segs, cls, marks)}</div>`;
-  const tl = `<div class="card pl-tl"><div class="pbar" dir="ltr">${lane('me', ln.me, 'me')}${lane('kishmish', ln.kish, 'kish')}${lane('kochik', ln.koch, 'koch', M.marks)}
-    <div class="pl-ticks">${ticks.join('')}</div><div class="ptip" dir="rtl">ריחוף או נגיעה על הפס מראים שעות וסיבה</div></div>
-    <div class="pl-lg"><span><i class="need"></i>צריכים אותך</span><span><i class="free"></i>זמן פנוי</span><span><i class="uns"></i>לא בטוח</span></div>
-    <small class="pl-range">${planDay ? 'מחר' : 'היום'} ${plSpan(M.from, M.to)}${planDay ? ' · תחזית ליום שלם, פחות ודאית' : ''}</small></div>`;
-  const nexts = M.needs.filter(n => n.b > now).slice(0, 4), frees = M.free.filter(f => f.b > now).slice(0, 3);
-  const needCard = n => `<div class="card pl-card need ${n.dog}"><div class="pl-ch"><b>${n.title}</b><span>${plSpan(n.a, n.b)}</span></div><small>${n.late ? '<em>באיחור · </em>' : ''}${n.why}</small>${ics({kind: n.kind, a: n.a, b: n.b, title: n.title, desc: n.why})}</div>`;
-  const freeCard = f => `<div class="card pl-card free"><div class="pl-ch"><b>זמן פנוי</b><span>${plSpan(f.a, f.b)}</span></div><span class="pl-conf ${f.conf}">${PL_CONF[f.conf]}</span><small>${words(f.b - f.a)} · נגמר כי ${f.endWhy}</small>
-    <ul class="pl-do">${f.before.map(s => `<li>${s}</li>`).join('')}${f.notes.map(s => `<li class="pl-note">${s}</li>`).join('')}</ul>${ics({kind: 'free', a: f.a, b: f.b, title: 'זמן פנוי', desc: planCal({free: [f], needs: []})[0].desc})}</div>`;
+  const ics = (it, cls) => { cal.push(it); return `<button class="pl-ics ${cls || ''}" data-pl="ics" data-i="${cal.length - 1}" aria-label="הוספה ללוח השנה" title="הוספה ללוח השנה">${ico('plus', 's')}<span>ללוח השנה</span></button>`; };
+  const dayChips = `<span class="pl-tabs"><button class="pl-chip ${planDay ? '' : 'on'}" data-pl="day" data-v="0">היום</button><button class="pl-chip ${planDay ? 'on' : ''}" data-pl="day" data-v="1">מחר</button></span>`;
+  if(M.from >= M.to) return `<div class="card pl-hero none"><div class="pl-top"><small class="pl-eye">תכנון</small>${dayChips}</div><div class="pl-empty">לילה. התכנון של היום נגמר ב־22:30. אפשר לראות את מחר.</div></div>`;
+  const lv = planLevels(M), ln = planLanes(M), fut = x => x.b > (M.day ? M.from : now);
+  const frees = lv.filter(x => x.k === 'free' && fut(x)), sups = lv.filter(x => x.k === 'sup' && fut(x) && x.b - Math.max(x.a, now) >= 10*PL_M);
+  const span = (a, b) => `<bdi dir="ltr">${clock(a)}–${clock(b)}</bdi>`, left = x => x.b - Math.max(x.a, M.day ? x.a : now);
+  const sum = k => lv.filter(x => x.k === k && fut(x)).reduce((n, x) => n + left(x), 0);
+  const longest = frees.concat(sups).sort((x, y) => left(y) - left(x))[0];
+  const both = lv.filter(x => x.both && fut(x));
+  const care = lv.filter(x => x.k === 'care' && fut(x)), nextCare = care.find(x => x.a > now) || care[0];
+  // the hero: free now → how long is left; else the next free window; else plainly none, and the next quiet stretch
+  const f0 = frees[0], s0 = sups[0], cur = f0 && !M.day && f0.a <= now + 60000;
+  let hero;
+  if(f0) hero = `<small class="pl-eye">${cur ? 'את פנויה עכשיו' : M.day ? 'הזמן הפנוי הראשון מחר' : 'הזמן הפנוי הבא'}</small>
+      <div class="pl-big">${cur ? `עוד ${plDur(f0.b - now)}` : span(f0.a, f0.b)}</div>
+      <div class="pl-meta">${cur ? `עד ${clock(f0.b)}` : `${plDur(f0.b - f0.a)}${M.day ? '' : ' · ' + plIn(f0.a - now)}`} · <span class="pl-cert ${f0.conf}">${plCert(f0)}</span></div>
+      <p class="pl-why">${f0.why}</p>`;
+  else hero = `<small class="pl-eye">${M.day ? 'מחר' : 'בהמשך היום'} אין זמן פנוי מלא</small>
+      ${s0 ? `<div class="pl-big sup">${!M.day && s0.a <= now + 60000 ? `שקט עכשיו · עוד ${plDur(s0.b - now)}` : span(s0.a, s0.b)}</div>
+      <div class="pl-meta">זמן בהשגחה · ${plDur(left(s0))}${!M.day && s0.a > now + 60000 ? ' · ' + plIn(s0.a - now) : ''} · <span class="pl-cert">${plCert(s0)}</span></div>
+      <p class="pl-why">${s0.what}: את בבית ויכולה לעשות משהו בקרבת מקום, כמו מקלחת קצרה או עבודה, אבל ייתכן שיקראו לך. ${M.ks && M.ks.sleeps.find(x => x.why) ? 'למה לא פנוי: ' + M.ks.sleeps.find(x => x.why).why + '.' : ''}</p>` : '<p class="pl-why">אין גם זמן שקט צפוי.</p>'}`;
+  const stats = `<div class="pl-stats"><span><b>${plDur(sum('free'))}</b>פנוי ${M.day ? 'מחר' : 'בהמשך היום'}</span><span><b>${plDur(sum('sup'))}</b>בהשגחה</span><span><b>${longest ? plDur(left(longest)) : '—'}</b>הרצף הארוך${longest ? (longest.k === 'free' ? ' (פנוי)' : ' (השגחה)') : ''}</span><span><b>${both.length}</b>${both.length === 1 ? 'פעם ששתיהן' : 'פעמים ששתיהן'} צריכות</span></div>`;
+  const nextLine = nextCare ? `<div class="pl-next">${nextCare.a <= now && !M.day ? 'עכשיו צריכים אותך' : `הבא שצריך אותך ${M.day ? '' : plIn(nextCare.a - now) + ' · '}`}<b>${span(nextCare.a, nextCare.b)}</b> ${nextCare.what}${nextCare.both ? ' <em>שתיהן במקביל</em>' : ''}</div>` : '';
+  const top = `<div class="card pl-hero ${f0 ? (cur ? 'now' : 'next') : 'none'}"><div class="pl-top">${dayChips}</div>${hero}${stats}${nextLine}</div>`;
+  const tl = `<div class="card pl-tl"><div class="pl-tlh"><b>${planDay ? 'מחר' : 'היום'}</b><span class="pl-lg"><span><i class="lv-free"></i>פנוי</span><span><i class="lv-sup"></i>בהשגחה</span><span><i class="lv-care"></i>טיפול</span><span><i class="lv-est"></i>הערכה</span></span></div>
+    ${planTimelineHTML(M, lv, ln)}<small class="pl-range">${planDay ? 'מחר' : 'היום'} ${span(M.from, M.to)}${planDay ? ' · תחזית ליום שלם, פחות ודאית' : ''}</small></div>`;
+  // my windows: free and supervised stretches, longest marked
+  const row = x => { const isF = x.k === 'free', a = M.day ? x.a : Math.max(x.a, now);
+    const desc = isF ? `${x.f.before.join(' · ')}${x.f.notes.length ? ' · ' + x.f.notes.join(' · ') : ''}` : x.why;
+    return `<li class="pl-w ${isF ? 'pl-card free' : 'sup'}${x === longest ? ' longest' : ''}"><div class="pl-wt">${span(a, x.b)}<span>${plDur(x.b - a)}</span></div>
+      <div class="pl-wm"><span class="pl-badge ${isF ? 'free' : 'sup'}">${isF ? 'פנוי' : 'בהשגחה'}</span><span class="pl-cert ${x.conf || ''}">${isF ? PL_CONF[x.conf] : plCert(x)}</span>${x === longest ? '<span class="pl-long">הרצף הארוך</span>' : ''}</div>
+      <small>${isF ? 'נגמר כי ' + x.f.endWhy : x.what + ' · ' + x.why}</small>${isF ? `<small class="pl-do">${esc(desc)}</small>` : ''}
+      ${ics({kind: isF ? 'free' : 'sup', a, b: x.b, title: isF ? 'זמן פנוי' : 'זמן שקט (בהשגחה)', desc: (isF ? planCal({free: [x.f], needs: []})[0].desc : x.why)})}</li>`; };
+  const wins = frees.concat(sups).sort((x, y) => x.a - y.a);
+  const list = `<div class="card pl-list"><b class="pl-h">החלונות שלי</b>${wins.length ? `<ul>${wins.map(row).join('')}</ul>` : '<p class="pl-empty">אין חלונות שקטים צפויים.</p>'}</div>`;
+  const cr = care.map(x => `<li>${span(x.a, x.b)} ${x.what}${x.both ? ' <em>שתיהן</em>' : ''}${ics({kind: 'care', a: x.a, b: x.b, title: x.what, desc: x.why}, 'mini')}</li>`).join('');
   const allCal = planCal(M);
+  const careList = care.length ? `<details class="card pl-care"><summary>מתי צריכים אותך (${care.length})</summary><ul>${cr}</ul>${allCal.length ? `<button class="lnk" data-pl="icsall">כל ${planDay ? 'מחר' : 'היום'} ללוח השנה (${allCal.length})</button>` : ''}</details>` : '';
   const want = `<div class="card pl-want"><b>אני רוצה לצאת</b><div class="pl-tabs">${PLAN.wants.map(m => `<button class="pl-chip ${!planCustom && planWant === m ? 'on' : ''}" data-pl="want" data-v="${m}">${m < 60 ? m + ' דק׳' : m === 60 ? 'שעה' : m === 120 ? 'שעתיים' : m / 60 + ' שעות'}</button>`).join('')}
     <input id="plWant" type="text" inputmode="numeric" placeholder="דקות" aria-label="כמה דקות" value="${esc(planCustom)}"></div>${planWantHTML(Ms)}</div>`;
-  const kg = M.kg, info = `<div class="card pl-info"><small>קישמיש: נרדמת אחרי כ־${words(M.st.lat)} בכלוב · ישנה בדרך כלל ${words(M.st.nap)} (${M.st.naps.length} שינות) · ערה כ־${words(M.st.awake)} בין שינות · ארוחה כל ${words(M.st.mealGap)} · פיפי כל ${words(M.ks.peeMed)}</small>
-    <small>קוצ׳יק: פיפי כל ${words(kg.gap)} לכל היותר (${kg.q ? `רבעון תחתון ${words(kg.q)} מתוך ${kg.n} פערים` : 'מעט נתונים'}${kg.sick ? ` · אחרי ${kg.sick.k === 'vomit' ? 'הקאה' : 'שלשול'}: לכל היותר ${words(PLAN.kochikSick)}` : ''}) · ארוחות: ${M.marks.length ? M.marks.map(m => clock(m.t)).join(', ') + ' (מעט נתונים)' : 'אין מספיק נתונים'}</small></div>`;
-  return head + tl + `<div class="pl-cards">${frees.map(freeCard).join('') || `<div class="card pl-card free none"><b>אין זמן פנוי ${planDay ? 'מחר' : 'בהמשך היום'}</b><small>${M.ks && M.ks.sleeps.find(s => s.why) ? 'לדוגמה: ' + M.ks.sleeps.find(s => s.why).why : ''}</small></div>`}${nexts.map(needCard).join('')}</div>`
-    + (allCal.length ? `<div class="pl-all"><button class="lnk" data-pl="icsall">כל ${planDay ? 'מחר' : 'היום'} ללוח השנה (${allCal.length})</button></div>` : '') + want + info;
+  const kg = M.kg, info = `<details class="card pl-info"><summary>איך זה מחושב</summary><small>קישמיש: נרדמת אחרי כ־${words(M.st.lat)} בכלוב · ישנה בדרך כלל ${words(M.st.nap)} (${M.st.naps.length} שינות אחרי פיפי בחצץ) · ערה כ־${words(M.st.awake)} בין שינות · ארוחה כל ${words(M.st.mealGap)} · פיפי כל ${words(M.ks.peeMed)}</small>
+    <small>קוצ׳יק: פיפי כל ${words(kg.gap)} לכל היותר (${kg.q ? `רבעון תחתון ${words(kg.q)} מתוך ${kg.n} מרווחים` : 'מעט נתונים'}${kg.sick ? ` · אחרי ${kg.sick.k === 'vomit' ? 'הקאה' : 'שלשול'}: לכל היותר ${words(PLAN.kochikSick)}` : ''}) · ארוחות: ${M.marks.length ? M.marks.map(m => clock(m.t)).join(', ') + ' (מעט נתונים)' : 'אין מספיק נתונים'}</small>
+    <small>פנוי = שתיהן מסודרות לפחות ${words(PLAN.minFree)}: קישמיש ישנה בכלוב אחרי פיפי בחצץ, וקוצ׳יק לא צריכה כלום. בהשגחה = את בבית ושתיהן נחות, אבל בלי חלון פנוי מלא. טיפול = צרכים, אוכל, משחק, תרופות, עם ${words(PLAN.pad)} מרווח מכל צד. "הערכה" (מקווקו) = לפי הקצב הרגיל שלהן ולא לפי מה שקורה עכשיו.</small></details>`;
+  return top + tl + list + careList + want + info;
 }
 function planRender(){
   const main = document.getElementById('main'), f = document.activeElement && document.activeElement.id === 'plWant';

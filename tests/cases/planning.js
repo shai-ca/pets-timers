@@ -43,7 +43,15 @@
     ok('every free window keeps Kochik within her gap and Kishmish within her pee window and crate limit', M.free.every(fr => fr.b <= fr.anchor + M.kg.gap && fr.b <= fr.sl.c + M.ks.alone));
     const me = planLanes(M).me;
     ok('the "לי" lane covers the day without gaps and explains every unsure stretch naming a dog', me[0].a === M.from && me[me.length-1].b === M.to && me.every((s, i) => !i || s.a === me[i-1].b) && me.filter(s => s.k === 'uns').every(s => /קישמיש|קוצ׳יק|לילה/.test(s.tip)));
-    ok('the timeline uses the bar tips (tap shows the times and why)', $n('#main .pbar [data-tip]') > 5 && (() => { const s = $q('#main .pl-s.free'); s.click(); return $q('#main .pl-tl .ptip').textContent.includes('זמן פנוי'); })());
+    ok('the timeline uses the bar tips (tap shows the times and why)', $n('#main .pbar [data-tip]') > 5 && (() => { const s = $q('#main .pl-s.free'); s.click(); return /^פנוי · 12:00–13:10/.test($q('#main .pl-tl .ptip').textContent); })());
+    // the redesign (25.11): my day first, three levels, certainty apart
+    const lv = planLevels(M);
+    ok('my lane: three levels, no gaps, every stretch is free / supervised / care / night', lv[0].a === M.from && lv[lv.length-1].b === M.to && lv.every((s, i) => !i || s.a === lv[i-1].b) && lv.every(s => ['free','sup','care','off'].includes(s.k)));
+    ok('free now: the hero says so first, with what is left, the end and the certainty', $q('.pl-hero.now .pl-eye').textContent === 'את פנויה עכשיו' && $q('.pl-hero .pl-big').textContent.includes('שעה ו־10') === false && $q('.pl-hero .pl-big').textContent.startsWith('עוד') && $q('.pl-hero .pl-meta').textContent.includes('עד 13:10') && $q('.pl-hero .pl-meta').textContent.includes('ודאות גבוהה'));
+    ok('a compact summary: free time left, supervised time, the longest stretch, both at once', $n('.pl-stats > span') === 4 && $q('.pl-stats').textContent.includes('פנוי בהמשך היום') && $q('.pl-stats').textContent.includes('הרצף הארוך'));
+    ok('my windows: free and supervised, each with times, length, kind, certainty and a calendar button; the longest marked', $n('.pl-list .pl-w') >= 1 && !!$q('.pl-list .pl-w.longest') && [...document.querySelectorAll('.pl-list .pl-w')].every(w => !!w.querySelector('.pl-badge') && !!w.querySelector('[data-pl=ics]')));
+    ok('the timeline: an hour grid, a now line, labels inside wide stretches', $n('.pl-grid i') >= 8 && !!$q('.pl-grid .pl-now') && !!$q('.pl-lane.me .pl-s i'));
+    ok('later rounds are drawn as an estimate (hatched), what is happening now is not', $n('.pl-lane.me .pl-s.est') >= 1 && !$q('.pl-lane.me .pl-s.lv-free').classList.contains('est'));
     // 2. Read-only: building, clicking, toggling never writes
     $q('[data-pl=day][data-v="1"]').click();
     ok('tomorrow: a whole day from her morning, at most medium confidence', $q('.pl-range').textContent.includes('מחר') && planBuild(1).from > at(1, 5) && planBuild(1).free.every(x => x.conf !== 'high'));
@@ -73,6 +81,7 @@
     L = hist().filter(e => !(e.p === 'kishmish' && e.k === 'pee' && e.t === at(0, 11, 30))).concat([{...K0, k:'none', t: at(0, 11, 38)}]);
     M = plan(L);
     ok('in the crate without a pee on the gravel: no free time in that sleep, and it says why', !M.free.some(x => x.a < M.ks.sleeps[0].wake) && M.ks.sleeps[0].why.includes('בלי פיפי בחצץ') && planWhy(M, at(0, 12, 30)).tip.includes('קישמיש'));
+    if(!M.free.some(x => x.b > NOW)) ok('no free time ahead: the hero says so plainly and offers the next quiet (supervised) stretch', !!$q('.pl-hero.none') && $q('.pl-hero .pl-eye').textContent.includes('אין זמן פנוי מלא') && (!!$q('.pl-hero .pl-big.sup') || $q('.pl-hero').textContent.includes('אין גם זמן שקט')));
     // 6. In the crate but not (yet) asleep: free time only once she is seen asleep
     M = plan(hist().filter(e => !(e.k === 'sleep' && e.end == null)).map(e => e.k === 'crate' && e.end == null ? {...e, ns: 1} : e));
     ok('in the crate, not asleep yet: not free now', !M.free.some(x => x.a < at(0, 12, 30)) && /עוד לא נרדמה/.test(M.ks.sleeps[0].why));
