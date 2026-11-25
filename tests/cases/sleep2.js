@@ -3,6 +3,7 @@
 (async function(){
   try {
     reset();
+    if(typeof CRATE_TREAT_FROM !== 'undefined') CRATE_TREAT_FROM = Infinity;   // written against the delay with no treat rule; sleepcrate.js tests it
     const now = Date.now(), late = now - midnight() > 420*MIN, K0 = { p:'kishmish' }, D = 24*HOUR;
     if(!late){ ok('skipped (too close to midnight)', true); done(); return; }
     SLEEP2_FROM = now - 5*D;

@@ -899,6 +899,21 @@ function sleepSamples(p, log, now){
   }
   return out.sort((x,y) => x.t-y.t);
 }
+// A TREAT IN THE CRATE KEEPS HER BUSY (25.11): after a kong, a lick mat or food given inside a crate stay she is not
+// assumed asleep right away. From CRATE_TREAT_FROM, an estimated sleep in that stay begins no earlier than
+// CRATE_TREAT_AWAKE minutes after the latest such item (her usual delay still wins when it is longer). The number is
+// from her own marked sleeps after an item in the crate: 24.11 16:30 food → asleep 16:40 (10 min), 25.11 07:23 meal →
+// 07:59 (35 min; an estimate at 07:28 there was marked "לא ישנה"); and after the kongs of 24.11 12:39 and 15:12 she
+// was not marked asleep at all in the 18 / 23 minutes that followed. Median of the two marked = 22 → 25.
+// Only from the cut-off, so past days' estimates do not move. `sleepSpans` calls `treatAwakeUntil` (one line).
+const CRATE_TREAT_AWAKE = 25;   // minutes
+let CRATE_TREAT_FROM = Date.UTC(2026, 10, 25, 17, 0);   // 25.11.2026 19:00 in Israel — set to the publish time; tests move it
+const isCrateTreat = e => (e.k === 'play' && (e.y === 'kong' || e.y === 'lick')) || e.k === 'food';
+function treatAwakeUntil(L, c, s){   // the earliest an estimate may begin in the quiet stretch of stay c that begins at s (0 = no limit)
+  let t = 0;
+  for(const e of L) if(isCrateTreat(e) && e.t > c.t && e.t <= s && e.t >= CRATE_TREAT_FROM) t = Math.max(t, e.t);
+  return t ? t + CRATE_TREAT_AWAKE*60000 : 0;
+}
 function sleepSpans(p, log, now){
   const L = log.filter(e => e.p===p), sleeps = L.filter(e => e.k==='sleep'), cries = L.filter(e => e.k==='cry');
   const out = sleeps.map(e => ({t:e.t, end: e.end == null ? null : e.end, id:e.id}));
@@ -935,7 +950,7 @@ function sleepSpans(p, log, now){
         const kind = crateAt(p, s, log) || crateKind(c), old = s < SLEEP2_FROM && kind === 'box';
         const d = old ? ASSUME_SLEEP : delay(kind, c.t);
         if(d == null) continue;
-        const a = s + d;
+        const a = Math.max(s + d, treatAwakeUntil(L, c, s));   // a kong / lick mat / food in the crate: awake a while first
         // A piece cut short by a cry or by something she did, and shorter than SLEEP_PIECE, is not a sleep worth a row.
         if(a < e && (open || e - a >= (e < cEnd ? SLEEP_PIECE : 60000))) out.push({t:a, end: open ? null : e, assumed:true, stay:c.id});
       }
@@ -1461,7 +1476,7 @@ function sleepGoalHTML(p){
   const now = Date.now(), got = dayParts(p, now - 24*3600000, now).tot.sleep, pc = Math.min(100, got / (g*3600000) * 100), short = g*3600000 - got;
   const tg = `טווח לגילה: ${g}–${sleepGoalTop(p)} שעות ב־24 שעות`, tf = `ישנה ${hmm(got)} מאז ${when(now - 24*3600000)}`;
   return `<div class="gauge goal ${short <= 0 ? 'met' : short > 3*3600000 ? 'low' : ''}"><div class="gg" dir="ltr" data-tip="${tg}" title="${tg}"><span class="gf" style="width:${pc.toFixed(1)}%" data-tip="${tf}" title="${tf}"></span></div>
-    <small>ב־24 השעות האחרונות ישנה <b dir="ltr">${hmm(got)}</b> מתוך ${g}–${sleepGoalTop(p)} שעות${short > 0 ? ` · חסרות ${words(short)}` : got > sleepGoalTop(p)*3600000 ? ' · יותר מהטווח, זה בסדר' : ' · בטווח'}</small><div class="ptip"></div></div>`;
+    <small>ב־24 השעות האחרונות ישנה <b dir="ltr">${hmm(got)}</b> מתוך ${g}–${sleepGoalTop(p)} שעות${short > 0 ? ` · חסרות ${words(short)}` : got > sleepGoalTop(p)*3600000 ? sleepMuchNote() : ' · בטווח'}</small><div class="ptip"></div></div>`;
 }
 // SCORES, like a sleep ring (the owner, 25.11, after Oura's sleep / readiness scores). All from the list, last 24 hours:
 // SLEEP 0–100 = total against her goal (50) + how long her stretches are, 60 min = full (25) + last night, 22:00–06:00,
@@ -2201,6 +2216,7 @@ function render(){
         sub += `<span class="wake then">כשהיא מתעוררת: חצץ ואז אוכל</span>`; }
       const over = k==='crate' && crateOver(pet);
       if(over) sub += ` · יותר מ${words(CRATE_MAX)}`;
+      if(k === 'crate' && live && P.cycle) sub += crateAwakeNote(pet);   // a quiet line after a while awake in the crate
       const warn = k === 'sleep' && !live && aw && Date.now() - aw >= AWAKE.warn && Date.now() - aw < 6*3600000;
       h += `<div class="card item ${nowt} ${live?'live':''} ${k==='cry' || over?'cry':''} ${warn?'warn':''}">
         <div class="ic">${ico(k)}</div>
@@ -2454,6 +2470,22 @@ function crateSplit(p, from, to){   // time in the crate in [from, to): asleep /
   for(const e of state.log) if(e.p===p && e.k==='crate'){ const a = Math.max(e.t, from), b = Math.min(e.end == null ? Date.now() : e.end, to); if(b > a){ const t = dayParts(p, a, b).tot; sl += t.sleep; aw += t.crate; } }
   return {sl, aw};
 }
+// AWAKE IN THE CRATE, a quiet note (25.11): after CRATE_AWAKE_NOTE minutes of continuous awake time inside the running
+// stay — since the later of going in and the end of her last sleep (marked or estimated) — the crate card says so in
+// one calm line. No colour, no "take her out": what to do is the owner's call. Read by `tileOf` (one line).
+const CRATE_AWAKE_NOTE = 25;   // minutes (the owner: somewhere in 20–30)
+function crateAwakeSince(p){   // when her current awake time in the running stay began; 0 when not in a stay or asleep
+  const S = V[p], st = S.crate && S.crate.start, now = Date.now();
+  if(!PETS[p].cycle || !st || (S.sleep && S.sleep.start)) return 0;
+  return Math.max(st, ...S.spans.filter(x => x.end != null && x.end > st && x.end <= now).map(x => x.end));
+}
+function crateAwakeNote(p){
+  const a = crateAwakeSince(p); if(!a || Date.now() - a < CRATE_AWAKE_NOTE*60000) return '';
+  return `<span class="wake then crawake">ערה בכלוב כבר <span data-words="${a}">${words(Date.now() - a)}</span></span>`;
+}
+// A LOT OF SLEEP (25.11): over the top of her range in the last 24 hours — neutral; it points to how she is while
+// awake, never "wake her". Read by `sleepGoalHTML` (one expression).
+const sleepMuchNote = () => ' · ישנה הרבה היום — כדאי לשים לב איך היא בזמן הערות: אנרגיה ותיאבון';
 // How long after going into the crate something began (a sleep, usually): the crate stay that contains
 // time t, and the gap from its start. Worked out from the list, like everything else.
 function sinceCrate(p, t){
