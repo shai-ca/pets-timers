@@ -61,6 +61,7 @@
     ok('one tap switches to the new design, and remembers it on this phone only', V2 && document.body.classList.contains('v2') && localStorage.getItem(LS_KEY + '-v2') === '1' && !JSON.stringify(state).includes('v2'));
     ok('the new design: the steps with arrows and a loop back; the day ribbon; a bar per round', $n('.flow .fs') === 5 && $n('.flow .ar') === 4 && !!$q('.loop') && !!$q('.ribbon .pbar') && $n('.uni .rbar') >= 2);
     $q('#dsw [data-act=v2]').click();
+    ok('the new design\'s styles do not touch the old wheel (its ring keeps its own layout)', !!$q('svg.ring') && getComputedStyle($q('svg.ring')).position === 'absolute' && getComputedStyle($q('svg.ring')).width === '200px');
     ok('and back: the old design exactly (the wheel, no ribbon, no round bars)', !V2 && !document.body.classList.contains('v2') && !!$q('svg.ring') && !$q('.ribbon') && !$q('.rbar') && localStorage.getItem(LS_KEY + '-v2') === '0');
     done();
   } catch(e){ crashed(e); }

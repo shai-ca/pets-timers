@@ -221,6 +221,7 @@
   .gate .gerr{color:var(--alert);background:var(--alert-soft);border-radius:12px;padding:10px 12px;font-size:13.5px;text-align:right}
   .gate .gerr[hidden]{display:none}
   .hr{display:flex;align-items:center;gap:10px}
+  .guestf{display:flex;gap:8px;align-items:flex-end;margin:4px 0 12px} .guestf[hidden]{display:none} .guestf .field{flex:1;margin:0}
   .me{border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:10px;padding:5px 10px;font:inherit;font-size:12.5px;font-weight:500;cursor:pointer;white-space:nowrap}
   .by{font-style:normal;color:var(--muted);font-size:12px;margin-inline-start:6px}
   .chips button.sel{background:var(--ink);color:#fff;border-color:var(--ink)}
@@ -512,6 +513,25 @@
   .pbar .mk.tipon{transform:translateX(-50%) scale(1.3)}
   .pbar .mk .hit{fill:transparent;stroke:none}
   .ptip{font-size:12.5px;color:var(--ink);min-height:18px;margin-top:2px;font-variant-numeric:tabular-nums}
+  .gauge{margin:6px 0 2px;max-width:320px}
+  .gauge .gg{position:relative;height:8px;border-radius:5px;background:var(--seg);overflow:hidden}
+  .gauge .gw{position:absolute;top:0;bottom:0;background:color-mix(in srgb,var(--warn) 40%,transparent)}
+  .gauge .gf{position:absolute;left:0;top:0;bottom:0;border-radius:5px;background:var(--acc);opacity:.85}
+  .gauge.in .gf{background:var(--warn);opacity:1} .gauge.past .gf{background:var(--alert);opacity:1}
+  .gauge.goal .gf{background:var(--c-sleep);opacity:1} .gauge.goal.met .gf{background:var(--ok)}
+  .gauge.goal small b{color:var(--ink);font-weight:600}
+  .card.scores{display:block;padding:14px 10px 12px;width:100%;font:inherit;color:var(--ink);text-align:center;cursor:pointer}
+  .scg{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;align-items:start}
+  .scr{position:relative;display:flex;flex-direction:column;align-items:center;min-width:0}
+  .scr svg{width:64px;height:64px}
+  .scr .rt{fill:none;stroke:var(--seg);stroke-width:6} .scr .rv{fill:none;stroke:var(--faint);stroke-width:6;stroke-linecap:round}
+  .scr.hi .rv{stroke:var(--ok)} .scr.mid .rv{stroke:var(--warn)} .scr.lo .rv{stroke:var(--alert)}
+  .scr b{position:absolute;top:20px;left:0;right:0;font-size:19px;font-weight:700;font-variant-numeric:tabular-nums}
+  .scr span{font-size:13px;font-weight:600;margin-top:4px} .scr small{font-size:11.5px;color:var(--muted)}
+  .gauge .gg{cursor:pointer} .gauge .gg .tipon{filter:brightness(.85)}
+  .gauge .ptip{min-height:0;font-size:12px;margin-top:2px} .gauge .ptip:empty{display:none}
+  .gauge small{display:block;font-size:12px;color:var(--muted);margin-top:3px}
+  .gauge.in small{color:var(--warn);font-weight:500} .gauge.past small{color:var(--alert);font-weight:500}
   .rends{display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-top:-2px}
   @media (min-width:760px){
     .v2 main.grps > .grp{background:none;border:0;padding:0;box-shadow:none;border-radius:0}
@@ -658,6 +678,11 @@ const LOG_MAX = 5000, LS_KEY = 'pets-timers-v1', LS_DATA = 'pets-timers-v2';
 const SCHEMA = 2;   // version of the saved data; see `norm()` and the Firestore rule
 
 const USERS = {yonatan:'יונתן', shai:'שי', liza:'ליזה'};   // who is using this device; stamped on every log entry as `by`
+// A GUEST (25.11: a babysitter, a friend she stays with): "אורח/ת" in the who-am-I sheet asks for a name, and `by`
+// becomes "g:" + that name. Display only — nothing else reads `by`. `byName` is the one way to show it.
+const GUEST_MAX = 20;
+const isGuest = u => typeof u === 'string' && /^g:./.test(u) && u.length <= GUEST_MAX + 2;
+const byName = u => USERS[u] || (isGuest(u) ? esc(u.slice(2)) : '');
 let me = null;
 let state = blank(), pet = 'kishmish';
 let V = null;   // everything the screen shows about the pets, computed from `state.log` by `derive`; never saved
@@ -953,7 +978,7 @@ try {
 } catch(e){}
 if(!base) base = clone(state);
 try { const p = localStorage.getItem(LS_KEY+'-tab'); if(p && PETS[p]) pet = p; } catch(e){}
-try { const u = localStorage.getItem(LS_KEY+'-user'); if(USERS[u]) me = u; } catch(e){}
+try { const u = localStorage.getItem(LS_KEY+'-user'); if(USERS[u] || isGuest(u)) me = u; } catch(e){}
 // DESIGN V2 (25.11): a display choice of this phone only (`localStorage`, never the list). On by default;
 // "עיצוב חדש" at the bottom of the screen turns it on and off. Everything it changes is CSS under `.v2` plus a few
 // additions (the step strip, "עוד", the day ribbon); every button keeps its `data-act`, so the actions are the same code.
@@ -1372,6 +1397,61 @@ const ageOf = p => ageParts(V[p].born, todayIL());
 // How long a puppy can usually hold it: about an hour per month of age, plus one, eight at most. Shown beside
 // what the app learns from her own entries, not instead of it — and only for a dog under a year old.
 function holdHours(p){ const a = ageOf(p); return !a || a.y ? 0 : Math.min(8, a.m + 1); }   // 0 = no limit (a year old or more)
+// HOW MUCH SLEEP SHE NEEDS (the owner, 25.11: "how many hours she slept out of how many we want"): the common
+// guideline for puppies — about 18 hours a day until 4 months, 16 until 6, 14 until a year. Measured over the last
+// 24 hours (since midnight cannot be compared with a daily amount at noon), from `dayParts`.
+function sleepGoal(p){ const a = ageOf(p); return !a || a.y ? 0 : a.m < 4 ? 18 : a.m < 6 ? 16 : 14; }
+function sleepGoalHTML(p){
+  const g = sleepGoal(p); if(!g) return '';
+  const now = Date.now(), got = dayParts(p, now - 24*3600000, now).tot.sleep, pc = Math.min(100, got / (g*3600000) * 100), short = g*3600000 - got;
+  const tg = `יעד לגילה: ${g} שעות ב־24 שעות`, tf = `ישנה ${hmm(got)} מאז ${when(now - 24*3600000)}`;
+  return `<div class="gauge goal ${short <= 0 ? 'met' : short > 3*3600000 ? 'low' : ''}"><div class="gg" dir="ltr" data-tip="${tg}" title="${tg}"><span class="gf" style="width:${pc.toFixed(1)}%" data-tip="${tf}" title="${tf}"></span></div>
+    <small>ב־24 השעות האחרונות ישנה <b dir="ltr">${hmm(got)}</b> מתוך ${g} שעות${short > 0 ? ` · חסרות ${words(short)}` : ' · עמדה ביעד'}</small><div class="ptip"></div></div>`;
+}
+// SCORES, like a sleep ring (the owner, 25.11, after Oura's sleep / readiness scores). All from the list, last 24 hours:
+// SLEEP 0–100 = total against her goal (50) + how long her stretches are, 60 min = full (25) + last night, 22:00–06:00,
+// 7 hours = full (25). READY (מוכנות) = 100 − minutes awake (up to 60) − 10 per missing hour of sleep (up to 40);
+// none while she sleeps. GRAVEL = pees and poops on the gravel or outside out of all of them with a place (3 needed).
+function scores(p){
+  const g = sleepGoal(p); if(!g) return null;
+  const now = Date.now(), a = now - 24*3600000, H = 3600000;
+  const iv = V[p].spans.filter(x => x.t <= now).map(x => [Math.max(x.t, a), Math.min(x.end == null ? now : x.end, now)]).filter(([x, y]) => y > x).sort((x, y) => x[0] - y[0]), st = [];
+  for(const [x, y] of iv){ const l = st[st.length-1]; if(l && x - l[1] < 3*60000) l[1] = Math.max(l[1], y); else st.push([x, y]); }
+  const total = st.reduce((n, [x, y]) => n + y - x, 0), avg = st.length ? total / st.length : 0;
+  const n0 = sod(now); n0.setHours(-2); if(now < n0.getTime() + 8*H) n0.setDate(n0.getDate() - 1);   // last night: 22:00 – 06:00
+  const n1 = n0.getTime() + 8*H, night = st.reduce((n, [x, y]) => n + Math.max(0, Math.min(y, n1) - Math.max(x, n0.getTime())), 0);
+  const parts = {total: Math.min(1, total / (g*H)) * 50, cont: Math.min(1, avg / H) * 25, night: Math.min(1, night / (7*H)) * 25};
+  const sleep = Math.round(parts.total + parts.cont + parts.night);
+  const asleep = !!(V[p].sleep && V[p].sleep.start), aw = awakeSince(p), awMin = aw ? Math.max(0, (now - aw) / 60000) : 0;
+  const debt = Math.max(0, g*H - total), ready = asleep ? null : Math.max(0, Math.round(100 - Math.min(60, awMin) - Math.min(40, debt / H * 10)));
+  const pts = state.log.filter(e => e.p===p && (e.k==='pee' || e.k==='poop') && e.t >= a && e.t <= now && WHERE[e.w]);
+  const good = pts.filter(e => e.w === 'gravel' || e.w === 'out').length;
+  return {sleep, parts, total, avg, night, stretches: st.length, g, ready, awMin, debt, asleep, gravel: pts.length >= 3 ? Math.round(good / pts.length * 100) : null, good, all: pts.length};
+}
+function ringHTML(v, label, sub){
+  const C = 2 * Math.PI * 26, f = v == null ? 0 : v / 100, cls = v == null ? 'na' : v >= 85 ? 'hi' : v >= 70 ? 'mid' : 'lo';
+  return `<span class="scr ${cls}"><svg viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="26" class="rt"/><circle cx="32" cy="32" r="26" class="rv" stroke-dasharray="${(f*C).toFixed(1)} ${C.toFixed(1)}" transform="rotate(-90 32 32)"/></svg><b>${v == null ? '–' : v}</b><span>${label}</span><small>${sub}</small></span>`;
+}
+function scoresHTML(p){
+  const s = scores(p); if(!s) return '';
+  return `<button class="card scores" data-act="scores" aria-label="המדדים של ${PETS[p].name}: לחיצה להסבר"><span class="scg">
+    ${ringHTML(s.sleep, 'שינה', `${hmm(s.total)} ב־24 שעות`)}${ringHTML(s.ready, 'מוכנות', s.asleep ? 'ישנה עכשיו' : `ערה ${words(s.awMin*60000)}`)}${ringHTML(s.gravel, 'חצץ', s.gravel == null ? 'מעט נתונים' : `${s.good} מתוך ${s.all}`)}</span></button>`;
+}
+function openScores(p){
+  const s = scores(p); if(!s) return;
+  const r = n => Math.round(n);
+  sh.innerHTML = `<h3>${PETS[p].name} · איך מחושבים המדדים</h3>
+    <div class="help">
+      <p><b>שינה ${s.sleep}/100</b> · מה־24 השעות האחרונות:<br>
+        כמות: ישנה ${hmm(s.total)} מתוך ${s.g} שעות לגילה → ${r(s.parts.total)}/50<br>
+        רציפות: ${s.stretches} רצפים, בממוצע ${words(s.avg)} (שעה ומעלה = מלא) → ${r(s.parts.cont)}/25<br>
+        לילה: ${hmm(s.night)} בין 22:00 ל־06:00 (7 שעות = מלא) → ${r(s.parts.night)}/25</p>
+      <p><b>מוכנות ${s.ready == null ? '– (ישנה)' : s.ready + '/100'}</b> · כמה היא רעננה עכשיו: מתחילים מ־100, יורדת נקודה לכל דקה ערה (עד 60) ו־10 לכל שעת שינה שחסרה ליעד (עד 40). עכשיו: ערה ${words(s.awMin*60000)}, חסרות ${words(s.debt)}.</p>
+      <p><b>חצץ ${s.gravel == null ? '–' : s.gravel + '%'}</b> · מכל הפיפי והקקי ב־24 השעות האחרונות שסומן איפה: ${s.good} מתוך ${s.all} בחצץ או בחוץ. צריך לפחות 3.</p>
+      <p class="sub">ירוק 85 ומעלה · כתום 70–84 · אדום מתחת ל־70. אלה הערכות פשוטות, לא מדע.</p>
+    </div><div class="foot"><span></span><button class="btn primary" id="cancel">סגירה</button></div>`;
+  sh.querySelector('#cancel').onclick = close; bg.classList.add('show');
+}
 function holdHint(p){
   const h = holdHours(p); if(!h) return '';
   return `<div class="sub hint byage x">לפי הגיל: ${h === 1 ? 'עד כשעה' : h === 2 ? 'עד כשעתיים' : `עד כ־${h} שעות`}</div>`;
@@ -1404,7 +1484,7 @@ function treatCardHTML(p){
   return `<div class="card item treatc"><div class="ic">${ico('treat')}</div>
     <div><div class="lbl">חטיף אחרון</div>
       <div class="big txt ${last ? '' : 'none'}">${last ? [TREAT[last.q], esc(last.n)].filter(Boolean).join(' · ') || 'חטיף' : '–'}</div>
-      <div class="sub">${last ? `${dayLabel(last.t)} ב־<bdi dir="ltr">${clock(last.t)}</bdi>${USERS[last.by] ? ' · '+USERS[last.by] : ''}` : 'עוד לא נרשם'}</div>
+      <div class="sub">${last ? `${dayLabel(last.t)} ב־<bdi dir="ltr">${clock(last.t)}</bdi>${byName(last.by) ? ' · '+byName(last.by) : ''}` : 'עוד לא נרשם'}</div>
       <div class="sub hint">${today}</div></div>
     <div class="acts"><button class="go" data-act="treat" data-k="reg">חטיף רגיל</button><button class="go" data-act="treat" data-k="fat">חטיף שומני</button></div></div>`;
 }
@@ -1434,7 +1514,7 @@ function fatLine(e){   // "8 שעות אחרי חטיף שומני (שי, 09:15)
   const f = fatBefore(e); if(!f) return '';
   const h = Math.floor((e.t - f.t) / 3600000), gap = h < 1 ? 'פחות משעה' : h === 1 ? 'שעה' : h === 2 ? 'שעתיים' : `${h} שעות`;
   const when = (dayKey(f.t) === dayKey(e.t) ? '' : dayLabel(f.t) + ' ') + clock(f.t);
-  return `${gap} אחרי חטיף שומני (${USERS[f.by] ? USERS[f.by] + ', ' : ''}${when})`;
+  return `${gap} אחרי חטיף שומני (${byName(f.by) ? byName(f.by) + ', ' : ''}${when})`;
 }
 function fat30HTML(p){   // always the last 30 days, whatever period the summary shows
   const since = Date.now() - 30*86400000, D = state.log.filter(e => e.p===p && e.k==='poop' && e.q==='dia' && e.t >= since && e.t <= Date.now()), k = D.filter(fatBefore).length;
@@ -1635,7 +1715,7 @@ function endDurAt(p, k, ts){   // "woke up / came out 10 minutes ago"
 let DUP_MS = 2*60000;
 function recentDouble(p, same){ const now = Date.now(); return state.log.filter(e => e.p===p && same(e) && Math.abs(now - e.t) < DUP_MS).pop() || null; }
 function askAgain(e, label, yes){
-  sh.innerHTML = `<h3>כבר נרשם</h3><div class="sub" style="font-size:14.5px;margin-bottom:18px">${label} כבר נרשם ב־<bdi dir="ltr">${clock(e.t)}</bdi>${USERS[e.by] ? ' על ידי ' + USERS[e.by] : ''}. לרשום שוב?</div>
+  sh.innerHTML = `<h3>כבר נרשם</h3><div class="sub" style="font-size:14.5px;margin-bottom:18px">${label} כבר נרשם ב־<bdi dir="ltr">${clock(e.t)}</bdi>${byName(e.by) ? ' על ידי ' + byName(e.by) : ''}. לרשום שוב?</div>
     <div class="foot"><button class="btn" id="cancel">לא, זו טעות</button><button class="btn primary" id="ok">לרשום שוב</button></div>`;
   sh.querySelector('#cancel').onclick = close;
   sh.querySelector('#ok').onclick = () => { close(); yes(); };
@@ -1849,7 +1929,7 @@ function ribbonHTML(p){
   const ks = ['sleep', 'crate', 'out'], ticks = [];
   for(let h = 0; h * 3600000 < all - 1800000; h += 3) ticks.push(`<span style="left:${(h * 3600000 / all * 100).toFixed(2)}%">${pad(h)}</span>`);
   return `<div class="card ribbon">
-    <div class="rb-h"><b>היום במבט אחד</b><small>מ־00:00 עד עכשיו</small></div>
+    <div class="rb-h"><b>היום במבט אחד</b><small>מ־00:00 עד עכשיו</small></div>${sleepGoalHTML(p)}
     <div class="rtot">${ks.map(k => `<div class="${k}"><span><i></i>${k === 'out' ? 'בחוץ · משחק וחופש' : PART[k]}</span><b>${hmm(dp.tot[k])}</b><small>${Math.round(dp.tot[k] / all * 100)}%</small></div>`).join('')}</div>
     ${partsBar(p, a, now, dp)}<div class="ticks" dir="ltr">${ticks.join('')}</div>
     <div class="rlg">${ico('pee','s')}פיפי ${ico('poop','s')}קקי ${ico('food','s')}ארוחה ${ico('ball','s')}משחק <em>אדום: לא בחצץ</em></div></div>`;
@@ -1972,7 +2052,7 @@ function render(){
 
   // Alerts, the retry card and the wheel live in the side column: on a computer it stays in place while
   // the tiles scroll; on a phone it is simply the top of the page.
-  let sideHTML = P.cycle ? alertsHTML(pet) + retryHTML(pet) + sleepAskHTML(pet) + cycleHTML(pet) : '';
+  let sideHTML = P.cycle ? alertsHTML(pet) + retryHTML(pet) + sleepAskHTML(pet) + (V2 ? scoresHTML(pet) : '') + cycleHTML(pet) : '';
 
   const tap = P.cycle ? routineTap(pet) : [];
   const tileOf = k => {
@@ -1985,7 +2065,7 @@ function render(){
           ${it.slow ? `<div class="big txt ${t?'':'none'}">${t ? wordsLong(Date.now()-t) : '–'}</div>`
                     : `<div class="big ${t?'':'none'}" ${t?`data-since="${t}"`:''}>${t ? dur(Date.now()-t) : '–'}</div>`}
           <div class="sub">${t ? `${dayLabel(t)} ב־${clock(t)}${whereOf(pet,k,t) || (hasWhere(k) ? ` · <button class="lnk" data-act="where" data-k="${k}">איפה?</button>` : '')}${typeOf(pet,k,t)}${byOf(pet,k,t)}` : 'עוד לא נרשם'}</div>
-          ${P.cycle && k === 'pee' ? forecastLine(pet) : ''}${k === 'pee' ? holdHint(pet) : ''}${P.cycle && k === 'poop' ? poopLine(pet) + poopHints(pet) : ''}${P.cycle && k === 'food' && S.bite > (S.food || 0) ? `<div class="sub hint bite">ביס אחרון ב־<bdi dir="ltr">${clock(S.bite)}</bdi> · לא מאפס את השעון</div>` : ''}${P.cycle && k === 'food' ? mealLine(pet) : ''}${k === 'bath' ? bathLine(pet) : ''}${todayWhere(pet,k) ? `<div class="sub hint x">${todayWhere(pet,k)}</div>` : ''}${P.cycle && typical(pet,k) ? `<div class="sub hint x">${typical(pet,k)}</div>` : ''}${it.note ? `<div class="sub hint x">${it.note}</div>` : ''}MOREBTN</div>
+          ${P.cycle && k === 'pee' ? forecastLine(pet) + (V2 ? gaugeHTML(peeWindow(pet), 'לחלון', 'הפיפי האחרון ב־') : '') : ''}${k === 'pee' ? holdHint(pet) : ''}${P.cycle && k === 'poop' ? poopLine(pet) + (V2 ? gaugeHTML(poopWindow(pet), 'לחלון', 'הקקי האחרון ב־') : '') + poopHints(pet) : ''}${P.cycle && k === 'food' && S.bite > (S.food || 0) ? `<div class="sub hint bite">ביס אחרון ב־<bdi dir="ltr">${clock(S.bite)}</bdi> · לא מאפס את השעון</div>` : ''}${P.cycle && k === 'food' ? mealLine(pet) + (V2 ? gaugeHTML(mealWindow(pet), 'לארוחה', 'הארוחה האחרונה ב־') : '') : ''}${k === 'bath' ? bathLine(pet) + (V2 ? gaugeHTML(bathWindow(pet), 'למקלחת', 'המקלחת האחרונה ב־') : '') : ''}${todayWhere(pet,k) ? `<div class="sub hint x">${todayWhere(pet,k)}</div>` : ''}${P.cycle && typical(pet,k) ? `<div class="sub hint x">${typical(pet,k)}</div>` : ''}${it.note ? `<div class="sub hint x">${it.note}</div>` : ''}MOREBTN</div>
         <div class="acts"><button class="go" data-act="pt" data-k="${k}">${it.btn}</button>
           <button class="ghost" data-act="edit" data-k="${k}">${ico('clock','s')}שעה אחרת</button>
           ${P.cycle && k === 'food' ? `<button class="ghost" data-act="nofood">${ico('none','s')}לא אכלה</button>` : ''}</div></div>`;
@@ -2015,7 +2095,7 @@ function render(){
       const warn = k === 'sleep' && !live && aw && Date.now() - aw >= AWAKE.warn && Date.now() - aw < 6*3600000;
       h += `<div class="card item ${nowt} ${live?'live':''} ${k==='cry' || over?'cry':''} ${warn?'warn':''}">
         <div class="ic">${ico(k)}</div>
-        <div><div class="lbl">${lbl}</div>${big}<div class="sub">${sub}</div></div>
+        <div><div class="lbl">${lbl}</div>${big}<div class="sub">${sub}</div>${V2 && k === 'sleep' && !live && P.cycle ? gaugeHTML(sleepWindow(pet), 'לשינה', 'ערה מ־') : ''}${V2 && k === 'sleep' && P.cycle ? sleepGoalHTML(pet) : ''}</div>
         <div class="acts"><button class="go" data-act="dur" data-k="${k}">${live?it.stop:it.start}</button>
           <button class="ghost" data-act="edit" data-k="${k}">${ico(live?'clock':'plus','s')}${live?'שעת התחלה':'הוספה'}</button>${k === 'sleep' && live && P.cycle ? `<button class="ghost" data-act="notasleep">${ico('none','s')}לא נרדמה</button>` : ''}${k === 'crate' && live && P.cycle ? `<button class="ghost" data-act="swap">${ico('crate','s')}החלפת כלוב</button>` : ''}</div>
         ${k === 'crate' && live && P.cycle && !slim ? `<div class="incr"><span>קיבלה בכלוב:</span><button class="btn" data-act="play" data-k="kong">${PLAY.kong}</button><button class="btn" data-act="play" data-k="lick">${PLAY.lick}</button><button class="btn" data-act="crfood">ארוחה</button></div>` : ''}
@@ -2059,7 +2139,7 @@ function render(){
 waterRowHTML(pet) + (P.treats ? treatCardHTML(pet) : ''), 'food');
     if(P.bath) h += sec('', 'מקלחת', false, tileOf('bath'), 'bath');
     // Sleep and crying sit right under the wheel, always at hand: in the crate she is either asleep or crying.
-    if(pottyTop) sideHTML = alertsHTML(pet) + retryHTML(pet) + sleepAskHTML(pet) + pottySec + cycleHTML(pet);
+    if(pottyTop) sideHTML = alertsHTML(pet) + retryHTML(pet) + sleepAskHTML(pet) + pottySec + (V2 ? scoresHTML(pet) : '') + cycleHTML(pet);
     sideHTML += `<section class="duo" id="sec-rest">${tileOf('sleep')}${tileOf('cry')}</section>`;
   }
 
@@ -2289,6 +2369,43 @@ function poopGap(p){
   for(let i = 1; i < t.length; i++) g.push(t[i] - t[i-1]);
   return g.length >= 3 ? median(g) : 0;
 }
+// NEXT PEE / POOP AS A BAR (new design, the owner's ask): from the last one to a bit past the expected window, filled
+// up to now, the window shaded. Pee: `peeForecast`. Poop: her own window after a meal / waking (`poopModel`, as the
+// "הקקי הבא צפוי" line), else her usual gap between poops ± a quarter, and the bar ends at 1.5 × that gap — where the
+// card starts saying "longer than usual".
+function poopWindow(p){
+  const last = V[p].poop; if(typeof last !== 'number') return null;
+  const m = poopModel(p);
+  if(m && m.last != null && m.last > last){ const from = m.last + quantile(m.g, .25), to = m.last + quantile(m.g, .75); return {last, from, to, end: to + (to - last) * .25}; }
+  const g = poopGap(p); if(!g) return null;
+  return {last, from: last + .75*g, to: last + 1.25*g, end: last + 1.5*g};
+}
+// Every forecast the app makes is drawn the same way (the owner: so she does not lose the sense of time): a bar from
+// the last time, filled up to now, with the expected window shaded (a point forecast gets a thin mark).
+// `noun`: what is due ("לחלון", "לארוחה"…), used in "עוד X לחלון".
+const when = t => `${dayLabel(t) === 'היום' ? '' : dayLabel(t) + ' '}${clock(t)}`;
+function gaugeHTML(w, noun, lastLbl){
+  if(!w) return '';
+  const now = Date.now(), end = Math.max(w.end, now + 1), W = end - w.last, pc = t => Math.max(0, Math.min(100, (t - w.last) / W * 100));
+  const fm = ms => ms >= 36*3600000 ? wordsLong(ms) : words(ms), point = w.to - w.from < 60000;
+  const st = now < w.from ? `עוד ${fm(w.from - now)} ${noun}` : now <= w.to ? (point ? 'עכשיו' : `עכשיו · עד ${w.to - w.from >= 36*3600000 ? dayLabel(w.to) : `<bdi dir="ltr">${clock(w.to)}</bdi>`}`) : `עברו ${fm(now - w.to)}`;
+  const cls = now < w.from ? 'soon' : now <= w.to + (point ? 15*60000 : 0) ? 'in' : 'past';
+  const a = pc(w.from), b = Math.max(pc(w.to), a + 1.5);
+  // hover / tap: when each part is (`showTip`, like the day ribbon)
+  const tw = point ? `צפוי בערך ב־${when(w.from)}` : `החלון הצפוי: ${when(w.from)}–${when(w.to)}`, tf = `${lastLbl}${when(w.last)} · עברו ${fm(now - w.last)}`;
+  return `<div class="gauge ${cls}"><div class="gg" dir="ltr" data-tip="${tf} · ${tw}" title="${tf} · ${tw}"><span class="gw" style="left:${a.toFixed(1)}%;width:${(b - a).toFixed(1)}%" data-tip="${tw}" title="${tw}"></span><span class="gf" style="width:${pc(now).toFixed(1)}%" data-tip="${tf}" title="${tf}"></span></div><small>${st}</small><div class="ptip"></div></div>`;
+}
+const peeWindow = p => { const f = peeForecast(p); return f && {last: f.last, from: f.from, to: f.to, end: f.to + (f.to - f.last) * .2}; };
+function mealWindow(p){   // the same reading as `mealLine`: last meal + her usual gap
+  const g = mealGap(p), last = V[p].food; if(!g || !last || isNight() || Date.now() > last + g + 3600000) return null;
+  return {last, from: last + g, to: last + g, end: last + 1.25*g};
+}
+function bathWindow(p){ const t = V[p].bath; if(!t) return null; const due = sod(t); due.setDate(due.getDate() + BATH_DAYS); return {last: t, from: due.getTime() - 2*86400000, to: due.getTime(), end: due.getTime() + 86400000}; }
+function sleepWindow(p){   // awake out of the crate: an hour awake is the trainer's limit (`AWAKE`)
+  const S = V[p], aw = awakeSince(p);
+  if(!aw || (S.sleep && S.sleep.start) || (S.crate && S.crate.start) || aw < Date.now() - 4*3600000) return null;
+  return {last: aw, from: aw + AWAKE.warn, to: aw + AWAKE.max, end: aw + 1.25*AWAKE.max};
+}
 const BATH_DAYS = 10;
 function bathLine(p){
   const t = V[p].bath;
@@ -2326,14 +2443,14 @@ function typeOf(p, k, t){   // " · what kind" of the poop logged at t — or a 
   return !e ? '' : KIND_LBL[e.q] ? typeTag(e.q, !!PETS[p].cycle) : ` · <button class="lnk" data-act="ptype" data-k="${k}">איזה סוג?</button>`;
 }
 function byOf(p, k, t){   // " · name" of whoever logged this event, if known
-  for(let i = state.log.length-1; i >= 0; i--){ const e = state.log[i]; if(e.p===p && e.k===k && e.t===t) return USERS[e.by] ? ' · '+USERS[e.by] : ''; }
+  for(let i = state.log.length-1; i >= 0; i--){ const e = state.log[i]; if(e.p===p && e.k===k && e.t===t) return byName(e.by) ? ' · '+byName(e.by) : ''; }
   return '';
 }
 function logRow(e){
   const live = isLive(e);
   if(e.assumed) return `<div class="r guess" data-stay="${e.stay}" data-t="${e.t}">${ico('sleep','s')}<span>${live ? 'ישנה כנראה עכשיו' : 'ישנה'} <i class="by">משוער</i>${e.end ? ' · '+words(e.end-e.t) : ''}</span>
      <time>${dayLabel(e.t)} <bdi dir="ltr">${clock(e.t)}${e.end ? '–'+clock(e.end) : ''}</bdi></time></div>`;
-  return `<div class="r" ${live ? `data-live="${e.k}"` : `data-e="${state.log.indexOf(e)}"`}>${ico(iconOf(e.k),'s')}<span>${live ? ITEMS[e.k].live+' עכשיו' : e.k === 'swap' && CRATES[e.c] ? 'הועברה ל'+CRATES[e.c] : lblOf(e)}${e.k === 'crate' && PETS[e.p].cycle && (CRATES[e.c] || e.t >= SLEEP2_FROM) ? ' · '+CRATES[crateKind(e)] : ''}${isRetryStay(e) ? ' · ניסיון חוזר' : ''}${CRY_LBL[cryKind(e)] ? ' · '+CRY_LBL[cryKind(e)] : ''}${mealKind(e) ? ' · '+MEAL_LBL[mealKind(e)] : ''}${typeTag(e.q, !!PETS[e.p].cycle)}${e.n ? ' · '+esc(e.n) : ''}${afterCrate(e.p, e)}${PLAY[e.y] ? ' · '+PLAY[e.y] : e.y === 'play' ? ' · במשחק' : ''}${whereTag(e.w)}${waitTag(e)}${e.end ? ' · '+words(e.end-e.t) : ''}${USERS[e.by] ? `<i class="by">${USERS[e.by]}</i>` : ''}${fatLine(e) ? `<small class="ctx">${fatLine(e)}</small>` : ''}</span>
+  return `<div class="r" ${live ? `data-live="${e.k}"` : `data-e="${state.log.indexOf(e)}"`}>${ico(iconOf(e.k),'s')}<span>${live ? ITEMS[e.k].live+' עכשיו' : e.k === 'swap' && CRATES[e.c] ? 'הועברה ל'+CRATES[e.c] : lblOf(e)}${e.k === 'crate' && PETS[e.p].cycle && (CRATES[e.c] || e.t >= SLEEP2_FROM) ? ' · '+CRATES[crateKind(e)] : ''}${isRetryStay(e) ? ' · ניסיון חוזר' : ''}${CRY_LBL[cryKind(e)] ? ' · '+CRY_LBL[cryKind(e)] : ''}${mealKind(e) ? ' · '+MEAL_LBL[mealKind(e)] : ''}${typeTag(e.q, !!PETS[e.p].cycle)}${e.n ? ' · '+esc(e.n) : ''}${afterCrate(e.p, e)}${PLAY[e.y] ? ' · '+PLAY[e.y] : e.y === 'play' ? ' · במשחק' : ''}${whereTag(e.w)}${waitTag(e)}${e.end ? ' · '+words(e.end-e.t) : ''}${byName(e.by) ? `<i class="by">${byName(e.by)}</i>` : ''}${fatLine(e) ? `<small class="ctx">${fatLine(e)}</small>` : ''}</span>
      <time>${dayLabel(e.t)} <bdi dir="ltr">${clock(e.t)}${e.end ? '–'+clock(e.end) : ''}</bdi></time></div>`;
 }
 
@@ -2625,10 +2742,10 @@ document.getElementById('dsw').addEventListener('click', e => {
   render(); window.scrollTo(0, 0);
 });
 // The bars of the new design: hovering (computer) or tapping (phone) a part or a mark writes its times under the bar.
-function showTip(el){ const t = el.closest('.pbar'); if(!t) return; t.querySelector('.ptip').textContent = el.dataset.tip; t.querySelectorAll('.tipon').forEach(x => x.classList.remove('tipon')); el.classList.add('tipon'); }
-document.getElementById('shell').addEventListener('pointerover', e => { const t = e.target.closest && e.target.closest('.pbar [data-tip]'); if(t) showTip(t); });
+function showTip(el){ const t = el.closest('.pbar, .gauge'); if(!t) return; t.querySelector('.ptip').textContent = el.dataset.tip; t.querySelectorAll('.tipon').forEach(x => x.classList.remove('tipon')); el.classList.add('tipon'); }
+document.getElementById('shell').addEventListener('pointerover', e => { const t = e.target.closest && e.target.closest('.pbar [data-tip], .gauge [data-tip]'); if(t) showTip(t); });
 document.getElementById('shell').addEventListener('click', e => {
-  const tip = e.target.closest('.pbar [data-tip]');
+  const tip = e.target.closest('.pbar [data-tip], .gauge [data-tip]');
   if(tip){ showTip(tip); return; }
   const go = e.target.closest('[data-go]');
   if(go){ goSec(go.dataset.go); return; }
@@ -2653,6 +2770,7 @@ document.getElementById('shell').addEventListener('click', e => {
     const d = sod(Date.now()); d.setDate(d.getDate() - 1);
     view = 'sum'; sumMode = 'day'; sumFilter = null; sumAnchor = d.getTime(); render(); window.scrollTo(0, 0);
   }
+  else if(a==='scores') openScores(pet);
   else if(a==='more'){ openX.has(pet+k) ? openX.delete(pet+k) : openX.add(pet+k); render(); }
   else if(a==='brk') goBreak(pet);
   else if(a==='swap') askSwap(pet);
@@ -2998,15 +3116,21 @@ function openEntrySheet(i){
   };
 }
 
-function renderMe(){ document.getElementById('me').textContent = me ? USERS[me] : 'מי אני?'; }
+function renderMe(){ document.getElementById('me').textContent = me ? (USERS[me] || (isGuest(me) ? me.slice(2) : '')) : 'מי אני?'; }
 function openUserSheet(then){
+  const g = isGuest(me) ? me.slice(2) : '';
   sh.innerHTML = `<h3>מי משתמש/ת במכשיר הזה?</h3>
-    <div class="chips users">${Object.entries(USERS).map(([k,n]) => `<button data-u="${k}" class="${k===me?'sel':''}">${n}</button>`).join('')}</div>
+    <div class="chips users">${Object.entries(USERS).map(([k,n]) => `<button data-u="${k}" class="${k===me?'sel':''}">${n}</button>`).join('')}<button data-guest="1" class="${g ? 'sel' : ''}">אורח/ת</button></div>
+    <div class="guestf" ${g ? '' : 'hidden'}><label class="field">השם שלך <input type="text" id="gname" maxlength="${GUEST_MAX}" value="${esc(g)}" placeholder="למשל: דנה" autocomplete="off"></label>
+      <button class="btn primary" id="gok">המשך</button></div>
     <div class="sub">השם יופיע ליד כל רישום שנעשה מהמכשיר הזה. אפשר להחליף בלחיצה על השם למעלה.</div>`;
-  sh.querySelectorAll('[data-u]').forEach(b => b.onclick = () => {
-    me = b.dataset.u; try{ localStorage.setItem(LS_KEY+'-user', me); }catch(e){}
-    close(); renderMe(); if(then) then();
-  });
+  const pickU = u => { me = u; try{ localStorage.setItem(LS_KEY+'-user', me); }catch(e){} close(); renderMe(); render(); if(then) then(); };
+  sh.querySelectorAll('[data-u]').forEach(b => b.onclick = () => pickU(b.dataset.u));
+  const gf = sh.querySelector('.guestf'), gi = sh.querySelector('#gname');
+  sh.querySelector('[data-guest]').onclick = () => { gf.hidden = false; sh.querySelector('[data-guest]').classList.add('sel'); gi.focus(); };
+  const okG = () => { const n = gi.value.replace(/\s+/g, ' ').trim().slice(0, GUEST_MAX); if(!n || USERS[n] || Object.values(USERS).includes(n)){ gi.classList.add('bad'); return; } pickU('g:' + n); };
+  sh.querySelector('#gok').onclick = okG;
+  gi.onkeydown = e => { if(e.key === 'Enter') okG(); };
   bg.classList.add('show');
 }
 document.getElementById('me').onclick = () => openUserSheet();

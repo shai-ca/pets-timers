@@ -22,9 +22,9 @@
     V2 = true; render();
     ok('the ribbon shows the totals, and the pee on the gravel as a green mark', $q('.ribbon .rtot').textContent.includes(hmm(t.sleep)) && !!$q('.ribbon .mk.pee:not(.bad)'));
     $q('.ribbon .pt.sleep').dispatchEvent(new MouseEvent('click', {bubbles:true}));
-    ok('tapping a part of the bar writes its times under it', /שינה \d\d:\d\d–\d\d:\d\d/.test($q('.ribbon .ptip').textContent));
+    ok('tapping a part of the bar writes its times under it', /שינה \d\d:\d\d–\d\d:\d\d/.test($q('.ribbon .pbar .ptip').textContent));
     $q('.ribbon .mk.pee').dispatchEvent(new MouseEvent('click', {bubbles:true}));
-    ok('…and a mark: what and when', $q('.ribbon .ptip').textContent.includes('פיפי ' + clock(a + 121*MIN)) && $q('.ribbon .ptip').textContent.includes('על החצץ'));
+    ok('…and a mark: what and when', $q('.ribbon .pbar .ptip').textContent.includes('פיפי ' + clock(a + 121*MIN)) && $q('.ribbon .pbar .ptip').textContent.includes('על החצץ'));
     $q('.uni .rbar .pt').dispatchEvent(new MouseEvent('pointerover', {bubbles:true}));
     ok('hover works on the round bars too; each shows its start and end', $q('.uni .rbar .ptip').textContent.includes('–') && !!$q('.uni .rbar .rends'));
     seed(state.log.concat([{...K0, k:'poop', t: a + 122*MIN, w:'pad'}]));
