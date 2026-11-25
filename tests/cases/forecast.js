@@ -72,9 +72,9 @@
     // "usually … after …" on the poop card only from seven poops
     const P = n => { const L = []; for(let d = 1; d <= n; d++) L.push({ ...K0, k:'food', t: at(d, 7, 0) }, { ...K0, k:'poop', t: at(d, 7, 29 + (d % 3)), w:'gravel' }); return L; };
     seed(P(6).concat([{ ...K0, k:'food', t: now - 10*MIN }]));
-    ok('six poops: no "usually", no forecast — the general after-meal note instead', poopModel('kishmish') === null && typical('kishmish', 'poop') === '' && !$q('#sec-potty .fc') && $q('#sec-potty .aftermeal').textContent.includes('10–30 דקות אחרי ארוחה'));
+    ok('six poops: no "usually", no forecast — the after-meal "possible" line instead', poopModel('kishmish') === null && typical('kishmish', 'poop') === '' && !$q('#sec-potty .fc') && $q('#sec-potty .mealpoop').textContent.includes('קקי אפשרי'));
     seed(P(7).concat([{ ...K0, k:'food', t: now - 10*MIN }]));
-    ok('seven: her own numbers', !!poopModel('kishmish') && $q('#sec-potty').textContent.includes('בדרך כלל') && $q('#sec-potty').textContent.includes('אחרי אוכל') && !$q('#sec-potty .aftermeal'));
+    ok('seven: her own numbers', !!poopModel('kishmish') && $q('#sec-potty').textContent.includes('בדרך כלל') && $q('#sec-potty').textContent.includes('אחרי אוכל') && !!$q('#sec-potty .mealpoop') && !!$q('#sec-potty .fc'));
     done();
   } catch(e){ crashed(e); }
 })();
