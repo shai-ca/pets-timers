@@ -1862,7 +1862,7 @@ const ALERT = {food: 3.5*3600000, pee: 6*3600000, poop: 48*3600000, again: 45*60
 // banner) since the last meal — whichever is first. Past the age limit (`holdHours`) from the pee there is only a calm
 // note (`sleepPeeNote`). Her usual long nap (`napMedian`, 75th percentile) is described, never used to wake her.
 // None at night (a sleep touching 23:00–05:00).
-const WAKE = {days:3, napQ:.75, minNap:15*60000, sleepNoPee:4*3600000};
+const WAKE = {days:3, napQ:.75, minNap:15*60000, sleepNoPee:4*3600000, askAgain:20*60000};   // askAgain: "עדיין ישנה" hides the question this long
 function napMedian(p){
   const now = Date.now(), from = now - WAKE.days*86400000;
   const n = V[p].spans.filter(x => x.end != null && x.end <= now && x.t >= from && x.end - x.t >= WAKE.minNap && !touchesNight(x.t, x.end)).map(x => x.end - x.t);
@@ -1877,6 +1877,23 @@ function wakeBy(p){
   if(!c.length) return null;
   c.sort((x, y) => x[0] - y[0]);
   return {t: c[0][0], why: c[0][1], past: now >= c[0][0]};
+}
+// "היא עדיין ישנה?" (owner, 25.11): once her EXPECTED wake has passed — the sleep's start + her usual nap (`kishStats`,
+// the same nap the planning tab uses) — while she is still recorded asleep (marked or estimated), by day, and the
+// wake-by time has NOT passed (then "כדאי להעיר אותה" stays instead). "עדיין ישנה" hides it for WAKE.askAgain on this
+// phone (nothing saved); "התעוררה" ends the sleep now or at a chosen time (the usual "when?").
+let stillUntil = 0;
+function stillAsleep(p){
+  const S = V[p], st = S.sleep && S.sleep.start, now = Date.now();
+  if(!PETS[p].cycle || !st || touchesNight(st, now) || stillUntil > now) return null;
+  const wb = wakeBy(p); if(wb && wb.past) return null;
+  const exp = st + kishStats(now).nap;
+  return now >= exp ? {exp, since: st} : null;
+}
+function stillAsleepHTML(p){
+  const a = stillAsleep(p); if(!a) return '';
+  return `<div class="card slim sleepq still"><span><b>היא עדיין ישנה?</b><small>ישנה מ־<bdi dir="ltr">${clock(a.since)}</bdi> · בדרך כלל מתעוררת בערך עכשיו (צפוי ${clock(a.exp)})</small></span>
+    <span class="rt-a"><button class="go" data-act="wokeup">התעוררה</button><button class="btn" data-act="stillasleep">עדיין ישנה</button></span></div>`;
 }
 function sleepPeeNote(p){   // asleep by day, past the age limit from the pee but not yet WAKE.sleepNoPee: information only
   const S = V[p], h = holdHours(p) * 3600000, now = Date.now();
@@ -2317,7 +2334,7 @@ function render(){
 
   // Alerts, the retry card and the wheel live in the side column: on a computer it stays in place while
   // the tiles scroll; on a phone it is simply the top of the page.
-  let sideHTML = P.cycle ? alertsHTML(pet) + sleepAskHTML(pet) + (V2 ? scoresHTML(pet) : '') + cycleHTML(pet) : '';
+  let sideHTML = P.cycle ? alertsHTML(pet) + sleepAskHTML(pet) + stillAsleepHTML(pet) + (V2 ? scoresHTML(pet) : '') + cycleHTML(pet) : '';
 
   const tap = P.cycle ? routineTap(pet) : [];
   // the "טיפוח" group (owner, 25.11): compact tiles side by side, not a tall column, in the order of how often each is
@@ -2421,7 +2438,7 @@ function render(){
 waterRowHTML(pet) + (P.treats ? treatCardHTML(pet) : ''), 'food');
     if(P.bath) h += sec('', 'טיפוח', false, groomTiles(), 'bath');
     // Sleep and crying sit right under the wheel, always at hand: in the crate she is either asleep or crying.
-    if(pottyTop) sideHTML = alertsHTML(pet) + sleepAskHTML(pet) + pottySec + (V2 ? scoresHTML(pet) : '') + cycleHTML(pet);
+    if(pottyTop) sideHTML = alertsHTML(pet) + sleepAskHTML(pet) + stillAsleepHTML(pet) + pottySec + (V2 ? scoresHTML(pet) : '') + cycleHTML(pet);
     sideHTML += `<section class="duo" id="sec-rest">${tileOf('sleep')}${tileOf('cry')}</section>`;
   }
 
@@ -3817,6 +3834,8 @@ document.getElementById('shell').addEventListener('click', e => {
   else if(a==='swap') askSwap(pet);
   else if(a==='fcwhy') forecastWhy(pet);
   else if(a==='stillawake'){ awakeUntil = Date.now() + SLEEP_ASK; render(); }
+  else if(a==='stillasleep'){ stillUntil = Date.now() + WAKE.askAgain; render(); }
+  else if(a==='wokeup') askWhen(`${PETS[pet].name} · ${ITEMS.sleep.stop} — מתי?`, ts => ts ? endDurAt(pet, 'sleep', ts) : tapDur(pet, 'sleep'));
   else if(a==='notasleep') notAsleep(pet);
   else if(a==='crfood'){   // the bowl inside the crate: the button says "ארוחה", so it is written as a meal (`m`), not left to the two-hour rule
     const ask = () => askWhen(`${PETS[pet].name} · ${ITEMS.food.log} — מתי?`, ts => tapPoint(pet, 'food', ts, true, {m:'meal'}));

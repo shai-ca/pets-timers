@@ -17,6 +17,7 @@ function reset(who = 'shai', showPet = 'kishmish'){
   if(typeof FAKE_HOUR !== 'undefined'){ FAKE_HOUR = 12; FAKE_PHONE = false; nightFull = false; }   // night.js and routine.js test the night screen and the phone layout
   if(typeof FAKE_TODAY !== 'undefined') FAKE_TODAY = null;
   if(typeof awakeUntil !== 'undefined') awakeUntil = 0;
+  if(typeof stillUntil !== 'undefined') stillUntil = 0;
   if(typeof RETRY2_FROM !== 'undefined') RETRY2_FROM = -Infinity;   // the two-hour rule everywhere; retry.js also checks entries from before it
   if(typeof RETRY3_FROM !== 'undefined') RETRY3_FROM = Infinity;   // …not yet her own rhythm (25.11); rhythm.js moves it
   if(typeof CRATE_TREAT_FROM !== 'undefined') CRATE_TREAT_FROM = Infinity;   // no treat delay in the crate (25.11); sleepcrate.js moves it
