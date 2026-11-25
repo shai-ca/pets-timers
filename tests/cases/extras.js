@@ -31,6 +31,7 @@
     sh.querySelector('#cancel').click(); ok('"it was a mistake" logs nothing', logOf('kishmish', 'food').length === 1);
     tile('food').click(); sh.querySelector('#ok').click(); ok('"log again" logs it', logOf('kishmish', 'food').length === 2);
     tile('none').click(); tile('none').click(); ok('also for "nothing"', logOf('kishmish', 'none').length === 1 && sh.textContent.includes('כבר נרשם')); close();
+    seed([]);   // no meal just before: "did not eat" right after "ate" asks a different question (contradict.js)
     $q('[data-act=nofood]').click(); $q('[data-act=nofood]').click(); ok('also for "did not eat"', logOf('kishmish', 'nofood').length === 1); close();
     tapPoint('kishmish', 'pee', now - 30*MIN); close(); tapPoint('kishmish', 'pee', now - 29*MIN); close();
     ok('entries given an explicit time are not questioned', logOf('kishmish', 'pee').length === 2);

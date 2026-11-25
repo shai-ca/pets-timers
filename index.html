@@ -1359,6 +1359,7 @@ function tapPoint(p, k, t, sure, extra){
     sheet(`${PETS[p].name} · ${ITEMS[k].log}`, `<div class="sub" style="font-size:14.5px;margin-bottom:6px">${c.msg}</div><div class="sub">אחרי ריסוס פרונטליין לא מקלחים ולא משתמשים בשמפו 48 שעות.</div>`, cancelBtn, () => { close(); groomOk = true; try { tapPoint(p, k, t, true, extra); } finally { groomOk = false; } });
     sh.querySelector('#ok').textContent = 'לרשום בכל זאת'; return; } }
   if(!t && !sure){ const d = recentDouble(p, e => e.k === k); if(d){ askAgain(d, ITEMS[k].log, () => tapPoint(p, k, undefined, true, extra)); return; } }
+  if(contraGuard(p, k, t, () => tapPoint(p, k, t, true, extra))) return;   // "אכלה" right after "לא אכלה" etc.
   t = t || Date.now();
   let e = {p, k, t, ...(extra || {})};
   const mk = k === 'food' && PETS[p].cycle ? MEAL_LBL[mealKinds(p, state.log.concat([e])).get(e)] : '';
@@ -1848,6 +1849,26 @@ function askAgain(e, label, yes){
   sh.querySelector('#ok').onclick = () => { close(); yes(); };
   bg.classList.add('show');
 }
+// Contradicting entries (step 6): "אכלה" ↔ "לא אכלה", פיפי / קקי ↔ "לא עשתה", same dog, within DUP_MS of the time
+// being logged (now, or the chosen past time) — usually the wrong button. Ask first; "no" logs nothing.
+const CONTRA = {food:['nofood'], nofood:['food'], pee:['none'], poop:['none'], none:['pee','poop']};
+let contraOk = false;   // set for one call when the owner confirmed
+function contradiction(p, k, t){
+  const o = CONTRA[k], at = t || Date.now();
+  return o ? state.log.filter(e => e.p===p && o.includes(e.k) && Math.abs(at - e.t) < DUP_MS).pop() || null : null;
+}
+// true = it asked (the caller stops); `go` logs as usual after "yes".
+function contraGuard(p, k, t, go){
+  const e = !contraOk && contradiction(p, k, t); if(!e) return false;
+  const ago = Math.round(Math.abs((t || Date.now()) - e.t) / 60000);
+  const when = t ? `ב־<bdi dir="ltr">${clock(e.t)}</bdi>` : ago < 1 ? 'עכשיו' : ago === 1 ? 'לפני דקה' : `לפני ${ago} דקות`;
+  sh.innerHTML = `<h3>רגע, זה סותר</h3><div class="sub" style="font-size:14.5px;margin-bottom:18px">נרשם ״${ITEMS[e.k].log}״ ${when}${byName(e.by) ? ' על ידי ' + byName(e.by) : ''}. לרשום ״${ITEMS[k].log}״ בכל זאת?</div>
+    <div class="foot"><button class="btn" id="cancel">לא, זו טעות</button><button class="btn primary" id="ok">לרשום בכל זאת</button></div>`;
+  sh.querySelector('#cancel').onclick = close;
+  sh.querySelector('#ok').onclick = () => { close(); contraOk = true; try { go(); } finally { contraOk = false; } };
+  bg.classList.add('show');
+  return true;
+}
 
 // ---------- "ניסיון חוזר" (retry) ----------
 // The trainer's rule: when she is taken out and does nothing ("לא עשתה"), she goes back into the crate for
@@ -1904,6 +1925,7 @@ function retryAct(p, a, k, sure, t){
   if(a === 'rtpee' || a === 'rtnone'){
     const kind = a === 'rtpee' ? 'pee' : 'none', d = !sure && !t && recentDouble(p, x => x.k === kind);
     if(d){ askAgain(d, ITEMS[kind].log, () => retryAct(p, a, k, true)); return; }
+    if(contraGuard(p, kind, t, () => retryAct(p, a, k, true, t))) return;
     let e = {p, k: kind, t: now};
     commit(`${name} · ${ITEMS[e.k].log}`, () => { endGravel(p, now); if(open) leaveCrate(p, now); if(kind === 'none') e = pushNone(p, now); else state.log.push(e); });
     stillCrying(p, now, () => { if(e.k === 'pee' && e.id) whereSheet(e.id); });
@@ -2478,6 +2500,7 @@ function openHelp(){
 // Things that are logged from the tiles, not from the wheel.
 function logNoFood(p, sure, t){
   if(!sure && !t){ const d = recentDouble(p, e => e.k === 'nofood'); if(d){ askAgain(d, ITEMS.nofood.log, () => logNoFood(p, true)); return; } }
+  if(contraGuard(p, 'nofood', t, () => logNoFood(p, true, t))) return;   // "לא אכלה" right after "אכלה"
   commit(`${PETS[p].name} · לא אכלה`, () => { state.log.push({p, k:'nofood', t: t || Date.now()}); });
   stillCrying(p, t || Date.now());
 }
