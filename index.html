@@ -389,9 +389,9 @@
     .card.cyc > .cyc-n{align-self:start}
     main > .card.playc, main > .card.slim{max-width:744px}
     /* Kochik's "she drank" row is one cell of the card grid, like its neighbours */
-    main:not(.grps) > .card.slim.water{grid-column:auto;width:240px;height:240px;min-width:0;flex-direction:column;align-items:stretch;justify-content:space-between;padding:18px}
-    main:not(.grps) > .card.slim.water b{display:block;font-size:15px;margin-bottom:4px}
-    main:not(.grps) > .card.slim.water .btn{padding:12px;font-weight:500}
+    main:not(.grps) > .card.slim.water:not(.nightw){grid-column:auto;width:240px;height:240px;min-width:0;flex-direction:column;align-items:stretch;justify-content:space-between;padding:18px}
+    main:not(.grps) > .card.slim.water:not(.nightw) b{display:block;font-size:15px;margin-bottom:4px}
+    main:not(.grps) > .card.slim.water:not(.nightw) .btn{padding:12px;font-weight:500}
     .card.medc .lnk.medoff{margin-top:4px;font-size:11.5px}
     #side > .card{max-width:744px}
     .tiles, .tiles.two{grid-template-columns:repeat(auto-fill,minmax(170px,190px));gap:14px}
@@ -691,6 +691,24 @@
   .planv .wrap > .seg:not(.sm){display:none} .planv .wrap > .seg.sm{margin-top:0}
   @media (min-width:760px){ .pl-big{font-size:38px} .pl-lane.me .pl-b{height:44px} }
   /* ================= end of PLANNING ================= */
+  /* v3 UI (agent E): the crate card's secondary actions (carrier, pen, crate setup), the advice line, the night drink row */
+  .cx{grid-column:1/-1;display:flex;flex-direction:column;gap:6px;margin-top:8px;padding-top:8px;border-top:1px dashed var(--line)}
+  .cx-row{display:flex;flex-wrap:wrap;align-items:center;gap:4px 14px}
+  .cx .lnk{display:inline-flex;align-items:center;gap:5px;font-size:13px;color:var(--muted);padding:4px 0;min-height:32px}
+  .cx .lnk svg{width:15px;height:15px}
+  .cx .cx-set{margin-inline-start:auto}
+  .cx .cx-set small{font-size:12px;color:var(--muted);margin-inline-start:4px}
+  .cx .cx-set small::before{content:'· '}
+  .cx-on{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:13.5px;color:var(--ink)}
+  .cx-on > span{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+  .cx-on b{font-weight:600;font-variant-numeric:tabular-nums} .cx-on small{font-size:12px;color:var(--muted)}
+  .cx-on .dot{color:var(--acc)} .cx-on .btn{flex:none;padding:7px 12px;font-size:13px}
+  .card.slim.advice{background:none;border:0;box-shadow:none;padding:4px 4px 10px;display:block}
+  .card.slim.advice b{font-size:14px;font-weight:500;color:var(--ink);line-height:1.45}
+  .card.slim.advice small{font-size:12.5px;color:var(--muted);margin-top:2px}
+  .v2 .card.slim.advice{background:none;border:0;box-shadow:none}
+  .card.slim.xsum svg{color:var(--acc)}
+  .cset-door,.cset-cover{margin-bottom:12px}
 </style>
 </head>
 <body>
@@ -2587,19 +2605,61 @@ function todayTotal(p, k){
   return tot;
 }
 
+// ---------- v3 UI (agent E): carrier, pen, crate setup ----------
+// Occasional things live inside the crate card, under its main button, as small secondary actions — the main screen
+// gets no new row. "טיול במנשא" / "בגדר" are ordinary timers (`data-act="dur"`: one tap, the usual "when?", one tap to
+// stop); while one runs it is a compact line with its stop button. "הגדרות כלוב" is a rare change: a contextual sheet
+// that writes a `cset` only for what actually changed. At night (`slim`) only a running carrier / pen line shows.
+const CSET_UNK = 'לא ידוע';
+function csetText(p){
+  const s = crateSetup(p, Date.now());
+  if(s.door === 'unknown' && s.cover === 'unknown') return CSET_UNK;
+  return `${CSET_DOOR[s.door] || 'דלת: ' + CSET_UNK} · ${CSET_COVER[s.cover] || 'כיסוי: ' + CSET_UNK}`;
+}
+function crateExtrasHTML(p, slim){
+  const run = ['carrier', 'pen'].filter(k => (V[p][k] || {}).start);
+  const on = run.map(k => { const st = V[p][k].start;
+    return `<div class="cx-on"><span><span class="dot"></span>${ITEMS[k].live} כבר <b data-since="${st}">${dur(Date.now() - st)}</b><small>מ־<bdi dir="ltr">${clock(st)}</bdi></small></span><button class="btn" data-act="dur" data-k="${k}">${ITEMS[k].stop}</button></div>`; }).join('');
+  if(slim) return on ? `<div class="cx">${on}</div>` : '';
+  const offs = ['carrier', 'pen'].filter(k => !run.includes(k)).map(k => `<button class="lnk cx-b" data-act="dur" data-k="${k}">${ico(iconOf(k), 's')}${ITEMS[k].lbl}</button>`).join('');
+  return `<div class="cx">${on}<div class="cx-row">${offs}<button class="lnk cx-set" data-act="cset">${ico('crate', 's')}הגדרות כלוב<small>${csetText(p)}</small></button></div></div>`;
+}
+function csetSheet(p){
+  const s = crateSetup(p, Date.now()), name = PETS[p].name;
+  const row = (f, opts) => `<div class="chips where cset-${f}">${Object.entries(opts).map(([v, l]) => `<button data-f="${f}" data-v="${v}" class="${s[f] === v ? 'sel' : ''}">${l}</button>`).join('')}</div>`;
+  sh.innerHTML = `<h3>${name} · הגדרות כלוב</h3><div class="sub" style="margin-bottom:10px">עכשיו: ${csetText(p)} · נרשם רק מה שמשתנה, מעכשיו</div>
+    <div class="sub">דלת</div>${row('door', {closed:'סגורה', open:'פתוחה'})}
+    <div class="sub">כיסוי</div>${row('cover', {uncovered:'לא מכוסה', covered:'מכוסה'})}
+    <div class="foot"><span></span><button class="btn" id="cancel">סגירה</button></div>`;
+  sh.querySelectorAll('[data-f]').forEach(b => b.onclick = () => {
+    close();
+    const f = b.dataset.f, v = b.dataset.v;
+    if(crateSetup(p, Date.now())[f] === v) return;   // no change, nothing written
+    const e = {p, k:'cset', t: Date.now(), [f]: v};
+    commit(`${name} · ${csetLbl(e)}`, () => state.log.push(e));
+  });
+  sh.querySelector('#cancel').onclick = close;
+  bg.classList.add('show');
+}
+
 // ---------- render ----------
-// The night screen's cards (v3 hook — Agent E edits only this): the crate tile, the gravel card, pee, poop and a slim
-// cry row. `tileOf` and `gravelRow` come from `render`, which builds them for the day screen too.
+// The night screen's cards (v3 hook — Agent E edits only this). Kishmish: the crate tile (with only a running carrier /
+// pen line, no setup), the gravel card, pee, poop, ONE drink row and a slim cry row. Kochik (v3): pee, poop, the drink
+// row and vomiting. The drink row is the day's `waterRowHTML` (same "pt"/"water" path, same "when?"); `nightw` keeps it
+// a plain row on wide screens. `tileOf` and `gravelRow` come from `render`, which builds them for the day screen too.
 function nightCardsHTML(p, tileOf, gravelRow){
+  const drink = waterRowHTML(p).replace('class="card slim water"', 'class="card slim water nightw"');
+  const head = what => `<div class="card slim nightc"><span><b>מצב לילה</b><small>${what} · עד 06:00</small></span><button class="btn" data-act="nightfull">להציג הכול</button></div>`;
+  if(!PETS[p].cycle) return head('פיפי, קקי, שתייה והקאה') + tileOf('pee') + tileOf('poop') + drink + tileOf('vomit');
   const cr = V[p].cry || {};
-  return `<div class="card slim nightc"><span><b>מצב לילה</b><small>כלוב, חצץ, פיפי וקקי · עד 06:00</small></span><button class="btn" data-act="nightfull">להציג הכול</button></div>` +
-    tileOf('crate') + gravelRow + tileOf('pee') + tileOf('poop') +
+  return head('כלוב, חצץ, פיפי, קקי ושתייה') +
+    tileOf('crate') + gravelRow + tileOf('pee') + tileOf('poop') + drink +
     `<div class="card slim cryrow ${cr.start ? 'on' : ''}"><span><b>${cr.start ? 'בוכה כבר' : 'בוכה?'}</b>${cr.start ? `<small data-since="${cr.start}">${dur(Date.now()-cr.start)}</small>` : ''}</span><button class="btn" data-act="dur" data-k="cry">${cr.start ? ITEMS.cry.stop : ITEMS.cry.start}</button></div>`;
 }
 function render(){
   { const ni = document.getElementById('noteIn'); if(ni){ noteDraft[ni.dataset.p] = ni.value; noteFocus = document.activeElement === ni; } }
   V = derive(state);   // also by the clock: an assumed sleep begins a couple of minutes after she goes in, with no tap
-  const night = isNight(), slim = night && !nightFull && view === 'now' && PETS[pet].cycle;
+  const night = isNight(), slim = night && !nightFull && view === 'now';   // v3: Kochik has a slim night screen too
   document.body.className = document.documentElement.className = 'p-'+pet + (isDark() ? ' night' : '') + (V2 ? ' v2' : '');
   document.body.classList.toggle('planv', view === 'plan');   // planning is about both dogs together: no dog selector there (owner, 25.11)   // the colours follow the light (20:00 – sunrise); `night` above is the cut-down screen
   document.querySelectorAll('.seg button').forEach(b => b.classList.toggle('on', b.dataset.pet===pet || b.dataset.view===view));
@@ -2691,10 +2751,12 @@ function render(){
         <div class="acts"><button class="go" data-act="dur" data-k="${k}">${live?it.stop:it.start}</button>
           <button class="ghost" data-act="edit" data-k="${k}">${ico(live?'clock':'plus','s')}${live?'שעת התחלה':'הוספה'}</button>${k === 'sleep' && live && P.cycle ? `<button class="ghost" data-act="notasleep">${ico('none','s')}לא נרדמה</button>` : ''}${k === 'crate' && live && P.cycle ? `<button class="ghost" data-act="swap">${ico('crate','s')}החלפת כלוב</button>` : ''}</div>
         ${k === 'crate' && live && P.cycle && !slim ? `<div class="incr"><span>קיבלה בכלוב:</span><button class="btn" data-act="play" data-k="kong">${PLAY.kong}</button><button class="btn" data-act="play" data-k="lick">${PLAY.lick}</button><button class="btn" data-act="crfood">ארוחה</button></div>` : ''}
+        ${k === 'crate' && P.cycle ? crateExtrasHTML(pet, slim) : ''}
         ${k === 'sleep' && !live && P.cycle ? newCrateHint(pet) : ''}</div>`;
     }
     return h;
   };
+  if(!P.cycle && slim){ document.getElementById('main').innerHTML = nightCardsHTML(pet, tileOf, ''); return; }   // v3: Kochik's night screen
   if(!P.cycle){
     // By topic, each in its own box (the owner's grouping): food and water · pee and poop · medicines and ear gel · vomiting.
     const has = k => P.items.includes(k), t = k => has(k) ? tileOf(k) : '';
@@ -3523,6 +3585,7 @@ function renderSummary(){
       <span>${SUM_LBL[k]} · ${st[k].n===1 ? 'פעם אחת' : st[k].n+' פעמים'}</span>
       ${k === 'crate' && P.cycle && st[k].ms ? (cs => `<small>ישנה בו ${words(cs.sl)} · ערה בו ${words(cs.aw)}</small>`)(crateSplit(pet, from, to)) : ''}
       ${multi && days > 1 && st[k].ms ? `<small>ממוצע ${words(st[k].ms/days)} ליום</small>` : ''}</button>`).join('') + `</div>`;
+  if(!F) h += ['carrier', 'pen'].filter(k => st[k].n).map(k => `<div class="card slim xsum ${k}"><span><b>${ITEMS[k].lbl}: ${words(st[k].ms)}</b><small>${st[k].n === 1 ? 'פעם אחת' : st[k].n + ' פעמים'}${multi && days > 1 ? ` · ממוצע ${words(st[k].ms / days)} ליום` : ''}</small></span>${ico(iconOf(k), 's')}</div>`).join('');   // v3: only when there was any
   if(!F) h += groomSumHTML(pet, from, to);
   if(P.meds && !F){
     const m = V[pet].meds[dayKey(from)] || {};
@@ -4140,6 +4203,7 @@ document.getElementById('shell').addEventListener('click', e => {
     const d = recentDouble(pet, e => e.k === 'food'); if(d) askAgain(d, ITEMS.food.log, ask); else ask();
   }
   else if(a==='nightfull'){ nightFull = true; render(); }
+  else if(a==='cset') csetSheet(pet);   // v3: the crate's setup (agent E)
   else if(a === 'rtstop') retryAct(pet, a, k);
   else if(a && a.startsWith('rt')) askWhen(`${PETS[pet].name} · ${b.textContent.trim()} — מתי?`, ts => retryAct(pet, a, k, false, ts));
   else if(a==='help') openHelp();
