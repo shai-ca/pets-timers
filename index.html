@@ -139,6 +139,7 @@
   .toast .tw button.sel{background:#fff;color:var(--ink)}
   .lnk{border:0;background:none;padding:0;font:inherit;color:var(--acc);text-decoration:underline;cursor:pointer}
   .sub.hint{margin-top:2px;opacity:.85}
+  .sub.hint.rates{margin:-4px 6px 0}   /* gravel success by situation, under the gravel card */
   .sub.fc{margin-top:3px;color:var(--ink);font-weight:500}
   .sub.fc i{display:none;width:8px;height:8px;border-radius:50%;margin-inline-end:6px;vertical-align:baseline}
   .sub.fc.now i{display:inline-block;background:#fab219} .sub.fc.late i{display:inline-block;background:#d03b3b}
@@ -2243,7 +2244,7 @@ function render(){
           <span class="rt-a"><button class="go" data-act="pt" data-k="pee">פיפי</button><button class="go" data-act="pt" data-k="poop">קקי</button><button class="btn" data-act="pt" data-k="none">לא עשתה</button><button class="rt-x" data-act="dur" data-k="gravel" aria-label="${ITEMS.gravel.stop}" title="${ITEMS.gravel.stop}">×</button></span></div>`
       : `<div class="card slim gravel ${tap.includes('none') ? 'nowt' : ''}"><span><b>יוצאים לחצץ?</b>${tryNow(pet) ? `<small class="trynow">זה זמן טוב לנסות · ${tryNow(pet).t >= Date.now() - 60000 ? 'עכשיו' : words(Date.now() - tryNow(pet).t)} ${tryNow(pet).why}</small>` : ''}<small>${uw && uw.n >= 3 ? `בדרך כלל עושה פיפי תוך ${words(uw.ms)}` : 'השעון מודד כמה זמן לקח ומה יצא'}${ln ? ` · לא עשתה לאחרונה: ${dayLabel(ln)} <bdi dir="ltr">${clock(ln)}</bdi>` : ''}</small></span>
           <span class="rt-a"><button class="go" data-act="dur" data-k="gravel">${ITEMS.gravel.start}</button><button class="btn" data-act="pt" data-k="none">לא עשתה</button></span></div>`;
-    const pottySec = sec('2 · 5', 'צרכים', tap.includes('pee') || !!rt, gravelRow + tileOf('pee') + tileOf('poop'), 'potty');
+    const pottySec = sec('2 · 5', 'צרכים', tap.includes('pee') || !!rt, gravelRow + gravelRatesHTML(pet) + tileOf('pee') + tileOf('poop'), 'potty');
     // Just woken up or out of the crate: on a phone the potty tiles come to the top of the page, above the wheel.
     const pottyTop = (!!pottyDue(pet) && isPhone()) || !!rt;   // a retry: the one gravel card goes to the top, on every screen
     if(!pottyTop) h += pottySec;
@@ -2861,6 +2862,7 @@ function logText(p, from, to){
     }
     const st = stats(p, a, b), tot = [];
     for(const k of P.items){
+      if(k === 'food' && P.cycle){ if(st.food) tot.push(mealSplitText(p, a, b)); continue; }   // meals vs bites
       if(ITEMS[k].dur){ if(st[k].ms) tot.push(`${SUM_LBL[k]} ${words(st[k].ms)} (${st[k].n===1 ? 'פעם אחת' : st[k].n+' פעמים'})`); }
       else if(st[k]){ const w = st.w[k], wl = w ? ['gravel','out','balcony','pad','home','floor','crate'].filter(x => w[x]).map(x => `${WHERE_SHORT[x]} ${w[x]}`).join(', ') : ''; tot.push(`${SUM_LBL[k]} ${st[k]}${wl ? ' ('+wl+')' : ''}`); }
     }
@@ -2884,6 +2886,42 @@ async function exportLog(share){
     sh.querySelector('#cancel').onclick = close; bg.classList.add('show');
     const ta = sh.querySelector('.logtx'); ta.focus(); ta.select();
   }
+}
+// MEALS VS BITES IN THE SUMMARY (Kishmish, the `cycle` pet): wherever the summary counts food it says
+// "ארוחות X · ביסים Y", read with `mealKind` (a manual `m` wins). Kochik keeps the plain "אוכל N".
+function mealSplit(p, a, b){
+  const r = {meal:0, bite:0};
+  for(const e of state.log) if(e.p===p && e.k==='food' && e.t >= a && e.t < b){ const k = mealKind(e); if(k) r[k]++; }
+  return r;
+}
+const mealSplitText = (p, a, b) => (s => `ארוחות ${s.meal} · ביסים ${s.bite}`)(mealSplit(p, a, b));
+function mealTileHTML(p, a, b, cls, avg){   // the summary's food tile for a cycle pet
+  const s = mealSplit(p, a, b);
+  return `<button class="${cls}" data-act="filt" data-k="food"><div class="ic">${ico('food')}</div><b>${s.meal}</b><span>ארוחות · ביסים ${s.bite}</span>${avg(s.meal)}</button>`;
+}
+// GRAVEL SUCCESS BY SITUATION (Kishmish, owner 25.11): of the outings (pee / poop / "לא עשתה") in the last
+// RATES.days days, how many ended on the gravel (a pee or poop with w = gravel / out) — after waking (within `wake`
+// of the end of a sleep span, marked or estimated), after a meal (within `meal` of a MEAL, not a bite), before the
+// crate (a crate entry within `crate` after it). One outing can count in several situations. Display only.
+const RATES = {days:3, wake:15*60000, meal:30*60000, crate:10*60000};
+const RATE_LBL = [['wake','אחרי התעוררות'], ['meal','אחרי ארוחה'], ['crate','לפני כלוב']];
+function gravelRates(p, now = Date.now()){
+  const L = state.log.filter(e => e.p===p), from = now - RATES.days*86400000, r = {wake:{n:0, good:0}, meal:{n:0, good:0}, crate:{n:0, good:0}};
+  const wakes = V[p].spans.filter(s => s.end != null && s.end <= now).map(s => s.end);
+  const meals = L.filter(e => mealKind(e) === 'meal').map(e => e.t), crates = L.filter(e => e.k === 'crate').map(e => e.t);
+  const before = (ts, t, w) => ts.some(x => x <= t && t - x <= w);
+  for(const o of L){
+    if(!['pee', 'poop', 'none'].includes(o.k) || o.t < from || o.t > now) continue;
+    const good = o.k !== 'none' && (o.w === 'gravel' || o.w === 'out');
+    const hit = {wake: before(wakes, o.t, RATES.wake), meal: before(meals, o.t, RATES.meal), crate: crates.some(x => x >= o.t && x - o.t <= RATES.crate)};
+    for(const k in hit) if(hit[k]){ r[k].n++; if(good) r[k].good++; }
+  }
+  return r;
+}
+function gravelRatesHTML(p){   // one calm line under the gravel card; hidden while every situation is empty
+  if(!PETS[p].cycle) return '';
+  const r = gravelRates(p), parts = RATE_LBL.filter(([k]) => r[k].n).map(([k, l]) => `${l}: ${r[k].good} מתוך ${r[k].n}`);
+  return parts.length ? `<div class="sub hint rates">בחצץ ב־${RATES.days} הימים האחרונים · ${parts.join(' · ')}</div>` : '';
 }
 // Progress: the share of pees that landed in the right place (gravel, or outside) — per day, and across the
 // period, so one bad day is seen against the trend.
@@ -2940,7 +2978,7 @@ function renderSummary(){
   const F = P.items.includes(sumFilter) ? sumFilter : null;
   const tcls = k => `tile ${F === k ? 'on' : F ? 'dim' : ''}`;
   h += `<div class="flt">${F ? `מוצג רק: <b>${SUM_LBL[F]}</b> <button class="lnk" data-act="filt" data-k="${F}">הצגת הכול</button>` : 'לחיצה על קטגוריה מציגה רק אותה'}</div>`;
-  h += `<div class="tiles">` + P.items.filter(k => !ITEMS[k].dur).map(k =>
+  h += `<div class="tiles">` + P.items.filter(k => !ITEMS[k].dur).map(k => k === 'food' && P.cycle ? mealTileHTML(pet, from, to, tcls(k), avg) :
     `<button class="${tcls(k)}" data-act="filt" data-k="${k}"><div class="ic">${ico(k)}</div><b>${st[k]}</b><span>${SUM_LBL[k]}</span>${avg(st[k])}${whereLine(st.w[k])}${k === 'poop' && (st.q.dia || st.q.soft) ? `<small>${st.q.dia ? `<em class="wh floor">שלשול ${st.q.dia}</em>` : ''}${st.q.dia && st.q.soft ? ' · ' : ''}${st.q.soft ? `רך ${st.q.soft}` : ''}</small>` : ''}${k === 'vomit' && (st.q.bile || st.q.food) ? `<small>${['bile','food'].filter(q => st.q[q]).map(q => `${VOMIT[q]} ${st.q[q]}`).join(' · ')}</small>` : ''}</button>`).join('') + (P.treats && !F ? `<div class="tile"><div class="ic">${ico('treat')}</div><b>${st.treat}</b><span>${SUM_LBL.treat}</span>${st.treat ? `<small>שומניים ${st.q.fat || 0}</small>` : ''}</div>` : '') + `</div>`;
   const durs = P.items.filter(k => ITEMS[k].dur);
   if(durs.length) h += `<div class="tiles two">` + durs.map(k =>
@@ -2983,10 +3021,10 @@ function renderSummary(){
       const a = d.getTime(), b = new Date(d); b.setDate(b.getDate()+1);
       const s = stats(pet, a, b.getTime());
       rows += `<tr data-day="${a}"><td>${DOW[d.getDay()]} · <bdi dir="ltr">${ddmm(a)}</bdi></td>` +
-        cols.map(k => cell(k==='pill' ? `${s.meds}/2` : ITEMS[k].dur ? hm(s[k].ms) : String(s[k]))).join('') + `</tr>`;
+        cols.map(k => cell(k==='pill' ? `${s.meds}/2` : k==='food' && P.cycle ? (m => `${m.meal} · ${m.bite}`)(mealSplit(pet, a, b.getTime())) : ITEMS[k].dur ? hm(s[k].ms) : String(s[k]))).join('') + `</tr>`;
     }
     h += `<h2>לפי יום</h2><div class="card tblc">` + (rows
-      ? `<table class="tbl ${cols.length > 6 ? 'wide' : ''}"><tr><th></th>${cols.map(k => `<th>${ico(k,'s')}</th>`).join('')}</tr>${rows}</table>`
+      ? `<table class="tbl ${cols.length > 6 ? 'wide' : ''}"><tr><th></th>${cols.map(k => `<th>${ico(k,'s')}</th>`).join('')}</tr>${rows}</table>${P.cycle && cols.includes('food') ? `<div class="sub hint">${ico('food','s')} ארוחות · ביסים</div>` : ''}`
       : `<div class="empty">אין רישומים בתקופה הזו</div>`) + `</div>`;
     if(F){   // with a filter on, list the entries themselves too
       const ev = evAll.slice().sort((x,y) => y.t - x.t), shown = ev.slice(0, 150);
