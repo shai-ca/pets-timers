@@ -39,9 +39,9 @@
     // 7. poop
     seed([{ ...K0, k:'poop', t: now - 20*HOUR, w:'gravel' }, { ...K0, k:'food', t: now - 20*MIN }]);
     const pc = () => $q('#sec-potty').textContent;
-    ok('twenty minutes after a meal: when a poop usually comes — a quiet line', pc().includes('אם היא צריכה קקי, זה בדרך כלל 10–30 דקות אחרי ארוחה') && !pc().includes('לא היה קקי'));
-    seed([{ ...K0, k:'poop', t: now - 20*HOUR, w:'gravel' }, { ...K0, k:'food', t: now - 60*MIN }]); ok('an hour after the meal it is gone', !pc().includes('10–30'));
-    seed([{ ...K0, k:'food', t: now - 20*MIN }, { ...K0, k:'poop', t: now - 5*MIN, w:'gravel' }]); ok('…and once she has pooped', !pc().includes('10–30'));
+    ok('twenty minutes after a meal: a poop is possible — a quiet line', pc().includes('קקי אפשרי') && !pc().includes('לא היה קקי'));
+    seed([{ ...K0, k:'poop', t: now - 20*HOUR, w:'gravel' }, { ...K0, k:'food', t: now - 60*MIN }]); ok('an hour after the meal it is gone', !pc().includes('קקי אפשרי'));
+    seed([{ ...K0, k:'food', t: now - 20*MIN }, { ...K0, k:'poop', t: now - 5*MIN, w:'gravel' }]); ok('…and once she has pooped', !pc().includes('קקי אפשרי'));
     seed([{ ...K0, k:'poop', t: now - 29*HOUR, w:'gravel' }, { ...K0, k:'food', t: now - 2*HOUR }]); ok('little history: 29 hours without a poop says nothing', !$q('.poopgap') && $n('.card.alertc') === 0);
     seed([{ ...K0, k:'poop', t: now - 31*HOUR, w:'gravel' }, { ...K0, k:'food', t: now - 2*HOUR }]);
     ok('…31 hours: a plain line, no red card, no claim about "usual"', $q('.poopgap').textContent === 'לא היה קקי כבר 31 שעות' && $n('.card.alertc') === 0);
