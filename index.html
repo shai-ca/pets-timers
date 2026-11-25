@@ -690,6 +690,12 @@
   .v2 .pl-hero,.v2 .pl-tl,.v2 .pl-list{border-radius:16px}
   .planv .wrap > .seg:not(.sm){display:none} .planv .wrap > .seg.sm{margin-top:0}
   @media (min-width:760px){ .pl-big{font-size:38px} .pl-lane.me .pl-b{height:44px} }
+  .pl-s.lv-uns{background:repeating-linear-gradient(135deg,var(--pl-home) 0 5px,transparent 5px 9px);color:var(--pl-home-ink);opacity:.6}   /* maybe free: when the next care starts is uncertain */
+  .pl-lg .lv-uns{background:var(--pl-home);opacity:.45}
+  .pl-badge.short{background:var(--pl-off);color:var(--ink)}
+  .pl-away{display:flex;flex-direction:column;gap:8px;margin-bottom:12px;padding:10px 14px} .pl-away.on{flex-direction:row;align-items:center;justify-content:space-between}
+  .pl-awt{font-size:13.5px;font-variant-numeric:tabular-nums} .pl-awq{display:flex;flex-direction:column;gap:4px} .pl-awq small{color:var(--muted);font-size:12px}
+  .v2 .pl-away{border-radius:16px}
   /* ================= end of PLANNING ================= */
 </style>
 </head>
@@ -3588,34 +3594,47 @@ if(PHONE_MQ && PHONE_MQ.addEventListener) PHONE_MQ.addEventListener('change', ()
 let lastMin = new Date().getMinutes();
 setInterval(() => { const m = new Date().getMinutes(); if(m !== lastMin){ lastMin = m; if(!(document.activeElement && document.activeElement.id==='sumDate')) render(); } else tick(); }, 1000);
 
-// ================= PLANNING ("תכנון", owner's spec 25.11) — one block, read-only =================
-// A third view beside מעקב / סיכום: when she must be home and when she can go out, for both dogs at once. It NEVER
-// writes an entry: like every other screen it is rebuilt from the list on every render (`planBuild`). Three kinds of
-// time on a lane "לי" above one lane per dog: צריכים אותך (every need ± PLAN.pad, naming the dog and why), זמן פנוי
-// (Kishmish in the crate after a pee on the gravel and expected asleep, AND Kochik needs nothing; at least
-// PLAN.minFree; it ends at the earliest need), לא בטוח (everything else, with a one-sentence reason).
-//  Kishmish: her own last PLAN.days days — the delay to fall asleep in the crate (`sleepSamples`), nap length (median
-//   of day spans, `touchesNight` left out), time awake between sleeps, meals (`mealGap`), pee window (`usualPeeGap`,
-//   85–115% as in `peeForecast`), the wake-by rule (WAKE.sleepNoPee / ALERT.food, as in `wakeBy`) — rolled forward
-//   from where she is now. Free time never runs past the end of her pee window nor PLAN.alone(age) in the crate.
-//  Kochik: next pee = her last pee + min(25th percentile of her daytime gaps, PLAN.kochikMax) (gaps over 4 h or
-//   touching 22:30–07:00 left out; PLAN.kochikSick after diarrhoea / vomiting in 24 h); a drink opens a window 30–90
-//   min after it; medicines by 11:00 / 21:00 are needed from PLAN.medLead before (not when marked, not on a break);
-//   free time starts only at her pee (taken out right before leaving), so it lasts at most her gap − PLAN.pad.
-//  Grooming: bath / spray day (`bathDue`, `fleaDue`) are needed time; nothing free for FLEA_DRY after a spray.
+// ================= PLANNING ("תכנון", owner's spec 25.11; v3 26.11) — one block, read-only =================
+// A third view beside מעקב / סיכום: both dogs' day rolled forward from what is happening now, as HER time:
+//  טיפול (care)        — active care only: Kishmish out of the crate (gravel, meal, play with her; its LENGTH is the
+//                        median crate-exit → crate-entry span of her last days — an indirect estimate, not a count of
+//                        anyone's minutes), Kochik's pee / drink tasks, medicines, baths. Overlaps are merged, never
+//                        summed; a Kochik pee inside Kishmish's outing is "אפשר לשלב".
+//  בהשגחה (supervised) — Kishmish awake in the crate (kong, lick mat, settling), in the carrier, in the pen, asleep
+//                        outside a closed crate. Not care: not every awake minute needs her.
+//  פנוי בבית (home)    — Kishmish asleep in the closed crate and nothing needed from either dog. Listed from
+//                        PLAN.minWin (15 min); under PLAN.shortWin it is labelled "קצר", never hidden.
+//  אולי (uns)          — WHEN the next care starts is uncertain: the stretch before it is drawn faded (counted apart,
+//                        never as busy). The uncertainty grows cycle by cycle; far times are rounded (PLAN.far).
+//  אפשר לצאת (free)    — stricter than home: Kishmish seen asleep after a gravel pee, AND confirmed evidence she stays
+//                        calm alone (`away` entries, ctx home, res calm — weighted by length and recency, `planAway`),
+//                        only for lengths like the confirmed ones. Never from a sleep prediction alone.
+// NO PREDICTIONS ARE MADE HERE. It calls the shared contracts: wakeExpect / pottyExpect (Agent B), kochikExpect
+// (Agent C), sleepDelay + crateSetup (when she falls asleep, the crate's setup), learnEpisodes. Where a contract
+// returns nothing yet, a clearly marked ADAPTER stands in (planWakeNow, planNaps, planPee, planKochik).
+// The only write on this tab: the optional "יצאתי / חזרתי" control (an `away` entry; outcome optional, no reminder).
 // Calendar: each window can be saved as an .ics file (Asia/Jerusalem local time) made in the page.
 const PL_M = 60000, PL_H = 3600000;
 const PLAN = {
-  days: 7, pad: 15*PL_M, minFree: 45*PL_M, minDays: 3, hi: .75, lo: .5, join: 10*PL_M, napN: 0, napSafe: true, napMin: 5, napQ: .5, seen: true,
+  days: 7, minDays: 3,
   night: [NIGHTS.plan.from, NIGHTS.plan.to],                                   // nothing is planned 22:30–07:00; Kochik's gaps touching it are ignored
-  kochikMax: 2*PL_H, kochikSick: 1.5*PL_H, kochikQ: .25, kochikLong: 4*PL_H, kochikMinGaps: 4,
-  drink: [30*PL_M, 90*PL_M],                          // a drink opens a pee window this long after it (Kochik)
-  medLead: 60*PL_M, medBy: {am: 11, pm: 21},
+  kochikMax: 2*PL_H, kochikSick: 1.5*PL_H, kochikQ: .25, kochikLong: 4*PL_H, kochikMinGaps: 4,   // `kochikGap` (the adapter until kochikExpect is filled)
+  drink: [30*PL_M, 90*PL_M],                          // ADAPTER only: a drink opens a Kochik pee window this long after it
+  medLead: 60*PL_M, medBy: {am: 11, pm: 21}, medTask: 5*PL_M,   // a medicine: given within the hour before 11:00 / 21:00, a 5-minute task
   bath: {kishmish: 45*PL_M, kochik: 30*PL_M},         // incl. blow-dry
   groomFrom: 10,                                      // planned bath / spray: not before 10:00
   alone: a => (a && !a.y ? Math.min(4, a.m + .5) : 4) * PL_H,   // longest stay alone in the crate: 2.5 h at two months
-  homeMin: 25*PL_M,                                   // "פנוי בבית" (owner, 25.11): at least this long
-  fb: {nap: 60*PL_M, awake: 45*PL_M, lat: 10*PL_M, morning: 6.5, kochikFirst: 7.5, mealGap: 2.5*PL_H},   // with too little data
+  care: {min: 5, max: 3*PL_H, fb: 30*PL_M},           // her out-of-crate phase: spans needed, longest counted, fallback (an estimate)
+  kochikTask: 10*PL_M,                                // a Kochik pee / drink task (no timer data for her: an estimate)
+  combine: 30*PL_M,                                   // Kochik's pee due within this after Kishmish's outing: done together
+  lat: 10*PL_M,                                       // falling asleep, when sleepDelay has too few samples (an estimate)
+  nap: {min: 3, fb: [40*PL_M, 60*PL_M, 80*PL_M]},     // ADAPTER planNaps: range with too few marked sleeps (an estimate)
+  minWin: 15*PL_M, shortWin: 25*PL_M, outWin: 45*PL_M,   // a listed free window / "קצר" under / an outing needs at least
+  far: 3*PL_H, round: 15*PL_M,                        // beyond 3 h from now: no minute-precise times
+  away: {days: 14, half: 7, enough: 1.5, stretch: 1.2, ask: 3*PL_H},   // evidence of staying alone (`planAway`)
+  // kishStats (the "still asleep?" card's nap until wakeExpect is filled; planning reads only `morning` / `mealGap`)
+  join: 10*PL_M, napN: 0, napSafe: true, napMin: 5, napQ: .5,
+  fb: {nap: 60*PL_M, awake: 45*PL_M, lat: 10*PL_M, morning: 6.5, kochikFirst: 7.5, mealGap: 2.5*PL_H, spread: 20*PL_M},
   wants: [30, 60, 120],
 };
 let planDay = 0, planWant = 60, planCustom = '', planLast = null;   // what this phone is looking at; never saved
@@ -3684,73 +3703,6 @@ function kishStats(now){
   return {naps, napsAll: sp.length, napsGood: good.length, nap: naps.length >= 3 ? quantile(naps, PLAN.napQ) : PLAN.fb.nap, awake: aw.length >= 3 ? median(aw) : PLAN.fb.awake, nAw: aw.length,
     lat: lats.length >= 3 ? median(lats) : PLAN.fb.lat, morning: mv.length >= 2 ? median(mv) - 1/6 : PLAN.fb.morning, mealGap: mealGap(p) || PLAN.fb.mealGap};
 }
-// Kishmish rolled forward from `from` to `to`: phases (out / crate awake / sleep), her needs, and every sleep with how
-// long it could be free time (`end`, `endWhy`) and what to do before it (`prep`). `fresh`: a new day from her morning.
-function planKish(from, to, fresh, st, groom){
-  const p = 'kishmish', S = V[p], ph = [], needs = [], sleeps = [], pad = PLAN.pad;
-  const u = usualPeeGap(p, from), peeMed = u ? u.med : (holdHours(p) * PL_H || 3*PL_H), alone = PLAN.alone(ageOf(p));
-  let lastPee = fresh ? 0 : (S.pee || 0), lastMeal = fresh ? 0 : (S.food || 0), grooming = groom ? {...groom} : null;
-  const pee = () => lastPee ? lastPee + PEE_RHYTHM.to * peeMed : Infinity;
-  const outPhase = (w, cur) => {
-    const a = Math.max(w, from), gravel = cur && cur.peed ? null : a;
-    if(gravel != null) lastPee = gravel + 5*PL_M;   // expected: a pee on the gravel when she comes out
-    let c = Math.max(w + st.awake, a + 15*PL_M), meal = null, bath = null, spray = null;
-    const nm = lastMeal ? lastMeal + st.mealGap : a + 10*PL_M;
-    if(nm <= c + 30*PL_M){ meal = Math.max(nm, a + 10*PL_M); c = Math.max(c, meal + 10*PL_M); lastMeal = meal; }
-    if(grooming && a >= planAt(a, PLAN.groomFrom)){
-      const g0 = (meal || a + 10*PL_M) + 10*PL_M;
-      if(grooming.bath){ bath = [g0, g0 + PLAN.bath[p]]; c = Math.max(c, bath[1] + 5*PL_M); }
-      else if(grooming.spray){ spray = g0; c = Math.max(c, g0 + 10*PL_M); }
-      grooming = null;
-    }
-    const what = [gravel != null ? 'חצץ' : null, meal ? 'אוכל' : 'משחק', bath ? 'מקלחת' : null, spray ? 'ספריי' : null].filter(Boolean).join(' + ');
-    const why = [gravel != null ? `${cur ? 'עכשיו' : 'מתעוררת בסביבות ' + clock(a)}: חצץ` : 'ערה עכשיו', meal ? `אוכל בסביבות ${clock(meal)}` : null, bath ? `מקלחת וייבוש ${clock(bath[0])}–${clock(bath[1])}` : null, spray ? `ספריי פרונטליין ב־${clock(spray)}` : null, `חזרה לכלוב בסביבות ${clock(c)}`].filter(Boolean).join(' · ');
-    ph.push({k:'out', a, b: c, gravel, meal, bath, spray});
-    needs.push({dog: p, kind: 'out', a: cur ? a : Math.max(a - pad, from), b: c + pad, at: a, title: `קישמיש: ${what}`, why, bath, spray});
-    return {gravel, meal, c};
-  };
-  const sleepPhase = (c, onset, safe, prep, cur, unsafe) => {
-    if(onset > Math.max(c, from)) ph.push({k:'crate', a: Math.max(c, from), b: onset});
-    const el = from - onset, longer = st.naps.filter(n => n > el);
-    let wake = cur && el > 0 ? onset + (longer.length >= 2 ? median(longer) : el + 15*PL_M) : onset + st.nap, wakeWhy = `קישמיש צפויה להתעורר בסביבות ${clock(wake)}`;
-    const wb = Math.min(lastPee ? lastPee + WAKE.sleepNoPee : Infinity, lastMeal ? lastMeal + ALERT.food : Infinity);
-    if(wb < wake){ wake = wb; wakeWhy = `צריך להעיר את קישמיש עד ${clock(wb)} (${lastPee && lastPee + WAKE.sleepNoPee === wb ? 'ארבע שעות מהפיפי' : 'שלוש וחצי שעות מהארוחה'})`; }
-    wake = Math.max(wake, from + 5*PL_M, onset + 10*PL_M);
-    const a = Math.max(onset, from), lim = [[wake - pad, wakeWhy], [pee(), `חלון הפיפי של קישמיש נגמר ב־${clock(pee())}`], [c + alone, `קישמיש לא נשארת לבד בכלוב יותר מ־${words(alone)}`]].sort((x,y) => x[0]-y[0])[0];
-    ph.push({k:'sleep', a, b: wake, safe: !!safe});
-    sleeps.push({a, onset, wake, c, end: lim[0], endWhy: lim[1], safe: !!safe, unsafe: unsafe || 'קישמיש נכנסה לכלוב בלי פיפי בחצץ', prep, cur: !!cur, el: cur ? Math.max(0, el) : 0});
-    return wake;
-  };
-  let w;
-  if(fresh){
-    w = planAt(from, st.morning);
-    if(w > from) ph.push({k:'sleep', a: from, b: w, night: true});
-    w = Math.max(w, from);
-  } else if(S.crate && S.crate.start){
-    const c = S.crate.start, L = state.log.filter(e => e.p===p && e.t <= from);
-    const safe = planSafeStay(c, from);
-    let onset = S.sleep && S.sleep.start;
-    if(!onset){
-      const crying = L.some(e => e.k==='cry' && e.end == null && e.t >= c);
-      const q = Math.max(c, ...L.filter(e => e.k==='cry' && e.end != null && e.end >= c).map(e => e.end), ...L.filter(e => AWAKE_PT[e.k] && e.t >= c).map(e => e.t));
-      onset = Math.max(crying ? from + st.lat : q + st.lat, from + 5*PL_M);
-    }
-    const seen = !!(S.sleep && S.sleep.start);   // in the crate now: free time only once she is seen asleep (marked or estimated)
-    w = sleepPhase(c, onset, safe && (seen || !PLAN.seen), {now: true, asleep: seen, c}, true, safe ? 'קישמיש בכלוב ועוד לא נרדמה' : '');
-  } else if(S.sleep && S.sleep.start){
-    w = sleepPhase(S.sleep.start, S.sleep.start, false, null, true, 'קישמיש ישנה מחוץ לכלוב');
-  } else {
-    const since = awakeSince(p) || from, peed = state.log.some(e => e.p===p && e.k==='pee' && e.t >= since && e.t <= from && (e.w === 'gravel' || e.w === 'out'));
-    const o = outPhase(since, {peed});
-    w = sleepPhase(o.c, o.c + st.lat, true, o, false);
-  }
-  for(let guard = 0; w < to && guard < 40; guard++){
-    const o = outPhase(w, null); if(o.c >= to) break;
-    w = sleepPhase(o.c, o.c + st.lat, true, o, false);
-  }
-  for(const x of ph) x.b = Math.min(x.b, to);
-  return {ph: ph.filter(x => x.b > x.a), needs: needs.filter(n => n.a < to).map(n => ({...n, b: Math.min(n.b, to)})), sleeps: sleeps.filter(s => s.a < to), peeMed, alone};
-}
 // Grooming planned for that day (bath or spray due by then and not done yet that day).
 function planGroom(p, day0){
   const g = {}, d1 = day0 + 86400000, S = V[p];
@@ -3758,121 +3710,274 @@ function planGroom(p, day0){
   if(S.flea && !(S.flea >= day0)){ const due = fleaDue(p).getTime(); if(due < d1) g.spray = true; }
   return g.bath || g.spray ? g : null;
 }
-// THE PLAN for one day: from now (or her morning) to 22:30. Returns every lane, need and free window.
-function planBuild(day, minFree){   // minFree: a shorter outing asked for in "אני רוצה לצאת" (default PLAN.minFree)
-  minFree = minFree || PLAN.minFree;
+// ---- inputs: the shared contracts, and marked ADAPTERS where a contract returns nothing yet ----
+// HOW LONG CARE LASTS: her out-of-crate phase — crate exit → next crate entry, by day, the last PLAN.days days; time
+// in the carrier / pen inside it is supervision and is left out. An INDIRECT estimate: the timers say she was out,
+// not how many of those minutes needed someone's hands. Too few spans → PLAN.care.fb, said to be an estimate.
+function planCareDur(now){
+  const p = 'kishmish', from = now - PLAN.days*86400000, L = state.log.filter(e => e.p===p && e.t <= now);
+  const ins = L.filter(e => e.k==='crate').map(e => e.t).sort((a,b) => a-b), sup = L.filter(e => (e.k==='carrier' || e.k==='pen') && e.end != null), d = [];
+  for(const c of L.filter(e => e.k==='crate' && e.end != null && e.end >= from && e.end <= now)){
+    const nx = ins.find(t => t >= c.end); if(nx == null) continue;
+    let s = nx - c.end; if(s <= 0 || s > PLAN.care.max || planNight(c.end, nx)) continue;
+    for(const x of sup) s -= Math.max(0, Math.min(x.end, nx) - Math.max(x.t, c.end));
+    if(s > 0) d.push(s);
+  }
+  return d.length >= PLAN.care.min ? {ms: median(d), n: d.length, src: 'learned'} : {ms: PLAN.care.fb, n: d.length, src: 'estimate'};
+}
+// ADAPTER planNaps — how long a sleep that has NOT begun yet lasts: no contract offers that (wakeExpect covers the
+// current sleep). Quartiles of her marked day episodes (`learnEpisodes`, the last PLAN.days days, ≥ WAKE.minNap);
+// with too few, PLAN.nap.fb (an estimate). Replace with a contract when Agent B offers one.
+function planNaps(now){
+  const d = learnEpisodes('kishmish', now - PLAN.days*86400000, now, {now}).filter(e => e.end != null && e.end - e.t >= WAKE.minNap).map(e => e.end - e.t).sort((a,b) => a-b);
+  if(d.length < PLAN.nap.min){ const [lo, mid, hi] = PLAN.nap.fb; return {lo, mid, hi, n: d.length, src: 'estimate'}; }
+  return {lo: quantile(d, .25), mid: median(d), hi: quantile(d, .75), n: d.length, src: 'learned'};
+}
+// The current sleep's wake: wakeExpect(...).likely (a range) and .wakeBy (the safety rule). ADAPTER while it says
+// nothing: her usual nap range (planNaps) from the sleep's start, never before now, and the app's own `wakeBy`.
+function planWakeNow(now){
+  const w = wakeExpect('kishmish', now) || {}, st = V.kishmish.sleep && V.kishmish.sleep.start;
+  const wb = w.wakeBy != null ? w.wakeBy : (w.src === 'stub' || !w.src) ? ((wakeBy('kishmish') || {}).t || null) : null;
+  if(w.likely && w.likely.from != null && w.likely.to != null) return {from: w.likely.from, to: Math.max(w.likely.from, w.likely.to), wakeBy: wb, src: 'contract', n: w.n || 0};
+  if(!st) return null;
+  const nr = planNaps(now), from = Math.max(now, st + nr.lo), to = Math.max(from + (nr.hi - nr.lo) / 2, st + nr.hi);
+  return {from, to, wakeBy: wb, src: 'adapter', n: nr.n};
+}
+// Her pee window: pottyExpect(...).pee. ADAPTER while it is null: the tracking tab's own window (`peeForecast`).
+// `span` = how long after a pee the window ends, used for the pees the plan expects later.
+function planPee(now){
+  const pe = (pottyExpect('kishmish', now) || {}).pee, last = V.kishmish.pee;
+  if(pe && pe.to != null) return {to: pe.to, span: last && pe.to > last ? pe.to - last : null, src: 'contract'};
+  const f = peeForecast('kishmish');
+  return f ? {to: f.to, span: f.to - f.last, src: 'adapter'} : {to: null, span: null, src: 'none'};
+}
+// Kochik: kochikExpect(now) → {gap, from, to, cap, sick, n, src, drinkFrom?, drinkTo?}. ADAPTER while it is a stub:
+// the app's `kochikGap` rules from her last pee, and a drink since then (PLAN.drink).
+function planKochik(now){
+  const k = kochikExpect(now);
+  if(k && k.gap != null) return {...k, sick: !!k.sick};
+  const g = kochikGap(now), last = V.kochik.pee || 0;
+  const w = state.log.filter(e => e.p==='kochik' && e.k==='water' && e.t <= now && e.t > last).sort((x,y) => x.t-y.t).pop();
+  return {gap: g.gap, from: last ? last + g.gap : null, to: last ? last + g.cap : null, cap: g.cap, sick: g.sick, n: g.n, q: g.q, src: 'adapter',
+    drinkFrom: w ? w.t + PLAN.drink[0] : null, drinkTo: w ? w.t + PLAN.drink[1] : null, drinkAt: w ? w.t : null};
+}
+// EVIDENCE SHE STAYS ALONE: `away` entries (either dog's) that ended in the last PLAN.away.days. Only ctx 'home' with
+// res 'calm' proves it; each weighs its length (up to PLAN.outWin) × recency (halves every PLAN.away.half days).
+// Enough = total weight ≥ PLAN.away.enough. Cap = the longest length that a full unit of weight reached, × stretch;
+// a 'much' (lots of crying) at home lowers it to that length. No res / 'unknown' says nothing; no cry entry ≠ calm.
+function planAway(now){
+  const L = state.log.filter(e => e.k==='away' && e.end != null && e.end <= now && e.end >= now - PLAN.away.days*86400000);
+  const calm = L.filter(e => e.ctx === 'home' && e.res === 'calm').map(e => ({d: e.end - e.t, w: Math.pow(.5, (now - e.end) / (PLAN.away.half*86400000)) * Math.min(1, (e.end - e.t) / PLAN.outWin)})).sort((x,y) => y.d - x.d);
+  const W = calm.reduce((n, x) => n + x.w, 0);
+  let acc = 0, cap = 0; for(const x of calm){ acc += x.w; if(acc >= 1){ cap = x.d * PLAN.away.stretch; break; } }
+  const much = L.filter(e => e.ctx === 'home' && e.res === 'much' && e.end >= now - PLAN.away.half*86400000).map(e => e.end - e.t);
+  if(cap && much.length) cap = Math.min(cap, Math.min(...much));
+  return {enough: W >= PLAN.away.enough && cap > 0, cap, w: W, n: calm.length, much: much.length, all: L.length, room: L.filter(e => e.ctx === 'room' && e.res === 'calm').length};
+}
+// Kishmish rolled forward from `from` to `to`: phases (out = care, crate = awake in the crate, carrier / pen, sleep,
+// night), her care blocks, every sleep (with its wake range) and the uncertainty bands before each projected care.
+// X: {now, care, naps, lat(t), pee, mealGap, morning, day0}. The wake of the CURRENT sleep comes from wakeExpect; later
+// cycles follow from it, their spread growing (in quadrature) with each nap's own range.
+function planKish(from, to, fresh, X, groom){
+  const p = 'kishmish', S = V[p], ph = [], care = [], sleeps = [], bands = [], D = X.care.ms, now = X.now;
+  const alone = PLAN.alone(ageOf(p));
+  let lastMeal = fresh ? 0 : (S.food || 0), lastPee = fresh ? 0 : (S.pee || 0), grooming = groom ? {...groom} : null, estFrom = fresh ? from : Infinity;
+  const outPhase = (a, b0, spread, est, o) => {   // a: start; b0: its expected end before grooming
+    const gravel = o && o.peed ? null : a;
+    if(gravel != null) lastPee = gravel + 2*PL_M;
+    let b = b0, meal = null, bath = null, spray = null;
+    const nm = lastMeal ? lastMeal + X.mealGap : a;
+    if(nm <= b + 30*PL_M){ meal = Math.min(Math.max(nm, a + 3*PL_M), b); lastMeal = meal; }
+    if(grooming && a >= planAt(a, PLAN.groomFrom)){
+      const g0 = b;
+      if(grooming.bath){ bath = [g0, g0 + PLAN.bath[p]]; b = bath[1]; }
+      else if(grooming.spray){ spray = g0; b = g0 + 10*PL_M; }
+      grooming = null;
+    }
+    const what = [gravel != null ? 'חצץ' : null, meal ? 'אוכל' : null, 'משחק', bath ? 'מקלחת' : null, spray ? 'ספריי' : null].filter(Boolean).join(' + ');
+    const why = [o && o.now ? 'ערה עכשיו, מחוץ לכלוב' : `מתעוררת בסביבות ${clock(a)}`, gravel != null ? 'חצץ' : null, meal ? `אוכל בסביבות ${clock(meal)}` : null, bath ? `מקלחת וייבוש ${clock(bath[0])}–${clock(bath[1])}` : null, spray ? `ספריי פרונטליין ב־${clock(spray)}` : null, `חזרה לכלוב בסביבות ${clock(b)}`].filter(Boolean).join(' · ');
+    ph.push({k: 'out', a, b, gravel, meal, bath, spray, est});
+    care.push({dog: p, kind: 'out', at: a, a, b, est, spread, title: `קישמיש: ${what}`, why, bath, spray});
+    return b;
+  };
+  // in the crate from c: awake until she falls asleep (sleepDelay), then a sleep of her usual range
+  const cratePhase = (c, spread, est, onset0) => {
+    const L = X.lat(c), onset = onset0 != null ? onset0 : c + L.ms;
+    if(onset > c) ph.push({k: 'crate', a: c, b: onset, est});
+    const nr = X.naps, wake = {from: onset + nr.lo, to: onset + nr.hi, mid: onset + nr.mid};
+    const sp = Math.sqrt(spread*spread + Math.pow((nr.hi - nr.lo) / 2, 2));
+    sleeps.push({a: onset, onset, c, wake, safe: true, seen: false, cur: false, est: true, open: L.open, peeTo: lastPee && X.pee.span ? lastPee + X.pee.span : null, alone: c + alone, prep: {c}});
+    ph.push({k: 'sleep', a: onset, b: wake.mid, est: true, open: L.open});
+    if(estFrom === Infinity) estFrom = onset;
+    return {t: wake.mid, spread: sp, own: nr.mid - nr.lo, onset};
+  };
+  const band = (a, spread, floor) => { const s = Math.max(a - spread, floor); if(a - s >= PL_M) bands.push({a: s, b: a}); };
+  let cur;   // {t: next care start, spread, onset}
+  if(fresh){
+    const w = Math.max(planAt(from, X.morning), from);
+    if(w > from) ph.push({k: 'night', a: from, b: w, night: true});
+    const b = outPhase(w, w + D, PLAN.fb.spread, true);
+    band(w, PLAN.fb.spread, from);
+    cur = cratePhase(b, PLAN.fb.spread, true);
+  } else if((S.carrier && S.carrier.start) || (S.pen && S.pen.start)){
+    const k = S.carrier && S.carrier.start ? 'carrier' : 'pen', st = S[k].start, b = Math.max(from + 5*PL_M, st + D);
+    ph.push({k, a: from, b});
+    cur = cratePhase(b, 0, false);
+  } else if(S.crate && S.crate.start){
+    const c = S.crate.start, safe = planSafeStay(c, from), seen = !!(S.sleep && S.sleep.start), L = state.log.filter(e => e.p===p && e.t <= from);
+    if(seen){
+      const w = planWakeNow(now) || {from: from + 5*PL_M, to: from + 20*PL_M, src: 'none'};
+      let wf = Math.max(w.from, from + PL_M), wt = Math.max(w.to, wf);
+      if(w.wakeBy && w.wakeBy < wt){ wt = Math.max(w.wakeBy, from + PL_M); wf = Math.min(wf, wt); }
+      const mid = (wf + wt) / 2, open = X.lat(from).open;
+      ph.push({k: 'sleep', a: from, b: mid, open, cur: true});
+      sleeps.push({a: from, onset: S.sleep.start, c, wake: {from: wf, to: wt, mid, src: w.src, wakeBy: w.wakeBy}, safe, seen: true, cur: true, est: false, open,
+        peeTo: X.pee.to, alone: c + alone, prep: {now: true, asleep: true, c}, unsafe: 'קישמיש נכנסה לכלוב בלי פיפי בחצץ'});
+      cur = {t: mid, spread: (wt - wf) / 2, own: (wt - wf) / 2};
+      estFrom = mid;
+    } else {
+      // not asleep yet: quiet since going in / the last cry / the last thing seen (a kong, food…); asleep after her delay
+      const crying = L.some(e => e.k==='cry' && e.end == null && e.t >= c);
+      const q = Math.max(c, ...L.filter(e => e.k==='cry' && e.end != null && e.end >= c).map(e => e.end), ...L.filter(e => AWAKE_PT[e.k] && e.t >= c).map(e => e.t));
+      const onset = Math.max((crying ? from : q) + X.lat(from).ms, from + 5*PL_M);
+      cur = cratePhase(from, 0, false, onset);
+      const sl = sleeps[sleeps.length-1]; Object.assign(sl, {c, cur: true, safe, peeTo: X.pee.to, alone: c + alone, prep: {now: true, asleep: false, c}, unsafe: safe ? 'קישמיש בכלוב ועוד לא נרדמה' : 'קישמיש נכנסה לכלוב בלי פיפי בחצץ'});
+    }
+  } else if(S.sleep && S.sleep.start){
+    const w = planWakeNow(now) || {from: from + 5*PL_M, to: from + 20*PL_M, src: 'none'};
+    const wf = Math.max(w.from, from + PL_M), wt = Math.max(w.to, wf), mid = (wf + wt) / 2;
+    ph.push({k: 'sleep', a: from, b: mid, outside: true, cur: true});
+    sleeps.push({a: from, onset: S.sleep.start, c: null, wake: {from: wf, to: wt, mid, src: w.src}, safe: false, seen: true, cur: true, est: false, outside: true, unsafe: 'קישמיש ישנה מחוץ לכלוב'});
+    cur = {t: mid, spread: (wt - wf) / 2, own: (wt - wf) / 2}; estFrom = mid;
+  } else {
+    const since = awakeSince(p) || from, peed = state.log.some(e => e.p===p && e.k==='pee' && e.t >= since && e.t <= from && (e.w === 'gravel' || e.w === 'out'));
+    const b = outPhase(from, Math.max(from + 5*PL_M, since + D), 0, false, {peed, now: true});
+    cur = cratePhase(b, 0, false);
+  }
+  for(let guard = 0; cur.t < to && guard < 40; guard++){
+    const sl = sleeps[sleeps.length-1];
+    band(cur.t, cur.own, sl ? Math.max(sl.a, from) : from);   // the faded stretch: this sleep's own wake range; the grown spread only fades / rounds later times
+    const b = outPhase(cur.t, cur.t + D, cur.spread, true);
+    if(b >= to) break;
+    cur = cratePhase(b, cur.spread, true);
+  }
+  for(const x of ph){ x.b = Math.min(x.b, to); if(x.a >= estFrom) x.est = true; }
+  return {ph: ph.filter(x => x.b > x.a && x.a < to), care: care.filter(n => n.a < to).map(n => ({...n, b: Math.min(n.b, to)})), sleeps: sleeps.filter(s => s.a < to),
+    bands: bands.filter(x => x.a < to).map(x => ({...x, b: Math.min(x.b, to)})), alone, estFrom};
+}
+// THE PLAN for one day: from now (or her morning) to 22:30. minOut: a shorter outing asked for in "אני רוצה לצאת".
+function planBuild(day, minOut){
+  minOut = minOut || PLAN.outWin;
   const now = Date.now(), d = sod(now); d.setDate(d.getDate() + (day ? 1 : 0));
-  const day0 = d.getTime(), st = kishStats(now), kg = kochikGap(now), pad = PLAN.pad;
+  const day0 = d.getTime(), st = kishStats(now), kg = planKochik(now);
   const fresh = !!day || plTod(now) < 5, to = planAt(day0, PLAN.night[0]);
   const from = fresh ? Math.min(planAt(day0, st.morning), planAt(day0, kochikFirstPee(now))) - 30*PL_M : now;
-  const M = {day, day0, from, to, now, st, kg, needs: [], free: [], marks: [], blocks: [], notes: []};
+  const care = planCareDur(now), naps = planNaps(now), pee = planPee(now), away = planAway(now), samples = sleepSamples('kishmish', state.log, now);
+  const lat = t => { const su = crateSetup('kishmish', t), r = sleepDelay(su, now, samples); return {ms: r.delay != null ? r.delay : PLAN.lat, open: su.door === 'open', src: r.delay != null ? 'learned' : 'estimate', n: r.nPool}; };
+  const M = {day, day0, from, to, now, st, kg, away, dur: {care, naps, pee, lat: lat(now), wake: null}, needs: [], free: [], marks: [], blocks: [], kpee: []};
   if(from >= to) return M;
-  const ks = M.ks = planKish(from, to, fresh, st, planGroom('kishmish', day0));
-  // Kochik's fixed needs: medicines, her own grooming, and the drying time after any spray.
-  const KO = V.kochik, onBreak = !!(KO.medoff && KO.medoff.start);
+  const ks = M.ks = planKish(from, to, fresh, {now, care, naps, lat, pee, mealGap: st.mealGap, morning: st.morning, day0}, planGroom('kishmish', day0));
+  const cs = ks.sleeps.find(s => s.cur && s.seen); M.dur.wake = cs ? cs.wake.src : null;
+  const estAt = t => !!day || t >= ks.estFrom;
+  // Kochik's pees / drinks: a chain from kochikExpect's window (a drink brings it forward); each one inside Kishmish's
+  // outing — or due within PLAN.combine after it ends — is done together with it ("אפשר לשלב": merged, not summed).
+  const KO = V.kochik, task = PLAN.kochikTask;
+  let next = fresh ? planAt(day0, kochikFirstPee(now)) : (kg.from != null ? kg.from : from), drink = false;
+  if(!fresh && kg.drinkFrom != null && kg.drinkFrom < next){ next = kg.drinkFrom; drink = true; }
+  for(let guard = 0; next < to && guard < 40; guard++){
+    let at = Math.max(next, from);
+    const late = !fresh && next < from - PL_M;
+    const o = ks.care.find(n => n.a <= at && at < n.b) || ks.care.filter(n => n.b <= at && at - n.b <= PLAN.combine && n.b > from).pop();
+    if(o && !(o.a <= at && at < o.b)) at = Math.max(o.a, o.b - task);
+    const why = drink ? `קוצ׳יק שתתה${kg.drinkAt ? ' ב־' + clock(kg.drinkAt) : ''} · פיפי בדרך כלל חצי שעה עד שעה וחצי אחרי` : late ? `עברו ${words(now - (KO.pee || now))} מהפיפי האחרון` : `בדרך כלל מחזיקה כ־${words(kg.gap)}${kg.sick ? ' (פחות, אחרי שלשול / הקאה)' : ''}`;
+    M.kpee.push({dog: 'kochik', kind: drink ? 'drink' : 'pee', at, a: at, b: at + task, late, combo: !!o, est: estAt(at) || guard > 0, title: 'קוצ׳יק: פיפי', why: o ? `${why} · אפשר לשלב עם היציאה של קישמיש` : why});
+    next = at + kg.gap; drink = false;
+  }
+  // Kochik's medicines (a 5-minute task within the hour before 11:00 / 21:00 — with a care already planned then if
+  // there is one), her grooming, and the drying time after any spray.
+  const onBreak = !!(KO.medoff && KO.medoff.start), hosts = ks.care.concat(M.kpee);
   if(!onBreak) for(const sl of ['am', 'pm']){
     const dl = planAt(day0, PLAN.medBy[sl]), done = !fresh && !!medsOf('kochik')[sl], name = sl === 'am' ? 'בוקר' : 'ערב';
     if(done) continue;
-    if(dl > from) M.blocks.push({dog: 'kochik', kind: 'med', slot: sl, a: Math.max(from, dl - PLAN.medLead), b: dl, title: `קוצ׳יק: תרופת ${name}`, why: `קוצ׳יק צריכה את תרופת ה${name} עד ${clock(dl)}`});
-    else if(!fresh && from - dl < 3*PL_H) M.blocks.push({dog: 'kochik', kind: 'med', slot: sl, a: from, b: from + pad, late: true, title: `קוצ׳יק: תרופת ${name}`, why: `תרופת ה${name} של קוצ׳יק עוד לא סומנה (עד ${clock(dl)})`});
+    if(dl > from){
+      const w0 = Math.max(from, dl - PLAN.medLead), host = hosts.filter(n => n.b > w0 && n.a <= dl - PLAN.medTask).sort((x,y) => x.a-y.a)[0];
+      const at = host ? Math.min(Math.max(host.a, w0), dl - PLAN.medTask) : Math.max(from, dl - 15*PL_M);
+      M.blocks.push({dog: 'kochik', kind: 'med', slot: sl, at, a: at, b: at + PLAN.medTask, by: dl, combo: !!host, est: estAt(at), title: `קוצ׳יק: תרופת ${name}`, why: `קוצ׳יק צריכה את תרופת ה${name} עד ${clock(dl)}${host ? ' · אפשר לשלב' : ''}`});
+    } else if(!fresh && from - dl < 3*PL_H) M.blocks.push({dog: 'kochik', kind: 'med', slot: sl, at: from, a: from, b: from + PLAN.medTask, late: true, title: `קוצ׳יק: תרופת ${name}`, why: `תרופת ה${name} של קוצ׳יק עוד לא סומנה (עד ${clock(dl)})`});
   }
   const kgr = planGroom('kochik', day0);
   if(kgr){
-    const g0 = Math.max(planAt(day0, PLAN.medBy.am), from + pad);
-    if(kgr.bath) M.blocks.push({dog: 'kochik', kind: 'bath', a: g0, b: g0 + PLAN.bath.kochik, title: 'קוצ׳יק: מקלחת', why: `יום מקלחת לקוצ׳יק (כל ${BATH_DAYS} ימים לכל היותר)`});
-    else M.blocks.push({dog: 'kochik', kind: 'spray', a: g0, b: g0 + 10*PL_M, title: 'קוצ׳יק: ספריי פרונטליין', why: `יום ריסוס לקוצ׳יק · לא משאירים לבד ${words(FLEA_DRY)} אחריו`, dry: g0 + FLEA_DRY});
+    const g0 = Math.max(planAt(day0, PLAN.medBy.am), from + 15*PL_M);
+    if(kgr.bath) M.blocks.push({dog: 'kochik', kind: 'bath', a: g0, b: g0 + PLAN.bath.kochik, est: estAt(g0), title: 'קוצ׳יק: מקלחת', why: `יום מקלחת לקוצ׳יק (כל ${BATH_DAYS} ימים לכל היותר)`});
+    else M.blocks.push({dog: 'kochik', kind: 'spray', a: g0, b: g0 + 10*PL_M, est: estAt(g0), title: 'קוצ׳יק: ספריי פרונטליין', why: `יום ריסוס לקוצ׳יק · לא משאירים לבד ${words(FLEA_DRY)} אחריו`, dry: g0 + FLEA_DRY});
   }
-  for(const n of ks.needs) if(n.spray) M.blocks.push({dog: 'kishmish', kind: 'dry', a: n.spray, b: n.spray + FLEA_DRY, title: '', why: `הספריי של קישמיש מתייבש עד ${clock(n.spray + FLEA_DRY)}`, hidden: true});
+  for(const n of ks.care) if(n.spray) M.blocks.push({dog: 'kishmish', kind: 'dry', a: n.spray, b: n.spray + FLEA_DRY, title: '', why: `הספריי של קישמיש מתייבש עד ${clock(n.spray + FLEA_DRY)}`, hidden: true});
   for(const b of M.blocks.slice()) if(b.dry) M.blocks.push({dog: 'kochik', kind: 'dry', a: b.b, b: b.dry, title: '', why: `הספריי של קוצ׳יק מתייבש עד ${clock(b.dry)}`, hidden: true});
   for(const p of ['kochik', 'kishmish']){ const f = V[p].flea; if(!fresh && f && now - f < FLEA_DRY) M.blocks.push({dog: p, kind: 'dry', a: from, b: f + FLEA_DRY, title: '', why: `הספריי של ${PL_DOG[p]} מתייבש עד ${clock(f + FLEA_DRY)}`, hidden: true}); }
-  const hard = M.blocks.filter(b => b.b > from).sort((x,y) => x.a-y.a);
-  const kishBusy = ks.needs.map(n => ({a: n.a, b: n.b, why: `${n.title} עד ${clock(n.b)}`}));   // free time starts after her need and its margin
-  // Kochik's pees: a chain from her last pee (a drink brings the next one forward); re-anchored wherever she is let
-  // out right before a free window.
-  const water = !fresh && state.log.filter(e => e.p==='kochik' && e.k==='water' && e.t <= now).sort((x,y) => x.t-y.t).pop();
-  let lastK = fresh ? 0 : (KO.pee || 0), D;
-  if(fresh) D = planAt(day0, kochikFirstPee(now));
-  else { D = lastK ? lastK + kg.gap : from; if(water && water.t > lastK && water.t + PLAN.drink[0] < D) D = water.t + PLAN.drink[0]; }
-  const drinkD = water && D === water.t + PLAN.drink[0] ? water.t : 0;
-  const kpee = [];
-  const emit = t => { while(D < t && D < to){ const at = Math.max(D, from), dr = drinkD && D === drinkD + PLAN.drink[0]; kpee.push({dog: 'kochik', kind: 'pee', at, a: Math.max(from, at - pad), b: dr ? drinkD + PLAN.drink[1] : at + pad, late: D < from, title: 'קוצ׳יק: פיפי', why: dr ? `שתתה ב־${clock(drinkD)} · פיפי בדרך כלל 30–90 דקות אחרי` : D < from ? `עברו ${words(now - lastK)} מהפיפי האחרון` : `בדרך כלל מחזיקה כ־${words(kg.gap)}`}); lastK = at; D = at + kg.gap; } };
-  for(const sl of ks.sleeps){
-    if(sl.safe !== true){ sl.why = sl.unsafe; continue; }
-    let a = Math.max(sl.a, from), why0 = '';
-    for(const b of kishBusy) if(b.a < a && b.b > a){ a = b.b; why0 = b.why; }
-    for(const b of hard) if(b.a <= a + pad && b.b > a - pad){ a = Math.max(a, b.b); why0 = b.why || `${b.title} עד ${clock(b.b)}`; }
-    emit(a + 1);
-    const recent = lastK && lastK >= a - pad && lastK <= a, anchor = recent ? lastK : a;
-    const due = recent ? D : anchor + kg.gap, drank = recent && drinkD && D === drinkD + PLAN.drink[0];   // a drink since her last pee brings it forward
-    const lim = [[sl.end, sl.endWhy], [due - pad, drank ? `קוצ׳יק שתתה ב־${clock(drinkD)} וצריכה פיפי בסביבות ${clock(due)}` : `קוצ׳יק צריכה פיפי עד ${clock(due)}`], [to, 'מ־22:30 לילה']];
-    for(const b of hard) if(b.a >= a) lim.push([b.a - (b.kind === 'dry' ? 0 : pad), b.why || b.title]);
-    lim.sort((x,y) => x[0]-y[0]);
-    const b = lim[0][0], endWhy = lim[0][1], endDog = /קוצ׳יק/.test(endWhy) ? 'kochik' : /קישמיש/.test(endWhy) ? 'kishmish' : '';
-    if(b - a < minFree){ sl.why = b > a ? `רק ${words(b - a)} — ${endWhy}` : why0 || endWhy; continue; }
-    const f = {a, b, sl, endWhy, endDog, anchor, kochikPee: !recent};
-    // Confidence: the less consistent of her naps (how often one lasted this long) and Kochik's gaps.
-    const need = b - sl.onset, pool = sl.cur ? st.naps.filter(n => n > sl.el) : st.naps;
-    const fk = pool.length >= 3 ? pool.filter(n => n >= need).length / pool.length : .5;
-    const fc = kg.g.length ? kg.g.filter(g => g >= b - anchor + pad).length / kg.g.length : .5;
-    f.score = Math.min(fk, fc); f.scoreWhy = fk <= fc ? 'kishmish' : 'kochik';
-    const thin = planDays('kishmish', now) < PLAN.minDays || planDays('kochik', now) < PLAN.minDays;
-    f.conf = f.score >= PLAN.hi && !thin && !day ? 'high' : 'medium';
-    if(f.score < PLAN.lo){ sl.why = `קישמיש לא ישנה בדרך כלל עד ${clock(b)} (רק ${Math.round(fk * 100)}% מהשינות שלה)`; continue; }
-    if(f.kochikPee) kpee.push({dog: 'kochik', kind: 'pee', at: a, a: Math.max(from, a - pad), b: a, before: true, title: 'קוצ׳יק: פיפי לפני שיוצאים', why: 'מוציאים אותה ממש לפני שיוצאים'});
-    lastK = anchor; D = anchor + kg.gap;
-    sl.free = f; sl.why = endWhy; M.free.push(f);
-  }
-  emit(to);
   // Kochik's usual meals (thin data: shown as a light mark, not as needed time).
   for(const h of kochikMeals(now)){ const t = planAt(day0, h); if(t >= from && t < to) M.marks.push({dog: 'kochik', t, tip: `קוצ׳יק אוכלת בדרך כלל בסביבות ${clock(t)} (מעט נתונים)`}); }
-  M.kpee = kpee;
-  M.needs = ks.needs.concat(kpee, M.blocks.filter(b => !b.hidden)).filter(n => n.b > from).sort((x,y) => x.a-y.a);
-  for(const f of M.free){
-    const before = [], sl = f.sl, pr = sl.prep;
-    if(pr && pr.now) before.push(pr.asleep ? 'קישמיש כבר ישנה בכלוב — לא להעיר' : 'קישמיש כבר בכלוב — לתת לה להירדם');
-    else if(pr) before.push(`להוציא את קישמיש לחצץ ב־${clock(pr.gravel != null ? pr.gravel : f.a)}${pr.meal ? `, להאכיל ב־${clock(pr.meal)}` : ''}, להכניס לכלוב עם קונג ב־${clock(pr.c)}`);
-    const med = M.blocks.find(b => b.kind === 'med' && b.b <= f.a + pad && b.b > f.a - 90*PL_M);
-    before.push(f.kochikPee ? `להוציא את קוצ׳יק לפיפי ממש לפני שיוצאים${med ? `, לתת לה את תרופת ה${med.slot === 'am' ? 'בוקר' : 'ערב'}` : ''}` : `קוצ׳יק עשתה פיפי ב־${clock(f.anchor)}${med ? ` · לתת לה את תרופת ה${med.slot === 'am' ? 'בוקר' : 'ערב'}` : ''}`);
-    const meal = M.marks.find(m => m.t >= f.a - 30*PL_M && m.t <= f.b);
-    if(meal) before.push(`אפשר להאכיל את קוצ׳יק לפני היציאה: היא אוכלת בדרך כלל בסביבות ${clock(meal.t)} (מעט נתונים)`);
-    f.before = before;
-    const wtr = state.log.filter(e => e.p==='kochik' && e.k==='water' && e.t <= now && e.t >= f.a - 30*PL_M && e.t <= f.a).pop();
-    f.notes = [];
-    if(wtr) f.notes.push(`קוצ׳יק שתתה ב־${clock(wtr.t)}: כדאי לחכות שתעשה פיפי לפני שיוצאים`);
-    if(kg.sick) f.notes.push(`קוצ׳יק: ${kg.sick.k === 'vomit' ? 'הקאה' : 'שלשול'} ב־24 השעות האחרונות, אז לכל היותר ${words(PLAN.kochikSick)} בין פיפי לפיפי`);
-    if(!(pr && pr.now)) f.notes.push('רק אחרי פיפי בחצץ ורק אם נרדמה');
+  M.needs = ks.care.concat(M.kpee, M.blocks.filter(b => !b.hidden)).filter(n => n.b > from).sort((x,y) => x.a-y.a);
+  // CAN GO OUT — stricter than free at home: a sleep in the closed crate after a gravel pee (the current one only once
+  // she is seen asleep), confirmed evidence she stays calm alone (planAway), and it ends at the first of: the start of
+  // her wake range, her pee window, the time-alone cap, the length she has proven alone, any care of either dog, a
+  // spray drying, 22:30.
+  const dry = M.blocks.filter(b => b.kind === 'dry'), thin = planDays('kishmish', now) < PLAN.minDays || planDays('kochik', now) < PLAN.minDays;
+  for(const sl of ks.sleeps){
+    if(sl.outside || sl.open){ sl.why = sl.open ? 'דלת הכלוב פתוחה' : sl.unsafe; continue; }
+    if(!sl.safe){ sl.why = sl.unsafe; continue; }
+    if(sl.cur && !sl.seen){ sl.why = sl.unsafe; continue; }
+    if(!away.enough){ sl.why = 'עדיין אין מספיק ניסיון לבד'; continue; }
+    let a = Math.max(sl.a, from);
+    for(let moved = true; moved;){ moved = false; for(const n of M.needs.concat(dry)) if(n.a <= a && n.b > a){ a = n.b; moved = true; } }
+    const wf = sl.cur ? sl.wake.from : Math.min(sl.wake.from, (ks.bands.find(x => x.b === sl.wake.mid) || {a: Infinity}).a);   // projected: the earlier of her nap range and the grown uncertainty
+    const lim = [[wf, `קישמיש עשויה להתעורר מ־${clock(wf)}`], [to, 'מ־22:30 לילה'], [a + away.cap, `עד עכשיו נשארה לבד רגועה עד כ־${words(away.cap / PLAN.away.stretch)}`]];
+    if(sl.peeTo) lim.push([sl.peeTo, `חלון הפיפי של קישמיש נגמר ב־${clock(sl.peeTo)}`]);
+    if(sl.alone) lim.push([sl.alone, `קישמיש לא נשארת לבד בכלוב יותר מ־${words(ks.alone)}`]);
+    for(const n of M.needs.concat(dry)) if(n.a > a) lim.push([n.a, n.title ? `${n.title} בסביבות ${clock(n.a)}` : n.why]);
+    lim.sort((x,y) => x[0]-y[0]);
+    const b = lim[0][0], endWhy = lim[0][1], endDog = /קוצ׳יק/.test(endWhy) ? 'kochik' : /קישמיש|לבד/.test(endWhy) ? 'kishmish' : '';
+    if(b - a < minOut){ sl.why = b > a ? `רק ${words(b - a)} — ${endWhy}` : endWhy; continue; }
+    const f = {a, b, sl, endWhy, endDog, est: !!day || sl.est, conf: !day && sl.cur && M.dur.wake === 'contract' && !thin ? 'high' : 'medium'};
+    const kp = M.kpee.filter(n => n.a <= a).pop(), pr = sl.prep || {};
+    f.before = [pr.now ? 'קישמיש כבר ישנה בכלוב — לא להעיר' : `להוציא את קישמיש לחצץ, להאכיל ולהכניס לכלוב בסביבות ${clock(sl.c)} — ולצאת רק אם נרדמה`,
+      kp ? `קוצ׳יק: פיפי ב־${clock(kp.a)}${kp.combo ? ' (יחד עם קישמיש)' : ''}` : (KO.pee ? `קוצ׳יק עשתה פיפי ב־${clock(KO.pee)}` : 'להוציא את קוצ׳יק לפיפי לפני שיוצאים')];
+    f.notes = [`נשארה לבד רגועה ${away.n} ${away.n === 1 ? 'פעם' : 'פעמים'} בשבועיים האחרונים`];
+    if(kg.sick) f.notes.push(`קוצ׳יק: שלשול או הקאה ב־24 השעות האחרונות — מרווח קצר יותר בין פיפי לפיפי`);
+    if(!pr.now) f.notes.push('רק אחרי פיפי בחצץ ורק אם נרדמה');
+    sl.free = f; sl.why = endWhy; M.free.push(f);
   }
   return M;
 }
-// What lies under time t on the lane "לי": need, free or unsure, and in one sentence why (naming the dog).
-function planWhy(M, t){
-  const n = M.needs.find(x => x.a <= t && t < x.b);
-  if(n) return {k: 'need', tip: `צריכים אותך: ${n.title} · ${n.why}`};
-  const f = M.free.find(x => x.a <= t && t < x.b);
-  if(f) return {k: 'free', tip: `זמן פנוי ${clock(f.a)}–${clock(f.b)} · ${PL_CONF[f.conf]}`};
+// What the owner's time is at t: care / can go out / free at home / maybe / supervised / night — and why.
+function planClass(M, t){
+  const ns = M.needs.filter(x => x.a <= t && t < x.b);
+  if(ns.length){ const dogs = new Set(ns.map(n => n.dog)); return {k: 'care', both: dogs.size > 1, combo: ns.some(n => n.combo), what: ns.map(n => n.title).join(' · '), why: ns.map(n => n.why).join(' · ')}; }
   const ph = M.ks && M.ks.ph.find(x => x.a <= t && t < x.b);
-  const blk = M.blocks.find(x => x.a <= t && t < x.b);
-  if(blk) return {k: 'uns', tip: `לא פנוי: ${blk.why}`};
-  if(!ph) return {k: 'uns', tip: 'לא בטוח: אין מספיק מידע'};
-  if(ph.night) return {k: 'uns', tip: `לא פנוי: בוקר — קישמיש מתעוררת בסביבות ${clock(ph.b)}`};
-  if(ph.k === 'crate') return {k: 'uns', tip: `לא פנוי: קישמיש בכלוב ועוד לא נרדמה (צפוי בסביבות ${clock(ph.b)})`};
-  if(ph.k === 'out') return {k: 'uns', tip: 'לא פנוי: קישמיש ערה'};
-  const sl = M.ks.sleeps.find(x => x.a <= t && t < x.wake);
-  if(sl && sl.free && t < sl.free.a) return {k: 'uns', tip: 'לא פנוי: קישמיש עוד לא נרדמה בוודאות'};
-  return {k: 'uns', tip: `לא פנוי: ${sl && sl.why || 'קישמיש ישנה, אבל לא בטוח לכמה זמן'}`};
-}
-function planLanes(M){
-  const from = M.from, to = M.to, cuts = new Set([from, to]);
-  for(const x of M.needs.concat(M.free, M.blocks, M.ks ? M.ks.ph : [])) for(const t of [x.a, x.b]) if(t > from && t < to) cuts.add(t);
-  const c = [...cuts].sort((x,y) => x-y), me = [];
-  for(let i = 0; i < c.length - 1; i++){
-    const w = planWhy(M, (c[i] + c[i+1]) / 2), last = me[me.length-1];
-    if(last && last.k === w.k && last.tip === w.tip) last.b = c[i+1]; else me.push({...w, a: c[i], b: c[i+1]});
+  if(!ph) return {k: 'sup', what: 'בבית', why: 'אין מספיק מידע'};
+  if(ph.night) return {k: 'off', what: 'בוקר', why: `קישמיש מתעוררת בסביבות ${clock(ph.b)}`};
+  const sl = M.ks.sleeps.find(x => x.a <= t && t < x.wake.mid + 1);
+  if(ph.k === 'sleep' && !ph.open && !ph.outside){
+    const f = M.free.find(x => x.a <= t && t < x.b);
+    if(f) return {k: 'free', what: 'שתיהן מסודרות', why: `קישמיש ישנה בכלוב אחרי פיפי בחצץ, קוצ׳יק לא צריכה כלום, והיא כבר נשארה לבד רגועה · נגמר כי ${f.endWhy}`, f};
+    const bd = M.ks.bands.find(x => x.a <= t && t < x.b);
+    if(bd) return {k: 'uns', what: 'אולי פנוי', why: `קישמיש עשויה להתעורר כבר מ־${clock(bd.a)} (צפוי בסביבות ${clock(bd.b)})`};
+    if(sl && sl.cur && !sl.seen) return {k: 'sup', what: 'קישמיש בכלוב ונרדמת', why: 'עוד לא ידוע שנרדמה'};
+    return {k: 'home', what: 'קישמיש ישנה בכלוב', why: `קוצ׳יק לא צריכה כלום · קישמיש צפויה להתעורר בסביבות ${clock(ph.b)}`};
   }
-  const KN = {out: 'ערה בחוץ', crate: 'בכלוב, עוד לא נרדמה', sleep: 'ישנה (צפוי)'};
-  const kish = (M.ks ? M.ks.ph : []).map(x => ({k: 'k-' + x.k + (x.k === 'sleep' && !x.safe && !x.night ? ' uns' : ''), a: x.a, b: x.b,
-    tip: `קישמיש: ${x.night ? 'לילה, ישנה' : KN[x.k]} ${clock(x.a)}–${clock(x.b)}${x.k === 'out' ? [x.gravel != null ? ` · חצץ ${clock(x.gravel)}` : '', x.meal ? ` · אוכל ${clock(x.meal)}` : '', x.bath ? ` · מקלחת ${clock(x.bath[0])}` : ''].join('') : ''}${x.k === 'sleep' && x.safe === false && !x.night ? ' · בלי פיפי בחצץ לפני' : ''}`}));
-  const koch = [{k: 'c-ok', a: from, b: to, tip: 'קוצ׳יק: לא צריכה כלום (צפוי)'}].concat(M.needs.filter(n => n.dog === 'kochik').map(n => ({k: 'c-' + n.kind, a: n.a, b: n.b, tip: `${n.title} ${clock(n.a)}–${clock(n.b)} · ${n.why}`})));
+  if(ph.k === 'sleep') return {k: 'sup', what: ph.open ? 'קישמיש ישנה, דלת הכלוב פתוחה' : 'קישמיש ישנה מחוץ לכלוב', why: 'את בבית; לא זמן פנוי'};
+  if(ph.k === 'carrier') return {k: 'sup', what: 'קישמיש במנשא', why: 'טיול במנשא: השגחה, לא טיפול'};
+  if(ph.k === 'pen') return {k: 'sup', what: 'קישמיש בגדר', why: 'בגדר: השגחה, לא טיפול'};
+  if(ph.k === 'crate') return {k: 'sup', what: 'קישמיש ערה בכלוב', why: `קונג, משטח ליקוק או נרגעת — צפויה להירדם בסביבות ${clock(ph.b)}`};
+  return {k: 'care', what: 'קישמיש ערה', why: 'מחוץ לכלוב'};
+}
+const PL_TIPK = {care: 'need', free: 'free'};
+function planWhy(M, t){ const c = planClass(M, t); return {k: PL_TIPK[c.k] || 'uns', tip: `${PL_LV[c.k]}: ${c.what}${c.why ? ' · ' + c.why : ''}`}; }
+function planLanes(M){
+  const from = M.from, to = M.to, me = planLevels(M).map(x => ({k: PL_TIPK[x.k] || 'uns', a: x.a, b: x.b, tip: `${PL_LV[x.k]}: ${x.what}${x.why ? ' · ' + x.why : ''}`}));
+  const KN = {out: 'מחוץ לכלוב (טיפול)', crate: 'ערה בכלוב', sleep: 'ישנה (צפוי)', carrier: 'במנשא', pen: 'בגדר'};
+  const kish = (M.ks ? M.ks.ph : []).map(x => ({k: 'k-' + (x.k === 'carrier' || x.k === 'pen' ? 'crate' : x.k) + (x.k === 'sleep' && (x.open || x.outside) ? ' uns' : ''), a: x.a, b: x.b, est: x.est,
+    tip: `קישמיש: ${x.night ? 'לילה, ישנה' : KN[x.k]} ${clock(x.a)}–${clock(x.b)}${x.k === 'out' ? [x.gravel != null ? ` · חצץ ${clock(x.gravel)}` : '', x.meal ? ` · אוכל ${clock(x.meal)}` : '', x.bath ? ` · מקלחת ${clock(x.bath[0])}` : ''].join('') : ''}${x.open ? ' · דלת פתוחה' : x.outside ? ' · מחוץ לכלוב' : ''}`}));
+  const koch = [{k: 'c-ok', a: from, b: to, tip: 'קוצ׳יק: לא צריכה כלום (צפוי)'}].concat(M.needs.filter(n => n.dog === 'kochik').map(n => ({k: 'c-' + (n.kind === 'drink' ? 'pee' : n.kind), a: n.a, b: n.b, est: n.est, tip: `${n.title} ${clock(n.a)}–${clock(n.b)} · ${n.why}`})));
   return {me, kish, koch};
 }
 const plSpan = (a, b) => `<bdi dir="ltr">${clock(a)}–${clock(b)}</bdi>`;
@@ -3910,67 +4015,59 @@ function planCal(M){   // calendar items for the free and needed windows and the
   return M.free.map(f => ({kind: 'free', a: f.a, b: f.b, title: 'זמן פנוי', desc: conf(f)}))
     .concat(M.needs.map(n => ({kind: n.kind, a: n.a, b: n.b, title: n.title, desc: n.why})));
 }
-// "אני רוצה לצאת": the best windows today and tomorrow for that long, or which dog is the limit.
+// "אני רוצה לצאת": the best windows today and tomorrow for that long, or what limits it.
 function planWantHTML(Ms){
-  const W = planWant * PL_M;
-  if(W < PLAN.minFree) Ms = [planBuild(0, W), planBuild(1, W)];   // a short outing may use a stretch shorter than the lane's minimum
+  const W = planWant * PL_M, aw = Ms[0].away;
+  if(!aw.enough) return `<p class="pl-none">עדיין אין מספיק ניסיון לבד, אז עוד אין חלון לצאת מהבית. אחרי כמה פעמים שיצאת מהבית והיא נשארה רגועה (״יצאתי / חזרתי״ למעלה) יופיעו כאן חלונות — באורך דומה למה שכבר הצליח.</p>`;
+  if(W < PLAN.outWin) Ms = [planBuild(0, W), planBuild(1, W)];   // a short outing may use a stretch shorter than the usual minimum
   const all = Ms.flatMap(M => M.free.map(f => ({f, M}))).filter(x => x.f.b > Date.now());
   const fit = all.filter(x => x.f.b - x.f.a >= W).sort((x, y) => (x.f.conf === y.f.conf ? 0 : x.f.conf === 'high' ? -1 : 1) || x.f.a - y.f.a).slice(0, 3);
   const row = ({f, M}) => `<li><b>${plDayWord(M, f.a)}${plSpan(f.a, f.b)}</b> <span class="pl-conf ${f.conf}">${PL_CONF[f.conf]}</span><small>יוצאים ב־${clock(f.a)}, חוזרים עד ${clock(Math.min(f.b, f.a + W))}</small><ul class="pl-do">${f.before.map(s => `<li>${s}</li>`).join('')}${f.notes.map(s => `<li class="pl-note">${s}</li>`).join('')}</ul></li>`;
   if(fit.length) return `<ol class="pl-fit">${fit.map(row).join('')}</ol>`;
-  const kg = Ms[0].kg, kcap = kg.gap - PLAN.pad, best = all.sort((x, y) => (y.f.b - y.f.a) - (x.f.b - x.f.a))[0];
+  const kg = Ms[0].kg, best = all.sort((x, y) => (y.f.b - y.f.a) - (x.f.b - x.f.a))[0];
   let msg;
-  if(W > kcap) msg = `המגבלה היא קוצ׳יק: היא מחזיקה כ־${words(kg.gap)}, אז לכל היותר כ־${words(kcap)} מהפיפי שלה. ליציאה ארוכה יותר מישהו יצטרך להוציא את קוצ׳יק.`;
+  if(W > aw.cap) msg = `המגבלה: עד עכשיו היא נשארה לבד רגועה עד כ־${words(aw.cap / PLAN.away.stretch)}, אז לכל היותר כ־${words(aw.cap)}.`;
+  else if(W > kg.gap) msg = `המגבלה היא קוצ׳יק: היא מחזיקה כ־${words(kg.gap)}. ליציאה ארוכה יותר מישהו יצטרך להוציא את קוצ׳יק.`;
   else msg = best ? `${best.f.endDog ? `המגבלה היא ${PL_DOG[best.f.endDog]}` : 'המגבלה'}: ${best.f.endWhy}.` : 'המגבלה היא קישמיש: אין היום ומחר שינה צפויה בכלוב אחרי פיפי בחצץ שמספיקה ליציאה.';
   return `<p class="pl-none">אין חלון של ${words(W)}. ${msg}</p>${best ? `<p class="pl-none">הכי קרוב: ${plDayWord(best.M, best.f.a)}${plSpan(best.f.a, best.f.b)} (${words(best.f.b - best.f.a)})</p>` : ''}`;
 }
-// MY DAY, three levels (owner, 25.11 redesign — the forecast itself, `planBuild`, is unchanged): טיפול = a need of
-// either dog (± margin); פנוי = a free window as planBuild found it; בהשגחה = everything else she is home for — mostly
-// Kishmish resting in the crate without a full free window (short, not yet asleep, no gravel pee before), when she
-// could do something nearby but may be called. Certainty is separate: `est` marks what is a projection of her usual
-// rhythm (later rounds, tomorrow, a medium-confidence window) rather than what is happening now.
-// Two kinds of free (owner, 25.11): פנוי בבית (`home`) = Kishmish asleep in the crate and no need of either dog, from
-// PLAN.homeMin (25 min) — for a shower, focused work, a workout at home; אפשר לצאת (`free`) = the strict outing rules
-// of planBuild, unchanged (a gravel pee before, PLAN.minFree, the time-alone cap, Kochik let out first…).
-const PL_LV = {care: 'טיפול', free: 'אפשר לצאת', home: 'פנוי בבית', sup: 'בהשגחה', off: 'לילה'};
+// MY DAY in levels (owner 25.11, v3 26.11): טיפול (active care), אפשר לצאת, פנוי בבית, אולי (when the next care starts
+// is uncertain — faded, counted apart), בהשגחה, לילה. Certainty is separate: `est` = a projection of her usual rhythm;
+// `far` = more than PLAN.far ahead (or tomorrow), shown without minute-precise times.
+const PL_LV = {care: 'טיפול', free: 'אפשר לצאת', home: 'פנוי בבית', uns: 'אולי פנוי', sup: 'בהשגחה', off: 'לילה'};
 function planLevels(M){
+  if(!M.ks) return [];
   const from = M.from, to = M.to, cuts = new Set([from, to]);
-  for(const x of M.needs.concat(M.free, M.blocks, M.ks ? M.ks.ph : [])) for(const t of [x.a, x.b]) if(t > from && t < to) cuts.add(t);
+  for(const x of M.needs.concat(M.free, M.blocks, M.ks.ph, M.ks.bands)) for(const t of [x.a, x.b]) if(t > from && t < to) cuts.add(t);
   const c = [...cuts].sort((x,y) => x-y), out = [];
-  const firstWake = M.day ? M.from : (M.ks && M.ks.sleeps.length && M.ks.sleeps[0].cur ? M.ks.sleeps[0].wake : (M.ks && M.ks.ph[0] ? M.ks.ph[0].b : M.from));
   for(let i = 0; i < c.length - 1; i++){
-    const t = (c[i] + c[i+1]) / 2, ns = M.needs.filter(x => x.a <= t && t < x.b), f = M.free.find(x => x.a <= t && t < x.b);
-    const ph = M.ks && M.ks.ph.find(x => x.a <= t && t < x.b), sl = M.ks && M.ks.sleeps.find(x => x.a <= t && t < x.wake);
-    let k, what, why, both = false;
-    if(ns.length){ k = 'care'; const dogs = new Set(ns.map(n => n.dog)); both = dogs.has('kishmish') && dogs.has('kochik'); what = ns.map(n => n.title).join(' · '); why = ns.map(n => n.why).join(' · '); }
-    else if(f){ k = 'free'; what = 'שתיהן מסודרות'; why = `קישמיש ישנה בכלוב אחרי פיפי בחצץ, וקוצ׳יק לא צריכה כלום · נגמר כי ${f.endWhy}`; }
-    else if(ph && ph.night){ k = 'off'; what = 'בוקר'; why = `קישמיש מתעוררת בסביבות ${clock(ph.b)}`; }
-    else if(ph && ph.k === 'out'){ k = 'care'; what = 'קישמיש ערה'; why = 'בגילה, כשהיא ערה צריך להיות איתה'; }
-    else if(ph && ph.k === 'sleep' && sl && !/מחוץ לכלוב/.test(sl.unsafe || '') && !(sl.prep && sl.prep.now && !sl.prep.asleep)){
-      k = 'home'; what = 'קישמיש ישנה בכלוב'; why = `קוצ׳יק לא צריכה כלום · קישמיש צפויה להתעורר בסביבות ${clock(sl.wake)}`; }
-    else { k = 'sup'; what = ph && ph.k === 'crate' ? 'קישמיש בכלוב ונרדמת' : 'קישמיש נחה בכלוב';
-      why = planWhy(M, t).tip.replace(/^לא פנוי:\s*/, '').replace(/^לא בטוח:\s*/, '');
-      const kn = M.needs.filter(n => n.dog === 'kochik' && n.a >= c[i+1] - 60000).sort((x, y) => x.a - y.a)[0]; if(kn) why += ` · קוצ׳יק: ${kn.title.replace(/^[^:]+:\s*/, '')} בסביבות ${clock(kn.a + PLAN.pad)}`; }
-    const est = !!M.day || c[i] >= firstWake - 60000 || (f && f.conf !== 'high');
+    const t = (c[i] + c[i+1]) / 2, x = planClass(M, t);
+    const est = !!M.day || c[i] >= M.ks.estFrom - PL_M, far = !!M.day || c[i] >= M.now + PLAN.far;
     const last = out[out.length-1];
-    if(last && last.k === k && last.what === what && last.est === est && last.both === both) last.b = c[i+1];
-    else out.push({k, a: c[i], b: c[i+1], what, why, est, both, conf: f ? f.conf : null, f: f || null});
+    const add = (u, v) => u.split(' · ').includes(v) ? u : u + ' · ' + v;   // one care stretch, however many tasks it holds
+    if(last && last.k === x.k && (x.k === 'care' || last.what === x.what) && last.est === est && last.far === far && (x.k === 'care' || !!last.both === !!x.both)){
+      last.b = c[i+1]; if(x.k === 'care'){ last.what = x.what.split(' · ').reduce(add, last.what); last.why = x.why.split(' · ').reduce(add, last.why); last.both = last.both || !!x.both; last.combo = last.combo || !!x.combo; } }
+    else out.push({k: x.k, a: c[i], b: c[i+1], what: x.what, why: x.why, est, far, both: !!x.both, combo: !!x.combo, conf: x.f ? x.f.conf : null, f: x.f || null});
   }
-  // a home stretch (beside any outing window inside it) shorter than PLAN.homeMin is only supervised time
-  const run = (i, k) => { let a = out[i].a, b = out[i].b, j = i; while(j + 1 < out.length && (out[j+1].k === 'home' || out[j+1].k === 'free')) b = out[++j].b; let h = i; while(h > 0 && (out[h-1].k === 'home' || out[h-1].k === 'free')) a = out[--h].a; return b - a; };
-  for(let i = 0; i < out.length; i++) if(out[i].k === 'home' && run(i) < PLAN.homeMin){ out[i].k = 'sup'; out[i].what = 'קישמיש נחה בכלוב'; out[i].why = `רק ${Math.floor(run(i) / PL_M)} דק׳ של שקט — פחות מ־${words(PLAN.homeMin)}`; }
+  // a quiet stretch (home + outing pieces side by side) under PLAN.minWin is not a window: supervised time
+  const run = i => { let a = out[i].a, b = out[i].b, j = i, h = i; const q = y => y.k === 'home' || y.k === 'free';
+    while(j + 1 < out.length && q(out[j+1])) b = out[++j].b; while(h > 0 && q(out[h-1])) a = out[--h].a; return b - a; };
+  for(let i = 0; i < out.length; i++) if(out[i].k === 'home' && run(i) < PLAN.minWin){ out[i].k = 'sup'; out[i].what = 'קישמיש נחה בכלוב'; out[i].why = `רק ${Math.floor(run(i) / PL_M)} דק׳ של שקט — פחות מ־${words(PLAN.minWin)}`; }
+  for(const x of out) x.run = (x.k === 'home' || x.k === 'free') ? run(out.indexOf(x)) : 0;
   return out;
 }
 const plDur = ms => { const m = Math.round(ms / PL_M); return m < 60 ? `${m} דק׳` : `${Math.floor(m/60)}:${pad(m % 60)} ש׳`; };
 const plIn = ms => ms <= 60000 ? 'עכשיו' : `בעוד ${words(ms)}`;
-const plCert = x => x.k === 'free' && x.conf ? (x.conf === 'high' ? 'ודאות גבוהה' : 'ודאות בינונית') : x.est ? 'הערכה לפי הימים האחרונים' : 'לפי מה שקורה עכשיו';
+const plCert = x => x.k === 'free' && x.conf ? (x.conf === 'high' ? 'ודאות גבוהה' : 'ודאות בינונית') : x.far ? 'הערכה גסה (רחוק בזמן)' : x.est ? 'הערכה לפי הימים האחרונים' : 'לפי מה שקורה עכשיו';
+const plRound = t => Math.round(t / PLAN.round) * PLAN.round;
+const plSpanX = (x, a, b) => x && x.far ? `<bdi dir="ltr">~${clock(plRound(a))}–${clock(plRound(b))}</bdi>` : plSpan(a, b);   // far: no minute-precise times
 function planTimelineHTML(M, lv, ln){
   const W = Math.max(1, M.to - M.from), pc = t => ((Math.max(M.from, Math.min(M.to, t)) - M.from) / W * 100);
   const seg = (x, cls, label) => { const w = pc(x.b) - pc(x.a);
     return `<span class="pl-s ${cls}${x.est ? ' est' : ''}" style="left:${pc(x.a).toFixed(2)}%;width:${w.toFixed(2)}%" data-tip="${esc(x.tip)}">${label ? `<i>${label}</i>` : ''}</span>`; };
-  const meSegs = lv.map(x => seg({...x, tip: `${PL_LV[x.k]} · ${clock(x.a)}–${clock(x.b)} · ${plDur(x.b - x.a)} · ${x.what}${x.why ? ' · ' + x.why : ''}${x.k !== 'care' && x.k !== 'off' ? ' · ' + plCert(x) : ''}`},
-    `lv-${x.k}${x.both ? ' both' : ''}${x.k === 'free' ? ' free' : ''}`, x.k === 'care' ? (x.both ? 'שתיהן' : 'טיפול') : x.k === 'free' ? 'לצאת' : x.k === 'home' ? 'בבית' : x.k === 'sup' ? 'השגחה' : ''));
-  const kSegs = ln.kish.map(x => seg({...x, est: !M.day && x.a >= (lv.find(y => y.est) || {a: Infinity}).a}, x.k, /k-sleep/.test(x.k) ? 'ישנה' : /k-out/.test(x.k) ? 'ערה' : ''));
+  const meSegs = lv.map(x => seg({...x, tip: `${PL_LV[x.k]} · ${x.far ? '~' + clock(plRound(x.a)) + '–' + clock(plRound(x.b)) : clock(x.a) + '–' + clock(x.b)} · ${plDur(x.b - x.a)} · ${x.what}${x.why ? ' · ' + x.why : ''}${x.k !== 'care' && x.k !== 'off' ? ' · ' + plCert(x) : ''}`},
+    `lv-${x.k}${x.both ? ' both' : ''}${x.k === 'free' ? ' free' : ''}`, x.k === 'care' ? (x.combo ? 'לשלב' : x.both ? 'שתיהן' : 'טיפול') : x.k === 'free' ? 'לצאת' : x.k === 'home' ? 'בבית' : x.k === 'uns' ? 'אולי' : x.k === 'sup' ? 'השגחה' : ''));
+  const kSegs = ln.kish.map(x => seg(x, x.k, /k-sleep/.test(x.k) ? 'ישנה' : /k-out/.test(x.k) ? 'ערה' : ''));
   const cSegs = ln.koch.map(x => seg(x, x.k, x.k === 'c-pee' ? 'פיפי' : x.k === 'c-med' ? 'תרופה' : x.k === 'c-bath' ? 'מקלחת' : ''));
   const ticks = [], grid = [];
   for(let h = Math.ceil(plTod(M.from)); planAt(M.day0, h) < M.to; h++){ const x = pc(planAt(M.day0, h)).toFixed(2); grid.push(`<i style="left:${x}%"></i>`); ticks.push(`<span class="${h % 2 ? 'odd' : ''}" style="left:${x}%">${pad(h)}</span>`); }
@@ -3979,67 +4076,80 @@ function planTimelineHTML(M, lv, ln){
     ${lane('me', meSegs.join(''), 'me')}${lane('kishmish', kSegs.join(''), 'kish')}${lane('kochik', cSegs.join(''), 'koch', M.marks)}</div>
     <div class="pl-ticks">${ticks.join('')}</div><div class="ptip" dir="rtl">נגיעה או ריחוף על הפס: שעות, משך וסיבה</div></div>`;
 }
+// "יצאתי / חזרתי" (owner, v3): optional, one tap, inside this tab only. Context room / home / someone else with her; on
+// return an optional one-tap outcome. No reminder, nothing required; not answering leaves it unknown.
+const PL_AWAY = {room: 'יצאתי מהחדר', home: 'יצאתי מהבית', other: 'נשארה עם מישהו'};
+const PL_RES = {calm: 'רגועה', some: 'קצת בכי', much: 'הרבה בכי', unknown: 'לא יודעת'};
+function planAwayHTML(){
+  const now = Date.now(), run = state.log.filter(e => e.p==='kishmish' && e.k==='away' && e.end == null && e.t <= now).sort((x,y) => x.t-y.t)[0];
+  if(run) return `<div class="card pl-away on"><span class="pl-awt">${AWAY_CTX[run.ctx] || ITEMS.away.log} מ־<bdi dir="ltr">${clock(run.t)}</bdi> · ${words(Math.max(0, now - run.t))}</span><button class="pl-chip on" data-pl="back">חזרתי</button></div>`;
+  const last = state.log.filter(e => e.p==='kishmish' && e.k==='away' && e.end != null && e.end <= now && now - e.end < PLAN.away.ask).sort((x,y) => x.end-y.end).pop();
+  const ask = last && !last.res ? `<div class="pl-awq"><small>איך היא הייתה? (לא חובה)</small><span class="pl-tabs">${Object.keys(PL_RES).map(r => `<button class="pl-chip" data-pl="res" data-v="${r}" data-id="${esc(last.id)}">${PL_RES[r]}</button>`).join('')}</span></div>` : '';
+  return `<div class="card pl-away"><span class="pl-tabs">${Object.keys(PL_AWAY).map(c => `<button class="pl-chip" data-pl="away" data-v="${c}">${PL_AWAY[c]}</button>`).join('')}</span>${ask}</div>`;
+}
 function planHTML(){
   const now = Date.now(), Ms = [planBuild(0), planBuild(1)], M = Ms[planDay ? 1 : 0];
   const cal = []; planLast = {cal};
   const ics = (it, cls) => { cal.push(it); return `<button class="pl-ics ${cls || ''}" data-pl="ics" data-i="${cal.length - 1}" aria-label="הוספה ללוח השנה" title="הוספה ללוח השנה">${ico('plus', 's')}<span>ללוח השנה</span></button>`; };
   const dayChips = `<span class="pl-tabs"><button class="pl-chip ${planDay ? '' : 'on'}" data-pl="day" data-v="0">היום</button><button class="pl-chip ${planDay ? 'on' : ''}" data-pl="day" data-v="1">מחר</button></span>`;
-  if(M.from >= M.to) return `<div class="card pl-hero none"><div class="pl-top"><small class="pl-eye">תכנון</small>${dayChips}</div><div class="pl-empty">לילה. התכנון של היום נגמר ב־22:30. אפשר לראות את מחר.</div></div>`;
+  if(M.from >= M.to) return `<div class="card pl-hero none"><div class="pl-top"><small class="pl-eye">תכנון</small>${dayChips}</div><div class="pl-empty">לילה. התכנון של היום נגמר ב־22:30. אפשר לראות את מחר.</div></div>${planAwayHTML()}`;
   const lv = planLevels(M), ln = planLanes(M), fut = x => x.b > (M.day ? M.from : now);
-  const outs = lv.filter(x => x.k === 'free' && fut(x)), homes = lv.filter(x => x.k === 'home' && fut(x)), sups = lv.filter(x => x.k === 'sup' && fut(x) && x.b - Math.max(x.a, now) >= 10*PL_M);
-  const span = (a, b) => `<bdi dir="ltr">${clock(a)}–${clock(b)}</bdi>`, left = x => x.b - Math.max(x.a, M.day ? x.a : now);
+  const left = x => x.b - Math.max(x.a, M.day ? x.a : now), span = (x, a, b) => plSpanX(x, a, b);
+  const outs = lv.filter(x => x.k === 'free' && fut(x)), homes = lv.filter(x => x.k === 'home' && fut(x)), sups = lv.filter(x => x.k === 'sup' && fut(x) && left(x) >= 10*PL_M);
   const sum = ks => lv.filter(x => ks.includes(x.k) && fut(x)).reduce((n, x) => n + left(x), 0);
-  // free stretches = home + outing pieces side by side (an outing window sits inside a home stretch)
-  const runs = []; for(const x of lv.filter(fut)){ const l = runs[runs.length-1]; if((x.k === 'home' || x.k === 'free') && l && l.b === x.a) { l.b = x.b; l.parts.push(x); } else if(x.k === 'home' || x.k === 'free') runs.push({a: x.a, b: x.b, parts: [x]}); }
+  const runs = []; for(const x of lv.filter(fut)){ const l = runs[runs.length-1], q = x.k === 'home' || x.k === 'free'; if(q && l && l.b === x.a){ l.b = x.b; l.parts.push(x); } else if(q) runs.push({a: x.a, b: x.b, parts: [x]}); }
   const longest = runs.sort((x, y) => left(y) - left(x))[0] || null;
-  const both = lv.filter(x => x.both && fut(x));
-  const care = lv.filter(x => x.k === 'care' && fut(x)), nextCare = care.find(x => x.a > now) || care[0];
   const isNow = x => x && !M.day && x.a <= now + 60000;
   const o0 = outs[0], h0 = homes[0], s0 = sups[0], first = [o0, h0].filter(Boolean).sort((x, y) => x.a - y.a)[0];
-  const outLine = `<div class="pl-outl"><span class="pl-badge free">אפשר לצאת</span> ${o0 ? `${isNow(o0) ? 'עכשיו, ' : ''}${span(Math.max(o0.a, M.day ? o0.a : now), o0.b)} · ${plDur(left(o0))}${!isNow(o0) && !M.day ? ' · ' + plIn(o0.a - now) : ''}` : `אין ${M.day ? 'מחר' : 'היום'} חלון ליציאה מהבית <small>(צריך: פיפי בחצץ לפני, קישמיש ישנה לפחות ${words(PLAN.minFree)} עם מרווחים, וקוצ׳יק אחרי פיפי)</small>`}</div>`;
+  const outLine = `<div class="pl-outl"><span class="pl-badge free">אפשר לצאת</span> ${o0 ? `${isNow(o0) ? 'עכשיו, ' : ''}${span(o0, Math.max(o0.a, M.day ? o0.a : now), o0.b)} · ${plDur(left(o0))}${!isNow(o0) && !M.day ? ' · ' + plIn(o0.a - now) : ''}`
+    : !M.away.enough ? `עדיין אין מספיק ניסיון לבד <small>(רק אחרי כמה פעמים שיצאת מהבית והיא נשארה רגועה)</small>` : `אין ${M.day ? 'מחר' : 'היום'} חלון ליציאה מהבית <small>(צריך: פיפי בחצץ לפני, קישמיש ישנה בכלוב, וחלון באורך שכבר הצליח לבד)</small>`}</div>`;
   let hero, cls;
   if(isNow(o0)){ cls = 'now'; hero = `<small class="pl-eye">אפשר לצאת עכשיו</small><div class="pl-big">עוד ${plDur(o0.b - now)}</div>
       <div class="pl-meta">עד ${clock(o0.b)} · <span class="pl-cert ${o0.conf}">${plCert(o0)}</span></div><p class="pl-why">${o0.why}</p>`; }
   else if(isNow(h0)){ cls = 'home'; hero = `<small class="pl-eye">את פנויה בבית עכשיו</small><div class="pl-big">עוד ${plDur(h0.b - now)}</div>
-      <div class="pl-meta">עד ${clock(h0.b)} · <span class="pl-cert">${plCert(h0)}</span></div><p class="pl-why">קישמיש ישנה בכלוב וקוצ׳יק לא צריכה כלום: זמן למקלחת, לעבודה ברצף או לאימון בבית.</p>${outLine}`; }
-  else if(first){ cls = first.k === 'free' ? 'next' : 'homenext'; hero = `<small class="pl-eye">${first.k === 'free' ? 'החלון הבא לצאת' : `הזמן הפנוי הבא${M.day ? ' מחר' : ''} · בבית`}</small><div class="pl-big">${span(first.a, first.b)}</div>
+      <div class="pl-meta">עד ${clock(h0.b)} · <span class="pl-cert">${plCert(h0)}</span></div><p class="pl-why">קישמיש ישנה בכלוב וקוצ׳יק לא צריכה כלום: זמן למקלחת, לעבודה ברצף או לאימון בבית. לא מובטח — היא עשויה להתעורר.</p>${outLine}`; }
+  else if(first){ cls = first.k === 'free' ? 'next' : 'homenext'; hero = `<small class="pl-eye">${first.k === 'free' ? 'החלון הבא לצאת' : `הזמן הפנוי הבא${M.day ? ' מחר' : ''} · בבית`}</small><div class="pl-big">${span(first, first.a, first.b)}</div>
       <div class="pl-meta">${plDur(first.b - first.a)}${M.day ? '' : ' · ' + plIn(first.a - now)} · <span class="pl-cert ${first.conf || ''}">${plCert(first)}</span></div>
-      <p class="pl-why">${first.k === 'free' ? first.why : 'קישמיש צפויה לישון בכלוב וקוצ׳יק לא צריכה כלום: מתאים למקלחת, לעבודה ברצף או לאימון בבית.'}</p>${first.k === 'free' ? '' : outLine}`; }
-  else { cls = 'none'; hero = `<small class="pl-eye">${M.day ? 'מחר' : 'בהמשך היום'} אין זמן פנוי</small>
-      ${s0 ? `<div class="pl-big sup">${isNow(s0) ? `שקט עכשיו · עוד ${plDur(s0.b - now)}` : span(s0.a, s0.b)}</div>
+      <p class="pl-why">${first.k === 'free' ? first.why : 'קישמיש צפויה לישון בכלוב וקוצ׳יק לא צריכה כלום: מתאים למקלחת, לעבודה ברצף או לאימון בבית. הערכה, לא הבטחה.'}</p>${first.k === 'free' ? '' : outLine}`; }
+  else { cls = 'none'; hero = `<small class="pl-eye">${M.day ? 'מחר' : 'בהמשך היום'} אין זמן פנוי צפוי</small>
+      ${s0 ? `<div class="pl-big sup">${isNow(s0) ? `שקט עכשיו · עוד ${plDur(s0.b - now)}` : span(s0, s0.a, s0.b)}</div>
       <div class="pl-meta">זמן בהשגחה · ${plDur(left(s0))}${!M.day && !isNow(s0) ? ' · ' + plIn(s0.a - now) : ''} · <span class="pl-cert">${plCert(s0)}</span></div>
       <p class="pl-why">${s0.what}: את בבית ויכולה לעשות משהו בקרבת מקום, אבל ייתכן שיקראו לך.</p>` : '<p class="pl-why">אין גם זמן שקט צפוי.</p>'}${outLine}`; }
-  const stats = `<div class="pl-stats"><span><b>${plDur(sum(['home', 'free']))}</b>פנוי בבית ${M.day ? 'מחר' : 'בהמשך היום'}</span><span><b>${plDur(sum(['free']))}</b>אפשר לצאת</span><span><b>${longest ? plDur(left(longest)) : '—'}</b>הרצף הפנוי הארוך</span><span><b>${both.length}</b>${both.length === 1 ? 'פעם ששתיהן' : 'פעמים ששתיהן'} צריכות</span></div>`;
-  // the next task of EACH dog (owner, 25.11: Kochik's tasks belong here too)
+  const stats = `<div class="pl-stats"><span><b>${plDur(sum(['home', 'free']))}</b>פנוי בבית (צפוי)</span><span><b>${plDur(sum(['sup']))}</b>בהשגחה</span><span><b>${plDur(sum(['care']))}</b>טיפול</span><span><b>${longest ? plDur(left(longest)) : '—'}</b>הרצף הפנוי הארוך</span></div>`;
   const nextOf = d => M.needs.filter(n => n.dog === d && n.b > (M.day ? M.from : now)).sort((x, y) => x.a - y.a)[0];
   const nk = nextOf('kishmish'), nc = nextOf('kochik'), kmeal = M.marks.find(m => m.t > (M.day ? M.from : now));
-  const tsk = (n, d) => n ? `<li><b>${PL_DOG[d]}</b> ${n.a <= now && !M.day ? 'עכשיו' : span(n.a, n.b)} · ${n.title.replace(/^[^:]+:\s*/, '')}${n.late ? ' <em>באיחור</em>' : ''}</li>` : `<li><b>${PL_DOG[d]}</b> אין משימה צפויה ${M.day ? 'מחר' : 'בהמשך היום'}</li>`;
+  const farOf = n => ({far: !!M.day || n.a >= now + PLAN.far});
+  const tsk = (n, d) => n ? `<li><b>${PL_DOG[d]}</b> ${n.a <= now && !M.day ? 'עכשיו' : span(farOf(n), n.a, n.b)} · ${n.title.replace(/^[^:]+:\s*/, '')}${n.late ? ' <em>באיחור</em>' : ''}${n.combo ? ' <small>(אפשר לשלב)</small>' : ''}</li>` : `<li><b>${PL_DOG[d]}</b> אין משימה צפויה ${M.day ? 'מחר' : 'בהמשך היום'}</li>`;
   const nextLine = `<ul class="pl-next"><li class="pl-nh">המשימות הבאות</li>${tsk(nk, 'kishmish')}${tsk(nc, 'kochik')}${kmeal && (!nc || kmeal.t < nc.a + 3*PL_H) ? `<li><b>קוצ׳יק</b> ארוחה בסביבות <bdi dir="ltr">${clock(kmeal.t)}</bdi> <small>(לפי הרגל, מעט נתונים)</small></li>` : ''}</ul>`;
   const top = `<div class="card pl-hero ${cls}"><div class="pl-top">${dayChips}</div>${hero}${stats}${nextLine}</div>`;
-  const tl = `<div class="card pl-tl"><div class="pl-tlh"><b>${planDay ? 'מחר' : 'היום'}</b><span class="pl-lg"><span><i class="lv-free"></i>אפשר לצאת</span><span><i class="lv-home"></i>פנוי בבית</span><span><i class="lv-sup"></i>בהשגחה</span><span><i class="lv-care"></i>טיפול</span><span><i class="lv-est"></i>הערכה</span></span></div>
-    ${planTimelineHTML(M, lv, ln)}<small class="pl-range">${planDay ? 'מחר' : 'היום'} ${span(M.from, M.to)}${planDay ? ' · תחזית ליום שלם, פחות ודאית' : ''}</small></div>`;
-  // my windows: outing, home and supervised stretches; the longest free stretch marked
+  const tl = `<div class="card pl-tl"><div class="pl-tlh"><b>${planDay ? 'מחר' : 'היום'}</b><span class="pl-lg"><span><i class="lv-free"></i>אפשר לצאת</span><span><i class="lv-home"></i>פנוי בבית</span><span><i class="lv-uns"></i>אולי</span><span><i class="lv-sup"></i>בהשגחה</span><span><i class="lv-care"></i>טיפול</span><span><i class="lv-est"></i>הערכה</span></span></div>
+    ${planTimelineHTML(M, lv, ln)}<small class="pl-range">${planDay ? 'מחר' : 'היום'} ${plSpan(M.from, M.to)}${planDay ? ' · תחזית ליום שלם, פחות ודאית' : ''}</small></div>`;
+  // my windows: outing, home (from PLAN.minWin; "קצר" under PLAN.shortWin — never hidden) and supervised stretches
   const isLong = x => longest && longest.parts.includes(x) && x === longest.parts.reduce((m, y) => left(y) > left(m) ? y : m);
   const BADGE = {free: 'אפשר לצאת', home: 'פנוי בבית', sup: 'בהשגחה'};
-  const row = x => { const isF = x.k === 'free', a = M.day ? x.a : Math.max(x.a, now);
+  const after = x => { const i = lv.indexOf(x), n = lv[i+1]; return n && n.k === 'uns' ? ` · ואולי עוד עד ${x.far || n.far ? '~' + clock(plRound(n.b)) : clock(n.b)}` : ''; };
+  const row = x => { const isF = x.k === 'free', a = M.day ? x.a : Math.max(x.a, now), short = x.k === 'home' && x.run < PLAN.shortWin;
     const desc = isF ? `${x.f.before.join(' · ')}${x.f.notes.length ? ' · ' + x.f.notes.join(' · ') : ''}` : x.why;
-    return `<li class="pl-w ${isF ? 'pl-card free' : x.k}${isLong(x) ? ' longest' : ''}"><div class="pl-wt">${span(a, x.b)}<span>${plDur(x.b - a)}</span></div>
-      <div class="pl-wm"><span class="pl-badge ${x.k}">${BADGE[x.k]}</span><span class="pl-cert ${x.conf || ''}">${isF ? PL_CONF[x.conf] : plCert(x)}</span>${isLong(x) ? '<span class="pl-long">הרצף הארוך</span>' : ''}</div>
-      <small>${isF ? 'נגמר כי ' + x.f.endWhy : x.what + ' · ' + x.why}</small>${isF ? `<small class="pl-do">${esc(desc)}</small>` : ''}
+    return `<li class="pl-w ${isF ? 'pl-card free' : x.k}${isLong(x) ? ' longest' : ''}"><div class="pl-wt">${span(x, a, x.b)}<span>${plDur(x.b - a)}</span></div>
+      <div class="pl-wm"><span class="pl-badge ${x.k}">${BADGE[x.k]}</span>${short ? '<span class="pl-badge short">קצר</span>' : ''}<span class="pl-cert ${x.conf || ''}">${isF ? PL_CONF[x.conf] : plCert(x)}</span>${isLong(x) ? '<span class="pl-long">הרצף הארוך</span>' : ''}</div>
+      <small>${isF ? 'נגמר כי ' + x.f.endWhy : x.what + ' · ' + x.why}${x.k === 'home' ? after(x) : ''}</small>${isF ? `<small class="pl-do">${esc(desc)}</small>` : ''}
       ${ics({kind: x.k, a, b: x.b, title: isF ? 'זמן פנוי: אפשר לצאת' : x.k === 'home' ? 'זמן פנוי בבית' : 'זמן שקט (בהשגחה)', desc: (isF ? planCal({free: [x.f], needs: []})[0].desc : x.why)})}</li>`; };
   const wins = outs.concat(homes, sups).sort((x, y) => x.a - y.a);
   const list = `<div class="card pl-list"><b class="pl-h">החלונות שלי</b>${wins.length ? `<ul>${wins.map(row).join('')}</ul>` : '<p class="pl-empty">אין חלונות שקטים צפויים.</p>'}</div>`;
-  const tasks = M.needs.filter(n => n.b > (M.day ? M.from : now)).map(n => ({a: n.a, b: n.b, dog: n.dog, what: n.title.replace(/^[^:]+:\s*/, ''), why: n.why, kind: n.kind, late: n.late}))
+  const tasks = M.needs.filter(n => n.b > (M.day ? M.from : now)).map(n => ({a: n.a, b: n.b, dog: n.dog, what: n.title.replace(/^[^:]+:\s*/, ''), why: n.why, kind: n.kind, late: n.late, combo: n.combo, far: !!M.day || n.a >= now + PLAN.far}))
     .concat(M.marks.filter(m => m.t > (M.day ? M.from : now)).map(m => ({a: m.t, b: m.t + 15*PL_M, dog: 'kochik', what: 'ארוחה (לפי הרגל, מעט נתונים)', why: m.tip, kind: 'meal', soft: true}))).sort((x, y) => x.a - y.a);
-  const cr = tasks.map(x => `<li class="${x.dog}${x.soft ? ' soft' : ''}"><span class="pl-td">${PL_DOG[x.dog]}</span>${span(x.a, x.b)} ${x.what}${x.late ? ' <em>באיחור</em>' : ''}${ics({kind: x.kind, a: x.a, b: x.b, title: `${PL_DOG[x.dog]}: ${x.what}`, desc: x.why}, 'mini')}</li>`).join('');
+  const cr = tasks.map(x => `<li class="${x.dog}${x.soft ? ' soft' : ''}"><span class="pl-td">${PL_DOG[x.dog]}</span>${span(x, x.a, x.b)} ${x.what}${x.late ? ' <em>באיחור</em>' : ''}${x.combo ? ' <small>אפשר לשלב</small>' : ''}${ics({kind: x.kind, a: x.a, b: x.b, title: `${PL_DOG[x.dog]}: ${x.what}`, desc: x.why}, 'mini')}</li>`).join('');
   const allCal = planCal(M);
   const careList = tasks.length ? `<details class="card pl-care" open><summary>המשימות שלי ${M.day ? 'מחר' : 'בהמשך היום'} (${tasks.length})</summary><ul>${cr}</ul>${allCal.length ? `<button class="lnk" data-pl="icsall">כל ${planDay ? 'מחר' : 'היום'} ללוח השנה (${allCal.length})</button>` : ''}</details>` : '';
   const want = `<div class="card pl-want"><b>אני רוצה לצאת</b><div class="pl-tabs">${PLAN.wants.map(m => `<button class="pl-chip ${!planCustom && planWant === m ? 'on' : ''}" data-pl="want" data-v="${m}">${m < 60 ? m + ' דק׳' : m === 60 ? 'שעה' : m === 120 ? 'שעתיים' : m / 60 + ' שעות'}</button>`).join('')}
     <input id="plWant" type="text" inputmode="numeric" placeholder="דקות" aria-label="כמה דקות" value="${esc(planCustom)}"></div>${planWantHTML(Ms)}</div>`;
-  const kg = M.kg, info = `<details class="card pl-info"><summary>איך זה מחושב</summary><small>קישמיש: נרדמת אחרי כ־${words(M.st.lat)} בכלוב · ישנה בדרך כלל ${words(M.st.nap)} (${M.st.naps.length} שינות אחרי פיפי בחצץ) · ערה כ־${words(M.st.awake)} בין שינות · ארוחה כל ${words(M.st.mealGap)} · פיפי כל ${words(M.ks.peeMed)}</small>
-    <small>קוצ׳יק: פיפי כל ${words(kg.gap)} לכל היותר (${kg.q ? `רבעון תחתון ${words(kg.q)} מתוך ${kg.n} מרווחים` : 'מעט נתונים'}${kg.sick ? ` · אחרי ${kg.sick.k === 'vomit' ? 'הקאה' : 'שלשול'}: לכל היותר ${words(PLAN.kochikSick)}` : ''}) · ארוחות: ${M.marks.length ? M.marks.map(m => clock(m.t)).join(', ') + ' (מעט נתונים)' : 'אין מספיק נתונים'}</small>
-    <small>פנוי = שתיהן מסודרות לפחות ${words(PLAN.minFree)}: קישמיש ישנה בכלוב אחרי פיפי בחצץ, וקוצ׳יק לא צריכה כלום. בהשגחה = את בבית ושתיהן נחות, אבל בלי חלון פנוי מלא. טיפול = צרכים, אוכל, משחק, תרופות, עם ${words(PLAN.pad)} מרווח מכל צד. "הערכה" (מקווקו) = לפי הקצב הרגיל שלהן ולא לפי מה שקורה עכשיו.</small></details>`;
-  return top + tl + list + careList + want + info;
+  const kg = M.kg, du = M.dur, aw = M.away;
+  const info = `<details class="card pl-info"><summary>איך זה מחושב</summary>
+    <small><b>טיפול</b> = רק מה שצריך את הידיים שלך: קישמיש מחוץ לכלוב (חצץ, אוכל, משחק איתה), פיפי של קוצ׳יק, תרופות, מקלחות. ${du.care.src === 'learned' ? `יציאה של קישמיש מהכלוב נמשכת בדרך כלל כ־${words(du.care.ms)} (חציון של ${du.care.n} יציאות, מהיציאה מהכלוב ועד הכניסה הבאה).` : `עוד אין מספיק יציאות מהכלוב (${du.care.n}), אז ההנחה היא כ־${words(du.care.ms)} — הערכה.`} זו הערכה עקיפה של משך הטיפול, לא ספירה של הדקות שלך. כשטיפול של שתיהן חופף הוא נספר פעם אחת; פיפי של קוצ׳יק בזמן היציאה של קישמיש מסומן "אפשר לשלב". קוצ׳יק: כ־${words(PLAN.kochikTask)} לכל יציאה (הערכה), פיפי כל ${words(kg.gap)} בערך${kg.sick ? ' (פחות אחרי שלשול / הקאה)' : ''}.</small>
+    <small><b>בהשגחה</b> = את בבית אבל לא עסוקה בה: קישמיש ערה בכלוב (קונג, משטח ליקוק, נרגעת), במנשא, בגדר, או ישנה מחוץ לכלוב סגור. <b>פנוי בבית</b> = קישמיש ישנה בכלוב סגור וקוצ׳יק לא צריכה כלום — מוצג מ־${words(PLAN.minWin)}, ומתחת ל־${words(PLAN.shortWin)} מסומן "קצר".</small>
+    <small><b>מתי</b> — זה החלק הלא ודאי. ${du.wake === 'contract' ? 'מתי תתעורר מהשינה הנוכחית: לפי תחזית השינה של האפליקציה.' : 'מתי תתעורר: לפי טווח השינות שלה.'} שינה רגילה שלה: ${du.naps.src === 'learned' ? `${words(du.naps.lo)}–${words(du.naps.hi)} (רבע עד שלושה רבעים מ־${du.naps.n} שינות מסומנות)` : `עוד מעט נתונים, אז ${words(du.naps.lo)}–${words(du.naps.hi)} כהערכה`}; נרדמת בכלוב אחרי כ־${words(du.lat.ms)}${du.lat.src === 'learned' ? '' : ' (הערכה)'}. הזמן שלפני כל טיפול צפוי, שבו היא עשויה כבר להתעורר, מסומן חיוור ("אולי") ולא נספר כזמן תפוס. כל סבב תלוי בקודם, אז אי-הוודאות גדלה עם השעות, ומעבר ל־${words(PLAN.far)} מעכשיו השעות מעוגלות לרבע שעה.</small>
+    <small><b>אפשר לצאת</b> = יותר מחמיר מפנוי בבית, אף פעם לא רק לפי תחזית שינה: קישמיש ישנה בכלוב אחרי פיפי בחצץ, וגם כבר נשארה לבד בבית רגועה. ${aw.enough ? `עד עכשיו: ${aw.n} פעמים בשבועיים האחרונים, אז חלון עד כ־${words(aw.cap)}.` : `עדיין אין מספיק ניסיון לבד (${aw.n} פעמים רגועה מחוץ לבית בשבועיים).`} נספר רק "יצאתי מהבית" עם "רגועה"; בלי תשובה או "לא יודעת" — לא נספר, וגם היעדר בכי רשום לא נחשב רגועה.</small></details>`;
+  return top + planAwayHTML() + tl + list + careList + want + info;
 }
 function planRender(){
   const main = document.getElementById('main'), f = document.activeElement && document.activeElement.id === 'plWant';
@@ -4054,6 +4164,9 @@ document.getElementById('main').addEventListener('click', e => {
   else if(a === 'want'){ planWant = +b.dataset.v; planCustom = ''; render(); }
   else if(a === 'ics' && planLast){ const it = planLast.cal[+b.dataset.i]; if(it) planDownload(planICS([it]), `${it.kind === 'free' ? 'free' : 'dogs'}-${plIcsTime(it.a).slice(0, 13)}.ics`); }
   else if(a === 'icsall'){ const M = planBuild(planDay), it = planCal(M); if(it.length) planDownload(planICS(it), `dogs-plan-${dayKey(M.day0)}.ics`); }
+  else if(a === 'away' && PL_AWAY[b.dataset.v]){ const ctx = b.dataset.v; commit(PL_AWAY[ctx], () => { state.log.push({p: 'kishmish', k: 'away', t: Date.now(), ctx}); }); }
+  else if(a === 'back') commit(ITEMS.away.stop, () => stopDur('kishmish', 'away', Date.now()));
+  else if(a === 'res' && PL_RES[b.dataset.v]){ const id = b.dataset.id, r = b.dataset.v; commit(`${ITEMS.away.stop} · ${PL_RES[r]}`, () => { const x = state.log.find(y => y.id === id); if(x) x.res = r; }); }
 });
 document.getElementById('main').addEventListener('input', e => {
   if(view !== 'plan' || e.target.id !== 'plWant') return;
