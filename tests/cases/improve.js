@@ -15,7 +15,7 @@
     $q('[data-act=fcwhy]').click();
     ok('the small "?" explains where the window comes from', bg.classList.contains('show') && sh.textContent.includes('מאיפה החלון')); close();
     // 3. the wheel while she sleeps in a retry
-    seed([{ ...K0, k:'crate', t: now - 400*MIN, end: now - 20*MIN }, { ...K0, k:'pee', t: now - 200*MIN, w:'gravel' }]);
+    seed([{ ...K0, k:'crate', t: now - 400*MIN, end: now - 20*MIN }, { ...K0, k:'pee', t: now - 150*MIN, w:'gravel' }]);   // 2:30 after a pee: a retry (over 2 h), not yet past the 3-hour age limit
     tile('none').click();
     ok('retry, awake: "do what the card says"', $q('.cyc-n').textContent.includes('עושים מה שכתוב בכרטיס'));
     tapDur('kishmish', 'sleep');

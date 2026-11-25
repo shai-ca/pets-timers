@@ -531,6 +531,8 @@
   .gauge .gg{cursor:pointer;overflow:visible}
   .gauge .gnow{position:absolute;top:-4px;bottom:-4px;width:3px;margin-left:-1.5px;border-radius:2px;background:var(--ink);pointer-events:none}   /* where we are now (owner, 25.11) */
   .card.slim.withrt{flex-wrap:wrap}
+  .wake{display:block;margin-top:6px;color:var(--ink);font-size:13px} .wake small{display:block;font-size:12px;color:var(--muted)}
+  .wake.past b{color:var(--warn)} .wake.then{color:var(--muted);font-size:12.5px;margin-top:3px}
   .card.slim.spraydry > span{display:flex;flex-direction:column;gap:2px} .card.slim.spraydry small{font-size:12.5px;color:var(--muted)}
   .sub.hint.calm{color:var(--ink)} .sub.hint.plan{color:var(--ink);font-weight:500} .sub.hint.old{color:var(--warn)}
   .card.notes{display:flex;flex-direction:column;gap:10px}
@@ -1721,11 +1723,35 @@ function cryStatsHTML(p, from, to){
   return `<div class="card slim crysum"><span><b>${head}</b><small>${need}${c.asked && pr ? ' · '+pr : ''}</small></span>${ico('cry','s')}</div>`;
 }
 const ALERT = {food: 3.5*3600000, pee: 6*3600000, poop: 48*3600000, again: 45*60000};   // poop: a backstop only — the poop card says quietly when it is longer than usual for her
+// WAKE BY (owner, 25.11): while she sleeps by day, the latest time to let her sleep is the earliest of (a) the sleep's
+// start + her usual long nap (75th percentile, owner's choice) of the last WAKE.days days (no night sleeps, none under WAKE.minNap), (b) the last pee +
+// the age limit (`holdHours`), (c) the expected meal (last meal + `mealGap`) + WAKE.mealLate — and never later than
+// ALERT.food after the last meal, the same time the food banner uses, so the two never disagree (owner, 25.11).
+// None at night (a sleep touching 23:00–05:00).
+const WAKE = {days:3, napQ:.75, minNap:15*60000, mealLate:2*3600000};
+function napMedian(p){
+  const now = Date.now(), from = now - WAKE.days*86400000;
+  const n = V[p].spans.filter(x => x.end != null && x.end <= now && x.t >= from && x.end - x.t >= WAKE.minNap && !touchesNight(x.t, x.end)).map(x => x.end - x.t);
+  return n.length >= 3 ? quantile(n.sort((x,y) => x-y), WAKE.napQ) : 0;   // the 75th percentile: half her naps are under 35 min (25.11), so the median would wake her too soon
+}
+function wakeBy(p){
+  const S = V[p], st = S.sleep && S.sleep.start, now = Date.now();
+  if(!PETS[p].cycle || !st || touchesNight(st, now)) return null;
+  const c = [], nm = napMedian(p), g = mealGap(p);
+  if(nm) c.push([st + nm, `נמנום רגיל אצלה: ${words(nm)}`]);
+  if(S.pee && holdHours(p)) c.push([S.pee + holdHours(p)*3600000, `לפי הגיל: עד כ־${words(holdHours(p)*3600000)} בלי פיפי`]);
+  if(S.food && g) c.push([S.food + g + WAKE.mealLate, `הארוחה הייתה צפויה ב־${clock(S.food + g)}`]);
+  if(S.food) c.push([S.food + ALERT.food, `${words(ALERT.food)} מהארוחה האחרונה`]);
+  if(!c.length) return null;
+  c.sort((x, y) => x[0] - y[0]);
+  return {t: c[0][0], why: c[0][1], past: now >= c[0][0]};
+}
 function alerts(p){
   if(!PETS[p].cycle) return [];
   const S = V[p], now = Date.now(), out = [], awake = !S.sleep.start && !S.crate.start;
   const ago = ms => ms < 24*3600000 ? words(ms) : wordsLong(ms);
-  if(S.food && now - S.food >= ALERT.food && !isNight()){   // by day only: at night she sleeps and nobody should be told to feed her
+  const asleep = !!(S.sleep && S.sleep.start), wb = asleep && wakeBy(p), hush = asleep && !(wb && wb.past);   // asleep: "let her sleep" wins until wake-by
+  if(S.food && now - S.food >= ALERT.food && !isNight() && !hush){   // by day only: at night she sleeps and nobody should be told to feed her
     // She cannot be made to eat. Once the owner says she offered and it was refused, the warning steps back
     // for a while (ALERT.again) instead of repeating an instruction that was already followed.
     const no = state.log.filter(e => e.p===p && e.k==='nofood' && e.t > S.food && e.t <= now).reduce((m, e) => Math.max(m, e.t), 0);
@@ -2150,6 +2176,7 @@ function render(){
         lbl = `<span class="dot"></span>${it.live}${d.assumed ? ' כנראה' : ''} כבר`;
         big = `<div class="big" data-since="${d.start}">${dur(Date.now()-d.start)}</div>`;
         sub = `מ־${clock(d.start)}` + (d.assumed ? ' · לפי הנחה' : '') + (k === 'sleep' && !d.assumed && sinceCrate(pet, d.start) != null ? ` · ${sinceCrate(pet, d.start) < 60000 ? 'מיד' : words(sinceCrate(pet, d.start))} אחרי הכניסה לכלוב` : '');
+
       } else if(k === 'sleep' && aw && Date.now() - aw < 6*3600000){   // awake: how long for — it is what decides when she goes back to sleep
         lbl = 'ערה כבר';
         big = `<div class="big" data-since="${aw}">${dur(Date.now()-aw)}</div>`;
@@ -2162,6 +2189,10 @@ function render(){
       const cur = live ? Date.now()-d.start : (d.lastEnd ? d.lastEnd-d.lastStart : 0);
       if(tt > cur + 60000) sub += ` · סה״כ היום <span data-total="${k}">${words(tt)}</span>` + (k === 'sleep' && P.cycle && nightPart(pet) >= 60000 ? ` · כולל ${words(nightPart(pet))} מהלילה` : '');
       if(k === 'crate' && live && P.cycle && CRATES[crateAt(pet, Date.now())]) sub += ` · ${CRATES[crateAt(pet, Date.now())]}`;
+      if(k === 'sleep' && live && P.cycle){ const wb = wakeBy(pet);   // after the totals: until when, and what comes next
+        sub += wb ? (wb.past ? `<span class="wake past"><b>כדאי להעיר אותה ולצאת לחצץ</b><small>עבר ${clock(wb.t)} · ${wb.why}</small></span>`
+          : `<span class="wake"><b>נותנים לה לישון עד ${clock(wb.t)} לכל המאוחר</b><small>${wb.why}</small></span>`) : '';
+        sub += `<span class="wake then">כשהיא מתעוררת: חצץ ואז אוכל</span>`; }
       const over = k==='crate' && crateOver(pet);
       if(over) sub += ` · יותר מ${words(CRATE_MAX)}`;
       const warn = k === 'sleep' && !live && aw && Date.now() - aw >= AWAKE.warn && Date.now() - aw < 6*3600000;
@@ -2337,7 +2368,8 @@ function cycleHTML(p){
   // Two more of the trainer's reminders: awake for an hour -> crate to sleep; three hours since a pee -> gravel.
   const tired = awake && aw >= sod(now).getTime() && now - aw >= AWAKE.max;
   const long3 = awake && S.pee && now - S.pee >= 3*3600000 && !retry(p);
-  const what = r && r.retry ? (asleep ? `נותנים לה לישון. כשהיא מתעוררת, ישר לחצץ.` : `ניסיון חוזר: עושים מה שכתוב בכרטיס שלמעלה, עד ש${nm} עושה פיפי.`)
+  const wb = asleep && wakeBy(p);
+  const what = wb && wb.past ? `כדאי להעיר את ${nm} ולצאת לחצץ (${wb.why}).` : r && r.retry ? (asleep ? `נותנים לה לישון. כשהיא מתעוררת, ישר לחצץ.` : `ניסיון חוזר: עושים מה שכתוב בכרטיס שלמעלה, עד ש${nm} עושה פיפי.`)
     : !r ? `כש${nm} נכנסת לכלוב, לוחצים <b>״נכנסה לכלוב״</b> בכרטיס הכלוב למטה.`
     : r.brk ? `בהפסקה. כל דבר שמסמנים למטה מחזיר את ${nm} לשגרה.`
     : r.done ? `הסבב הושלם. כש${nm} חוזרת לכלוב, לוחצים <b>״נכנסה לכלוב״</b>.`
@@ -2355,7 +2387,7 @@ function cycleHTML(p){
     ${ft && ft.phase !== 'run' && !inCrate ? `<div class="frm">${ico('paw','s')}<span>זמן החופש נגמר (${FREE.min} דקות מהפיפי) · חזרה לשגרה</span></div>` : ''}
     ${over ? `<div class="duemsg">${ico('crate','s')}<span>בכלוב כבר יותר מ${words(CRATE_MAX)} · מ־<bdi dir="ltr">${clock(S.crate.start)}</bdi></span></div>` : ''}
     ${due && !long3 ? `<div class="duemsg">${ico('pee','s')}<span>זמן להוציא לצרכים · ${due.why}, לפני <span data-words="${due.t}">${words(now-due.t)}</span></span></div>` : ''}
-    ${asleep ? `<div class="zz">${ico('sleep','s')}<span>ישנה ${S.sleep.assumed ? 'כנראה ' : ''}מ־<bdi dir="ltr">${clock(S.sleep.start)}</bdi> · נותנים לה לישון${S.sleep.assumed ? ' <small>(הנחה: נרדמת בכלוב תוך כמה דקות)</small>' : ''}</span><button class="lnk" data-act="notasleep">לא נרדמה</button></div>` : ''}
+    ${asleep ? `<div class="zz">${ico('sleep','s')}<span>ישנה ${S.sleep.assumed ? 'כנראה ' : ''}מ־<bdi dir="ltr">${clock(S.sleep.start)}</bdi> · ${wb && wb.past ? 'כדאי להעיר אותה' : wb ? `נותנים לה לישון עד <bdi dir="ltr">${clock(wb.t)}</bdi>` : 'נותנים לה לישון'}${S.sleep.assumed ? ' <small>(הנחה: נרדמת בכלוב תוך כמה דקות)</small>' : ''}</span><button class="lnk" data-act="notasleep">לא נרדמה</button></div>` : ''}
     <div class="cyc-n"><span class="nx"><b>מה עושים עכשיו?</b>${what}${routineTap(p).length ? ` החלק המתאים למטה מסומן <span class="tagk">עכשיו בשגרה</span>.` : ''}</span>
       ${r && !r.brk && !inCrate ? `<button class="ghost" data-act="brk">${ico('none','s')}הפסקה בשגרה</button>` : ''}</div></div>`;
 }
