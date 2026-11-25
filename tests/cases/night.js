@@ -1,14 +1,19 @@
-// Night (23:00–06:00): dark, only crate / pee / poop and a cry row; the food alert waits for the morning.
+// Night (23:00–06:00): dark, only crate / gravel / pee / poop and a cry row; the food alert waits for the morning.
 (async function(){
   try {
     reset();
     const now = Date.now(), K0 = { p:'kishmish' };
-    seed([{ ...K0, k:'food', t: now - 9*HOUR }, { ...K0, k:'pee', t: now - 50*MIN, w:'gravel' }, { ...K0, k:'crate', t: now - 40*MIN }]);
+    seed([{ ...K0, k:'food', t: now - 9*HOUR }, { ...K0, k:'pee', t: now - 50*MIN, w:'gravel' }, { ...K0, k:'crate', t: now - MIN }]);   // just in: not yet asleep, so the food alert does not depend on the real clock
     ok('by day: the full screen and the food alert', $n('.card.alertc') === 1 && !!$q('.cyc') && !document.body.classList.contains('night') && !$q('.nightc'));
     FAKE_HOUR = 2; render();
     ok('02:00: dark', document.body.classList.contains('night') && document.documentElement.classList.contains('night'));
     ok('only the crate, pee and poop tiles and a cry row', $n('#main .card.item') === 3 && !!$q('[data-act=dur][data-k=crate]') && !!tile('pee') && !!tile('poop') && !!$q('.cryrow [data-act=dur][data-k=cry]') && !$q('.cyc') && !$q('.card.retry') && !$q('.playc') && !tile('food') && !tile('water') && !$q('#sec-rest') && !$q('.uni'));
     ok('no food alert at night', $n('.card.alertc') === 0);
+    ok('the gravel outing is there at night too', !!$q('.card.gravel [data-act=dur][data-k=gravel]'));
+    $q('.card.gravel [data-act=dur][data-k=gravel]').click();
+    ok('…it starts the gravel clock, with pee · poop · none · end', !!K().gravel.start && !!$q('.card.gravel.on [data-k=poop]') && !!$q('.card.gravel.on .gend'));
+    $q('.card.gravel.on .gend').click(); ok('…and "סיום" ends it', !K().gravel.start && !!$q('.nightc'));
+    seed([{ ...K0, k:'food', t: now - 9*HOUR }, { ...K0, k:'pee', t: now - 50*MIN, w:'gravel' }, { ...K0, k:'crate', t: now - 40*MIN }]);
     $q('.cryrow [data-act=dur][data-k=cry]').click();
     ok('the cry row starts and stops crying', !!K().cry.start && $q('.cryrow').classList.contains('on') && $q('.cryrow button').textContent === ITEMS.cry.stop);
     $q('.cryrow [data-act=dur][data-k=cry]').click(); ok('…and stops it', !K().cry.start && logOf('kishmish', 'cry').length === 1);

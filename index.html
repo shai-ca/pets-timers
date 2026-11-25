@@ -2421,27 +2421,27 @@ function render(){
   else {
     // The tiles are grouped by the routine's steps, in its order; the group to fill in now is marked.
     const rt = retry(pet), ln = S.none, lw = S.water;
-    if(slim){
-      const cr = S.cry || {};
-      h = `<div class="card slim nightc"><span><b>מצב לילה</b><small>רק כלוב, פיפי וקקי · עד 06:00</small></span><button class="btn" data-act="nightfull">להציג הכול</button></div>` +
-        tileOf('crate') + tileOf('pee') + tileOf('poop') +
-        `<div class="card slim cryrow ${cr.start ? 'on' : ''}"><span><b>${cr.start ? 'בוכה כבר' : 'בוכה?'}</b>${cr.start ? `<small data-since="${cr.start}">${dur(Date.now()-cr.start)}</small>` : ''}</span><button class="btn" data-act="dur" data-k="cry">${cr.start ? ITEMS.cry.stop : ITEMS.cry.start}</button></div>`;
-      side.innerHTML = alertsHTML(pet) + sleepAskHTML(pet); document.getElementById('main').innerHTML = h; return;
-    }
-    h += sec('1', 'כלוב', tap.includes('crate'), tileOf('crate'), 'crate');
     // "Went out, nothing happened" is one button in a slim row — it has no timer of its own worth a tile.
     const gv = (S.gravel || {}).start, uw = usualWait(pet, ['pee'], Date.now() - 14*86400000, Date.now() + 1);
     // One start / stop unit: "יצאנו לחצץ" starts the clock, and what happened there stops it — so every trip has
     // how long it took and how it ended. (Without the clock the three buttons below work as always.)
-    const rh = rt ? retryHead(rt) : '', rc = rt ? ` retry withrt ${rt.state}` : '';
-    const gravelRow = rt && !gv
+    const rh = rt && !slim ? retryHead(rt) : '', rc = rt && !slim ? ` retry withrt ${rt.state}` : '';   // at night: the plain card, no retry prompts
+    const gravelRow = rt && !slim && !gv
       ? `<div class="card slim gravel${rc}">${rh}<span><b>יוצאים לחצץ?</b><small>${uw && uw.n >= 3 ? `בדרך כלל עושה פיפי תוך ${words(uw.ms)}` : 'השעון מודד כמה זמן לקח ומה יצא'}</small></span>
           <span class="rt-a"><button class="go" data-act="dur" data-k="gravel">${ITEMS.gravel.start}</button><button class="btn" data-act="pt" data-k="pee">פיפי</button><button class="btn" data-act="pt" data-k="none">לא עשתה</button></span></div>`
       : gv
       ? `<div class="card slim gravel on${rc}">${rh}<span><b>בחצץ כבר <span class="rt-t" data-since="${gv}">${dur(Date.now() - gv)}</span></b><small>${gravelDone(pet, gv) || 'פיפי וקקי נרשמים והשעון ממשיך · "לא עשתה" או "סיום" סוגרים את היציאה'}</small></span>
           <span class="rt-a"><button class="go" data-act="pt" data-k="pee">פיפי</button><button class="go" data-act="pt" data-k="poop">קקי</button><button class="btn" data-act="pt" data-k="none">לא עשתה</button><button class="btn gend" data-act="dur" data-k="gravel">סיום</button></span></div>`
-      : `<div class="card slim gravel ${tap.includes('none') ? 'nowt' : ''}"><span><b>יוצאים לחצץ?</b>${tryNowHTML(pet)}<small>${uw && uw.n >= 3 ? `בדרך כלל עושה פיפי תוך ${words(uw.ms)}` : 'השעון מודד כמה זמן לקח ומה יצא'}${ln ? ` · לא עשתה לאחרונה: ${dayLabel(ln)} <bdi dir="ltr">${clock(ln)}</bdi>` : ''}</small></span>
+      : `<div class="card slim gravel ${tap.includes('none') ? 'nowt' : ''}"><span><b>יוצאים לחצץ?</b>${slim ? '' : tryNowHTML(pet)}<small>${uw && uw.n >= 3 ? `בדרך כלל עושה פיפי תוך ${words(uw.ms)}` : 'השעון מודד כמה זמן לקח ומה יצא'}${ln ? ` · לא עשתה לאחרונה: ${dayLabel(ln)} <bdi dir="ltr">${clock(ln)}</bdi>` : ''}</small></span>
           <span class="rt-a"><button class="go" data-act="dur" data-k="gravel">${ITEMS.gravel.start}</button><button class="btn" data-act="pt" data-k="none">לא עשתה</button></span></div>`;
+    if(slim){
+      const cr = S.cry || {};
+      h = `<div class="card slim nightc"><span><b>מצב לילה</b><small>כלוב, חצץ, פיפי וקקי · עד 06:00</small></span><button class="btn" data-act="nightfull">להציג הכול</button></div>` +
+        tileOf('crate') + gravelRow + tileOf('pee') + tileOf('poop') +
+        `<div class="card slim cryrow ${cr.start ? 'on' : ''}"><span><b>${cr.start ? 'בוכה כבר' : 'בוכה?'}</b>${cr.start ? `<small data-since="${cr.start}">${dur(Date.now()-cr.start)}</small>` : ''}</span><button class="btn" data-act="dur" data-k="cry">${cr.start ? ITEMS.cry.stop : ITEMS.cry.start}</button></div>`;
+      side.innerHTML = alertsHTML(pet) + sleepAskHTML(pet); document.getElementById('main').innerHTML = h; return;
+    }
+    h += sec('1', 'כלוב', tap.includes('crate'), tileOf('crate'), 'crate');
     const pottySec = sec('2 · 5', 'צרכים', tap.includes('pee') || !!rt, gravelRow + gravelRatesHTML(pet) + tileOf('pee') + tileOf('poop'), 'potty');
     // Just woken up or out of the crate: on a phone the potty tiles come to the top of the page, above the wheel.
     const pottyTop = (!!pottyDue(pet) && isPhone()) || !!rt;   // a retry: the one gravel card goes to the top, on every screen
