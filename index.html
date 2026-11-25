@@ -587,6 +587,59 @@
     .v2 main.grps{grid-template-areas:"crate potty food" "play potty food" "bath bath bath"}
     .v2 main.grps.solo{grid-template-areas:"food potty meds" "vomit potty meds" "bath bath bath"}
   }
+  /* ================= PLANNING ("תכנון") — one block; both designs, light and dark ================= */
+  :root{--pl-need:#d9b48b; --pl-free:#7fbf9b; --pl-uns:#e3dfd9; --pl-kish:#b97a3e; --pl-kish-mid:#dfc09c; --pl-kish-soft:#f1e2cf;
+    --pl-koch:#6a7079; --pl-koch-soft:#e6e8ec; --pl-mk:#3d4148}
+  .night{--pl-need:#a97d4f; --pl-free:#4f9a74; --pl-uns:#3a342e; --pl-kish:#c98f55; --pl-kish-mid:#6f5236; --pl-kish-soft:#3a2c1f;
+    --pl-koch:#a3a9b1; --pl-koch-soft:#2e3036; --pl-mk:#e4e6ea}
+  .pl-head{display:flex;flex-direction:column;gap:4px;margin-bottom:12px} .pl-head small{color:var(--muted);font-size:12.5px}
+  .pl-top{display:flex;align-items:center;justify-content:space-between;gap:10px} .pl-top b{font-size:17px}
+  .pl-tabs{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+  .pl-chip{border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:999px;padding:6px 13px;font:inherit;font-size:13.5px;cursor:pointer}
+  .night .pl-chip{background:var(--surf)}
+  .pl-chip.on{background:var(--ink);border-color:var(--ink);color:var(--bg)}
+  .pl-tl{margin-bottom:12px}
+  .pl-lane{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+  .pl-who{flex:0 0 46px;font-size:12px;color:var(--muted);text-align:right}
+  .pl-b{position:relative;flex:1;height:22px;border-radius:7px;background:var(--pl-uns);overflow:hidden}
+  .pl-b.me{height:30px}
+  .pl-s{position:absolute;top:0;bottom:0;cursor:pointer}
+  .pl-s.need{background:var(--pl-need)} .pl-s.free{background:var(--pl-free)} .pl-s.uns{background:var(--pl-uns)}
+  .pl-s.k-out{background:var(--pl-kish)} .pl-s.k-crate{background:var(--pl-kish-mid)} .pl-s.k-sleep{background:var(--pl-kish-soft)}
+  .pl-s.k-sleep.uns{background:repeating-linear-gradient(135deg,var(--pl-kish-soft) 0 6px,var(--pl-uns) 6px 9px)}
+  .pl-s.c-ok{background:var(--pl-koch-soft)} .pl-s.c-pee,.pl-s.c-med,.pl-s.c-bath,.pl-s.c-spray{background:var(--pl-koch)}
+  .pl-s.c-med{background:repeating-linear-gradient(135deg,var(--pl-koch) 0 6px,var(--pl-koch-soft) 6px 8px)}
+  .pl-s.tipon,.pl-mk.tipon{outline:2px solid var(--ink);outline-offset:-2px;z-index:1}
+  .pl-mk{position:absolute;top:3px;bottom:3px;width:4px;margin-left:-2px;border-radius:2px;background:var(--pl-mk);opacity:.55;cursor:pointer}
+  .pl-now{position:absolute;top:0;bottom:0;width:2px;background:var(--ink)}
+  .pl-ticks{position:relative;height:15px;margin-inline-start:54px;font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums}
+  .pl-ticks span{position:absolute;transform:translateX(-50%)}
+  .pl-tl .ptip{margin-top:6px;min-height:34px}
+  .pl-lg{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12.5px;color:var(--ink);margin-top:6px}
+  .pl-lg i{display:inline-block;width:11px;height:11px;border-radius:3px;margin-inline-end:5px;vertical-align:-1px}
+  .pl-lg .need{background:var(--pl-need)} .pl-lg .free{background:var(--pl-free)} .pl-lg .uns{background:var(--pl-uns);border:1px solid var(--faint)}
+  .pl-range{display:block;color:var(--muted);font-size:12px;margin-top:4px}
+  .pl-cards{display:grid;gap:10px;margin-bottom:12px}
+  .pl-card{display:flex;flex-direction:column;gap:5px;border-inline-start:5px solid var(--pl-uns)}
+  .pl-card.free{border-inline-start-color:var(--pl-free)} .pl-card.need{border-inline-start-color:var(--pl-need)}
+  .pl-card.need.kochik{border-inline-start-color:var(--pl-koch)}
+  .pl-card small{color:var(--muted);font-size:13px} .pl-card small em{font-style:normal;color:var(--warn);font-weight:600}
+  .pl-ch{display:flex;justify-content:space-between;gap:10px;align-items:baseline} .pl-ch span{font-variant-numeric:tabular-nums;font-weight:500}
+  .pl-conf{align-self:flex-start;font-size:12px;border-radius:999px;padding:2px 9px;background:var(--pl-uns);color:var(--ink)}
+  .pl-conf.high{background:var(--pl-free);color:#10231a} .night .pl-conf.high{color:#fff}
+  .pl-do{margin:2px 0 0;padding-inline-start:18px;font-size:13.5px;line-height:1.5} .pl-do .pl-note{color:var(--muted)}
+  .pl-ics{align-self:flex-start;margin-top:4px;padding:7px 12px;font-size:13px}
+  .pl-all{text-align:center;margin:-2px 0 12px;font-size:13px}
+  .pl-want{display:flex;flex-direction:column;gap:8px;margin-bottom:12px}
+  .pl-want input{width:84px;border:1px solid var(--line);border-radius:999px;padding:6px 10px;font:inherit;font-size:13.5px;background:var(--card);color:var(--ink)}
+  .night .pl-want input{background:var(--bg)}
+  .pl-fit{margin:0;padding-inline-start:20px;display:flex;flex-direction:column;gap:8px} .pl-fit small{display:block;color:var(--muted);font-size:12.5px}
+  .pl-none{margin:0;font-size:13.5px}
+  .pl-info{display:flex;flex-direction:column;gap:6px} .pl-info small{color:var(--muted);font-size:12.5px;line-height:1.5}
+  .pl-empty{color:var(--muted)}
+  .v2 .pl-card{border-radius:16px}
+  @media (min-width:760px){ .pl-cards{grid-template-columns:repeat(2,minmax(0,1fr))} }
+  /* ================= end of PLANNING ================= */
 </style>
 </head>
 <body>
@@ -602,6 +655,7 @@
   <div class="seg sm">
     <button data-view="now">מעקב</button>
     <button data-view="sum">סיכום</button>
+    <button data-view="plan">תכנון</button>
   </div>
   <div class="shell" id="shell"><aside id="side"></aside><main id="main"></main></div>
   <div class="dsw" id="dsw"></div>
@@ -2189,6 +2243,7 @@ function render(){
   const side = document.getElementById('side'); side.innerHTML = '';
   document.getElementById('main').className = view === 'now' && !slim ? (PETS[pet].cycle ? 'grps' : 'grps solo') : '';
   if(view==='sum'){ document.getElementById('main').innerHTML = renderSummary(); return; }
+  if(view==='plan'){ planRender(); return; }   // the planning tab (its block is before the events)
   const P = PETS[pet], S = V[pet], aw = P.cycle ? awakeSince(pet) : 0;
   let h = '', medHTML = '';
   // A group of tiles in an outer box with a heading. Kishmish's follow the routine's steps; Kochik's follow topics.
@@ -3167,6 +3222,392 @@ function tick(){
 if(PHONE_MQ && PHONE_MQ.addEventListener) PHONE_MQ.addEventListener('change', () => render());
 let lastMin = new Date().getMinutes();
 setInterval(() => { const m = new Date().getMinutes(); if(m !== lastMin){ lastMin = m; if(!(document.activeElement && document.activeElement.id==='sumDate')) render(); } else tick(); }, 1000);
+
+// ================= PLANNING ("תכנון", owner's spec 25.11) — one block, read-only =================
+// A third view beside מעקב / סיכום: when she must be home and when she can go out, for both dogs at once. It NEVER
+// writes an entry: like every other screen it is rebuilt from the list on every render (`planBuild`). Three kinds of
+// time on a lane "לי" above one lane per dog: צריכים אותך (every need ± PLAN.pad, naming the dog and why), זמן פנוי
+// (Kishmish in the crate after a pee on the gravel and expected asleep, AND Kochik needs nothing; at least
+// PLAN.minFree; it ends at the earliest need), לא בטוח (everything else, with a one-sentence reason).
+//  Kishmish: her own last PLAN.days days — the delay to fall asleep in the crate (`sleepSamples`), nap length (median
+//   of day spans, `touchesNight` left out), time awake between sleeps, meals (`mealGap`), pee window (`usualPeeGap`,
+//   85–115% as in `peeForecast`), the wake-by rule (WAKE.sleepNoPee / ALERT.food, as in `wakeBy`) — rolled forward
+//   from where she is now. Free time never runs past the end of her pee window nor PLAN.alone(age) in the crate.
+//  Kochik: next pee = her last pee + min(25th percentile of her daytime gaps, PLAN.kochikMax) (gaps over 4 h or
+//   touching 22:30–07:00 left out; PLAN.kochikSick after diarrhoea / vomiting in 24 h); a drink opens a window 30–90
+//   min after it; medicines by 11:00 / 21:00 are needed from PLAN.medLead before (not when marked, not on a break);
+//   free time starts only at her pee (taken out right before leaving), so it lasts at most her gap − PLAN.pad.
+//  Grooming: bath / spray day (`bathDue`, `fleaDue`) are needed time; nothing free for FLEA_DRY after a spray.
+// Calendar: each window can be saved as an .ics file (Asia/Jerusalem local time) made in the page.
+const PL_M = 60000, PL_H = 3600000;
+const PLAN = {
+  days: 7, pad: 15*PL_M, minFree: 45*PL_M, minDays: 3, hi: .75, lo: .5, join: 10*PL_M, napN: 0, napSafe: true, napMin: 5, napQ: .5, seen: true,
+  night: [22.5, 7],                                   // nothing is planned 22:30–07:00; Kochik's gaps touching it are ignored
+  kochikMax: 2*PL_H, kochikSick: 1.5*PL_H, kochikQ: .25, kochikLong: 4*PL_H, kochikMinGaps: 4,
+  drink: [30*PL_M, 90*PL_M],                          // a drink opens a pee window this long after it (Kochik)
+  medLead: 60*PL_M, medBy: {am: 11, pm: 21},
+  bath: {kishmish: 45*PL_M, kochik: 30*PL_M},         // incl. blow-dry
+  groomFrom: 10,                                      // planned bath / spray: not before 10:00
+  alone: a => (a && !a.y ? Math.min(4, a.m + .5) : 4) * PL_H,   // longest stay alone in the crate: 2.5 h at two months
+  fb: {nap: 60*PL_M, awake: 45*PL_M, lat: 10*PL_M, morning: 6.5, kochikFirst: 7.5, mealGap: 2.5*PL_H},   // with too little data
+  wants: [30, 60, 120],
+};
+let planDay = 0, planWant = 60, planCustom = '', planLast = null;   // what this phone is looking at; never saved
+const PL_DOG = {kishmish: 'קישמיש', kochik: 'קוצ׳יק', me: 'לי'};
+const PL_CONF = {high: 'ביטחון גבוה', medium: 'ביטחון בינוני'};
+function planAt(t, h){ const d = sod(t); d.setHours(Math.floor(h), Math.round((h % 1) * 60), 0, 0); return d.getTime(); }
+function planNight(a, b){   // does [a, b] reach into 22:30–07:00 on any night?
+  const d = sod(a); d.setDate(d.getDate() - 1);
+  for(; d.getTime() <= b; d.setDate(d.getDate() + 1)){
+    const n0 = planAt(d.getTime(), PLAN.night[0]), n1 = new Date(d); n1.setDate(n1.getDate() + 1);
+    if(a < planAt(n1.getTime(), PLAN.night[1]) && b > n0) return true;
+  }
+  return false;
+}
+function planDays(p, now){ return new Set(state.log.filter(e => e.p===p && e.t <= now && e.t >= now - PLAN.days*86400000).map(e => dayKey(e.t))).size; }
+const plTod = t => (t - sod(t).getTime()) / PL_H;
+// KOCHIK'S RHYTHM: the 25th percentile of her daytime gaps, capped (lower after diarrhoea or vomiting).
+function kochikGap(now){
+  const L = state.log.filter(e => e.p==='kochik' && e.t <= now), from = now - PLAN.days*86400000;
+  const ts = L.filter(e => e.k==='pee').map(e => e.t).sort((x,y) => x-y), g = [];
+  for(let i = 1; i < ts.length; i++){ const a = ts[i-1], b = ts[i], d = b - a; if(b >= from && d >= 10*PL_M && d <= PLAN.kochikLong && !planNight(a, b)) g.push(d); }
+  g.sort((x,y) => x-y);
+  const sick = L.filter(e => e.t >= now - 24*PL_H && ((e.k==='poop' && e.q==='dia') || e.k==='vomit')).sort((x,y) => x.t-y.t).pop() || null;
+  const cap = sick ? PLAN.kochikSick : PLAN.kochikMax, q = g.length >= PLAN.kochikMinGaps ? quantile(g, PLAN.kochikQ) : 0;
+  return {gap: q ? Math.min(q, cap) : cap, q, n: g.length, g, cap, sick};
+}
+function kochikFirstPee(now){   // when her day usually starts: the median first pee after 06:00
+  const by = {};
+  for(const e of state.log) if(e.p==='kochik' && e.k==='pee' && e.t <= now && e.t >= now - PLAN.days*86400000 && plTod(e.t) >= 6 && plTod(e.t) < 11){ const k = dayKey(e.t); if(!(by[k] <= plTod(e.t))) by[k] = plTod(e.t); }
+  const v = Object.values(by); return v.length >= 2 ? median(v) : PLAN.fb.kochikFirst;
+}
+function kochikMeals(now){   // her usual meal times: clock times seen on at least two days (thin data: always "weak")
+  const f = state.log.filter(e => e.p==='kochik' && e.k==='food' && e.t <= now && e.t >= now - PLAN.days*86400000).map(e => ({h: plTod(e.t), d: dayKey(e.t)})).sort((x,y) => x.h-y.h), out = [];
+  let grp = [];
+  const flush = () => { if(new Set(grp.map(x => x.d)).size >= 2) out.push(median(grp.map(x => x.h))); grp = []; };
+  for(const x of f){ if(grp.length && x.h - grp[0].h > 1) flush(); grp.push(x); }
+  flush(); return out;
+}
+// A crate stay that began after a pee on the gravel (the last pee before it, at most an hour before; a "לא עשתה" in
+// between does not undo it).
+function planSafeStay(c, now){
+  const prev = state.log.filter(e => e.p==='kishmish' && e.k==='pee' && e.t <= Math.min(c + PL_M, now)).sort((x,y) => x.t-y.t).pop();
+  return !!prev && (prev.w === 'gravel' || prev.w === 'out') && c - prev.t <= 60*PL_M;
+}
+// KISHMISH'S RHYTHM from her own last days (spans = marked + estimated sleep, as everywhere in the app).
+function kishStats(now){
+  const p = 'kishmish', from = now - PLAN.days*86400000;
+  // A nap = sleep pieces less than PLAN.join apart (a short cry or a kong in between splits the estimate, not her nap).
+  const sp = [];
+  for(const x of V[p].spans.filter(x => x.end != null && x.end <= now && x.t >= from).sort((a,b) => a.t-b.t)){
+    const l = sp[sp.length-1]; if(l && x.t - l.end <= PLAN.join) l.end = Math.max(l.end, x.end); else sp.push({t: x.t, end: x.end});
+  }
+  for(let i = sp.length - 1; i >= 0; i--) if(sp[i].end - sp[i].t < WAKE.minNap || touchesNight(sp[i].t, sp[i].end)) sp.splice(i, 1);
+  // Only naps that began in a stay entered after a pee on the gravel count (the only ones free time is planned on;
+  // naps after a "לא עשתה" or in a retry wait were shorter), unless there are too few of them.
+  const stays = state.log.filter(e => e.p===p && e.k==='crate' && e.t <= now);
+  const good = sp.filter(x => { const c = stays.filter(c => c.t <= x.t && (c.end == null || c.end >= x.t)).sort((a,b) => a.t-b.t).pop(); return c && planSafeStay(c.t, now); });
+  const use = PLAN.napSafe && good.length >= PLAN.napMin ? good : sp;
+  const naps = (PLAN.napN ? use.slice(-PLAN.napN) : use).map(x => x.end - x.t).sort((a,b) => a-b);
+  const crates = state.log.filter(e => e.p===p && e.k==='crate' && e.t <= now && !isRetryStay(e)).map(e => e.t).sort((a,b) => a-b), aw = [];
+  for(const x of sp){ const c = crates.find(t => t > x.end + PL_M); if(c != null && c - x.end <= 3*PL_H && !touchesNight(x.end, c)) aw.push(c - x.end); }
+  const kind = lastCrate(p), lats = sleepSamples(p, state.log, now).filter(x => x.c === kind).slice(-10).map(x => x.lat);
+  const mor = {};
+  for(const e of state.log) if(e.p===p && mealKind(e) === 'meal' && e.t <= now && e.t >= from && plTod(e.t) >= 5.5 && plTod(e.t) < 10){ const k = dayKey(e.t); if(!(mor[k] <= plTod(e.t))) mor[k] = plTod(e.t); }
+  const mv = Object.values(mor);
+  return {naps, napsAll: sp.length, napsGood: good.length, nap: naps.length >= 3 ? quantile(naps, PLAN.napQ) : PLAN.fb.nap, awake: aw.length >= 3 ? median(aw) : PLAN.fb.awake, nAw: aw.length,
+    lat: lats.length >= 3 ? median(lats) : PLAN.fb.lat, morning: mv.length >= 2 ? median(mv) - 1/6 : PLAN.fb.morning, mealGap: mealGap(p) || PLAN.fb.mealGap};
+}
+// Kishmish rolled forward from `from` to `to`: phases (out / crate awake / sleep), her needs, and every sleep with how
+// long it could be free time (`end`, `endWhy`) and what to do before it (`prep`). `fresh`: a new day from her morning.
+function planKish(from, to, fresh, st, groom){
+  const p = 'kishmish', S = V[p], ph = [], needs = [], sleeps = [], pad = PLAN.pad;
+  const u = usualPeeGap(p, from), peeMed = u ? u.med : (holdHours(p) * PL_H || 3*PL_H), alone = PLAN.alone(ageOf(p));
+  let lastPee = fresh ? 0 : (S.pee || 0), lastMeal = fresh ? 0 : (S.food || 0), grooming = groom ? {...groom} : null;
+  const pee = () => lastPee ? lastPee + PEE_RHYTHM.to * peeMed : Infinity;
+  const outPhase = (w, cur) => {
+    const a = Math.max(w, from), gravel = cur && cur.peed ? null : a;
+    if(gravel != null) lastPee = gravel + 5*PL_M;   // expected: a pee on the gravel when she comes out
+    let c = Math.max(w + st.awake, a + 15*PL_M), meal = null, bath = null, spray = null;
+    const nm = lastMeal ? lastMeal + st.mealGap : a + 10*PL_M;
+    if(nm <= c + 30*PL_M){ meal = Math.max(nm, a + 10*PL_M); c = Math.max(c, meal + 10*PL_M); lastMeal = meal; }
+    if(grooming && a >= planAt(a, PLAN.groomFrom)){
+      const g0 = (meal || a + 10*PL_M) + 10*PL_M;
+      if(grooming.bath){ bath = [g0, g0 + PLAN.bath[p]]; c = Math.max(c, bath[1] + 5*PL_M); }
+      else if(grooming.spray){ spray = g0; c = Math.max(c, g0 + 10*PL_M); }
+      grooming = null;
+    }
+    const what = [gravel != null ? 'חצץ' : null, meal ? 'אוכל' : 'משחק', bath ? 'מקלחת' : null, spray ? 'ספריי' : null].filter(Boolean).join(' + ');
+    const why = [gravel != null ? `${cur ? 'עכשיו' : 'מתעוררת בסביבות ' + clock(a)}: חצץ` : 'ערה עכשיו', meal ? `אוכל בסביבות ${clock(meal)}` : null, bath ? `מקלחת וייבוש ${clock(bath[0])}–${clock(bath[1])}` : null, spray ? `ספריי פרונטליין ב־${clock(spray)}` : null, `חזרה לכלוב בסביבות ${clock(c)}`].filter(Boolean).join(' · ');
+    ph.push({k:'out', a, b: c, gravel, meal, bath, spray});
+    needs.push({dog: p, kind: 'out', a: cur ? a : Math.max(a - pad, from), b: c + pad, at: a, title: `קישמיש: ${what}`, why, bath, spray});
+    return {gravel, meal, c};
+  };
+  const sleepPhase = (c, onset, safe, prep, cur, unsafe) => {
+    if(onset > Math.max(c, from)) ph.push({k:'crate', a: Math.max(c, from), b: onset});
+    const el = from - onset, longer = st.naps.filter(n => n > el);
+    let wake = cur && el > 0 ? onset + (longer.length >= 2 ? median(longer) : el + 15*PL_M) : onset + st.nap, wakeWhy = `קישמיש צפויה להתעורר בסביבות ${clock(wake)}`;
+    const wb = Math.min(lastPee ? lastPee + WAKE.sleepNoPee : Infinity, lastMeal ? lastMeal + ALERT.food : Infinity);
+    if(wb < wake){ wake = wb; wakeWhy = `צריך להעיר את קישמיש עד ${clock(wb)} (${lastPee && lastPee + WAKE.sleepNoPee === wb ? 'ארבע שעות מהפיפי' : 'שלוש וחצי שעות מהארוחה'})`; }
+    wake = Math.max(wake, from + 5*PL_M, onset + 10*PL_M);
+    const a = Math.max(onset, from), lim = [[wake - pad, wakeWhy], [pee(), `חלון הפיפי של קישמיש נגמר ב־${clock(pee())}`], [c + alone, `קישמיש לא נשארת לבד בכלוב יותר מ־${words(alone)}`]].sort((x,y) => x[0]-y[0])[0];
+    ph.push({k:'sleep', a, b: wake, safe: !!safe});
+    sleeps.push({a, onset, wake, c, end: lim[0], endWhy: lim[1], safe: !!safe, unsafe: unsafe || 'קישמיש נכנסה לכלוב בלי פיפי בחצץ', prep, cur: !!cur, el: cur ? Math.max(0, el) : 0});
+    return wake;
+  };
+  let w;
+  if(fresh){
+    w = planAt(from, st.morning);
+    if(w > from) ph.push({k:'sleep', a: from, b: w, night: true});
+    w = Math.max(w, from);
+  } else if(S.crate && S.crate.start){
+    const c = S.crate.start, L = state.log.filter(e => e.p===p && e.t <= from);
+    const safe = planSafeStay(c, from);
+    let onset = S.sleep && S.sleep.start;
+    if(!onset){
+      const crying = L.some(e => e.k==='cry' && e.end == null && e.t >= c);
+      const q = Math.max(c, ...L.filter(e => e.k==='cry' && e.end != null && e.end >= c).map(e => e.end), ...L.filter(e => AWAKE_PT[e.k] && e.t >= c).map(e => e.t));
+      onset = Math.max(crying ? from + st.lat : q + st.lat, from + 5*PL_M);
+    }
+    const seen = !!(S.sleep && S.sleep.start);   // in the crate now: free time only once she is seen asleep (marked or estimated)
+    w = sleepPhase(c, onset, safe && (seen || !PLAN.seen), {now: true, asleep: seen, c}, true, safe ? 'קישמיש בכלוב ועוד לא נרדמה' : '');
+  } else if(S.sleep && S.sleep.start){
+    w = sleepPhase(S.sleep.start, S.sleep.start, false, null, true, 'קישמיש ישנה מחוץ לכלוב');
+  } else {
+    const since = awakeSince(p) || from, peed = state.log.some(e => e.p===p && e.k==='pee' && e.t >= since && e.t <= from && (e.w === 'gravel' || e.w === 'out'));
+    const o = outPhase(since, {peed});
+    w = sleepPhase(o.c, o.c + st.lat, true, o, false);
+  }
+  for(let guard = 0; w < to && guard < 40; guard++){
+    const o = outPhase(w, null); if(o.c >= to) break;
+    w = sleepPhase(o.c, o.c + st.lat, true, o, false);
+  }
+  for(const x of ph) x.b = Math.min(x.b, to);
+  return {ph: ph.filter(x => x.b > x.a), needs: needs.filter(n => n.a < to).map(n => ({...n, b: Math.min(n.b, to)})), sleeps: sleeps.filter(s => s.a < to), peeMed, alone};
+}
+// Grooming planned for that day (bath or spray due by then and not done yet that day).
+function planGroom(p, day0){
+  const g = {}, d1 = day0 + 86400000, S = V[p];
+  if(S.bath && !(S.bath >= day0)){ const due = bathDue(p).getTime(); if(due < d1 && !(noBathUntil(p) > day0 + 20*PL_H)) g.bath = true; }
+  if(S.flea && !(S.flea >= day0)){ const due = fleaDue(p).getTime(); if(due < d1) g.spray = true; }
+  return g.bath || g.spray ? g : null;
+}
+// THE PLAN for one day: from now (or her morning) to 22:30. Returns every lane, need and free window.
+function planBuild(day, minFree){   // minFree: a shorter outing asked for in "אני רוצה לצאת" (default PLAN.minFree)
+  minFree = minFree || PLAN.minFree;
+  const now = Date.now(), d = sod(now); d.setDate(d.getDate() + (day ? 1 : 0));
+  const day0 = d.getTime(), st = kishStats(now), kg = kochikGap(now), pad = PLAN.pad;
+  const fresh = !!day || plTod(now) < 5, to = planAt(day0, PLAN.night[0]);
+  const from = fresh ? Math.min(planAt(day0, st.morning), planAt(day0, kochikFirstPee(now))) - 30*PL_M : now;
+  const M = {day, day0, from, to, now, st, kg, needs: [], free: [], marks: [], blocks: [], notes: []};
+  if(from >= to) return M;
+  const ks = M.ks = planKish(from, to, fresh, st, planGroom('kishmish', day0));
+  // Kochik's fixed needs: medicines, her own grooming, and the drying time after any spray.
+  const KO = V.kochik, onBreak = !!(KO.medoff && KO.medoff.start);
+  if(!onBreak) for(const sl of ['am', 'pm']){
+    const dl = planAt(day0, PLAN.medBy[sl]), done = !fresh && !!medsOf('kochik')[sl], name = sl === 'am' ? 'בוקר' : 'ערב';
+    if(done) continue;
+    if(dl > from) M.blocks.push({dog: 'kochik', kind: 'med', slot: sl, a: Math.max(from, dl - PLAN.medLead), b: dl, title: `קוצ׳יק: תרופת ${name}`, why: `קוצ׳יק צריכה את תרופת ה${name} עד ${clock(dl)}`});
+    else if(!fresh && from - dl < 3*PL_H) M.blocks.push({dog: 'kochik', kind: 'med', slot: sl, a: from, b: from + pad, late: true, title: `קוצ׳יק: תרופת ${name}`, why: `תרופת ה${name} של קוצ׳יק עוד לא סומנה (עד ${clock(dl)})`});
+  }
+  const kgr = planGroom('kochik', day0);
+  if(kgr){
+    const g0 = Math.max(planAt(day0, PLAN.medBy.am), from + pad);
+    if(kgr.bath) M.blocks.push({dog: 'kochik', kind: 'bath', a: g0, b: g0 + PLAN.bath.kochik, title: 'קוצ׳יק: מקלחת', why: `יום מקלחת לקוצ׳יק (כל ${BATH_DAYS} ימים לכל היותר)`});
+    else M.blocks.push({dog: 'kochik', kind: 'spray', a: g0, b: g0 + 10*PL_M, title: 'קוצ׳יק: ספריי פרונטליין', why: `יום ריסוס לקוצ׳יק · לא משאירים לבד ${words(FLEA_DRY)} אחריו`, dry: g0 + FLEA_DRY});
+  }
+  for(const n of ks.needs) if(n.spray) M.blocks.push({dog: 'kishmish', kind: 'dry', a: n.spray, b: n.spray + FLEA_DRY, title: '', why: `הספריי של קישמיש מתייבש עד ${clock(n.spray + FLEA_DRY)}`, hidden: true});
+  for(const b of M.blocks.slice()) if(b.dry) M.blocks.push({dog: 'kochik', kind: 'dry', a: b.b, b: b.dry, title: '', why: `הספריי של קוצ׳יק מתייבש עד ${clock(b.dry)}`, hidden: true});
+  for(const p of ['kochik', 'kishmish']){ const f = V[p].flea; if(!fresh && f && now - f < FLEA_DRY) M.blocks.push({dog: p, kind: 'dry', a: from, b: f + FLEA_DRY, title: '', why: `הספריי של ${PL_DOG[p]} מתייבש עד ${clock(f + FLEA_DRY)}`, hidden: true}); }
+  const hard = M.blocks.filter(b => b.b > from).sort((x,y) => x.a-y.a);
+  const kishBusy = ks.needs.map(n => ({a: n.a, b: n.b, why: `${n.title} עד ${clock(n.b)}`}));   // free time starts after her need and its margin
+  // Kochik's pees: a chain from her last pee (a drink brings the next one forward); re-anchored wherever she is let
+  // out right before a free window.
+  const water = !fresh && state.log.filter(e => e.p==='kochik' && e.k==='water' && e.t <= now).sort((x,y) => x.t-y.t).pop();
+  let lastK = fresh ? 0 : (KO.pee || 0), D;
+  if(fresh) D = planAt(day0, kochikFirstPee(now));
+  else { D = lastK ? lastK + kg.gap : from; if(water && water.t > lastK && water.t + PLAN.drink[0] < D) D = water.t + PLAN.drink[0]; }
+  const drinkD = water && D === water.t + PLAN.drink[0] ? water.t : 0;
+  const kpee = [];
+  const emit = t => { while(D < t && D < to){ const at = Math.max(D, from), dr = drinkD && D === drinkD + PLAN.drink[0]; kpee.push({dog: 'kochik', kind: 'pee', at, a: Math.max(from, at - pad), b: dr ? drinkD + PLAN.drink[1] : at + pad, late: D < from, title: 'קוצ׳יק: פיפי', why: dr ? `שתתה ב־${clock(drinkD)} · פיפי בדרך כלל 30–90 דקות אחרי` : D < from ? `עברו ${words(now - lastK)} מהפיפי האחרון` : `בדרך כלל מחזיקה כ־${words(kg.gap)}`}); lastK = at; D = at + kg.gap; } };
+  for(const sl of ks.sleeps){
+    if(sl.safe !== true){ sl.why = sl.unsafe; continue; }
+    let a = Math.max(sl.a, from), why0 = '';
+    for(const b of kishBusy) if(b.a < a && b.b > a){ a = b.b; why0 = b.why; }
+    for(const b of hard) if(b.a <= a + pad && b.b > a - pad){ a = Math.max(a, b.b); why0 = b.why || `${b.title} עד ${clock(b.b)}`; }
+    emit(a + 1);
+    const recent = lastK && lastK >= a - pad && lastK <= a, anchor = recent ? lastK : a;
+    const due = recent ? D : anchor + kg.gap, drank = recent && drinkD && D === drinkD + PLAN.drink[0];   // a drink since her last pee brings it forward
+    const lim = [[sl.end, sl.endWhy], [due - pad, drank ? `קוצ׳יק שתתה ב־${clock(drinkD)} וצריכה פיפי בסביבות ${clock(due)}` : `קוצ׳יק צריכה פיפי עד ${clock(due)}`], [to, 'מ־22:30 לילה']];
+    for(const b of hard) if(b.a >= a) lim.push([b.a - (b.kind === 'dry' ? 0 : pad), b.why || b.title]);
+    lim.sort((x,y) => x[0]-y[0]);
+    const b = lim[0][0], endWhy = lim[0][1], endDog = /קוצ׳יק/.test(endWhy) ? 'kochik' : /קישמיש/.test(endWhy) ? 'kishmish' : '';
+    if(b - a < minFree){ sl.why = b > a ? `רק ${words(b - a)} — ${endWhy}` : why0 || endWhy; continue; }
+    const f = {a, b, sl, endWhy, endDog, anchor, kochikPee: !recent};
+    // Confidence: the less consistent of her naps (how often one lasted this long) and Kochik's gaps.
+    const need = b - sl.onset, pool = sl.cur ? st.naps.filter(n => n > sl.el) : st.naps;
+    const fk = pool.length >= 3 ? pool.filter(n => n >= need).length / pool.length : .5;
+    const fc = kg.g.length ? kg.g.filter(g => g >= b - anchor + pad).length / kg.g.length : .5;
+    f.score = Math.min(fk, fc); f.scoreWhy = fk <= fc ? 'kishmish' : 'kochik';
+    const thin = planDays('kishmish', now) < PLAN.minDays || planDays('kochik', now) < PLAN.minDays;
+    f.conf = f.score >= PLAN.hi && !thin && !day ? 'high' : 'medium';
+    if(f.score < PLAN.lo){ sl.why = `קישמיש לא ישנה בדרך כלל עד ${clock(b)} (רק ${Math.round(fk * 100)}% מהשינות שלה)`; continue; }
+    if(f.kochikPee) kpee.push({dog: 'kochik', kind: 'pee', at: a, a: Math.max(from, a - pad), b: a, before: true, title: 'קוצ׳יק: פיפי לפני שיוצאים', why: 'מוציאים אותה ממש לפני שיוצאים'});
+    lastK = anchor; D = anchor + kg.gap;
+    sl.free = f; sl.why = endWhy; M.free.push(f);
+  }
+  emit(to);
+  // Kochik's usual meals (thin data: shown as a light mark, not as needed time).
+  for(const h of kochikMeals(now)){ const t = planAt(day0, h); if(t >= from && t < to) M.marks.push({dog: 'kochik', t, tip: `קוצ׳יק אוכלת בדרך כלל בסביבות ${clock(t)} (מעט נתונים)`}); }
+  M.kpee = kpee;
+  M.needs = ks.needs.concat(kpee, M.blocks.filter(b => !b.hidden)).filter(n => n.b > from).sort((x,y) => x.a-y.a);
+  for(const f of M.free){
+    const before = [], sl = f.sl, pr = sl.prep;
+    if(pr && pr.now) before.push(pr.asleep ? 'קישמיש כבר ישנה בכלוב — לא להעיר' : 'קישמיש כבר בכלוב — לתת לה להירדם');
+    else if(pr) before.push(`להוציא את קישמיש לחצץ ב־${clock(pr.gravel != null ? pr.gravel : f.a)}${pr.meal ? `, להאכיל ב־${clock(pr.meal)}` : ''}, להכניס לכלוב עם קונג ב־${clock(pr.c)}`);
+    const med = M.blocks.find(b => b.kind === 'med' && b.b <= f.a + pad && b.b > f.a - 90*PL_M);
+    before.push(f.kochikPee ? `להוציא את קוצ׳יק לפיפי ממש לפני שיוצאים${med ? `, לתת לה את תרופת ה${med.slot === 'am' ? 'בוקר' : 'ערב'}` : ''}` : `קוצ׳יק עשתה פיפי ב־${clock(f.anchor)}${med ? ` · לתת לה את תרופת ה${med.slot === 'am' ? 'בוקר' : 'ערב'}` : ''}`);
+    const meal = M.marks.find(m => m.t >= f.a - 30*PL_M && m.t <= f.b);
+    if(meal) before.push(`אפשר להאכיל את קוצ׳יק לפני היציאה: היא אוכלת בדרך כלל בסביבות ${clock(meal.t)} (מעט נתונים)`);
+    f.before = before;
+    const wtr = state.log.filter(e => e.p==='kochik' && e.k==='water' && e.t <= now && e.t >= f.a - 30*PL_M && e.t <= f.a).pop();
+    f.notes = [];
+    if(wtr) f.notes.push(`קוצ׳יק שתתה ב־${clock(wtr.t)}: כדאי לחכות שתעשה פיפי לפני שיוצאים`);
+    if(kg.sick) f.notes.push(`קוצ׳יק: ${kg.sick.k === 'vomit' ? 'הקאה' : 'שלשול'} ב־24 השעות האחרונות, אז לכל היותר ${words(PLAN.kochikSick)} בין פיפי לפיפי`);
+    if(!(pr && pr.now)) f.notes.push('רק אחרי פיפי בחצץ ורק אם נרדמה');
+  }
+  return M;
+}
+// What lies under time t on the lane "לי": need, free or unsure, and in one sentence why (naming the dog).
+function planWhy(M, t){
+  const n = M.needs.find(x => x.a <= t && t < x.b);
+  if(n) return {k: 'need', tip: `צריכים אותך: ${n.title} · ${n.why}`};
+  const f = M.free.find(x => x.a <= t && t < x.b);
+  if(f) return {k: 'free', tip: `זמן פנוי ${clock(f.a)}–${clock(f.b)} · ${PL_CONF[f.conf]}`};
+  const ph = M.ks && M.ks.ph.find(x => x.a <= t && t < x.b);
+  const blk = M.blocks.find(x => x.a <= t && t < x.b);
+  if(blk) return {k: 'uns', tip: `לא פנוי: ${blk.why}`};
+  if(!ph) return {k: 'uns', tip: 'לא בטוח: אין מספיק מידע'};
+  if(ph.night) return {k: 'uns', tip: `לא פנוי: בוקר — קישמיש מתעוררת בסביבות ${clock(ph.b)}`};
+  if(ph.k === 'crate') return {k: 'uns', tip: `לא פנוי: קישמיש בכלוב ועוד לא נרדמה (צפוי בסביבות ${clock(ph.b)})`};
+  if(ph.k === 'out') return {k: 'uns', tip: 'לא פנוי: קישמיש ערה'};
+  const sl = M.ks.sleeps.find(x => x.a <= t && t < x.wake);
+  if(sl && sl.free && t < sl.free.a) return {k: 'uns', tip: 'לא פנוי: קישמיש עוד לא נרדמה בוודאות'};
+  return {k: 'uns', tip: `לא פנוי: ${sl && sl.why || 'קישמיש ישנה, אבל לא בטוח לכמה זמן'}`};
+}
+function planLanes(M){
+  const from = M.from, to = M.to, cuts = new Set([from, to]);
+  for(const x of M.needs.concat(M.free, M.blocks, M.ks ? M.ks.ph : [])) for(const t of [x.a, x.b]) if(t > from && t < to) cuts.add(t);
+  const c = [...cuts].sort((x,y) => x-y), me = [];
+  for(let i = 0; i < c.length - 1; i++){
+    const w = planWhy(M, (c[i] + c[i+1]) / 2), last = me[me.length-1];
+    if(last && last.k === w.k && last.tip === w.tip) last.b = c[i+1]; else me.push({...w, a: c[i], b: c[i+1]});
+  }
+  const KN = {out: 'ערה בחוץ', crate: 'בכלוב, עוד לא נרדמה', sleep: 'ישנה (צפוי)'};
+  const kish = (M.ks ? M.ks.ph : []).map(x => ({k: 'k-' + x.k + (x.k === 'sleep' && !x.safe && !x.night ? ' uns' : ''), a: x.a, b: x.b,
+    tip: `קישמיש: ${x.night ? 'לילה, ישנה' : KN[x.k]} ${clock(x.a)}–${clock(x.b)}${x.k === 'out' ? [x.gravel != null ? ` · חצץ ${clock(x.gravel)}` : '', x.meal ? ` · אוכל ${clock(x.meal)}` : '', x.bath ? ` · מקלחת ${clock(x.bath[0])}` : ''].join('') : ''}${x.k === 'sleep' && x.safe === false && !x.night ? ' · בלי פיפי בחצץ לפני' : ''}`}));
+  const koch = [{k: 'c-ok', a: from, b: to, tip: 'קוצ׳יק: לא צריכה כלום (צפוי)'}].concat(M.needs.filter(n => n.dog === 'kochik').map(n => ({k: 'c-' + n.kind, a: n.a, b: n.b, tip: `${n.title} ${clock(n.a)}–${clock(n.b)} · ${n.why}`})));
+  return {me, kish, koch};
+}
+function planBarHTML(M, segs, cls, marks){
+  const W = Math.max(1, M.to - M.from), pc = t => ((Math.max(M.from, Math.min(M.to, t)) - M.from) / W * 100).toFixed(2);
+  return `<div class="pl-b ${cls}">${segs.map(s => `<span class="pl-s ${s.k}" style="left:${pc(s.a)}%;width:${(pc(s.b) - pc(s.a)).toFixed(2)}%" data-tip="${esc(s.tip)}"></span>`).join('')}${(marks || []).map(m => `<span class="pl-mk" style="left:${pc(m.t)}%" data-tip="${esc(m.tip)}"></span>`).join('')}${M.day ? '' : `<span class="pl-now" style="left:0"></span>`}</div>`;
+}
+const plSpan = (a, b) => `<bdi dir="ltr">${clock(a)}–${clock(b)}</bdi>`;
+const plDayWord = (M, t) => M && sod(t).getTime() !== sod(Date.now()).getTime() ? 'מחר ' : '';
+// The calendar: one VEVENT per window, local time in Asia/Jerusalem, made here as a file (no server, nothing saved).
+function plIcsTime(t){
+  const f = new Intl.DateTimeFormat('en-GB', {timeZone: 'Asia/Jerusalem', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23'});
+  const o = {}; for(const x of f.formatToParts(new Date(t))) o[x.type] = x.value;
+  return `${o.year}${o.month}${o.day}T${o.hour}${o.minute}${o.second}`;
+}
+function plIcsFold(line){   // lines of at most 75 octets (Hebrew is two each)
+  const out = []; let cur = '', n = 0;
+  for(const ch of line){ const b = new TextEncoder().encode(ch).length; if(n + b > (out.length ? 74 : 75)){ out.push(cur); cur = ''; n = 0; } cur += ch; n += b; }
+  out.push(cur); return out.join('\r\n ');
+}
+function planICS(items){
+  const x = s => String(s).replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\n/g, '\\n');
+  const stamp = new Date(Date.now()).toISOString().replace(/[-:]/g, '').replace(/\.\d+/, '');
+  const L = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//pets-timers//plan//HE', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH',
+    'BEGIN:VTIMEZONE', 'TZID:Asia/Jerusalem',
+    'BEGIN:DAYLIGHT', 'TZOFFSETFROM:+0200', 'TZOFFSETTO:+0300', 'TZNAME:IDT', 'DTSTART:19700327T020000', 'RRULE:FREQ=YEARLY;BYMONTH=3;BYDAY=FR;BYMONTHDAY=23,24,25,26,27,28,29', 'END:DAYLIGHT',
+    'BEGIN:STANDARD', 'TZOFFSETFROM:+0300', 'TZOFFSETTO:+0200', 'TZNAME:IST', 'DTSTART:19701025T020000', 'RRULE:FREQ=YEARLY;BYMONTH=10;BYDAY=-1SU', 'END:STANDARD',
+    'END:VTIMEZONE'];
+  const mn = t => Math.round(t / PL_M) * PL_M;
+  for(const it of items) L.push('BEGIN:VEVENT', `UID:${mn(it.a)}-${mn(it.b)}-${it.kind || 'x'}@pets-timers`, `DTSTAMP:${stamp}`, `DTSTART;TZID=Asia/Jerusalem:${plIcsTime(mn(it.a))}`, `DTEND;TZID=Asia/Jerusalem:${plIcsTime(mn(it.b))}`, `SUMMARY:${x(it.title)}`, `DESCRIPTION:${x(it.desc || '')}`, 'TRANSP:' + (it.kind === 'free' ? 'TRANSPARENT' : 'OPAQUE'), 'END:VEVENT');
+  L.push('END:VCALENDAR');
+  return L.map(plIcsFold).join('\r\n') + '\r\n';
+}
+function planDownload(text, name){
+  const url = URL.createObjectURL(new Blob([text], {type: 'text/calendar;charset=utf-8'})), a = document.createElement('a');
+  a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 30000);
+}
+function planCal(M){   // calendar items for the free and needed windows and the planned grooming of one day
+  const conf = f => `${PL_CONF[f.conf]} · נגמר כי: ${f.endWhy}\nלפני שיוצאים: ${f.before.join(' · ')}${f.notes.length ? '\n' + f.notes.join(' · ') : ''}`;
+  return M.free.map(f => ({kind: 'free', a: f.a, b: f.b, title: 'זמן פנוי', desc: conf(f)}))
+    .concat(M.needs.map(n => ({kind: n.kind, a: n.a, b: n.b, title: n.title, desc: n.why})));
+}
+// "אני רוצה לצאת": the best windows today and tomorrow for that long, or which dog is the limit.
+function planWantHTML(Ms){
+  const W = planWant * PL_M;
+  if(W < PLAN.minFree) Ms = [planBuild(0, W), planBuild(1, W)];   // a short outing may use a stretch shorter than the lane's minimum
+  const all = Ms.flatMap(M => M.free.map(f => ({f, M}))).filter(x => x.f.b > Date.now());
+  const fit = all.filter(x => x.f.b - x.f.a >= W).sort((x, y) => (x.f.conf === y.f.conf ? 0 : x.f.conf === 'high' ? -1 : 1) || x.f.a - y.f.a).slice(0, 3);
+  const row = ({f, M}) => `<li><b>${plDayWord(M, f.a)}${plSpan(f.a, f.b)}</b> <span class="pl-conf ${f.conf}">${PL_CONF[f.conf]}</span><small>יוצאים ב־${clock(f.a)}, חוזרים עד ${clock(Math.min(f.b, f.a + W))}</small><ul class="pl-do">${f.before.map(s => `<li>${s}</li>`).join('')}${f.notes.map(s => `<li class="pl-note">${s}</li>`).join('')}</ul></li>`;
+  if(fit.length) return `<ol class="pl-fit">${fit.map(row).join('')}</ol>`;
+  const kg = Ms[0].kg, kcap = kg.gap - PLAN.pad, best = all.sort((x, y) => (y.f.b - y.f.a) - (x.f.b - x.f.a))[0];
+  let msg;
+  if(W > kcap) msg = `המגבלה היא קוצ׳יק: היא מחזיקה כ־${words(kg.gap)}, אז לכל היותר כ־${words(kcap)} מהפיפי שלה. ליציאה ארוכה יותר מישהו יצטרך להוציא את קוצ׳יק.`;
+  else msg = best ? `${best.f.endDog ? `המגבלה היא ${PL_DOG[best.f.endDog]}` : 'המגבלה'}: ${best.f.endWhy}.` : 'המגבלה היא קישמיש: אין היום ומחר שינה צפויה בכלוב אחרי פיפי בחצץ שמספיקה ליציאה.';
+  return `<p class="pl-none">אין חלון של ${words(W)}. ${msg}</p>${best ? `<p class="pl-none">הכי קרוב: ${plDayWord(best.M, best.f.a)}${plSpan(best.f.a, best.f.b)} (${words(best.f.b - best.f.a)})</p>` : ''}`;
+}
+function planHTML(){
+  const now = Date.now(), Ms = [planBuild(0), planBuild(1)], M = Ms[planDay ? 1 : 0];
+  const cal = []; planLast = {cal};
+  const ics = it => { cal.push(it); return `<button class="btn pl-ics" data-pl="ics" data-i="${cal.length - 1}">הוספה ללוח השנה</button>`; };
+  const head = `<div class="card pl-head"><div class="pl-top"><b>תכנון</b><span class="pl-tabs"><button class="pl-chip ${planDay ? '' : 'on'}" data-pl="day" data-v="0">היום</button><button class="pl-chip ${planDay ? 'on' : ''}" data-pl="day" data-v="1">מחר</button></span></div>
+    <small>מחושב מהרישומים של ${PLAN.days} הימים האחרונים · לא נשמר כלום</small></div>`;
+  if(M.from >= M.to) return head + `<div class="card pl-empty">לילה. התכנון של היום נגמר ב־22:30 — אפשר לראות את מחר.</div>`;
+  const ln = planLanes(M), W = M.to - M.from, step = W > 10*PL_H ? 3 : W > 4*PL_H ? 2 : 1, ticks = [];
+  for(let h = Math.ceil(plTod(M.from)); planAt(M.day0, h) < M.to; h++) if(h % step === 0) ticks.push(`<span style="left:${((planAt(M.day0, h) - M.from) / W * 100).toFixed(2)}%">${pad(h)}</span>`);
+  const lane = (who, segs, cls, marks) => `<div class="pl-lane"><span class="pl-who">${PL_DOG[who]}</span>${planBarHTML(M, segs, cls, marks)}</div>`;
+  const tl = `<div class="card pl-tl"><div class="pbar" dir="ltr">${lane('me', ln.me, 'me')}${lane('kishmish', ln.kish, 'kish')}${lane('kochik', ln.koch, 'koch', M.marks)}
+    <div class="pl-ticks">${ticks.join('')}</div><div class="ptip" dir="rtl">ריחוף או נגיעה על הפס מראים שעות וסיבה</div></div>
+    <div class="pl-lg"><span><i class="need"></i>צריכים אותך</span><span><i class="free"></i>זמן פנוי</span><span><i class="uns"></i>לא בטוח</span></div>
+    <small class="pl-range">${planDay ? 'מחר' : 'היום'} ${plSpan(M.from, M.to)}${planDay ? ' · תחזית ליום שלם, פחות ודאית' : ''}</small></div>`;
+  const nexts = M.needs.filter(n => n.b > now).slice(0, 4), frees = M.free.filter(f => f.b > now).slice(0, 3);
+  const needCard = n => `<div class="card pl-card need ${n.dog}"><div class="pl-ch"><b>${n.title}</b><span>${plSpan(n.a, n.b)}</span></div><small>${n.late ? '<em>באיחור · </em>' : ''}${n.why}</small>${ics({kind: n.kind, a: n.a, b: n.b, title: n.title, desc: n.why})}</div>`;
+  const freeCard = f => `<div class="card pl-card free"><div class="pl-ch"><b>זמן פנוי</b><span>${plSpan(f.a, f.b)}</span></div><span class="pl-conf ${f.conf}">${PL_CONF[f.conf]}</span><small>${words(f.b - f.a)} · נגמר כי ${f.endWhy}</small>
+    <ul class="pl-do">${f.before.map(s => `<li>${s}</li>`).join('')}${f.notes.map(s => `<li class="pl-note">${s}</li>`).join('')}</ul>${ics({kind: 'free', a: f.a, b: f.b, title: 'זמן פנוי', desc: planCal({free: [f], needs: []})[0].desc})}</div>`;
+  const allCal = planCal(M);
+  const want = `<div class="card pl-want"><b>אני רוצה לצאת</b><div class="pl-tabs">${PLAN.wants.map(m => `<button class="pl-chip ${!planCustom && planWant === m ? 'on' : ''}" data-pl="want" data-v="${m}">${m < 60 ? m + ' דק׳' : m === 60 ? 'שעה' : m === 120 ? 'שעתיים' : m / 60 + ' שעות'}</button>`).join('')}
+    <input id="plWant" type="text" inputmode="numeric" placeholder="דקות" aria-label="כמה דקות" value="${esc(planCustom)}"></div>${planWantHTML(Ms)}</div>`;
+  const kg = M.kg, info = `<div class="card pl-info"><small>קישמיש: נרדמת אחרי כ־${words(M.st.lat)} בכלוב · ישנה בדרך כלל ${words(M.st.nap)} (${M.st.naps.length} שינות) · ערה כ־${words(M.st.awake)} בין שינות · ארוחה כל ${words(M.st.mealGap)} · פיפי כל ${words(M.ks.peeMed)}</small>
+    <small>קוצ׳יק: פיפי כל ${words(kg.gap)} לכל היותר (${kg.q ? `רבעון תחתון ${words(kg.q)} מתוך ${kg.n} פערים` : 'מעט נתונים'}${kg.sick ? ` · אחרי ${kg.sick.k === 'vomit' ? 'הקאה' : 'שלשול'}: לכל היותר ${words(PLAN.kochikSick)}` : ''}) · ארוחות: ${M.marks.length ? M.marks.map(m => clock(m.t)).join(', ') + ' (מעט נתונים)' : 'אין מספיק נתונים'}</small></div>`;
+  return head + tl + `<div class="pl-cards">${frees.map(freeCard).join('') || `<div class="card pl-card free none"><b>אין זמן פנוי ${planDay ? 'מחר' : 'בהמשך היום'}</b><small>${M.ks && M.ks.sleeps.find(s => s.why) ? 'לדוגמה: ' + M.ks.sleeps.find(s => s.why).why : ''}</small></div>`}${nexts.map(needCard).join('')}</div>`
+    + (allCal.length ? `<div class="pl-all"><button class="lnk" data-pl="icsall">כל ${planDay ? 'מחר' : 'היום'} ללוח השנה (${allCal.length})</button></div>` : '') + want + info;
+}
+function planRender(){
+  const main = document.getElementById('main'), f = document.activeElement && document.activeElement.id === 'plWant';
+  main.innerHTML = planHTML();
+  if(f){ const i = document.getElementById('plWant'); if(i){ i.focus(); try { i.setSelectionRange(i.value.length, i.value.length); } catch(_){} } }
+}
+document.getElementById('main').addEventListener('click', e => {
+  if(view !== 'plan') return;
+  const b = e.target.closest('[data-pl]'); if(!b) return;
+  const a = b.dataset.pl;
+  if(a === 'day'){ planDay = +b.dataset.v; render(); }
+  else if(a === 'want'){ planWant = +b.dataset.v; planCustom = ''; render(); }
+  else if(a === 'ics' && planLast){ const it = planLast.cal[+b.dataset.i]; if(it) planDownload(planICS([it]), `${it.kind === 'free' ? 'free' : 'dogs'}-${plIcsTime(it.a).slice(0, 13)}.ics`); }
+  else if(a === 'icsall'){ const M = planBuild(planDay), it = planCal(M); if(it.length) planDownload(planICS(it), `dogs-plan-${dayKey(M.day0)}.ics`); }
+});
+document.getElementById('main').addEventListener('input', e => {
+  if(view !== 'plan' || e.target.id !== 'plWant') return;
+  const v = e.target.value.replace(/\D/g, '').slice(0, 3); planCustom = v;
+  if(+v >= 5){ planWant = +v; planRender(); }
+});
+// ================= end of PLANNING =================
 
 // ---------- events ----------
 document.querySelectorAll('[data-pet]').forEach(b => b.onclick = () => {
