@@ -975,7 +975,7 @@ function sleepSamples(p, log, now){
 // was not marked asleep at all in the 18 / 23 minutes that followed. Median of the two marked = 22 → 25.
 // Only from the cut-off, so past days' estimates do not move. `sleepSpans` calls `treatAwakeUntil` (one line).
 const CRATE_TREAT_AWAKE = 25;   // minutes
-let CRATE_TREAT_FROM = Date.UTC(2026, 10, 25, 17, 0);   // 25.11.2026 19:00 in Israel — set to the publish time; tests move it
+let CRATE_TREAT_FROM = Date.UTC(2026, 10, 25, 13, 31);   // 25.11.2026 15:31 in Israel (the publish); tests move it
 const isCrateTreat = e => (e.k === 'play' && (e.y === 'kong' || e.y === 'lick')) || e.k === 'food';
 function treatAwakeUntil(L, c, s){   // the earliest an estimate may begin in the quiet stretch of stay c that begins at s (0 = no limit)
   let t = 0;
