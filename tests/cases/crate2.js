@@ -16,6 +16,7 @@
     tile('food').click(); tile('water').click(); logPlay('kishmish', 'lick', true); logPlay('kishmish', 'rope', true); logNoFood('kishmish', true);
     ok('from the food and play cards too: eating, drinking and playing never end the crate', !!K().crate.start && stays().length === 1 && roundStarts('kishmish').length === 1 && cur() === 'כלוב');
     ok('they are listed in the current round', $n('.uni .rd') === 2 && $q('.uni .rd').textContent.includes('קונג ממולא') && $q('.uni .rd').textContent.includes('שתתה'));
+    { const t0 = Date.now(); while(Date.now() < t0 + 3); }   // real taps are never in the same millisecond as the meal before them
     tile('pee').click(); sh.querySelector('[data-w=gravel]').click();
     ok('a pee still means she came out', !K().crate.start && !!stays()[0].end && !$q('#sec-crate .incr'));
     ok('out of the crate the wheel goes on from what happened since, not from the meal she had inside', cur() === 'משחק');

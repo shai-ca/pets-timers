@@ -437,6 +437,90 @@
     main.grps{grid-template-columns:repeat(3,minmax(0,1fr));grid-template-areas:"crate potty food" "play potty bath"}
     main.grps.solo{grid-template-areas:"food potty meds" "vomit bath meds"}
   }
+
+  /* ================= DESIGN V2 (on trial, switch at the bottom; everything here is under .v2) ================= */
+  :root{--c-sleep:#8f8aa6; --c-crate:#dcc9b2; --c-out:#6fb08f}
+  .night{--c-sleep:#8c86b4; --c-crate:#6b5843; --c-out:#5fa583}
+  .dsw{text-align:center;padding:26px 0 8px;font-size:13px}
+  .dsw .lnk{color:var(--muted)}
+  .morebtn{display:none}
+  .v2 .morebtn{display:inline-block;margin-top:2px;font-size:12.5px;color:var(--acc);padding:2px 0}
+  .v2 .card.item:not(.open) .hint.x{display:none}
+  /* flatter: no box around a group, just its heading */
+  .v2 h2.sec{margin:14px 2px 0;font-size:13px;color:var(--muted);font-weight:600}
+  .v2 h2.sec.now{color:var(--ink)}
+  .v2 .grp{gap:8px}
+  .v2 .card{border-radius:16px;box-shadow:none}
+  /* tiles as rows: icon · clock and one line · the button */
+  .v2 .item{grid-template-columns:38px minmax(0,1fr) auto;gap:12px;padding:12px 14px}
+  .v2 .item .ic{width:38px;height:38px;border-radius:12px}
+  .v2 .item .big{font-size:24px;line-height:1.2}
+  .v2 .item .big.txt{font-size:18px}
+  .v2 .item .go{min-width:92px;padding:10px 14px}
+  .v2 .item .ghost{padding:3px}
+  .v2 .item .sub{line-height:1.45}
+  /* sleep and crying: two slim rows instead of two half-empty columns */
+  .v2 .duo{grid-template-columns:1fr;gap:8px}
+  .v2 .duo .card.item{display:grid;grid-template-columns:38px minmax(0,1fr) auto;gap:12px;padding:12px 14px}
+  .v2 .duo .card.item .ic{width:38px;height:38px}
+  .v2 .duo .card.item .big{font-size:21px}
+  .v2 .duo .card.item .go{min-width:92px}
+  /* the routine as a row of steps with arrows, and a loop back */
+  .v2 .card.cyc .cyc-h{margin-bottom:8px}
+  .flow-now.rc{position:static;transform:none;width:auto;text-align:start;pointer-events:auto;line-height:1.3}
+  .flow-now.rc b,.flow-now.rc span{display:inline}
+  .flow .fs.sg{animation:none;fill:none;stroke:none;filter:none} .flow .fs svg{stroke:currentColor;stroke-dasharray:none}
+  .flow-now{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+  .flow-now b{font-size:18px} .flow-now span{color:var(--muted);font-size:13px} .flow-now br{display:none}
+  .flow-now .zzi{color:var(--ok);align-self:center}
+  .flow{display:flex;align-items:center;gap:2px}
+  .flow .fs{flex:1 1 0;min-width:0;display:flex;flex-direction:column;align-items:center;gap:3px;border:1.5px solid transparent;background:var(--seg);color:var(--muted);border-radius:12px;padding:8px 2px 6px;font:inherit;font-size:12px;line-height:1.2;cursor:pointer;text-align:center}
+  .flow .fs span{overflow-wrap:anywhere}
+  .flow .fs.done{background:var(--acc-soft);color:var(--ink)}
+  .flow .fs.cur{background:var(--btn);color:var(--on-btn);font-weight:600}
+  .flow .fs.cur.over{background:var(--alert)}
+  .flow .fs.nxt{border-color:var(--btn);border-style:dashed;color:var(--ink)}
+  .flow .ar{flex:none;width:9px;height:9px;border-left:2px solid var(--faint);border-bottom:2px solid var(--faint);transform:rotate(45deg);margin:0 1px}
+  .loop{position:relative;height:16px;margin:2px 9% 0;border:2px solid var(--faint);border-top:0;border-radius:0 0 12px 12px;text-align:center}
+  .loop::after{content:"";position:absolute;right:-6px;top:-3px;border:5px solid transparent;border-bottom:7px solid var(--faint);border-top:0}
+  .loop span{position:relative;top:8px;background:var(--card);padding:0 8px;font-size:11.5px;color:var(--muted)}
+  .v2 .wheelhint{margin-top:12px}
+  /* the day ribbon and the round bars */
+  .ribbon{display:flex;flex-direction:column;gap:10px}
+  .rb-h{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+  .rb-h b{font-size:15px} .rb-h small{font-size:12px;color:var(--muted)}
+  .rtot{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+  .rtot div{display:flex;flex-direction:column;font-size:12px;color:var(--muted);min-width:0}
+  .rtot b{font-size:19px;color:var(--ink);font-variant-numeric:tabular-nums;direction:ltr;text-align:right}
+  .rtot i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-inline-end:5px;vertical-align:-1px}
+  .rtot .sleep i,.pt.sleep{background:var(--c-sleep)} .rtot .crate i,.pt.crate{background:var(--c-crate)} .rtot .out i,.pt.out{background:var(--c-out)}
+  .pbar .pb{position:relative;height:26px;border-radius:8px;background:var(--seg);overflow:hidden}
+  .pbar .pt{position:absolute;top:0;bottom:0}
+  .pbar .pm{position:relative;height:18px;margin-top:3px}
+  .pbar .mk{position:absolute;width:15px;height:15px;transform:translateX(-50%);color:var(--acc)}
+  .pbar .mk.pee,.pbar .mk.poop{color:var(--ok)} .pbar .mk.bad{color:var(--alert)}
+  .ribbon .ticks{position:relative;height:14px;font-size:11px;color:var(--muted);margin-top:-2px}
+  .ribbon .ticks span{position:absolute;transform:translateX(-50%)}
+  .ribbon .ticks span:first-child{transform:none}
+  .rlg{display:flex;flex-wrap:wrap;align-items:center;gap:4px 6px;font-size:12px;color:var(--muted)}
+  .rlg svg.i{width:14px;height:14px} .rlg em{font-style:normal;color:var(--alert);margin-inline-start:6px}
+  .rbar{padding:2px 0 8px} .rbar .pb{height:16px;border-radius:6px} .rbar .pm{height:15px} .rbar .mk{width:13px;height:13px}
+  .rbar small{font-size:12px;color:var(--muted)}
+  @media (min-width:760px){
+    .v2 main.grps > .grp{background:none;border:0;padding:0;box-shadow:none;border-radius:0}
+    .v2 main.grps > .grp.now{box-shadow:none}
+    .v2 main.grps > .grp > h2.sec{margin:0 2px 2px;font-size:14px}
+    .v2 main.grps{grid-template-areas:"crate potty" "food potty" "play bath"}
+    .v2 main.grps.solo{grid-template-areas:"food potty" "meds vomit" "meds bath"}
+    .v2 main.grps > .ribbon{grid-column:1/-1}
+  }
+  @media (min-width:1000px){
+    .v2 #side > .card.cyc{padding:18px}
+  }
+  @media (min-width:1860px){
+    .v2 main.grps{grid-template-areas:"crate potty food" "play potty bath"}
+    .v2 main.grps.solo{grid-template-areas:"food potty meds" "vomit bath meds"}
+  }
 </style>
 </head>
 <body>
@@ -454,6 +538,7 @@
     <button data-view="sum">סיכום</button>
   </div>
   <div class="shell" id="shell"><aside id="side"></aside><main id="main"></main></div>
+  <div class="dsw" id="dsw"></div>
 </div>
 <div class="toast" id="toast"><span id="toastMsg"></span><button id="undo">ביטול</button><div class="tw" id="toastWhere"></div></div>
 <div class="bg" id="sheetBg"><div class="sheet" id="sheet"></div></div>
@@ -862,6 +947,12 @@ try {
 if(!base) base = clone(state);
 try { const p = localStorage.getItem(LS_KEY+'-tab'); if(p && PETS[p]) pet = p; } catch(e){}
 try { const u = localStorage.getItem(LS_KEY+'-user'); if(USERS[u]) me = u; } catch(e){}
+// DESIGN V2 (25.11, on trial): a display choice of this phone only (`localStorage`, never the list). Off by default;
+// "עיצוב חדש" at the bottom of the screen turns it on and off. Everything it changes is CSS under `.v2` plus a few
+// additions (the step strip, "עוד", the day ribbon); every button keeps its `data-act`, so the actions are the same code.
+let V2 = false;
+try { V2 = localStorage.getItem(LS_KEY+'-v2') === '1'; } catch(e){}
+const openX = new Set();   // tiles whose extra lines are unfolded ("עוד"), this session only
 function saveLocal(){ try{ localStorage.setItem(LS_DATA, JSON.stringify({state, base})); }catch(e){} }
 
 // ONE ADDRESS. The app lives at pets-timers.firebaseapp.com (sign-in is same-site there, and there is one
@@ -1276,7 +1367,7 @@ const ageOf = p => ageParts(V[p].born, todayIL());
 function holdHours(p){ const a = ageOf(p); return !a || a.y ? 0 : Math.min(8, a.m + 1); }   // 0 = no limit (a year old or more)
 function holdHint(p){
   const h = holdHours(p); if(!h) return '';
-  return `<div class="sub hint byage">לפי הגיל: ${h === 1 ? 'עד כשעה' : h === 2 ? 'עד כשעתיים' : `עד כ־${h} שעות`}</div>`;
+  return `<div class="sub hint byage x">לפי הגיל: ${h === 1 ? 'עד כשעה' : h === 2 ? 'עד כשעתיים' : `עד כ־${h} שעות`}</div>`;
 }
 function openProfileSheet(p){
   const name = PETS[p].name, cur = V[p].born, today = todayIL(), dmy = s => s.split('-').reverse().map(Number).join('.');
@@ -1703,7 +1794,7 @@ function groupedHTML(p, from, to){
   };
   const rows = ev => ev.length ? ev.map(logRow).join('') : `<div class="empty">אין רישומים</div>`;
   for(const r of rs.slice().reverse())
-    parts.push(`<div class="rd"><div class="rd-h"><b>${roundName(r)}</b><span>התחיל ב־<bdi dir="ltr">${clock(r.t)}</bdi> · ${r.end ? 'נמשך '+words(r.end-r.t) : 'עכשיו'}</span></div>${rows(all.filter(e => at(e) >= r.t && at(e) < Math.min(r.end || Infinity, to)))}</div>`);
+    parts.push(`<div class="rd"><div class="rd-h"><b>${roundName(r)}</b><span>התחיל ב־<bdi dir="ltr">${clock(r.t)}</bdi> · ${r.end ? 'נמשך '+words(r.end-r.t) : 'עכשיו'}</span></div>${V2 ? roundBar(p, r, to) : ''}${rows(all.filter(e => at(e) >= r.t && at(e) < Math.min(r.end || Infinity, to)))}</div>`);
   // What began before this day and ran on into it (last night's crate stay and the sleep in it) is listed too, at
   // the bottom, so the day's rows add up to the day's totals.
   const now = Date.now(), over = e => e.t < from && (e.end == null ? now : e.end) > from;
@@ -1713,6 +1804,51 @@ function groupedHTML(p, from, to){
   if(lead.length) parts.push(`<div class="rd"><div class="rd-h"><b>${rs.length ? 'לפני הסבב הראשון' : 'בלי סבב'}</b></div>${rows(lead)}</div>`);
   if(night.length) parts.push(`<div class="rd night"><div class="rd-h"><b>מהלילה</b><span>התחיל ביום הקודם ונמשך אל תוך היום הזה</span></div>${rows(night)}</div>`);
   return parts.join('') || `<div class="empty">אין עדיין רישומים</div>`;
+}
+// SLEEP / AWAKE IN THE CRATE / OUT (new design, the owner's "option A", 25.11): every moment of [a, b) is one of the
+// three — asleep (a marked or an estimated sleep, `V[p].spans`), else inside a crate stay, else out of the crate and
+// awake (play and free time; play itself has no duration in the list). Derived only; nothing is saved.
+const PART = {sleep:'שינה', crate:'ערה בכלוב', out:'בחוץ'};
+function dayParts(p, a, b){
+  const now = Date.now(); b = Math.min(b, now);
+  const segs = [], tot = {sleep:0, crate:0, out:0}; if(b <= a) return {segs, tot};
+  const iv = L => L.map(x => [x.t, x.end == null ? now : x.end]).filter(([x, y]) => x < b && y > a);
+  const sl = iv(V[p].spans.filter(x => x.t <= now)), cr = iv(state.log.filter(e => e.p===p && e.k==='crate'));
+  const cuts = new Set([a, b]); for(const [x, y] of sl.concat(cr)) for(const t of [x, y]) if(t > a && t < b) cuts.add(t);
+  const c = [...cuts].sort((x, y) => x - y), inn = (L, t) => L.some(([x, y]) => x <= t && t < y);
+  for(let i = 0; i < c.length - 1; i++){
+    const m = (c[i] + c[i+1]) / 2, k = inn(sl, m) ? 'sleep' : inn(cr, m) ? 'crate' : 'out', last = segs[segs.length-1];
+    tot[k] += c[i+1] - c[i];
+    if(last && last.k === k) last.b = c[i+1]; else segs.push({k, a:c[i], b:c[i+1]});
+  }
+  return {segs, tot};
+}
+const hmm = ms => { const m = Math.round(ms / 60000); return `${Math.floor(m/60)}:${pad(m % 60)}`; };
+// A bar of [a, b): the three parts in colour, and under it what she did (pee / poop / meal / play; a pee or poop that
+// was not on the gravel or outside is red). Time runs left to right, like the summary's charts.
+function partsBar(p, a, b, dp){
+  const W = Math.max(1, b - a), pc = t => ((t - a) / W * 100).toFixed(2);
+  const bar = dp.segs.map(s => `<span class="pt ${s.k}" style="left:${pc(s.a)}%;width:${((s.b - s.a) / W * 100).toFixed(2)}%" title="${PART[s.k]} ${clock(s.a)}–${clock(s.b)}"></span>`).join('');
+  const mk = state.log.filter(e => e.p===p && e.t >= a && e.t < b && (e.k==='pee' || e.k==='poop' || e.k==='play' || (e.k==='food' && mealKind(e) === 'meal'))).map(e => {
+    const bad = (e.k==='pee' || e.k==='poop') && WHERE[e.w] && e.w !== 'gravel' && e.w !== 'out';
+    return `<svg class="i mk ${e.k} ${bad ? 'bad' : ''}" viewBox="0 0 24 24" style="left:${pc(e.t)}%">${ICONS[e.k === 'play' ? 'ball' : e.k]}</svg>`;
+  }).join('');
+  return `<div class="pbar" dir="ltr"><div class="pb">${bar}</div><div class="pm">${mk}</div></div>`;
+}
+function ribbonHTML(p){
+  const now = Date.now(), a = sod(now).getTime(), all = now - a, dp = dayParts(p, a, now);
+  if(all < 60000) return '';
+  const ks = ['sleep', 'crate', 'out'], ticks = [];
+  for(let h = 0; h * 3600000 < all - 1800000; h += 3) ticks.push(`<span style="left:${(h * 3600000 / all * 100).toFixed(2)}%">${pad(h)}</span>`);
+  return `<div class="card ribbon">
+    <div class="rb-h"><b>היום במבט אחד</b><small>מ־00:00 עד עכשיו</small></div>
+    <div class="rtot">${ks.map(k => `<div class="${k}"><span><i></i>${k === 'out' ? 'בחוץ · משחק וחופש' : PART[k]}</span><b>${hmm(dp.tot[k])}</b><small>${Math.round(dp.tot[k] / all * 100)}%</small></div>`).join('')}</div>
+    ${partsBar(p, a, now, dp)}<div class="ticks" dir="ltr">${ticks.join('')}</div>
+    <div class="rlg">${ico('pee','s')}פיפי ${ico('poop','s')}קקי ${ico('food','s')}ארוחה ${ico('ball','s')}משחק <em>אדום: לא בחצץ</em></div></div>`;
+}
+function roundBar(p, r, to){   // new design: the round as a bar, with how much of it she slept and was out
+  const b = Math.min(r.end || Date.now(), to, Date.now()), dp = dayParts(p, r.t, b);
+  return b > r.t ? `<div class="rbar">${partsBar(p, r.t, b, dp)}<small>שינה ${hmm(dp.tot.sleep)} · ערה בכלוב ${hmm(dp.tot.crate)} · בחוץ ${hmm(dp.tot.out)}</small></div>` : '';
 }
 // Add an entry at a chosen time (for something that was missed), from the list's header.
 function openAddSheet(p){
@@ -1798,9 +1934,10 @@ function todayTotal(p, k){
 function render(){
   V = derive(state);   // also by the clock: an assumed sleep begins a couple of minutes after she goes in, with no tap
   const night = isNight(), slim = night && !nightFull && view === 'now' && PETS[pet].cycle;
-  document.body.className = document.documentElement.className = 'p-'+pet + (isDark() ? ' night' : '');   // the colours follow the light (20:00 – sunrise); `night` above is the cut-down screen
+  document.body.className = document.documentElement.className = 'p-'+pet + (isDark() ? ' night' : '') + (V2 ? ' v2' : '');   // the colours follow the light (20:00 – sunrise); `night` above is the cut-down screen
   document.querySelectorAll('.seg button').forEach(b => b.classList.toggle('on', b.dataset.pet===pet || b.dataset.view===view));
   document.querySelectorAll('.seg button[data-pet]').forEach(b => { b.innerHTML = `${PETS[b.dataset.pet].name}<small class="age">${ageText(ageOf(b.dataset.pet))}</small>`; });
+  document.getElementById('dsw').innerHTML = `<button class="lnk" data-act="v2">${V2 ? 'עיצוב חדש פעיל · חזרה לעיצוב הקודם' : 'לנסות את העיצוב החדש'}</button>`;
   const side = document.getElementById('side'); side.innerHTML = '';
   document.getElementById('main').className = view === 'now' && !slim ? (PETS[pet].cycle ? 'grps' : 'grps solo') : '';
   if(view==='sum'){ document.getElementById('main').innerHTML = renderSummary(); return; }
@@ -1834,16 +1971,18 @@ function render(){
     const it = ITEMS[k], nowt = tap.includes(k) ? 'nowt' : ''; let h = '';
     if(!it.dur){
       const t = S[k];
-      h += `<div class="card item ${nowt}">
+      h += `<div class="card item ${nowt} ${openX.has(pet+k) ? 'open' : ''}">
         <div class="ic">${ico(k)}</div>
         <div><div class="lbl">${P.cycle && k === 'food' ? 'מאז הארוחה האחרונה' : it.lbl}</div>   <!-- the clock counts from the last MEAL; a bite is the line under it -->
           ${it.slow ? `<div class="big txt ${t?'':'none'}">${t ? wordsLong(Date.now()-t) : '–'}</div>`
                     : `<div class="big ${t?'':'none'}" ${t?`data-since="${t}"`:''}>${t ? dur(Date.now()-t) : '–'}</div>`}
           <div class="sub">${t ? `${dayLabel(t)} ב־${clock(t)}${whereOf(pet,k,t) || (hasWhere(k) ? ` · <button class="lnk" data-act="where" data-k="${k}">איפה?</button>` : '')}${typeOf(pet,k,t)}${byOf(pet,k,t)}` : 'עוד לא נרשם'}</div>
-          ${P.cycle && k === 'pee' ? forecastLine(pet) : ''}${k === 'pee' ? holdHint(pet) : ''}${P.cycle && k === 'poop' ? poopLine(pet) + poopHints(pet) : ''}${P.cycle && k === 'food' && S.bite > (S.food || 0) ? `<div class="sub hint bite">ביס אחרון ב־<bdi dir="ltr">${clock(S.bite)}</bdi> · לא מאפס את השעון</div>` : ''}${P.cycle && k === 'food' ? mealLine(pet) : ''}${k === 'bath' ? bathLine(pet) : ''}${todayWhere(pet,k) ? `<div class="sub hint">${todayWhere(pet,k)}</div>` : ''}${P.cycle && typical(pet,k) ? `<div class="sub hint">${typical(pet,k)}</div>` : ''}${it.note ? `<div class="sub hint">${it.note}</div>` : ''}</div>
+          ${P.cycle && k === 'pee' ? forecastLine(pet) : ''}${k === 'pee' ? holdHint(pet) : ''}${P.cycle && k === 'poop' ? poopLine(pet) + poopHints(pet) : ''}${P.cycle && k === 'food' && S.bite > (S.food || 0) ? `<div class="sub hint bite">ביס אחרון ב־<bdi dir="ltr">${clock(S.bite)}</bdi> · לא מאפס את השעון</div>` : ''}${P.cycle && k === 'food' ? mealLine(pet) : ''}${k === 'bath' ? bathLine(pet) : ''}${todayWhere(pet,k) ? `<div class="sub hint x">${todayWhere(pet,k)}</div>` : ''}${P.cycle && typical(pet,k) ? `<div class="sub hint x">${typical(pet,k)}</div>` : ''}${it.note ? `<div class="sub hint x">${it.note}</div>` : ''}MOREBTN</div>
         <div class="acts"><button class="go" data-act="pt" data-k="${k}">${it.btn}</button>
           <button class="ghost" data-act="edit" data-k="${k}">${ico('clock','s')}שעה אחרת</button>
           ${P.cycle && k === 'food' ? `<button class="ghost" data-act="nofood">${ico('none','s')}לא אכלה</button>` : ''}</div></div>`;
+      // "עוד" (new design): the reference lines (class `x`) fold away until asked for; the old design shows them as always.
+      h = h.replace('MOREBTN', /class="sub hint[^"]*\bx\b/.test(h) ? `<button class="lnk morebtn" data-act="more" data-k="${k}">${openX.has(pet+k) ? 'פחות' : 'עוד'}</button>` : '');
     } else {
       const d = S[k] || {}, live = !!d.start, tt = todayTotal(pet,k);
       let lbl, big, sub;
@@ -1919,6 +2058,7 @@ waterRowHTML(pet) + (P.treats ? treatCardHTML(pet) : ''), 'food');
   side.innerHTML = sideHTML;
   if(P.cycle){
     const a = sod(Date.now()), b = new Date(a); b.setDate(b.getDate()+1);
+    if(V2) h += ribbonHTML(pet);
     h += `<h2>היום לפי סבבים<small>לחיצה על רישום לתיקון · <button class="lnk" data-act="prevdays">ימים קודמים</button> · <button class="lnk" data-act="addev">הוספת רישום</button></small></h2><div class="card log uni">${groupedHTML(pet, a.getTime(), b.getTime())}</div>`;
   } else {
     const items = state.log.filter(e => e.p===pet && !ITEMS[e.k].hid && !ITEMS[e.k].nolist).slice(-25).reverse();
@@ -1969,9 +2109,9 @@ function cycleHTML(p){
     : `אחרי האוכל מוציאים שוב לצרכים, ואז לוחצים <b>פיפי</b>, <b>קקי</b> או <b>״לא עשתה״</b>.`;
   return `<div class="card cyc ${due||over||long3?'due':''}">
     <div class="cyc-h"><b>השגרה של ${PETS[p].name}</b><small>${r && !r.brk && rn ? roundName(rn)+' · ' : r && r.brk ? 'בהפסקה · ' : ''}<button class="lnk" data-act="help">איך זה עובד?</button></small></div>
-    <div class="steps"><svg class="ring" viewBox="0 0 200 200" aria-hidden="true">${segs}</svg>
+    ${V2 ? flowHTML(cls, centre) : `<div class="steps"><svg class="ring" viewBox="0 0 200 200" aria-hidden="true">${segs}</svg>
       <div class="rc">${centre}</div>${labels}</div>
-    <div class="sub wheelhint">לחיצה על שלב בגלגל מקפיצה לכרטיסים שלו</div>
+    <div class="sub wheelhint">לחיצה על שלב בגלגל מקפיצה לכרטיסים שלו</div>`}
     ${long3 ? `<div class="duemsg">${ico('pee','s')}<span>עברו ${words(now - S.pee)} מהפיפי האחרון · להוציא לחצץ</span></div>` : ''}
     ${tired ? `<div class="zz">${ico('sleep','s')}<span>ערה כבר ${words(now - aw)} · לכלוב לישון</span></div>` : ''}
     ${ft && ft.phase !== 'run' && !inCrate ? `<div class="frm">${ico('paw','s')}<span>זמן החופש נגמר (${FREE.min} דקות מהפיפי) · חזרה לשגרה</span></div>` : ''}
@@ -1980,6 +2120,14 @@ function cycleHTML(p){
     ${asleep ? `<div class="zz">${ico('sleep','s')}<span>ישנה ${S.sleep.assumed ? 'כנראה ' : ''}מ־<bdi dir="ltr">${clock(S.sleep.start)}</bdi> · נותנים לה לישון${S.sleep.assumed ? ' <small>(הנחה: נרדמת בכלוב תוך כמה דקות)</small>' : ''}</span><button class="lnk" data-act="notasleep">לא נרדמה</button></div>` : ''}
     <div class="cyc-n"><span class="nx"><b>מה עושים עכשיו?</b>${what}${routineTap(p).length ? ` החלק המתאים למטה מסומן <span class="tagk">עכשיו בשגרה</span>.` : ''}</span>
       ${r && !r.brk && !inCrate ? `<button class="ghost" data-act="brk">${ico('none','s')}הפסקה בשגרה</button>` : ''}</div></div>`;
+}
+// New design: the wheel as a row of the five steps with arrows between them and a loop back from the last to the
+// first (the owner asked for arrows, so it reads as a cycle). Same classes and the same jump (`data-go`) as the ring.
+function flowHTML(cls, centre){
+  return `<div class="flow-now rc">${centre}</div>
+    <div class="flow">${CYCLE.map((s, i) => `${i ? '<i class="ar" aria-hidden="true"></i>' : ''}<button class="fs sg rl ${cls(i)}" data-go="${STEP_SEC[i]}">${ico(STEP_ICON[i], 's')}<span>${s.n}</span></button>`).join('')}</div>
+    <div class="loop" aria-hidden="true"><span>וחוזר חלילה</span></div>
+    <div class="sub wheelhint">לחיצה על שלב מקפיצה לכרטיסים שלו</div>`;
 }
 function openHelp(){
   sh.innerHTML = `<h3>איך זה עובד?</h3>
@@ -2108,7 +2256,7 @@ function forecastLine(p){
   const quiet = (V[p].sleep && V[p].sleep.start) || (V[p].crate && V[p].crate.start);   // asleep or in the crate: no alarm colours
   const why = ` <button class="lnk fcq" data-act="fcwhy" aria-label="איך זה מחושב?">?</button>`;
   // Her usual gap against the age guideline — said only when they differ by PEE_VS_AGE or more; this line then carries the number, once.
-  const note = Math.abs(f.vsAge) >= PEE_VS_AGE ? `<div class="sub hint ${f.vsAge > 0 ? 'longer' : 'shorter'}">בדרך כלל מחזיקה ${f.vsAge > 0 ? 'יותר' : 'פחות'}: כ־${words(f.med)}</div>` : '';
+  const note = Math.abs(f.vsAge) >= PEE_VS_AGE ? `<div class="sub hint x ${f.vsAge > 0 ? 'longer' : 'shorter'}">בדרך כלל מחזיקה ${f.vsAge > 0 ? 'יותר' : 'פחות'}: כ־${words(f.med)}</div>` : '';
   if(f.state === 'soon') return `<div class="sub fc">הפיפי הבא צפוי ${span}${why}</div>${note}`;
   if(f.state === 'now') return `<div class="sub fc ${quiet ? '' : 'now'}"><i></i>הפיפי הבא צפוי עכשיו · עד <bdi dir="ltr">${clock(f.to)}</bdi>${why}</div>${note}`;
   return `<div class="sub fc ${quiet ? '' : 'late'}"><i></i>הפיפי היה צפוי עד <bdi dir="ltr">${clock(f.to)}</bdi>${why}</div>${note}`;
@@ -2463,6 +2611,11 @@ function goSec(key){
   els.forEach(n => { n.classList.remove('flash'); void n.offsetWidth; n.classList.add('flash'); });
   setTimeout(() => els.forEach(n => n.classList.remove('flash')), 1500);
 }
+document.getElementById('dsw').addEventListener('click', e => {
+  if(!e.target.closest('[data-act=v2]')) return;
+  V2 = !V2; try { localStorage.setItem(LS_KEY+'-v2', V2 ? '1' : '0'); } catch(_){}
+  render(); window.scrollTo(0, 0);
+});
 document.getElementById('shell').addEventListener('click', e => {
   const go = e.target.closest('[data-go]');
   if(go){ goSec(go.dataset.go); return; }
@@ -2487,6 +2640,7 @@ document.getElementById('shell').addEventListener('click', e => {
     const d = sod(Date.now()); d.setDate(d.getDate() - 1);
     view = 'sum'; sumMode = 'day'; sumFilter = null; sumAnchor = d.getTime(); render(); window.scrollTo(0, 0);
   }
+  else if(a==='more'){ openX.has(pet+k) ? openX.delete(pet+k) : openX.add(pet+k); render(); }
   else if(a==='brk') goBreak(pet);
   else if(a==='swap') askSwap(pet);
   else if(a==='fcwhy') forecastWhy(pet);
