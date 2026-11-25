@@ -1454,13 +1454,14 @@ function holdHours(p){ const a = ageOf(p); return !a || a.y ? 0 : Math.min(8, a.
 // HOW MUCH SLEEP SHE NEEDS (the owner, 25.11: "how many hours she slept out of how many we want"): the common
 // guideline for puppies — about 18 hours a day until 4 months, 16 until 6, 14 until a year. Measured over the last
 // 24 hours (since midnight cannot be compared with a daily amount at noon), from `dayParts`.
-function sleepGoal(p){ const a = ageOf(p); return !a || a.y ? 0 : a.m < 4 ? 18 : a.m < 6 ? 16 : 14; }
+function sleepGoal(p){ const a = ageOf(p); return !a || a.y ? 0 : a.m < 4 ? 18 : a.m < 6 ? 16 : 14; }   // the bottom of the range
+const sleepGoalTop = p => sleepGoal(p) ? sleepGoal(p) + 2 : 0;   // a guiding range (owner, 25.11: 18–20 h at two months); above it is only noted
 function sleepGoalHTML(p){
   const g = sleepGoal(p); if(!g) return '';
   const now = Date.now(), got = dayParts(p, now - 24*3600000, now).tot.sleep, pc = Math.min(100, got / (g*3600000) * 100), short = g*3600000 - got;
-  const tg = `יעד לגילה: ${g} שעות ב־24 שעות`, tf = `ישנה ${hmm(got)} מאז ${when(now - 24*3600000)}`;
+  const tg = `טווח לגילה: ${g}–${sleepGoalTop(p)} שעות ב־24 שעות`, tf = `ישנה ${hmm(got)} מאז ${when(now - 24*3600000)}`;
   return `<div class="gauge goal ${short <= 0 ? 'met' : short > 3*3600000 ? 'low' : ''}"><div class="gg" dir="ltr" data-tip="${tg}" title="${tg}"><span class="gf" style="width:${pc.toFixed(1)}%" data-tip="${tf}" title="${tf}"></span></div>
-    <small>ב־24 השעות האחרונות ישנה <b dir="ltr">${hmm(got)}</b> מתוך ${g} שעות${short > 0 ? ` · חסרות ${words(short)}` : ' · עמדה ביעד'}</small><div class="ptip"></div></div>`;
+    <small>ב־24 השעות האחרונות ישנה <b dir="ltr">${hmm(got)}</b> מתוך ${g}–${sleepGoalTop(p)} שעות${short > 0 ? ` · חסרות ${words(short)}` : got > sleepGoalTop(p)*3600000 ? ' · יותר מהטווח, זה בסדר' : ' · בטווח'}</small><div class="ptip"></div></div>`;
 }
 // SCORES, like a sleep ring (the owner, 25.11, after Oura's sleep / readiness scores). All from the list, last 24 hours:
 // SLEEP 0–100 = total against her goal (50) + how long her stretches are, 60 min = full (25) + last night, 22:00–06:00,
@@ -1723,28 +1724,31 @@ function cryStatsHTML(p, from, to){
   return `<div class="card slim crysum"><span><b>${head}</b><small>${need}${c.asked && pr ? ' · '+pr : ''}</small></span>${ico('cry','s')}</div>`;
 }
 const ALERT = {food: 3.5*3600000, pee: 6*3600000, poop: 48*3600000, again: 45*60000};   // poop: a backstop only — the poop card says quietly when it is longer than usual for her
-// WAKE BY (owner, 25.11): while she sleeps by day, the latest time to let her sleep is the earliest of (a) the sleep's
-// start + her usual long nap (75th percentile, owner's choice) of the last WAKE.days days (no night sleeps, none under WAKE.minNap), (b) the last pee +
-// the age limit (`holdHours`), (c) the expected meal (last meal + `mealGap`) + WAKE.mealLate — and never later than
-// ALERT.food after the last meal, the same time the food banner uses, so the two never disagree (owner, 25.11).
+// WAKE BY (owner, 25.11, revised): a natural day sleep is not cut short for being long. While she sleeps by day,
+// "wake her" comes only from need: WAKE.sleepNoPee (4 h) since the last pee, or ALERT.food (3.5 h, the same as the food
+// banner) since the last meal — whichever is first. Past the age limit (`holdHours`) from the pee there is only a calm
+// note (`sleepPeeNote`). Her usual long nap (`napMedian`, 75th percentile) is described, never used to wake her.
 // None at night (a sleep touching 23:00–05:00).
-const WAKE = {days:3, napQ:.75, minNap:15*60000, mealLate:2*3600000};
+const WAKE = {days:3, napQ:.75, minNap:15*60000, sleepNoPee:4*3600000};
 function napMedian(p){
   const now = Date.now(), from = now - WAKE.days*86400000;
   const n = V[p].spans.filter(x => x.end != null && x.end <= now && x.t >= from && x.end - x.t >= WAKE.minNap && !touchesNight(x.t, x.end)).map(x => x.end - x.t);
-  return n.length >= 3 ? quantile(n.sort((x,y) => x-y), WAKE.napQ) : 0;   // the 75th percentile: half her naps are under 35 min (25.11), so the median would wake her too soon
+  return n.length >= 3 ? quantile(n.sort((x,y) => x-y), WAKE.napQ) : 0;   // descriptive only
 }
 function wakeBy(p){
   const S = V[p], st = S.sleep && S.sleep.start, now = Date.now();
   if(!PETS[p].cycle || !st || touchesNight(st, now)) return null;
-  const c = [], nm = napMedian(p), g = mealGap(p);
-  if(nm) c.push([st + nm, `נמנום רגיל אצלה: ${words(nm)}`]);
-  if(S.pee && holdHours(p)) c.push([S.pee + holdHours(p)*3600000, `לפי הגיל: עד כ־${words(holdHours(p)*3600000)} בלי פיפי`]);
-  if(S.food && g) c.push([S.food + g + WAKE.mealLate, `הארוחה הייתה צפויה ב־${clock(S.food + g)}`]);
+  const c = [];
+  if(S.pee) c.push([S.pee + WAKE.sleepNoPee, `${words(WAKE.sleepNoPee)} מהפיפי האחרון`]);
   if(S.food) c.push([S.food + ALERT.food, `${words(ALERT.food)} מהארוחה האחרונה`]);
   if(!c.length) return null;
   c.sort((x, y) => x[0] - y[0]);
   return {t: c[0][0], why: c[0][1], past: now >= c[0][0]};
+}
+function sleepPeeNote(p){   // asleep by day, past the age limit from the pee but not yet WAKE.sleepNoPee: information only
+  const S = V[p], h = holdHours(p) * 3600000, now = Date.now();
+  if(!S.sleep || !S.sleep.start || !S.pee || !h || touchesNight(S.sleep.start, now)) return '';
+  const d = now - S.pee; return d >= h && d < WAKE.sleepNoPee ? `עברו ${words(d)} מהפיפי (לפי הגיל: עד כ־${words(h)}) · לא חייבים להעיר` : '';
 }
 function alerts(p){
   if(!PETS[p].cycle) return [];
@@ -2192,6 +2196,8 @@ function render(){
       if(k === 'sleep' && live && P.cycle){ const wb = wakeBy(pet);   // after the totals: until when, and what comes next
         sub += wb ? (wb.past ? `<span class="wake past"><b>כדאי להעיר אותה ולצאת לחצץ</b><small>עבר ${clock(wb.t)} · ${wb.why}</small></span>`
           : `<span class="wake"><b>נותנים לה לישון עד ${clock(wb.t)} לכל המאוחר</b><small>${wb.why}</small></span>`) : '';
+        if(sleepPeeNote(pet)) sub += `<span class="wake then">${sleepPeeNote(pet)}</span>`;
+        if(napMedian(pet)) sub += `<span class="wake then">נמנום ארוך רגיל אצלה: כ־${words(napMedian(pet))}</span>`;
         sub += `<span class="wake then">כשהיא מתעוררת: חצץ ואז אוכל</span>`; }
       const over = k==='crate' && crateOver(pet);
       if(over) sub += ` · יותר מ${words(CRATE_MAX)}`;
@@ -2385,7 +2391,7 @@ function cycleHTML(p){
     ${long3 ? `<div class="duemsg">${ico('pee','s')}<span>עברו ${words(now - S.pee)} מהפיפי האחרון · להוציא לחצץ</span></div>` : ''}
     ${tired ? `<div class="zz">${ico('sleep','s')}<span>ערה כבר ${words(now - aw)} · לכלוב לישון</span></div>` : ''}
     ${ft && ft.phase !== 'run' && !inCrate ? `<div class="frm">${ico('paw','s')}<span>זמן החופש נגמר (${FREE.min} דקות מהפיפי) · חזרה לשגרה</span></div>` : ''}
-    ${over ? `<div class="duemsg">${ico('crate','s')}<span>בכלוב כבר יותר מ${words(CRATE_MAX)} · מ־<bdi dir="ltr">${clock(S.crate.start)}</bdi></span></div>` : ''}
+    ${over ? `<div class="duemsg">${ico('crate','s')}<span>ערה בכלוב יותר מ${words(CRATE_MAX)} · מ־<bdi dir="ltr">${clock(S.crate.start)}</bdi></span></div>` : ''}
     ${due && !long3 ? `<div class="duemsg">${ico('pee','s')}<span>זמן להוציא לצרכים · ${due.why}, לפני <span data-words="${due.t}">${words(now-due.t)}</span></span></div>` : ''}
     ${asleep ? `<div class="zz">${ico('sleep','s')}<span>ישנה ${S.sleep.assumed ? 'כנראה ' : ''}מ־<bdi dir="ltr">${clock(S.sleep.start)}</bdi> · ${wb && wb.past ? 'כדאי להעיר אותה' : wb ? `נותנים לה לישון עד <bdi dir="ltr">${clock(wb.t)}</bdi>` : 'נותנים לה לישון'}${S.sleep.assumed ? ' <small>(הנחה: נרדמת בכלוב תוך כמה דקות)</small>' : ''}</span><button class="lnk" data-act="notasleep">לא נרדמה</button></div>` : ''}
     <div class="cyc-n"><span class="nx"><b>מה עושים עכשיו?</b>${what}${routineTap(p).length ? ` החלק המתאים למטה מסומן <span class="tagk">עכשיו בשגרה</span>.` : ''}</span>
@@ -2438,9 +2444,15 @@ function playCardHTML(p, nowt){
     <div class="sub" style="margin-top:8px">${locked ? 'נעול בזמן ניסיון חוזר. אוכל רגיל נותנים מכרטיס האוכל.' : 'קונג, משטח ליקוק ואילוף עם אוכל נרשמים גם כארוחה.'}</div></div>`;
 }
 // A crate stay longer than CRATE_MAX is flagged red — in the daytime only, so a night in the crate is not an alarm.
-function crateOver(p){
-  const c = V[p].crate, hr = new Date().getHours();
-  return !!(c && c.start) && Date.now() - c.start > CRATE_MAX && hr >= DAY_FROM && hr < DAY_TO;
+function crateOver(p){   // awake in the crate too long; sleeping there is not counted against her (owner, 25.11)
+  const c = V[p].crate, hr = new Date().getHours(), S = V[p];
+  if(!(c && c.start) || hr < DAY_FROM || hr >= DAY_TO || (S.sleep && S.sleep.start)) return false;
+  return dayParts(p, c.start, Date.now()).tot.crate > CRATE_MAX;
+}
+function crateSplit(p, from, to){   // time in the crate in [from, to): asleep / awake
+  let sl = 0, aw = 0;
+  for(const e of state.log) if(e.p===p && e.k==='crate'){ const a = Math.max(e.t, from), b = Math.min(e.end == null ? Date.now() : e.end, to); if(b > a){ const t = dayParts(p, a, b).tot; sl += t.sleep; aw += t.crate; } }
+  return {sl, aw};
 }
 // How long after going into the crate something began (a sleep, usually): the crate stay that contains
 // time t, and the gap from its start. Worked out from the list, like everything else.
@@ -2934,6 +2946,7 @@ function renderSummary(){
   if(durs.length) h += `<div class="tiles two">` + durs.map(k =>
     `<button class="${tcls(k)}" data-act="filt" data-k="${k}"><div class="ic">${ico(k)}</div><b class="t">${st[k].ms ? words(st[k].ms) : '–'}</b>
       <span>${SUM_LBL[k]} · ${st[k].n===1 ? 'פעם אחת' : st[k].n+' פעמים'}</span>
+      ${k === 'crate' && P.cycle && st[k].ms ? (cs => `<small>ישנה בו ${words(cs.sl)} · ערה בו ${words(cs.aw)}</small>`)(crateSplit(pet, from, to)) : ''}
       ${multi && days > 1 && st[k].ms ? `<small>ממוצע ${words(st[k].ms/days)} ליום</small>` : ''}</button>`).join('') + `</div>`;
   if(!F) h += groomSumHTML(pet, from, to);
   if(P.meds && !F){

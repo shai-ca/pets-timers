@@ -23,7 +23,7 @@
     ok('meal: a bar to the next meal', !!card('food').querySelector('.gauge') && card('food').querySelector('.gauge small').textContent.includes('לארוחה'));
     ok('bath: a bar to the tenth day', !!card('bath').querySelector('.gauge') && card('bath').querySelector('.gauge small').textContent.includes('למקלחת'));
     ok('awake: a bar to the hour awake', !!$q('#sec-rest .gauge') && $q('#sec-rest .gauge small').textContent.includes('לשינה'));
-    ok('sleep goal: slept in the last 24 hours out of 18 (a two-month-old)', sleepGoal('kishmish') === 18 && $q('#sec-rest .gauge.goal small').textContent.includes('מתוך 18 שעות') && $q('#sec-rest .gauge.goal small').textContent.includes(hmm(dayParts('kishmish', now - 24*HOUR, Date.now()).tot.sleep)) && !!$q('.ribbon .gauge.goal'));
+    ok('sleep goal: slept in the last 24 hours out of 18 (a two-month-old)', sleepGoal('kishmish') === 18 && $q('#sec-rest .gauge.goal small').textContent.includes('מתוך 18–20 שעות') && $q('#sec-rest .gauge.goal small').textContent.includes(hmm(dayParts('kishmish', now - 24*HOUR, Date.now()).tot.sleep)) && !!$q('.ribbon .gauge.goal'));
     card('pee').querySelector('.gauge .gw').dispatchEvent(new MouseEvent('pointerover', {bubbles:true}));
     ok('hovering the window shows its times', card('pee').querySelector('.gauge .ptip').textContent.includes(clock(f.from)));
     card('pee').querySelector('.gauge .gf').dispatchEvent(new MouseEvent('click', {bubbles:true}));

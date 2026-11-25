@@ -34,8 +34,8 @@
       tile('pee').click(); sh.querySelector('#cancel').click(); ok('any new entry resumes the routine', cur() !== 'הפסקה');
       ok('one list shows it all', $q('.uni').textContent.includes('לא אכלה') && $q('.uni').textContent.includes('משחק · קונג ממולא') && $q('.uni').textContent.includes('הפסקה בשגרה'));
       // crate too long turns red in the daytime
-      seed([{ p:'kishmish', k:'crate', t: Date.now() - 130*MIN }]); const hr = new Date().getHours();
-      ok('over two hours: red by day only', (!!$q('.sg.cur.over') && !!$q('.card.item.live.cry')) === (hr >= 7 && hr < 22));
+      seed([{ p:'kishmish', k:'crate', t: Date.now() - 130*MIN }, { p:'kishmish', k:'cry', t: Date.now() - 128*MIN }]); const hr = new Date().getHours();   // awake (crying) the whole time: sleeping there no longer counts (25.11)
+      ok('over two hours awake in the crate: red by day only', (!!$q('.sg.cur.over') && !!$q('.card.item.live.cry')) === (hr >= 7 && hr < 22));
     }
     // the wheel is navigation: a step on it jumps to that step's tiles, and never changes the step
     seed([{ p:'kishmish', k:'crate', t: Date.now() - 20*MIN }]);
