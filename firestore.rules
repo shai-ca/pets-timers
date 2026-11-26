@@ -15,5 +15,28 @@ service cloud.firestore {
       // build of the app is refused here instead of saving its out-of-date copy over everyone's data.
       allow write: if allowed() && request.resource.data.v == 2;
     }
+    // Shared camera card (experimental, 26.11): ONE cropped crate image, overwritten in place (no history), plus a small
+    // heartbeat. Every caregiver on the same list may read; only the camera's own Firebase account may write, and only
+    // these two documents, in this shape. It can never touch state/main. <CAMERA_UID> lives only in the live rules.
+    match /camera/{d} {
+      function caregiver() {
+        return request.auth != null
+          && request.auth.token.email_verified == true
+          && request.auth.token.email in ['<email>', '<email>'];
+      }
+      allow read: if caregiver() && d in ['latest', 'status'];
+      allow create, update: if request.auth != null && request.auth.uid == '<CAMERA_UID>'
+        && request.resource.data.schema == 'cam-shared/1'
+        && ((d == 'latest'
+              && request.resource.data.keys().hasOnly(['schema','image','mime','w','h','sha256_16','capture_ts','published_at','detection','model'])
+              && request.resource.data.image is string && request.resource.data.image.size() <= 60000
+              && request.resource.data.mime == 'image/jpeg'
+              && request.resource.data.capture_ts is int && request.resource.data.capture_ts <= request.time.toMillis() + 60000
+              && request.resource.data.detection.where == 'crate')
+          || (d == 'status'
+              && request.resource.data.keys().hasOnly(['schema','checked_at','service','model'])
+              && request.resource.data.checked_at is int));
+      allow delete: if false;
+    }
   }
 }

@@ -725,6 +725,7 @@
   .card.camc,.cam-th{min-width:0;max-width:100%;box-sizing:border-box}
   .cam-th{width:100%;aspect-ratio:1099/873;max-height:46vh;border-radius:14px;overflow:hidden;background:var(--seg);display:grid;place-items:center;color:var(--muted)}
   .cam-th:not(:has(img)){aspect-ratio:auto;height:44px}
+  .cams-slot{height:1px;margin:0;overflow:hidden}
   .cam-th img{width:100%;max-width:100%;height:100%;object-fit:contain;background:#000;display:block;min-width:0}
   .cam-b{display:flex;flex-direction:column;gap:1px;min-width:0;flex:1}
   .cam-h{display:flex;align-items:baseline;gap:8px;font-size:13px} .cam-h b{font-weight:600}
@@ -2014,7 +2015,10 @@ let fb = null;   // { auth, signIn(), signOut() } once Firebase has loaded
     auth,
     signIn: () => SAME_SITE_AUTH ? A.signInWithRedirect(auth, new A.GoogleAuthProvider()) : A.signInWithPopup(auth, new A.GoogleAuthProvider()),
     signInPopup: () => A.signInWithPopup(auth, new A.GoogleAuthProvider()),   // fallback offered on the lock screen
-    signOut: () => A.signOut(auth)
+    signOut: () => A.signOut(auth),
+    // the shared camera card only (camera/latest, camera/status): its own listener, opened while the card is on screen
+    camDoc: (name, onData, onErr) => F.onSnapshot(F.doc(store, 'camera', name), snap => onData(snap.exists() ? snap.data() : null, snap.metadata.fromCache), onErr),
+    camGet: name => F.getDocFromServer(F.doc(store, 'camera', name)).then(s => s.exists() ? s.data() : null)
   };
 
   if(SAME_SITE_AUTH) A.getRedirectResult(auth).catch(e => gateError(`ההתחברות לא הצליחה${e && e.code ? ' ('+e.code.replace('auth/','')+')' : ''}. לוחצים שוב.`));
@@ -3255,7 +3259,8 @@ function camStatusHTML(){
 // The card. Only on Kishmish's tracking screen, only on a device where it is switched on; `render` leaves it out of
 // the slim night screen. No numbers: place, capture time, a live "לפני", the connection.
 function camCardHTML(p){
-  if(p !== 'kishmish' || !camBase()) return '';
+  if(p !== 'kishmish') return '';
+  if(!camBase()) return camsCardHTML();   // every caregiver: the shared crop (no setting, no Tailscale)
   if(CAM.st === 'off') CAM.st = 'wait';
   if(CAM.st === 'forbidden') return '<div class="camc" hidden></div>';   // an account not on the camera's list: no card at all; the setting link says why
   const d = CAM.data, ls = d && d.ls, live = CAM.st === 'ok' || CAM.st === 'stale';
@@ -3277,6 +3282,85 @@ function camPaint(){   // repaint just the card and the setting link (never `ren
   const t = document.createElement('div'); t.innerHTML = camCardHTML(pet); if(t.firstElementChild) el.replaceWith(t.firstElementChild); else el.remove();
   const s = sh.querySelector('.cam-main'); if(s && bg.classList.contains('show')) camSheet(true);
 }
+// ---------- shared camera card (all caregivers; owner, 26.11) ----------
+// The camera service on the Mac publishes ONE cropped crate image to Firestore `camera/latest` (overwritten, never a
+// history) and a small heartbeat `camera/status`. Read with the caregiver allowlist, in its own listener that is
+// open only while this card is on screen and the page is visible, and capped per device per day so the camera can
+// never use up the free quota the journal needs. Experimental, informational only: nothing here touches the log,
+// STATE, advice or planning. Full frames, history and labeling stay on the owner's private local service.
+let CAMS_DAY_BYTES = 12e6, CAMS_HARD_BYTES = 20e6, CAMS_IDLE_MS = 60000; const CAMS_KEY = 'pets-timers-v1-camb', CAMS_FRESH_MS = 15*60000;
+const CAMS = { doc: null, status: null, denied: false, unsub: null, unsubS: null, idle: null, io: null, stopped: false };
+const camsDay = () => new Date().toDateString();
+function camsUsed(){ try { const u = JSON.parse(localStorage.getItem(CAMS_KEY) || 'null'); return u && u.day === camsDay() ? u.bytes : 0; } catch(e){ return 0; } }
+function camsUse(n){ const b = camsUsed() + n; try { localStorage.setItem(CAMS_KEY, JSON.stringify({ day: camsDay(), bytes: b })); } catch(e){} return b; }
+function camsValid(d){   // only a well-formed crate crop is ever shown
+  return d && d.schema === 'cam-shared/1' && d.mime === 'image/jpeg' && typeof d.image === 'string' && d.image.length <= 80000
+    && /^[A-Za-z0-9+/]+={0,2}$/.test(d.image) && typeof d.capture_ts === 'number' && d.detection && d.detection.where === 'crate' ? d : null;
+}
+function camsSub(){
+  if(CAMS.unsub || CAMS.denied || !fb || !fb.camDoc || !fb.auth || !fb.auth.currentUser) return;
+  if(CAMS.stopped) return;
+  if(camsUsed() >= CAMS_DAY_BYTES){ CAMS.stopped = true; camsPaint(); return; }
+  const fail = e => { if(e && e.code === 'permission-denied'){ CAMS.denied = true; } camsUnsub(); camsPaint(); };
+  CAMS.unsub = fb.camDoc('latest', (d, cache) => {
+    if(!cache && camsUse((d && d.image ? d.image.length : 0) + 600) >= CAMS_DAY_BYTES){ CAMS.stopped = true; camsUnsub(); }
+    CAMS.doc = camsValid(d); camsPaint();
+  }, fail);
+  CAMS.unsubS = fb.camDoc('status', (d, cache) => { if(!cache) camsUse(400); CAMS.status = d && d.schema === 'cam-shared/1' ? d : null; camsPaint(); }, fail);
+}
+function camsUnsub(){ clearTimeout(CAMS.idle); CAMS.idle = null; if(CAMS.unsub){ CAMS.unsub(); CAMS.unsub = null; } if(CAMS.unsubS){ CAMS.unsubS(); CAMS.unsubS = null; } }
+function camsSeen(on){   // on screen and visible -> listen; otherwise stop after a minute (no re-download when scrolling past)
+  if(on && !document.hidden){ clearTimeout(CAMS.idle); CAMS.idle = null; camsSub(); }
+  else if(CAMS.unsub && !CAMS.idle) CAMS.idle = setTimeout(camsUnsub, document.hidden ? 0 : CAMS_IDLE_MS);
+}
+function camsWatch(){   // after every render: watch the card (or its empty slot)
+  if(CAMS.io){ CAMS.io.disconnect(); CAMS.io = null; }
+  const el = document.querySelector('#side .cams'); if(!el){ camsSeen(false); return; }
+  if(typeof IntersectionObserver === 'undefined'){ camsSeen(true); return; }
+  const r = el.getBoundingClientRect(); if(r.bottom > 0 && r.top < innerHeight) camsSeen(true);   // on screen now: do not wait for the observer
+  CAMS.io = new IntersectionObserver(es => camsSeen(es.some(e => e.isIntersecting))); CAMS.io.observe(el);
+}
+document.addEventListener('visibilitychange', () => { if(document.hidden) camsSeen(false); else camsWatch(); });
+async function camsRefresh(){   // after the daily cap: one manual read, still counted, never past the hard cap
+  if(!fb || !fb.camGet || camsUsed() >= CAMS_HARD_BYTES) return;
+  try { const d = await fb.camGet('latest'); camsUse((d && d.image ? d.image.length : 0) + 600); CAMS.doc = camsValid(d); } catch(e){}
+  camsPaint();
+}
+function camsCardHTML(){
+  if(!fb || !fb.camDoc || CAMS.denied) return '';
+  const d = CAMS.doc;
+  if(!d) return '<div class="camc cams cams-slot" aria-hidden="true"></div>';   // nothing yet: no card, just the slot that is watched
+  const st = CAMS.status, now = Date.now(), fresh = st && typeof st.checked_at === 'number' && now - st.checked_at < CAMS_FRESH_MS;
+  const look = !st ? '' : fresh ? `<span class="cam-t">המצלמה פעילה · בדקה לפני <span data-words="${st.checked_at}">${words(now - st.checked_at)}</span></span>`
+    : `<span class="cam-t cam-err">אין עדכון מהמצלמה מאז <bdi dir="ltr">${typeof st.checked_at === 'number' ? clock(st.checked_at) : '—'}</bdi></span>`;
+  const cap = CAMS.stopped ? `<span class="cam-t cam-dim">עדכון אוטומטי נעצר להיום, כדי לשמור על המכסה החינמית${camsUsed() < CAMS_HARD_BYTES ? ' · <button class="lnk" data-cams="refresh">רענון</button>' : ''}</span>` : '';
+  return `<div class="card camc cams" role="button" tabindex="0" data-cams="open">
+    <span class="cam-th"><img src="data:image/jpeg;base64,${d.image}" alt="קישמיש בכלוב"></span>
+    <span class="cam-b"><span class="cam-h"><b>נראתה לאחרונה בכלוב</b><small>ניסיוני · לא מאומת</small></span>
+      <span class="cam-t"><bdi dir="ltr">${clock(d.capture_ts)}</bdi>${dayLabel(d.capture_ts) === 'היום' ? '' : ' · ' + dayLabel(d.capture_ts)} · לפני <span data-words="${d.capture_ts}">${words(now - d.capture_ts)}</span></span>
+      ${look}${cap}</span></div>`;
+}
+function camsPaint(){
+  const el = document.querySelector('#side .cams'); if(!el) return;
+  const t = document.createElement('div'); t.innerHTML = camsCardHTML(); const n = t.firstElementChild;
+  if(n) el.replaceWith(n); else el.remove();
+  camsWatch();
+}
+function camsSheet(){
+  const d = CAMS.doc; if(!d) return;
+  const m = d.model || {};
+  sh.innerHTML = `<div class="cam-sheet"><h3>נראתה לאחרונה בכלוב <small class="cam-x">ניסיוני · מצב צל</small></h3>
+    <img class="cam-big" src="data:image/jpeg;base64,${d.image}" alt="קישמיש בכלוב">
+    <div class="cam-meta">${dayLabel(d.capture_ts)} <bdi dir="ltr">${new Date(d.capture_ts).toLocaleTimeString('he-IL', {hour:'2-digit', minute:'2-digit', second:'2-digit'})}</bdi> · לפני ${words(Date.now() - d.capture_ts)}</div>
+    <details class="cam-how"><summary>איך זה מחושב</summary><div>התמונה האחרונה שבה מודל זיהוי (${esc(String(m.name || ''))} ${esc(String(m.version || ''))}) זיהה אותה בכלוב, חתוכה לאזור הכלוב. ניסיוני ולא מאומת. כשהיא יוצאת, נשארת התמונה האחרונה שבה זוהתה. המצלמה רק מציגה: שום דבר ממנה לא נכנס ליומן, לעצות או לחישובים.</div></details>
+    <div class="foot"><button class="btn" id="camX">סגירה</button></div></div>`;
+  sh.querySelector('#camX').onclick = close;
+  bg.classList.add('show');
+}
+document.addEventListener('click', e => {
+  const t = e.target.closest && e.target.closest('[data-cams]'); if(!t) return;
+  if(t.dataset.cams === 'refresh'){ e.stopPropagation(); camsRefresh(); } else camsSheet();
+});
 // Tap the card: the image large, time, place; the model behind "איך זה מחושב"; "תיוג" one tap further.
 function camSheet(repaint){
   const d = CAM.data, ls = d && d.ls, dt = d && d.detector, dog = d && d.dog;
@@ -3568,7 +3652,7 @@ function render(){
           <span class="rt-a"><button class="go" data-act="pt" data-k="pee">פיפי</button><button class="go" data-act="pt" data-k="poop">קקי</button><button class="btn" data-act="pt" data-k="none">לא עשתה</button><button class="btn gend" data-act="dur" data-k="gravel">סיום</button></span></div>`
       : `<div class="card slim gravel ${tap.includes('none') ? 'nowt' : ''}"><span><b>יוצאים לחצץ?</b>${slim ? '' : tryNowHTML(pet)}<small>${uw && uw.n >= 3 ? `בדרך כלל עושה פיפי תוך ${words(uw.ms)}` : 'השעון מודד כמה זמן לקח ומה יצא'}${ln ? ` · לא עשתה לאחרונה: ${dayLabel(ln)} <bdi dir="ltr">${clock(ln)}</bdi>` : ''}</small></span>
           <span class="rt-a"><button class="go" data-act="dur" data-k="gravel">${ITEMS.gravel.start}</button><button class="btn" data-act="pt" data-k="none">לא עשתה</button></span></div>`;
-    if(slim){ side.innerHTML = alertsHTML(pet) + sleepAskHTML(pet); /* v3 validation S5: no advice line on the slim night screen */ document.getElementById('main').innerHTML = nightCardsHTML(pet, tileOf, gravelRow); return; }
+    if(slim){ camsWatch(); side.innerHTML = alertsHTML(pet) + sleepAskHTML(pet); /* v3 validation S5: no advice line on the slim night screen */ document.getElementById('main').innerHTML = nightCardsHTML(pet, tileOf, gravelRow); return; }
     h += sec('1', 'כלוב', tap.includes('crate'), tileOf('crate'), 'crate');
     const pottySec = sec('2 · 5', 'צרכים', tap.includes('pee') || !!rt, gravelRow + gravelRatesHTML(pet) + tileOf('pee') + tileOf('poop'), 'potty');
     // Just woken up or out of the crate: on a phone the potty tiles come to the top of the page, above the wheel.
@@ -3584,7 +3668,7 @@ waterRowHTML(pet) + (P.treats ? treatCardHTML(pet) : ''), 'food');
   }
 
   if(P.cycle) sideHTML = sprayCardHTML(pet) + sideHTML; else h = sprayCardHTML(pet) + adviceHTML(pet) + h;   // Kochik: her calm line (Agent C); never on the slim night screen
-  side.innerHTML = sideHTML;
+  side.innerHTML = sideHTML; camsWatch();
   h += noteCardHTML(pet);
   if(P.cycle){
     const a = sod(Date.now()), b = new Date(a); b.setDate(b.getDate()+1);
