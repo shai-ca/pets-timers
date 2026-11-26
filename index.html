@@ -3970,6 +3970,13 @@ function camjFeedDo(id, ans){   // ans: 'ok' | 'no' | 'unsure' ("לא בטוחה
   if(ans !== 'ok'){ camjDecide(id, 'rejected'); camjLast = ''; render(); showToast(`${PETS[CAMJ_P].name} · זיהוי המצלמה סומן "לא נכון"`); return; }
   camjDecide(id, x.sug ? 'confirmed' : 'approved');
   commit(`${PETS[CAMJ_P].name} · ${ITEMS[k].log} (מצלמה, אושר)`, () => camjDo({ do: 'feed', ev: x }, me), { cam: true });
+  // the same one-tap correction a manual "אכלה" gets: under the two-hour rule it may have come out as a bite
+  const fe = state.log.find(e => e.id === 'cam:' + id);
+  if(k === 'food' && fe && mealKind(fe) === 'bite'){
+    const tw = document.getElementById('toastWhere');
+    if(tw){ tw.innerHTML = `<button class="btn" id="toMeal">זו הייתה ארוחה</button>`;
+      tw.querySelector('#toMeal').onclick = () => commit(`${PETS[CAMJ_P].name} · ${ITEMS.food.log} · ${MEAL_LBL.meal}`, () => { const z = state.log.find(e => e.id === fe.id); if(z) z.m = 'meal'; }); }
+  }
 }
 document.addEventListener('click', e => {
   const b = e.target.closest && e.target.closest('[data-camf]'); if(!b) return;

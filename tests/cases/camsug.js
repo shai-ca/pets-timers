@@ -121,6 +121,14 @@
 
     ok('the only camera write path is camera/feedback', merged.length > 0 && merged.every(([n]) => n === 'feedback'));
     fb = null; CAMJ.ready = CAMJ.sready = false; CAMJ.ev = []; CAMJ.ev0 = []; CAMJ.sev = []; setState(state);
+    // an approved eating suggestion that the two-hour rule reads as a bite: the same "זו הייתה ארוחה" as a manual entry
+    await fresh(() => [{ ...K0, k:'food', t: T - 100*MIN, m:'meal' }]);
+    await sugs(DOCS([SUG('sug_bite', 'eating_suggestion', T - 5*MIN)]));
+    { const b = $q('#sec-food [data-camf=ok]'); if(b) b.click(); await wait(3);
+      const fe = byId('cam:sug:sug_bite');
+      ok('approved eating 1h35 after a meal: written (a bite by the two-hour rule) and the toast offers "זו הייתה ארוחה"', !!fe && mealKind(fe) === 'bite' && !!$q('#toMeal'));
+      if($q('#toMeal')) $q('#toMeal').click(); await wait(2);
+      ok('…one tap makes it the meal: the meal timer moves to the camera time', !!byId('cam:sug:sug_bite') && mealKind(byId('cam:sug:sug_bite')) === 'meal' && V.kishmish.food === T - 5*MIN); }
     done();
   } catch(e){ crashed(e); }
 })();
