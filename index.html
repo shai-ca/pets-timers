@@ -735,6 +735,13 @@
   .now-a{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;border-radius:14px;background:var(--seg)} .now-a span{display:flex;flex-direction:column;gap:2px} .now-a b{font-size:16px} .now-a small{color:var(--muted)}
   .now-n{color:var(--muted);font-size:14px} .now-cf{font-size:13.5px;color:var(--warn,#b45309)}
 .howto>summary{cursor:pointer;color:var(--muted);font-size:13px;list-style:none} .howto>summary::-webkit-details-marker{display:none} .howto>summary::before{content:'› '}
+.card.item .crcam{grid-column:1/-1;display:flex;flex-direction:column;gap:8px;padding-top:12px;margin-top:2px;border-top:1px solid var(--line)}
+  .card.item .crcam.slot{padding:0;margin:0;border:0;gap:0}
+  .crcam-img{position:relative} .crcam .card.camc{box-shadow:none;border:0;background:none;padding:0;margin:0;cursor:pointer}
+  .crcam-img .cam-b{display:none} .crcam .cam-th{width:100%;aspect-ratio:16/9;max-height:none;border-radius:12px}
+  .crcam-ov{position:absolute;inset-inline-end:8px;bottom:8px;display:flex;align-items:center;gap:6px;padding:3px 6px 3px 10px;border-radius:999px;background:rgba(20,16,12,.58);color:#fff;font-size:12.5px;line-height:1}
+  .crcam-ov .icob{color:#fff;font-size:15px;padding:2px 4px;line-height:1}
+  .crcam-l{font-size:12.5px;color:var(--muted)} .crcam .camjt{margin-top:0;padding:10px 12px;border-radius:12px} .crcam .camjt small{font-size:12.5px}
   .camblk{padding:12px;display:flex;flex-direction:column;gap:10px} .camblk .camj-rv{font-size:13.5px;text-align:start}
   .nowcam .card.camc{box-shadow:none;border:0;background:none;padding:0;margin:0;cursor:pointer} .nowcam .cam-b{display:none} .nowcam .cam-th{aspect-ratio:16/9;max-height:none;border-radius:14px}
   .nowcam-l{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:6px;font-size:13.5px;color:var(--muted)} .icob{border:0;background:none;padding:4px;cursor:pointer;color:var(--muted)}
@@ -3538,7 +3545,8 @@ function camjDo(a, who){   // inside a commit's mutate
   } else if(a.do === 'start'){   // a caregiver approved a live entry: the session starts at the camera's time
     const x = a.ev, id = 'cam:' + x.event_id; if(find(id)) return;
     endGravel(CAMJ_P, x.ts);
-    const e = newStay(CAMJ_P, 'crate', x.ts); e.id = id; e.cam = { cid: id, in: x.event_id, it: x.ts, ilo: x.lo, ihi: x.hi, src: 'live_model', ...ok }; state.log.push(e);
+    const o = camjOutAfter(x.ts), e = newStay(CAMJ_P, 'crate', x.ts, o ? Math.max(o.t, x.ts + 1) : undefined);   // she was taken out since: the stay ends there
+    e.id = id; e.cam = { cid: id, in: x.event_id, it: x.ts, ilo: x.lo, ihi: x.hi, src: 'live_model', ...ok }; state.log.push(e);
   } else if(a.do === 'screate'){
     const c = a.c; if(find(c.id)) return;
     const e = { id: c.id, p: CAMJ_P, k: 'sleep', t: c.t, ...(c.end != null ? { end: Math.max(c.end, c.t + 1) } : {}),
@@ -3616,8 +3624,9 @@ function camjActHTML(){
   if(!CAMJ.ready) return '';
   const lv = camjPlan(state.log, Date.now()).rv.live[0]; if(!lv) return '';
   const x = lv.ev, end = lv.kind === 'end';
-  return `<div class="camjt"><span><b>${end ? 'יצאה מהכלוב' : 'נכנסה לכלוב'} ב־<bdi dir="ltr">${clock(x.ts)}</bdi>?</b><small>זיהוי מצלמה</small></span>
-    <span class="rt-a"><button class="go" data-camj="${end ? 'end' : 'start'}">${end ? 'אישור' : 'שהייה מ־' + clock(x.ts)}</button><button class="btn" data-camj="reject">לא נכון</button></span></div>`;
+  const o = !end ? camjOutAfter(x.ts) : null;
+  return `<div class="camjt"><span><b>${end ? `יצאה מהכלוב ב־<bdi dir="ltr">${clock(x.ts)}</bdi>?` : o ? `הייתה בכלוב <bdi dir="ltr">${clock(x.ts)}–${clock(o.t)}</bdi>?` : `נכנסה לכלוב ב־<bdi dir="ltr">${clock(x.ts)}</bdi>?`}</b><small>זיהוי מצלמה</small></span>
+    <span class="rt-a"><button class="go" data-camj="${end ? 'end' : 'start'}">${end ? 'אישור' : o ? 'אישור' : 'שהייה מ־' + clock(x.ts)}</button><button class="btn" data-camj="reject">לא נכון</button></span></div>`;
 }
 // In the crate card: one quiet link to what the camera did (details on demand).
 function camjTileHTML(p){
@@ -3630,6 +3639,7 @@ function camjTileHTML(p){
 // Unverified: it changes nothing, it only says the advice may rest on something the camera does not see.
 function camjConflict(){
   if(!V || !V[CAMJ_P]) return '';
+  { const pe = camjPendingEntry(); if(pe) return `המצלמה רואה אותה בכלוב מ־<bdi dir="ltr">${clock(pe.ts)}</bdi> · לאשר בכרטיס הכלוב`; }
   const S = V[CAMJ_P], now = Date.now(), inCrate = !!(S.crate && S.crate.start), asleep = !!(S.sleep && S.sleep.start);
   if(!inCrate && !asleep) return '';
   const since = Math.max(inCrate ? S.crate.start : 0, asleep ? S.sleep.start : 0);
@@ -3773,6 +3783,26 @@ function nowCardHTML(p){
 }
 // The camera in the crate section (owner, 26.11 evening): one clean block under the crate card — a large image with a
 // refresh icon and one status line; the one camera approval when it matters; a quiet link to what the camera did.
+const camjOutAfter = t => state.log.filter(e => e.p === CAMJ_P && e.t > t && (OUT_KINDS[e.k] || e.k === 'gravel' || e.k === 'carrier' || e.k === 'pen')).sort(byT)[0] || null;
+// A live crate entry the camera saw after the journal last had her out, not yet approved / rejected / disputed.
+function camjPendingEntry(){
+  if(!CAMJ.ready || !V || !V[CAMJ_P]) return null;
+  const S = V[CAMJ_P]; if((S.crate || {}).start || (S.sleep || {}).start) return null;
+  const lv = camjPlan(state.log, Date.now()).rv.live[0]; return lv && lv.kind === 'start' && !camjOutAfter(lv.ev.ts) ? lv.ev : null;   // she was taken out since: not "in the crate now"
+}
+// The camera inside the crate card (owner, 26.11 evening): one full-width row of the card — the image with its capture
+// time and a refresh icon on its corner, a status line only when it matters, and the one approval right under it.
+function crateCamRowHTML(p){
+  if(p !== CAMJ_P) return '';
+  const card = camCardHTML(p); if(!card) return '';
+  if(!/<img/.test(card)){ const act = camjActHTML(); return /cams-slot|camc" hidden/.test(card) ? `<div class="crcam${act ? '' : ' slot'}">${card}${act}</div>` : `<div class="crcam">${card}${act}</div>`; }   // the approval shows even with no image yet
+  const st = CAMS.status, cn = st && st.crate_now, now = Date.now(), priv = camBase() && (CAM.st === 'ok' || CAM.st === 'stale');
+  const shot = priv ? CAM.data && CAM.data.ls && CAM.data.ls.capture_ts : CAMS.doc && CAMS.doc.capture_ts;
+  const fresh = cn && typeof cn.capture_ts === 'number' && now - cn.capture_ts <= 5*60000;
+  const line = st && !camjCamOk() ? `המצלמה לא מעדכנת מאז <bdi dir="ltr">${clock(st.checked_at)}</bdi>`
+    : fresh && cn.status === 'negative' && camjOccNow(p) ? 'המודל לא מזהה אותה, לפי התיוג שלך היא בכלוב' : '';
+  return `<div class="crcam"><div class="crcam-img">${card}<div class="crcam-ov">${shot ? `<span>נראתה <bdi dir="ltr">${clock(shot)}</bdi></span>` : ''}<button class="icob" data-act="camrefresh" aria-label="רענון">↻</button></div></div>${line ? `<div class="crcam-l">${line}</div>` : ''}${camjActHTML()}</div>`;
+}
 function camBlockHTML(p){
   if(p !== CAMJ_P) return '';
   const cam = nowCamHTML(p), act = camjActHTML(), rvw = camjTileHTML(p);
@@ -3878,7 +3908,7 @@ function camsSheet(){
     <img class="cam-big" src="data:image/jpeg;base64,${d.b64}" alt="קישמיש בכלוב">
     <div class="cam-meta">${dayLabel(d.capture_ts)} <bdi dir="ltr">${new Date(d.capture_ts).toLocaleTimeString('he-IL', {hour:'2-digit', minute:'2-digit', second:'2-digit'})}</bdi> · לפני ${words(Date.now() - d.capture_ts)}</div>
     <details class="cam-how"><summary>איך זה מחושב</summary><div>התמונה האחרונה שבה מודל זיהוי (${esc(String(d.model_version || ''))}) זיהה אותה בכלוב${d.view === 'full' ? ' — כל שדה הראייה של המצלמה, מוקטן' : ', חתוכה לאזור הכלוב'}. ניסיוני ולא מאומת. כשהיא יוצאת, נשארת התמונה האחרונה שבה זוהתה. המצלמה רק מציגה: שום דבר ממנה לא נכנס ליומן, לעצות או לחישובים.</div></details>
-    <div class="foot"><button class="btn" id="camX">סגירה</button></div></div>`;
+    <div class="foot">${CAMJ.ready ? '<button class="lnk" data-camj="review">מה המצלמה ראתה</button>' : ''}<button class="btn" id="camX">סגירה</button></div></div>`;
   sh.querySelector('#camX').onclick = close;
   bg.classList.add('show');
 }
@@ -3896,7 +3926,7 @@ function camSheet(repaint){
     <div class="cam-meta">${camStatusHTML()}</div>
     ${ls ? `<div class="cam-meta">בזמן התמונה: ${camDoorHTML(ls.door && (ls.door.value === 'open' || ls.door.value === 'closed') ? ls.door : null).replace(/<\/?span[^>]*>/g, '')}</div>` : ''}
     <details class="cam-how"><summary>איך זה מחושב</summary><div>${how} המצלמה רק מציגה: שום דבר ממנה לא נכנס ליומן, לעצות או לחישובים.</div></details>
-    <div class="foot"><button class="lnk" id="camLbl">תיוג</button><button class="btn" id="camX">סגירה</button></div></div>`;
+    <div class="foot"><button class="lnk" id="camLbl">תיוג</button>${CAMJ.ready ? '<button class="lnk" data-camj="review">מה המצלמה ראתה</button>' : ''}<button class="btn" id="camX">סגירה</button></div></div>`;
   sh.querySelector('#camX').onclick = close;
   sh.querySelector('#camLbl').onclick = camLabelView;
   if(!repaint) bg.classList.add('show');
@@ -4144,8 +4174,9 @@ function render(){
       h += `<div class="card item ${nowt} ${live?'live':''} ${k==='cry' || over?'cry':''} ${warn?'warn':''}">
         <div class="ic">${ico(k)}</div>
         <div><div class="lbl">${lbl}</div>${big}<div class="sub">${sub}</div>${V2 && k === 'sleep' && !live && P.cycle ? gaugeHTML(sleepWindow(pet), 'לשינה', 'ערה מ־') : ''}${V2 && k === 'sleep' && P.cycle ? sleepGoalHTML(pet) : ''}</div>
-        <div class="acts">${k === 'crate' && P.cycle && pet === CAMJ_P && camjCamOk() ? `<details class="cr-more"><summary>עוד · רישום ידני</summary><div class="acts">` : ''}<button class="go" data-act="dur" data-k="${k}">${live?it.stop:it.start}</button>
-          <button class="ghost" data-act="edit" data-k="${k}">${ico(live?'clock':'plus','s')}${live?'שעת התחלה':'הוספה'}</button>${k === 'crate' && P.cycle && pet === CAMJ_P && camjCamOk() ? '</div></details>' : ''}${k === 'sleep' && live && P.cycle ? `<button class="ghost" data-act="notasleep">${ico('none','s')}לא נרדמה</button>` : ''}${k === 'crate' && live && P.cycle ? `<button class="ghost" data-act="swap">${ico('crate','s')}החלפת כלוב</button>` : ''}</div>
+        <div class="acts">${k === 'crate' && P.cycle && pet === CAMJ_P && camjCamOk() && !camjPendingEntry() ? `<details class="cr-more"><summary>עוד · רישום ידני</summary><div class="acts">` : ''}<button class="go" data-act="dur" data-k="${k}">${live?it.stop:it.start}</button>
+          <button class="ghost" data-act="edit" data-k="${k}">${ico(live?'clock':'plus','s')}${live?'שעת התחלה':'הוספה'}</button>${k === 'crate' && P.cycle && pet === CAMJ_P && camjCamOk() && !camjPendingEntry() ? '</div></details>' : ''}${k === 'sleep' && live && P.cycle ? `<button class="ghost" data-act="notasleep">${ico('none','s')}לא נרדמה</button>` : ''}${k === 'crate' && live && P.cycle ? `<button class="ghost" data-act="swap">${ico('crate','s')}החלפת כלוב</button>` : ''}</div>
+        ${k === 'crate' && P.cycle && !slim ? crateCamRowHTML(pet) : ''}
         ${k === 'crate' && live && P.cycle && !slim ? `<div class="incr"><span>קיבלה בכלוב:</span><button class="btn" data-act="play" data-k="kong">${PLAY.kong}</button><button class="btn" data-act="play" data-k="lick">${PLAY.lick}</button><button class="btn" data-act="crfood">ארוחה</button></div>` : ''}
         ${k === 'crate' && P.cycle ? crateExtrasHTML(pet, slim) : ''}
         ${k === 'sleep' && !live && P.cycle ? newCrateHint(pet) : ''}</div>`;
@@ -4177,7 +4208,7 @@ function render(){
       : `<div class="card slim gravel ${tap.includes('none') ? 'nowt' : ''}"><span><b>יוצאים לחצץ?</b>${slim ? '' : tryNowHTML(pet)}<small>${uw && uw.n >= 3 ? `בדרך כלל עושה פיפי תוך ${words(uw.ms)}` : 'השעון מודד כמה זמן לקח ומה יצא'}${ln ? ` · לא עשתה לאחרונה: ${dayLabel(ln)} <bdi dir="ltr">${clock(ln)}</bdi>` : ''}</small></span>
           <span class="rt-a"><button class="go" data-act="dur" data-k="gravel">${ITEMS.gravel.start}</button><button class="btn" data-act="pt" data-k="none">לא עשתה</button></span></div>`;
     if(slim){ camsWatch(); side.innerHTML = alertsHTML(pet) + sleepAskHTML(pet); /* v3 validation S5: no advice line on the slim night screen */ document.getElementById('main').innerHTML = nightCardsHTML(pet, tileOf, gravelRow); return; }
-    h += sec('1', 'כלוב', tap.includes('crate'), tileOf('crate') + camBlockHTML(pet), 'crate');
+    h += sec('1', 'כלוב', tap.includes('crate'), tileOf('crate'), 'crate');
     const pottySec = sec('2 · 5', 'צרכים', tap.includes('pee') || !!rt, gravelRow + gravelRatesHTML(pet) + tileOf('pee') + tileOf('poop'), 'potty');
     // Just woken up or out of the crate: on a phone the potty tiles come to the top of the page, above the wheel.
     const pottyTop = (!!pottyDue(pet) && isPhone()) || !!rt;   // a retry: the one gravel card goes to the top, on every screen
@@ -4329,7 +4360,7 @@ function cycleHTML(p){
     ${V2 ? flowHTML(cls, centre) : `<div class="steps"><svg class="ring" viewBox="0 0 200 200" aria-hidden="true">${segs}</svg>
       <div class="rc">${centre}</div>${labels}</div>`}
     ${long3 ? `<div class="duemsg">${ico('pee','s')}<span>עברו ${words(now - S.pee)} מהפיפי האחרון · להוציא לחצץ</span></div>` : ''}
-    ${tired ? `<div class="zz">${ico('sleep','s')}<span>ערה כבר ${words(now - aw)} · לכלוב לישון</span></div>` : ''}
+    ${tired ? `<div class="zz">${ico('sleep','s')}<span>ערה כבר ${words(now - aw)} · ${p === CAMJ_P && camjPendingEntry() ? `המצלמה רואה אותה בכלוב מ־<bdi dir="ltr">${clock(camjPendingEntry().ts)}</bdi> · לאשר בכרטיס הכלוב` : 'לכלוב לישון'}</span></div>` : ''}
     ${ft && ft.phase !== 'run' && !inCrate ? `<div class="frm">${ico('paw','s')}<span>זמן החופש נגמר (${FREE.min} דקות מהפיפי) · חזרה לשגרה</span></div>` : ''}
     ${over ? `<div class="duemsg">${ico('crate','s')}<span>ערה בכלוב יותר מ${words(CRATE_MAX)} · מ־<bdi dir="ltr">${clock(S.crate.start)}</bdi></span></div>` : ''}
     ${due && !long3 ? `<div class="duemsg">${ico('pee','s')}<span>זמן להוציא לצרכים · ${due.why}, לפני <span data-words="${due.t}">${words(now-due.t)}</span></span></div>` : ''}

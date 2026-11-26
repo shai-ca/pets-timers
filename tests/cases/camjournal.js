@@ -82,7 +82,7 @@
     { const { rv } = camjPlan(state.log, Date.now());
       ok('a 20-min window: no session written, offered for resolution with the reason', !byId('cam:ce_w') && rv.resolve.some(r => r.c && r.c.id === 'cam:ce_w' && r.why === 'wide')); }
     CAMS.status = { checked_at: Date.now() - MIN, crate_now: null }; render(); await wait(2);
-    $q('[data-camj=review]').click(); await wait(2);
+    camjReview(); await wait(2);   // (opened from the camera sheet's "מה המצלמה ראתה")
     ok('the review view: imported, matched, to resolve, visits, and the weekly saving', bg.classList.contains('show') && ['אומתו מול רישום ידני', 'לבירור', 'ביקורים', 'השבוע:'].every(s => sh.textContent.includes(s)));
     { const i = sh.querySelector('.cj-t'); i.value = clock(now - 10*HOUR + 5*MIN); sh.querySelector('[data-cjr=pick]').click(); await wait(2);
       const w = byId('cam:ce_w');
@@ -126,12 +126,12 @@
     // 9. the crate card: image card inside, "now" only from a fresh frame, outage brings manual buttons back
     CAMS.doc = { b64: 'AAAA', capture_ts: Date.now() - 3*HOUR, detection: { status: 'positive' }, image_type: 'image/jpeg' };
     CAMS.status = { checked_at: Date.now() - MIN, crate_now: { status: 'negative', capture_ts: Date.now() - MIN } }; render(); await wait(2);
-    { const cc = $q('#sec-crate .camblk .nowcam');
-      ok('one clean camera block in the crate section: large image, one line, refresh', !!cc && !!cc.querySelector('.camc') && $n('.camc') === 1 && !!cc.querySelector('[data-act=camrefresh]'));
-      ok('an old image is "seen in the crate at …", never "now"; "now" comes only from a fresh frame', cc.textContent.includes('נראתה בכלוב') && cc.textContent.includes('עכשיו: לא בכלוב'));
+    { const cc = $q('#sec-crate .card.item .crcam');
+      ok('the camera is a row of the crate card: large image, capture time and refresh on its corner', !!cc && !!cc.querySelector('.camc') && $n('.camc') === 1 && !!cc.querySelector('.crcam-ov [data-act=camrefresh]'));
+      ok('an old image says when it was seen, never "now"', cc.querySelector('.crcam-ov').textContent.includes('נראתה') && !cc.textContent.includes('עכשיו: בכלוב'));
       ok('camera working: manual crate buttons folded under "עוד"', !!$q('.card details.cr-more [data-act=dur][data-k=crate]')); }
     CAMS.status = { checked_at: Date.now() - 40*MIN, crate_now: null }; render(); await wait(2);
-    ok('camera not updating: says since when, and the manual buttons are up front again', $q('#sec-crate .nowcam').textContent.includes('המצלמה לא מעדכנת') && !$q('details.cr-more') && !!$q('.card [data-act=dur][data-k=crate]'));
+    ok('camera not updating: says since when, and the manual buttons are up front again', $q('#sec-crate .crcam').textContent.includes('המצלמה לא מעדכנת') && !$q('details.cr-more') && !!$q('.card [data-act=dur][data-k=crate]'));
     ok('food / pee buttons stay one tap away on their cards, never folded', !!$q('#sec-food [data-act=pt][data-k=food]') && !!$q('#sec-potty [data-act=pt][data-k=pee]') && !$q('details [data-act=pt][data-k=food]'));
     ok('coverage: outside vs inside', camjCov(now - 22*HOUR) === false && camjCov(now - HOUR) === true);
 
@@ -161,6 +161,19 @@
       ok('a manual 3h–1h sleep with two labeled episodes and a waking inside: unchanged, linked, no extra sleeps, no review', s.length === 1 && s[0].t === T - 3*HOUR && s[0].end === T - HOUR && s[0].cam && s[0].cam.src === 'owner_label' && !s[0].cam.was && !(camjPlan(state.log, Date.now()).rv.optional || []).length);
       await send(DOC.events.map(e => e.event_id === 'ce_s2w' ? { ...e, ts: T - 45*MIN, lo: T - 45*MIN, hi: T - 40*MIN } : e)); camjApply(); await wait(2);   // her last asleep mark of that nap is 15 min after the waking she logged
       ok('her marks show her still asleep after the waking she logged: unchanged, one optional note (not "לבירור")', state.log.filter(e => e.k === 'sleep').length === 1 && state.log.find(e => e.k === 'sleep').end === T - HOUR && (camjPlan(state.log, Date.now()).rv.optional || []).some(o => o.sleepDiff && o.sleepDiff.after) && !camjPlan(state.log, Date.now()).rv.resolve.some(r => r.c && r.c.k === 'sleep')); }
+    // a camera entry the journal has since taken her out of (real case 26.11, 17:19 → gravel 17:4x)
+    { reset(); const T = Date.now(); seed([{ ...K0, k:'none', t: T - 45*MIN }]); serverSeen = true; pet = 'kishmish';
+      fb = { auth:{ currentUser:{} }, camDoc: (n, on) => { subs[n] = on; return () => {}; }, camGet: async () => null, camMerge: async () => {} };
+      await send([E('ce_k', 'crate_entry', T - 40*MIN, { source: 'live_model' })]);
+      CAMS.status = { checked_at: Date.now() - MIN, crate_now: null }; render(); await wait(2);
+      ok('pending camera entry, she is still out in the journal: the routine / advice point to the crate card; manual buttons visible', !!camjPendingEntry() && camjConflict().includes('לאשר בכרטיס הכלוב') && !!$q('#sec-crate .crcam .camjt') && !$q('details.cr-more') && !!$q('#sec-crate [data-act=dur][data-k=crate]'));
+      commit('', () => state.log.push({ p:'kishmish', k:'gravel', t: T - 10*MIN, end: T - 5*MIN }), { quiet: true }); render(); await wait(2);
+      ok('…then taken to the gravel: no longer "in the crate now"; offered as a past stay', !camjPendingEntry() && $q('#sec-crate .crcam .camjt').textContent.includes('הייתה בכלוב'));
+      $q('#sec-crate .crcam .camjt [data-camj=start]').click(); await wait(2);
+      const s = state.log.find(e => e.id === 'cam:ce_k');
+      ok('…approved: a finished stay, ending when she was taken out (never an open session while she is outside)', !!s && Math.abs(s.t - (T - 40*MIN)) < 1000 && s.end === T - 10*MIN);
+      ok('no statistics on the crate card; the review is reachable from the camera sheet', !$q('#sec-crate .camj-rv') && !$q('#sec-crate').textContent.includes('שהיות ב־24'));
+      CAMS.status = null; }
     ok('the live app reads camera/events, the preview its test copy', camjDoc() === 'events' && (MODE = 'preview', camjDoc()) === 'events_preview');
     MODE = 'live';
     ok('the only camera write path is camera/feedback (never the journal)', merged.length > 0 && merged.every(([n]) => n === 'feedback'));
