@@ -19,7 +19,7 @@
                latest: { capture_ts: now - 30000, age_s: 30 }, frame_dog_unverified: { capture_ts: now - 3*MIN, identity:'unverified' }, future_field: 1 };
     const SAMPLES = [0, 1, 2].map(i => ({ image_id:'s:' + i, capture_ts: now - (5 + 10*i)*MIN, img:'/img?id=s%3A' + i, group:{ n: 3 - i },
                  app:{ state:{ note:'APPSTATE_LEAK' } }, prediction:{ label:'PRED_LEAK', confidence:0.9 }, label: i === 1 ? { label_id:'Lold' } : null }));
-    let evN = 0;
+    let evN = 0, DOOR = null;
     const res = (body, status = 200) => new Response(JSON.stringify(body), { status, headers:{ 'content-type':'application/json' } });
     const realFetch = window.fetch;
     window.fetch = (url, o = {}) => {
@@ -31,7 +31,7 @@
       if(mode === '401') return Promise.resolve(res({ schema:'cam-api/1', error:'auth' }, 401));
       if(mode === '403') return Promise.resolve(res({ schema:'cam-api/1', error:'forbidden' }, 403));
       const u = new URL(url);
-      if(u.pathname === '/api/last_seen') return Promise.resolve(res(LS));
+      if(u.pathname === '/api/last_seen') return Promise.resolve(res({ ...LS, door_now: DOOR }));
       if(u.pathname === '/img' || u.pathname === '/api/v1/image') return Promise.resolve(new Response(new Blob(['<svg xmlns="http://www.w3.org/2000/svg" width="8" height="6"><rect width="8" height="6" fill="#b85"/></svg>'], { type:'image/svg+xml' })));
       if(u.pathname === '/api/v1/samples') return Promise.resolve(res(SAMPLES));
       if(u.pathname === '/api/labels') return Promise.resolve(res({ schema:'cam-api/1', saved: 3, label_ids:['L1', 'L2', 'L3'] }));
@@ -107,7 +107,7 @@
     sh.querySelector('#camLbl').click(); await pause(20); await wait(5);
     const sc = calls.filter(c => c.url.includes('/api/v1/samples'));
     ok('labeling: samples of the last hour, grouped, blind on the server', sc.length === 1 && /grouped=1/.test(sc[0].url) && /blind=1/.test(sc[0].url));
-    ok('labeling: one card per frame with every chip group', sh.querySelectorAll('.cam-f').length === 3 && ['occupancy','visibility','state','door','certainty'].every(g => !!sh.querySelector('.cam-f [data-g=' + g + ']')));
+    ok('labeling: one card per frame with every chip group', sh.querySelectorAll('.cam-f').length === 3 && ['occupancy','visibility','state','certainty'].every(g => !!sh.querySelector('.cam-f [data-g=' + g + ']')));
     ok('blind: neither the app\'s state nor the prediction is shown', !sh.textContent.includes('APPSTATE_LEAK') && !sh.textContent.includes('PRED_LEAK') && !sh.innerHTML.includes('LEAK'));
     await pause(10); await wait(3);
     ok('frame images as blob URLs', [...sh.querySelectorAll('.cam-fi img')].every(i => /^blob:/.test(i.src)) && sh.querySelectorAll('.cam-fi img').length === 3);
@@ -119,7 +119,7 @@
     const B = post[0] && post[0].body;
     ok('labels: POST with the custom header and the token', post.length === 1 && post[0].method === 'POST' && post[0].headers['x-pets-camera'] === '1' && post[0].headers.Authorization === 'Bearer ' + TOK);
     ok('labels: the blind payload', B && B.image_id === 's:1' && (B.method === 'camera' || B.method === 'retrospective') && B.shown.app_state === false && B.shown.prediction === false && B.labeler === me && /^pets-timers\//.test(B.client) && B.client.length <= 40);
-    ok('labels: the chosen values, a correction supersedes the old label', B && B.occupancy === 'occupied' && B.state === 'asleep' && !('posture' in B && B.posture) && B.certainty === 'probable' && B.door === 'unknown' && B.supersedes === 'Lold');
+    ok('labels: the chosen values, a correction supersedes the old label', B && B.occupancy === 'occupied' && B.state === 'asleep' && !('posture' in B && B.posture) && B.certainty === 'probable' && !('door' in B) && B.supersedes === 'Lold');
     ok('labels: no app-state field is sent', B && !('app' in B) && !('prediction' in B) && !JSON.stringify(B).includes('LEAK'));
     ok('saved, with an undo', f.textContent.includes('נשמר במאגר המחקר') && !!f.querySelector('.cam-undo'));
     f.querySelector('.cam-undo').click(); await pause(5); await wait(5);
@@ -179,10 +179,10 @@
     mode = 'ok'; CAM_TIMEOUT_MS = 4000; localStorage.setItem('pets-timers-v1-cam', BASE); pet = 'kishmish'; render(); await poll(); render();
     { const log0 = canon(state.log); camLabelView(); await pause(20); await wait(5);
       const evb = sh.querySelectorAll('.cam-ev [data-ev]');
-      ok('events: a separate section with the two research buttons, saying it is not the journal', evb.length === 2 && evb[0].textContent === 'כניסה לכלוב' && evb[1].textContent === 'יציאה מהכלוב' && sh.querySelector('.cam-ev').textContent.includes('לא נרשם ביומן'));
+      ok('events: a separate section with the research buttons (crate and door), saying it is not the journal', evb.length === 4 && evb[0].textContent === 'כניסה לכלוב' && evb[1].textContent === 'יציאה מהכלוב' && evb[2].textContent === 'הדלת נסגרה' && evb[3].textContent === 'הדלת נפתחה' && sh.querySelector('.cam-ev').textContent.includes('לא נרשם ביומן'));
       const t0 = Date.now(); evb[0].click(); await pause(10); await wait(3);
       const ev = calls.filter(c => c.url.endsWith('/api/events')).pop();
-      ok('one tap: an entry event at the click time, blind, with an idempotency id and the custom header', !!ev && ev.body.kind === 'crate_entry' && Math.abs(ev.body.event_ts - t0) < 2000 && ev.body.time_source === 'click' && ev.body.blind === true && ev.body.shown.app_state === false && !!ev.body.client_id && ev.headers['x-pets-camera'] === '1' && /^Bearer /.test(ev.headers.Authorization));
+      ok('one tap: an entry event at the click time, blind, with an idempotency id and the custom header', !!ev && ev.body.kind === 'crate_entry' && Math.abs(ev.body.event_ts - t0) < 2000 && ev.body.time_source === 'click' && ev.body.method === 'camera' && ev.body.blind === true && ev.body.shown.app_state === false && !!ev.body.client_id && ev.headers['x-pets-camera'] === '1' && /^Bearer /.test(ev.headers.Authorization));
       ok('…and the result line offers time correction and undo', sh.querySelector('.cam-evres').textContent.includes('נרשם') && !!sh.querySelector('.cam-evfix') && !!sh.querySelector('.cam-evundo'));
       sh.querySelector('.cam-evfix').click(); const ti = sh.querySelector('.cam-evt'); const d = new Date(t0 - 2*MIN); ti.value = d.toTimeString().slice(0, 8); sh.querySelector('.cam-evok').click(); await pause(10); await wait(3);
       const fx = calls.filter(c => c.url.endsWith('/api/events')).pop();
@@ -190,11 +190,19 @@
       sh.querySelector('.cam-evundo').click(); await pause(10); await wait(3);
       const rt = calls.filter(c => c.url.endsWith('/api/events/retract')).pop();
       ok('undo: retract the corrected event', !!rt && JSON.stringify(rt.body.event_ids) === JSON.stringify(['E' + evN]) && sh.querySelector('.cam-evres').textContent.includes('בוטל'));
+      sh.querySelector('.cam-seen [data-seen=direct]').click(); sh.querySelectorAll('.cam-ev [data-ev]')[2].click(); await pause(10); await wait(3);
+      const dv = calls.filter(c => c.url.endsWith('/api/events')).pop();
+      ok('door change: a door_closed event, and "saw it with my eyes" sends method direct', dv.body.kind === 'door_closed' && dv.body.method === 'direct' && dv.body.time_source === 'click');
+      sh.querySelector('.cam-seen [data-seen=camera]').click();
       const fr = sh.querySelectorAll('.cam-f')[2]; fr.querySelector('[data-fev=crate_exit]').click(); await pause(10); await wait(3);
       const fe = calls.filter(c => c.url.endsWith('/api/events')).pop();
       ok('on a frame: the frame\'s time with a 30 s window, time_source frame, anchored to the image', fe.body.kind === 'crate_exit' && fe.body.event_ts === SAMPLES[2].capture_ts && fe.body.time_source === 'frame' && fe.body.event_window.from === SAMPLES[2].capture_ts - 30000 && fe.body.anchor_image_id === SAMPLES[2].image_id);
       ok('shadow: research events change nothing in the app\'s list', canon(state.log) === log0);
       close(); }
+    // ----- the door, from the service's door timeline -----
+    { close(); DOOR = null; await poll(); render(); ok('door: "לא סומן" when no door change is known', txt().includes('דלת: לא סומן'));
+      DOOR = { value: 'closed', source: 'change', since: now - 20*MIN }; await poll(); render();
+      ok('door: closed since the change, marked by hand (not a camera detection)', txt().includes('דלת סגורה') && txt().includes('מאז') && txt().includes(clock(now - 20*MIN)) && txt().includes('סומן ידנית')); }
     // ----- an image that cannot be shown says so on the card -----
     { const rf = window.fetch; window.fetch = (url, o) => String(url).includes('/img') ? Promise.resolve(new Response(new Blob(['not an image'], { type: 'image/jpeg' }))) : rf(url, o);
       LS.last_seen = { ...LS.last_seen, image_id: 'broken', img: '/img?id=broken' }; CAM.thumb = null; CAM.thumbId = null; await poll(); render();

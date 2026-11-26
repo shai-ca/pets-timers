@@ -3204,6 +3204,7 @@ function camPoll(){
     if(!r.ok){ CAM.st = camStatusOf(r); CAM.ts = r.err === 'net' && camTailnet(); CAM.hint = r.err === 'net' && !CAM.ts && CAM_NOT_CHROME; camPaint(); return; }
     const j = r.json || {}, ls = j.last_seen && typeof j.last_seen === 'object' ? j.last_seen : null;
     CAM.data = { ls, detector: j.detector || null, latest: j.latest || null, dog: j.frame_dog_unverified || null };
+    const dn = j.door_now; CAM.door = dn && (dn.value === 'open' || dn.value === 'closed') ? dn : null;   // the door NOW, from her own marks (the service ends a mark after 12 h)
     CAM.hint = CAM.ts = false;
     const lt = j.latest && j.latest.capture_ts;
     CAM.st = !lt || (Date.now() - lt) / 1000 > CAM_STALE_S ? 'stale' : 'ok';
@@ -3218,6 +3219,10 @@ function camPoll(){
 }
 const CAM_WHERE = { crate: 'בכלוב', frame: 'בתמונה, מחוץ לכלוב', unknown: 'לא ידוע איפה' };
 const CAM_NOW = { positive: 'נראית בכלוב', uncertain: 'לא בטוח', negative: 'הכלוב נראה ריק', unavailable: 'אין תמונה עדכנית' };
+// The door, as the camera service keeps it: a timeline of door changes SHE marked (not a camera detection), ended
+// after 12 h so a stale mark becomes "not marked" rather than a wrong state. Nothing is inferred by the app.
+const CAM_DOOR = { open: '🔓 דלת פתוחה', closed: '🔒 דלת סגורה' };
+const camDoorHTML = d => (d = d === undefined ? CAM.door : d) ? `<span class="cam-t">${CAM_DOOR[d.value]}${d.since ? ` · מאז <bdi dir="ltr">${clock(d.since)}</bdi>` : ''} <small class="cam-dim">סומן ידנית</small></span>` : `<span class="cam-t cam-dim">דלת: לא סומן</span>`;
 const camMin = t => Math.max(1, Math.round((Date.now() - t) / 60000));
 // An image: fetched with the token, typed as an image, decoded BEFORE it is shown (so a bad or empty body is caught here
 // and reported, never a silent blank). → {ok, url} or {ok:false, why} — `why` is a short reason shown on the card.
@@ -3255,7 +3260,7 @@ function camCardHTML(p){
   return `<div class="card camc" role="button" tabindex="0" data-cam="open">
     <span class="cam-th">${CAM.thumb && ls && live ? `<img src="${CAM.thumb}" alt="">` : ico('crate')}</span>
     <span class="cam-b"><span class="cam-h"><b>נראתה לאחרונה</b><small>ניסיוני · לא מאומת</small></span>${body}
-      ${now && live ? `<span class="cam-t">עכשיו לפי המודל: ${now}</span>` : ''}${ls && live && !CAM.thumb && CAM.imgErr ? `<span class="cam-t cam-err">התמונה לא נטענה · ${esc(CAM.imgErr)}</span>` : ''}${camStatusHTML()}</span></div>`;
+      ${now && live ? `<span class="cam-t">עכשיו לפי המודל: ${now}</span>` : ''}${live ? camDoorHTML() : ''}${ls && live && !CAM.thumb && CAM.imgErr ? `<span class="cam-t cam-err">התמונה לא נטענה · ${esc(CAM.imgErr)}</span>` : ''}${camStatusHTML()}</span></div>`;
 }
 function camPaint(){   // repaint just the card and the setting link (never `render`, never the list)
   const sl = document.querySelector('#dsw [data-cam=set]'); if(sl) sl.textContent = camSetText();
@@ -3271,6 +3276,7 @@ function camSheet(repaint){
     ${CAM.thumb && ls ? `<img class="cam-big" src="${CAM.thumb}" alt="">` : ''}
     <div class="cam-meta">${ls ? `<b>${CAM_WHERE[ls.where] || CAM_WHERE.unknown}</b> · ${dayLabel(ls.capture_ts)} <bdi dir="ltr">${new Date(ls.capture_ts).toLocaleTimeString('he-IL', {hour:'2-digit', minute:'2-digit', second:'2-digit'})}</bdi> · לפני <span data-words="${ls.capture_ts}">${words(Date.now() - ls.capture_ts)}</span>` : (dt ? 'לא זוהתה ב־36 השעות האחרונות' : 'זיהוי עוד לא זמין')}</div>
     <div class="cam-meta">${camStatusHTML()}</div>
+    ${ls ? `<div class="cam-meta">בזמן התמונה: ${camDoorHTML(ls.door && (ls.door.value === 'open' || ls.door.value === 'closed') ? ls.door : null).replace(/<\/?span[^>]*>/g, '')}</div>` : ''}
     ${dog && dog.capture_ts ? `<div class="cam-meta cam-dim">כלב בתמונה (לא מזוהה) · לפני ${words(Date.now() - dog.capture_ts)}</div>` : ''}
     <details class="cam-how"><summary>איך זה מחושב</summary><div>${how} המצלמה רק מציגה: שום דבר ממנה לא נכנס ליומן, לעצות או לחישובים.</div></details>
     <div class="foot"><button class="lnk" id="camLbl">תיוג</button><button class="btn" id="camX">סגירה</button></div></div>`;
@@ -3283,13 +3289,13 @@ const CAM_G = [
   ['occupancy', 'בכלוב', [['occupied', 'קישמיש בכלוב'], ['empty', 'ריק'], ['unknown', 'לא ידוע']]],
   ['visibility', 'רואים', [['visible', 'רואים'], ['partial', 'חלקית'], ['occluded', 'מוסתר']]],
   ['state', 'מצב', [['awake', 'ערה'], ['awake_resting', 'ערה ונחה'], ['asleep', 'ישנה'], ['playing', 'משחקת']]],
-  ['door', 'דלת', [['closed', 'סגורה'], ['open', 'פתוחה']]],
   ['certainty', 'ודאות', [['sure', 'בטוחה'], ['probable', 'כנראה'], ['unsure', 'לא בטוחה']]]];
 // RESEARCH EVENTS (owner, 26.11): "כניסה לכלוב" / "יציאה מהכלוב" as annotations for the camera research only — NOT the
 // app's crate buttons. One tap = an event now (time_source 'click'); on a frame = that frame's time (time_source 'frame',
 // a 30 s window before it); "תיקון שעה" = a new record that supersedes it (time_source 'manual'); "ביטול" = retract.
 // Nothing here touches the journal: these go only to the camera service (POST /api/events).
-const CAM_EV = { crate_entry: 'כניסה לכלוב', crate_exit: 'יציאה מהכלוב' };
+const CAM_EV = { crate_entry: 'כניסה לכלוב', crate_exit: 'יציאה מהכלוב', door_closed: 'הדלת נסגרה', door_opened: 'הדלת נפתחה' };
+let camSeen = 'camera';   // the live tap: 'direct' only when she saw it with her own eyes (the camera side's analysis separates them)
 const camUid = () => (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2));
 async function camEvent(kind, at, extra){
   const body = Object.assign({ kind, event_ts: at, time_source: 'click', method: 'direct', certainty: 'sure', blind: true,
@@ -3319,15 +3325,17 @@ async function camLabelView(){
   camFreeLbl();
   sh.innerHTML = `<div class="cam-sheet"><h3>תיוג <small class="cam-x">בלי לראות את האפליקציה</small></h3>
     <div class="cam-ev"><div class="sub">אירוע עכשיו — למחקר בלבד, לא נרשם ביומן ולא משנה את הכלוב באפליקציה</div>
-      <div class="chips"><button data-ev="crate_entry">${CAM_EV.crate_entry}</button><button data-ev="crate_exit">${CAM_EV.crate_exit}</button></div><div class="cam-evres sub"></div></div>
+      <div class="chips"><button data-ev="crate_entry">${CAM_EV.crate_entry}</button><button data-ev="crate_exit">${CAM_EV.crate_exit}</button><button data-ev="door_closed">${CAM_EV.door_closed}</button><button data-ev="door_opened">${CAM_EV.door_opened}</button></div>
+      <div class="chips cam-seen"><span>איך ראיתי</span><button data-seen="direct" class="${camSeen === 'direct' ? 'sel' : ''}">בעיניים</button><button data-seen="camera" class="${camSeen === 'camera' ? 'sel' : ''}">במצלמה</button></div><div class="cam-evres sub"></div></div>
     <div class="cam-list"><div class="sub">טוען…</div></div>
     <div class="foot"><button class="lnk" id="camBack">חזרה</button><button class="btn" id="camX">סגירה</button></div></div>`;
   sh.querySelector('#camX').onclick = () => { camFreeLbl(); close(); };
   sh.querySelector('#camBack').onclick = () => { camFreeLbl(); camSheet(); };
   bg.classList.add('show');
+  sh.querySelectorAll('.cam-seen [data-seen]').forEach(b => b.onclick = () => { camSeen = b.dataset.seen; sh.querySelectorAll('.cam-seen [data-seen]').forEach(x => x.classList.toggle('sel', x === b)); });
   sh.querySelectorAll('.cam-ev [data-ev]').forEach(b => b.onclick = async () => {
     const at = Date.now(), res = sh.querySelector('.cam-evres'); res.textContent = 'שומר…';
-    const r = await camEvent(b.dataset.ev, at); if(!sh.contains(res)) return;
+    const r = await camEvent(b.dataset.ev, at, { method: camSeen }); if(!sh.contains(res)) return;
     if(r.ok) camEventResult(res, b.dataset.ev, r); else res.textContent = 'לא נשמר · ' + camStatusHTML().replace(/<[^>]+>/g, '');
   });
   const to = Date.now(), r = await camReq(`/api/v1/samples?from=${to - 60*60000}&to=${to}&grouped=1&blind=1`);
@@ -3356,7 +3364,7 @@ async function camLabelView(){
       const empty = pick.occupancy === 'empty';
       const body = { image_id: it.image_id, method: Date.now() - it.capture_ts > 10*60000 ? 'retrospective' : 'camera',   // the camera project's rule: over 10 min old = retrospective
       occupancy: pick.occupancy, visibility: pick.visibility || null,
-        state: empty ? null : pick.state || null, door: pick.door || 'unknown',
+        state: empty ? null : pick.state || null,
         certainty: pick.certainty || 'sure', shown: { app_state: false, prediction: false }, blind: true,
         labeler: String(me || '').slice(0, 40), client: CAM_CLIENT.slice(0, 40), apply_to_group: true };
       const sup = saved ? saved[0] : it.label && it.label.label_id; if(sup) body.supersedes = sup;
