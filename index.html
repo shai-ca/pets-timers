@@ -3232,7 +3232,7 @@ function camCardHTML(p){
   let body;
   if(ls && live) body = `<span class="cam-w">${CAM_WHERE[ls.where] || CAM_WHERE.unknown}${ls.basis === 'label' ? '<small class="cam-l">תויג ידנית</small>' : ''}</span>
       <span class="cam-t"><bdi dir="ltr">${clock(ls.capture_ts)}</bdi>${dayLabel(ls.capture_ts) === 'היום' ? '' : ' · ' + dayLabel(ls.capture_ts)} · לפני <span data-words="${ls.capture_ts}">${words(Date.now() - ls.capture_ts)}</span></span>`;
-  else if(d && live) body = `<span class="cam-w">${d.detector ? 'לא זוהתה ב־36 השעות האחרונות' : 'זיהוי עוד לא זמין'}</span>
+  else if(d && live) body = `<span class="cam-w">${d.detector ? 'לא זוהתה בכלוב ב־36 השעות האחרונות <small>(זה לא אומר שהיא לא שם)</small>' : 'זיהוי עוד לא זמין'}</span>
       <span class="cam-t">${d.latest && d.latest.capture_ts ? `התמונה האחרונה לפני <span data-words="${d.latest.capture_ts}">${words(Date.now() - d.latest.capture_ts)}</span>` : 'אין עדיין תמונות'}</span>`;
   else body = `<span class="cam-w">—</span>`;
   const now = d && d.detector && d.detector.crate_now && CAM_NOW[d.detector.crate_now.status];
