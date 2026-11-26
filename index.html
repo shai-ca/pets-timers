@@ -802,6 +802,12 @@
   .smp-oh{display:flex;flex-direction:column;gap:3px} .smp-oh b{font-size:17px;font-weight:600} .smp-oh small{font-size:13px;color:var(--muted)} .smp-oh small b{font-size:inherit;color:var(--ink)}
   .btn.smp-end{width:100%;min-height:52px;font-size:16px;font-weight:600;border-radius:14px}
   .dsw .lnk.smp-set{margin-bottom:8px}
+  /* ---------- the crate toy: a quiet line under "קיבלה בכלוב" ---------- */
+  .card.item .crtoy{grid-column:1/-1;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px;padding-top:10px;margin-top:2px;border-top:1px solid var(--line);font-size:12.5px;color:var(--muted)}
+  .card.item .incr + .crtoy{border-top:0;padding-top:0}
+  .card.item .crtoy > span{display:flex;align-items:center;gap:6px;min-width:0}
+  .card.item .crtoy.on > span{color:var(--ink)}
+  .card.item .crtoy .btn{padding:8px 12px;font-size:13.5px}
 </style>
 </head>
 <body>
@@ -915,6 +921,10 @@ const ITEMS = {
   carrier:{dur:true,icon:'paw',lbl:'טיול במנשא',live:'במנשא',start:'יצאנו עם המנשא',stop:'חזרנו מהמנשא',log:'טיול במנשא',startQ:'מתי יצאתם עם המנשא?'},
   pen:{dur:true,icon:'crate',lbl:'בגדר',live:'בגדר',start:'נכנסה לגדר',stop:'יצאה מהגדר',log:'בגדר',startQ:'מתי נכנסה לגדר?'},
   away:{dur:true,icon:'clock',lbl:'לא בבית',live:'לא בבית',start:'יצאתי',stop:'חזרתי',log:'לא בבית',startQ:'מתי יצאת?'},
+  // A toy hung in the crate (owner, 27.11): environmental enrichment only — the crate's ENVIRONMENT, not food, play,
+  // sleep or a step of the routine. start = hung, end = taken down; with the door open or closed, she in or out.
+  // Nothing reads it but `toyAt` / `crateSetup().toy` (context for later analysis), the list, the export and the summary.
+  toy:{dur:true,icon:'paw',lbl:'צעצוע תלוי',live:'צעצוע תלוי',start:'תליתי צעצוע',stop:'הורדתי את הצעצוע',log:'צעצוע תלוי',startQ:'מתי תלית את הצעצוע?'},
   med_am:{icon:'pill',log:'תרופת בוקר'},
   med_pm:{icon:'pill',log:'תרופת ערב'}
 };
@@ -1356,8 +1366,12 @@ const SLEEP_PRIOR_N = 4;      // initial: the Beta prior in `sleepOn` is worth t
 const SLEEP_ON = {near:2*60000, step:15*60000, days:14, minEp:5, horizons:[15, 30, 60], judge:30, likely:.7, unlikely:.3};   // initial
 const NIGHT_LEARN = {days:14, min:7, cover:.5};   // `learnedNight`: last 14 nights, 7 observed needed; observed = ≥50% marked
 // What breaks a sleep episode: something she was seen doing, or being moved (not a change of crate, not a setup change).
+// THE CRATE TOY (27.11): hanging at t = a `toy` entry begun at or before t and not yet taken down then. Read by nothing
+// that decides anything (sleep, meals, routine, retry, reminders, planning): a variable for later analysis only.
+const toyIn = (L, t) => L.some(e => e.k === 'toy' && e.t <= t && (e.end == null || e.end > t));
+const toyAt = (p, t, log) => toyIn((log || state.log).filter(e => e.p === p), t);
 const MEANINGFUL = {water:1, food:1, nofood:1, play:1, cry:1, gravel:1, crate:1, pee:1, poop:1, none:1, carrier:1, pen:1};
-// crateSetup(p, t, log?) -> {kind, door, cover}. kind: the crate she is in at t (`crateAt`), else the last one used
+// crateSetup(p, t, log?) -> {kind, door, cover, toy}. toy: a toy hanging in the crate at t (`toyAt`; context only). kind: the crate she is in at t (`crateAt`), else the last one used
 // before t; door / cover: the latest `cset` at or before t that sets that field, else 'unknown'.
 function crateSetup(p, t, log){
   const L = (log || state.log).filter(e => e.p===p && e.t <= t);
@@ -1368,7 +1382,7 @@ function crateSetup(p, t, log){
     if(CSET_DOOR[e.door] && e.t >= dt){ door = e.door; dt = e.t; }
     if(CSET_COVER[e.cover] && e.t >= ct){ cover = e.cover; ct = e.t; }
   }
-  return {kind, door, cover};
+  return {kind, door, cover, toy: toyIn(L, t)};
 }
 // episodes(p, from, to, opts?) -> [{t, end|null, pieces:[{t, end|null, src}], src:'marked'|'estimated'|'mixed',
 //   endCause:'running'|'unknown'|'observed', night}] — sleep pieces (marked + estimated, `V[p].spans`) overlapping
@@ -4566,6 +4580,16 @@ setInterval(() => { if(!document.hidden && camBase()) camPoll(); }, CAM_POLL_MS)
 setTimeout(() => { if(camBase()) camPoll(); }, 0);
 // ---------- end camera ----------
 
+// ---------- the crate toy (27.11): one quiet line under "קיבלה בכלוב" in the crate card ----------
+// An ordinary timer (`data-act="dur" data-k="toy"`: the usual "מתי?", one tap to take it down), shown whether or not
+// she is in the crate and whatever the door. Not on the night screen or on מסך יונתן (they have no such row).
+function crateToyHTML(p){
+  const st = (V[p].toy || {}).start;
+  return st ? `<div class="crtoy on"><span><span class="dot"></span>צעצוע תלוי מ־${dayLabel(st) === 'היום' ? '' : dayLabel(st) + ' '}<bdi dir="ltr">${clock(st)}</bdi></span><button class="btn" data-act="dur" data-k="toy">${ITEMS.toy.stop}</button></div>`
+    : `<div class="crtoy"><span>צעצוע בכלוב</span><button class="btn" data-act="dur" data-k="toy">${ITEMS.toy.start}</button></div>`;
+}
+// ---------- end crate toy ----------
+
 // ---------- "מסך יונתן" (simple screen, optional, this phone only) ----------
 // A cut-down Kishmish screen for fast logging: three big buttons (יצאנו לחצץ · אכלה · שתתה), the outing's four results
 // while it runs, and two small clocks. Every button is an ordinary action through the same code as the full screen
@@ -4733,7 +4757,7 @@ function render(){
         <div class="acts">${k === 'crate' && P.cycle && pet === CAMJ_P && camjCamOk() && !camjPendingEntry() ? `<details class="cr-more"><summary>עוד · רישום ידני</summary><div class="acts">` : ''}<button class="go" data-act="dur" data-k="${k}">${live?it.stop:it.start}</button>
           <button class="ghost" data-act="edit" data-k="${k}">${ico(live?'clock':'plus','s')}${live?'שעת התחלה':'הוספה'}</button>${k === 'crate' && P.cycle && pet === CAMJ_P && camjCamOk() && !camjPendingEntry() ? '</div></details>' : ''}${k === 'crate' && P.cycle && !slim ? doorBtnHTML(pet, live) : ''}${k === 'sleep' && live && P.cycle ? `<button class="ghost" data-act="notasleep">${ico('none','s')}לא נרדמה</button>` : ''}${k === 'crate' && live && P.cycle ? `<button class="ghost" data-act="swap">${ico('crate','s')}החלפת כלוב</button>` : ''}</div>
         ${k === 'crate' && P.cycle && !slim ? crateCamRowHTML(pet) : ''}
-        ${k === 'crate' && live && P.cycle && !slim ? `<div class="incr"><span>קיבלה בכלוב:</span><button class="btn" data-act="play" data-k="kong">${PLAY.kong}</button><button class="btn" data-act="play" data-k="lick">${PLAY.lick}</button><button class="btn" data-act="crfood">ארוחה</button></div>` : ''}
+        ${k === 'crate' && live && P.cycle && !slim ? `<div class="incr"><span>קיבלה בכלוב:</span><button class="btn" data-act="play" data-k="kong">${PLAY.kong}</button><button class="btn" data-act="play" data-k="lick">${PLAY.lick}</button><button class="btn" data-act="crfood">ארוחה</button></div>` : ''}${k === 'crate' && P.cycle && !slim ? crateToyHTML(pet) : ''}
         ${k === 'crate' && P.cycle ? crateExtrasHTML(pet, slim) : ''}
         ${k === 'sleep' && P.cycle && !slim ? camjSugSleepRowHTML(pet) : ''}
         ${k === 'sleep' && !live && P.cycle ? newCrateHint(pet) : ''}</div>`;
@@ -5362,7 +5386,7 @@ function sumShift(dir){
   sumAnchor = Math.min(d.getTime(), Date.now());
 }
 function stats(p, from, to){
-  const r = {food:0, pee:0, poop:0, gel:0, none:0, vomit:0, treat:0, sleep:{n:0,ms:0}, cry:{n:0,ms:0}, crate:{n:0,ms:0}, medoff:{n:0,ms:0}, gravel:{n:0,ms:0}, carrier:{n:0,ms:0}, pen:{n:0,ms:0}, away:{n:0,ms:0}, meds:0, w:{pee:{}, poop:{}}, q:{}, unsure:{}};
+  const r = {food:0, pee:0, poop:0, gel:0, none:0, vomit:0, treat:0, sleep:{n:0,ms:0}, cry:{n:0,ms:0}, crate:{n:0,ms:0}, medoff:{n:0,ms:0}, gravel:{n:0,ms:0}, carrier:{n:0,ms:0}, pen:{n:0,ms:0}, away:{n:0,ms:0}, toy:{n:0,ms:0}, meds:0, w:{pee:{}, poop:{}}, q:{}, unsure:{}};
   const add = (k, a, b) => { const ov = Math.min(b,to) - Math.max(a,from); if(ov > 0){ r[k].ms += ov; r[k].n++; } };
   for(const e of state.log){
     if(e.p !== p) continue;
@@ -5591,7 +5615,7 @@ function renderSummary(){
       <span>${SUM_LBL[k]} · ${st[k].n===1 ? 'פעם אחת' : st[k].n+' פעמים'}</span>
       ${k === 'crate' && P.cycle && st[k].ms ? (cs => `<small>ישנה בו ${words(cs.sl)} · ערה בו ${words(cs.aw)}</small>`)(crateSplit(pet, from, to)) : ''}
       ${multi && days > 1 && st[k].ms ? `<small>ממוצע ${words(st[k].ms/days)} ליום</small>` : ''}</button>`).join('') + `</div>`;
-  if(!F) h += ['carrier', 'pen'].filter(k => st[k].n).map(k => `<div class="card slim xsum ${k}"><span><b>${ITEMS[k].lbl}: ${words(st[k].ms)}</b><small>${st[k].n === 1 ? 'פעם אחת' : st[k].n + ' פעמים'}${multi && days > 1 ? ` · ממוצע ${words(st[k].ms / days)} ליום` : ''}</small></span>${ico(iconOf(k), 's')}</div>`).join('');   // v3: only when there was any
+  if(!F) h += ['carrier', 'pen', 'toy'].filter(k => st[k].n).map(k => `<div class="card slim xsum ${k}"><span><b>${ITEMS[k].lbl}: ${words(st[k].ms)}</b><small>${st[k].n === 1 ? 'פעם אחת' : st[k].n + ' פעמים'}${multi && days > 1 ? ` · ממוצע ${words(st[k].ms / days)} ליום` : ''}</small></span>${ico(iconOf(k), 's')}</div>`).join('');   // v3: only when there was any
   if(!F) h += groomSumHTML(pet, from, to);
   if(P.meds && !F){
     const m = V[pet].meds[dayKey(from)] || {};
