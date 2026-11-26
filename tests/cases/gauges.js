@@ -23,7 +23,7 @@
     ok('meal: a bar to the next meal', !!card('food').querySelector('.gauge') && card('food').querySelector('.gauge small').textContent.includes('לארוחה'));
     ok('bath: a bar to the tenth day', !!card('bath').querySelector('.gauge') && card('bath').querySelector('.gauge small').textContent.includes('למקלחת'));
     ok('awake: a bar to the hour awake', !!$q('#sec-rest .gauge') && $q('#sec-rest .gauge small').textContent.includes('לשינה'));
-    ok('sleep in the last 24 hours, with the age range as information (a two-month-old)', sleepGoal('kishmish') === 18 && $q('#sec-rest .gauge.goal small').textContent.includes('טווח מקובל לגילה 18–20 שעות, לא יעד') && $q('#sec-rest .gauge.goal small').textContent.includes(hmm(scores('kishmish').total)) && !$q('#sec-rest .gauge.goal small').textContent.includes('חסרות') && !!$q('.ribbon .gauge.goal'));
+    ok('sleep in the last 24 hours, with the age range as information (a two-month-old) — once, on the sleep card, not repeated in the day ribbon', sleepGoal('kishmish') === 18 && $q('#sec-rest .gauge.goal small').textContent.includes('טווח מקובל לגילה 18–20 שעות, לא יעד') && $q('#sec-rest .gauge.goal small').textContent.includes(hmm(scores('kishmish').total)) && !$q('#sec-rest .gauge.goal small').textContent.includes('חסרות') && !$q('.ribbon .gauge.goal'));
     card('pee').querySelector('.gauge .gw').dispatchEvent(new MouseEvent('pointerover', {bubbles:true}));
     ok('hovering the window shows its times', card('pee').querySelector('.gauge .ptip').textContent.includes(clock(f.from)));
     card('pee').querySelector('.gauge .gf').dispatchEvent(new MouseEvent('click', {bubbles:true}));
