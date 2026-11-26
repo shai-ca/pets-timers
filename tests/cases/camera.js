@@ -107,7 +107,7 @@
     sh.querySelector('#camLbl').click(); await pause(20); await wait(5);
     const sc = calls.filter(c => c.url.includes('/api/v1/samples'));
     ok('labeling: samples of the last hour, grouped, blind on the server', sc.length === 1 && /grouped=1/.test(sc[0].url) && /blind=1/.test(sc[0].url));
-    ok('labeling: one card per frame with the three buttons + "לא ברור" (no playing / resting / posture)', sh.querySelectorAll('.cam-f').length === 3 && [...sh.querySelectorAll('.cam-f')[0].querySelectorAll('[data-sc]')].map(b => b.dataset.sc).join() === 'empty,awake,asleep,uncertain' && !sh.textContent.includes('משחקת'));
+    ok('labeling: one card per frame with the three buttons + "לא ברור" (no playing / resting / posture)', sh.querySelectorAll('.cam-f').length === 3 && [...sh.querySelectorAll('.cam-f')[0].querySelectorAll('[data-sc]')].map(b => b.dataset.sc).join() === 'empty,empty_awake,awake,asleep,uncertain' && !sh.textContent.includes('משחקת'));
     ok('blind: neither the app\'s state nor the prediction is shown', !sh.textContent.includes('APPSTATE_LEAK') && !sh.textContent.includes('PRED_LEAK') && !sh.innerHTML.includes('LEAK'));
     await pause(10); await wait(3);
     ok('frame images as blob URLs', [...sh.querySelectorAll('.cam-fi img')].every(i => /^blob:/.test(i.src)) && sh.querySelectorAll('.cam-fi img').length === 3);

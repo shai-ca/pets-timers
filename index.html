@@ -3294,7 +3294,7 @@ function camSheet(repaint){
   if(!repaint) bg.classList.add('show');
 }
 // ----- labeling (blind: the app's state and the model's prediction are never shown here) -----
-const CAM_SC = [['empty', 'הכלוב ריק'], ['awake', 'בכלוב · ערה'], ['asleep', 'בכלוב · ישנה']];   // + "לא ברור" (camera side, 26.11)
+const CAM_SC = [['empty', 'כלוב ריק'], ['empty_awake', 'כלוב ריק · ערה'], ['awake', 'בכלוב · ערה'], ['asleep', 'בכלוב · ישנה']];   // 'empty' alone = out, state unknown (never read as awake)   // + "לא ברור" (camera side, 26.11)
 // RESEARCH EVENTS (owner, 26.11): "כניסה לכלוב" / "יציאה מהכלוב" as annotations for the camera research only — NOT the
 // app's crate buttons. One tap = an event now (time_source 'click'); on a frame = that frame's time (time_source 'frame',
 // a 30 s window before it); "תיקון שעה" = a new record that supersedes it (time_source 'manual'); "ביטול" = retract.
