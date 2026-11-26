@@ -720,10 +720,12 @@
   .card.slim.xsum svg{color:var(--acc)}
   .cset-door,.cset-cover{margin-bottom:12px}
   /* ---------- camera (experimental, shadow mode) — one block; remove with the JS section of the same name ---------- */
-  .card.camc{display:flex;align-items:center;gap:12px;padding:10px 12px;cursor:pointer;text-align:right}
+  .card.camc{display:flex;flex-direction:column;align-items:stretch;gap:8px;padding:10px 12px 12px;cursor:pointer;text-align:right}
   .card.camc:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
-  .cam-th{flex:none;width:76px;height:56px;border-radius:12px;overflow:hidden;background:var(--seg);display:grid;place-items:center;color:var(--muted)}
-  .cam-th img{width:100%;height:100%;object-fit:cover;display:block}
+  .card.camc,.cam-th{min-width:0;max-width:100%;box-sizing:border-box}
+  .cam-th{width:100%;aspect-ratio:1099/873;max-height:46vh;border-radius:14px;overflow:hidden;background:var(--seg);display:grid;place-items:center;color:var(--muted)}
+  .cam-th:not(:has(img)){aspect-ratio:auto;height:44px}
+  .cam-th img{width:100%;max-width:100%;height:100%;object-fit:contain;background:#000;display:block;min-width:0}
   .cam-b{display:flex;flex-direction:column;gap:1px;min-width:0;flex:1}
   .cam-h{display:flex;align-items:baseline;gap:8px;font-size:13px} .cam-h b{font-weight:600}
   .cam-h small,.cam-x{font-size:11px;color:var(--muted);font-weight:400}
@@ -3292,11 +3294,7 @@ function camSheet(repaint){
   if(!repaint) bg.classList.add('show');
 }
 // ----- labeling (blind: the app's state and the model's prediction are never shown here) -----
-const CAM_G = [
-  ['occupancy', 'בכלוב', [['occupied', 'קישמיש בכלוב'], ['empty', 'ריק'], ['unknown', 'לא ידוע']]],
-  ['visibility', 'רואים', [['visible', 'רואים'], ['partial', 'חלקית'], ['occluded', 'מוסתר']]],
-  ['state', 'מצב', [['awake', 'ערה'], ['awake_resting', 'ערה ונחה'], ['asleep', 'ישנה']]],
-  ['certainty', 'ודאות', [['sure', 'בטוחה'], ['probable', 'כנראה'], ['unsure', 'לא בטוחה']]]];
+const CAM_SC = [['empty', 'הכלוב ריק'], ['awake', 'בכלוב · ערה'], ['asleep', 'בכלוב · ישנה']];   // + "לא ברור" (camera side, 26.11)
 // RESEARCH EVENTS (owner, 26.11): "כניסה לכלוב" / "יציאה מהכלוב" as annotations for the camera research only — NOT the
 // app's crate buttons. One tap = an event now (time_source 'click'); on a frame = that frame's time (time_source 'frame',
 // a 30 s window before it); "תיקון שעה" = a new record that supersedes it (time_source 'manual'); "ביטול" = retract.
@@ -3351,39 +3349,31 @@ async function camLabelView(){
   const items = r.json.slice(0, 12);
   if(!items.length){ box.innerHTML = '<div class="sub">אין תמונות מהשעה האחרונה</div>'; return; }
   box.innerHTML = items.map((it, i) => `<div class="cam-f" data-i="${i}"><div class="cam-fh"><span class="cam-fi"></span><span><b><bdi dir="ltr">${clock(it.capture_ts)}</bdi></b>${it.group && it.group.n > 1 ? ` · ${it.group.n} תמונות דומות` : ''}${it.label ? ' · <small>תויג כבר</small>' : ''}</span></div>
-    ${CAM_G.map(([k, t, vs]) => `<div class="chips cam-c" data-g="${k}"><span>${t}</span>${vs.map(([v, n]) => `<button data-v="${v}">${n}</button>`).join('')}</div>`).join('')}
-    <div class="cam-fa"><button class="btn primary cam-save" disabled>שמירה</button><span class="cam-res"></span></div>
+    <div class="chips cam-sc">${CAM_SC.map(([v, n]) => `<button data-sc="${v}">${n}</button>`).join('')}<button class="lnk" data-sc="uncertain">לא ברור</button></div>
+    <div class="cam-fa"><span class="cam-res"></span></div>
     <div class="cam-fe"><small>אירוע בתמונה הזו:</small><button class="lnk" data-fev="crate_entry">${CAM_EV.crate_entry}</button><button class="lnk" data-fev="crate_exit">${CAM_EV.crate_exit}</button><span class="cam-fevres"></span></div></div>`).join('');
   box.querySelectorAll('.cam-f').forEach(f => {
-    const it = items[+f.dataset.i], pick = {}; let saved = null;
-    f.querySelectorAll('.cam-c').forEach(g => g.querySelectorAll('button').forEach(b => b.onclick = () => {
-      const k = g.dataset.g; pick[k] = pick[k] === b.dataset.v ? undefined : b.dataset.v;
-      g.querySelectorAll('button').forEach(x => x.classList.toggle('sel', x.dataset.v === pick[k]));
-      f.querySelector('.cam-save').disabled = !pick.occupancy;
-    }));
+    const it = items[+f.dataset.i]; let saved = null;
     const res = f.querySelector('.cam-res');
     f.querySelectorAll('[data-fev]').forEach(b => b.onclick = async () => {   // the event happened around this frame: its time, a 30 s window before it
       const out = f.querySelector('.cam-fevres'); out.textContent = 'שומר…';
       const r = await camEvent(b.dataset.fev, it.capture_ts, { time_source: 'frame', method: 'camera', event_window: { from: it.capture_ts - 30000, to: it.capture_ts }, anchor_image_id: it.image_id });
       if(r.ok) camEventResult(out, b.dataset.fev, r); else out.textContent = 'לא נשמר';
     });
-    f.querySelector('.cam-save').onclick = async () => {
-      const empty = pick.occupancy === 'empty';
-      const body = { image_id: it.image_id, method: Date.now() - it.capture_ts > 10*60000 ? 'retrospective' : 'camera',   // the camera project's rule: over 10 min old = retrospective
-      occupancy: pick.occupancy, visibility: pick.visibility || null,
-        state: empty ? null : pick.state || null,
-        certainty: pick.certainty || 'sure', shown: { app_state: false, prediction: false }, blind: true,
-        labeler: String(me || '').slice(0, 40), client: CAM_CLIENT.slice(0, 40), apply_to_group: true };
+    f.querySelectorAll('[data-sc]').forEach(b => b.onclick = async () => {   // one tap = saved
+      f.querySelectorAll('[data-sc]').forEach(x => x.classList.toggle('sel', x === b));
+      const body = { image_id: it.image_id, shortcut: b.dataset.sc, method: Date.now() - it.capture_ts > 10*60000 ? 'retrospective' : 'camera',   // over 10 min old = retrospective
+        shown: { app_state: false, prediction: false }, blind: true, labeler: String(me || '').slice(0, 40), client: CAM_CLIENT.slice(0, 40), apply_to_group: true };
       const sup = saved ? saved[0] : it.label && it.label.label_id; if(sup) body.supersedes = sup;
       const p = await camReq('/api/labels', { body });
-      if(!p.ok){ res.textContent = 'לא נשמר · ' + camStatusHTML().replace(/<[^>]+>/g, ''); return; }
+      if(!p.ok){ res.textContent = 'לא נשמר · ' + camStatusHTML().replace(/<[^>]+>/g, ''); return; }   // (unchanged)
       saved = (p.json && p.json.label_ids) || [];
       res.innerHTML = 'נשמר במאגר המחקר · <button class="lnk cam-undo">ביטול</button>';
       res.querySelector('.cam-undo').onclick = async () => {
         const u = await camReq('/api/retract', { body: { label_ids: saved } });
         if(u.ok){ saved = null; res.textContent = 'בוטל'; } else res.textContent = 'הביטול לא הצליח';
       };
-    };
+    });
     camImage(it.img || it.image).then(im => {
       if(!sh.contains(f)) { if(im.ok) URL.revokeObjectURL(im.url); return; }
       if(!im.ok){ f.querySelector('.cam-fi').innerHTML = `<small class="cam-err">${esc(im.why)}</small>`; return; }

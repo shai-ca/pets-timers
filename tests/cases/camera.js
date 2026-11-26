@@ -107,19 +107,17 @@
     sh.querySelector('#camLbl').click(); await pause(20); await wait(5);
     const sc = calls.filter(c => c.url.includes('/api/v1/samples'));
     ok('labeling: samples of the last hour, grouped, blind on the server', sc.length === 1 && /grouped=1/.test(sc[0].url) && /blind=1/.test(sc[0].url));
-    ok('labeling: one card per frame with every chip group', sh.querySelectorAll('.cam-f').length === 3 && ['occupancy','visibility','state','certainty'].every(g => !!sh.querySelector('.cam-f [data-g=' + g + ']')));
+    ok('labeling: one card per frame with the three buttons + "לא ברור" (no playing / resting / posture)', sh.querySelectorAll('.cam-f').length === 3 && [...sh.querySelectorAll('.cam-f')[0].querySelectorAll('[data-sc]')].map(b => b.dataset.sc).join() === 'empty,awake,asleep,uncertain' && !sh.textContent.includes('משחקת'));
     ok('blind: neither the app\'s state nor the prediction is shown', !sh.textContent.includes('APPSTATE_LEAK') && !sh.textContent.includes('PRED_LEAK') && !sh.innerHTML.includes('LEAK'));
     await pause(10); await wait(3);
     ok('frame images as blob URLs', [...sh.querySelectorAll('.cam-fi img')].every(i => /^blob:/.test(i.src)) && sh.querySelectorAll('.cam-fi img').length === 3);
-    const f = sh.querySelectorAll('.cam-f')[1], chip = (g, v) => f.querySelector(`[data-g=${g}] [data-v=${v}]`);
-    ok('save waits for the occupancy', f.querySelector('.cam-save').disabled);
-    chip('occupancy', 'occupied').click(); chip('state', 'asleep').click(); chip('certainty', 'probable').click();
-    f.querySelector('.cam-save').click(); await pause(5); await wait(5);
+    const f = sh.querySelectorAll('.cam-f')[1];
+    f.querySelector('[data-sc=asleep]').click(); await pause(5); await wait(5);   // one tap = saved
     const post = calls.filter(c => c.url.endsWith('/api/labels'));
     const B = post[0] && post[0].body;
     ok('labels: POST with the custom header and the token', post.length === 1 && post[0].method === 'POST' && post[0].headers['x-pets-camera'] === '1' && post[0].headers.Authorization === 'Bearer ' + TOK);
     ok('labels: the blind payload', B && B.image_id === 's:1' && (B.method === 'camera' || B.method === 'retrospective') && B.shown.app_state === false && B.shown.prediction === false && B.labeler === me && /^pets-timers\//.test(B.client) && B.client.length <= 40);
-    ok('labels: the chosen values, a correction supersedes the old label', B && B.occupancy === 'occupied' && B.state === 'asleep' && !('posture' in B && B.posture) && B.certainty === 'probable' && !('door' in B) && B.supersedes === 'Lold');
+    ok('labels: one tap sends the shortcut, a correction supersedes the old label', B && B.shortcut === 'asleep' && !('posture' in B) && !('door' in B) && !('state' in B) && B.supersedes === 'Lold');
     ok('labels: no app-state field is sent', B && !('app' in B) && !('prediction' in B) && !JSON.stringify(B).includes('LEAK'));
     ok('saved, with an undo', f.textContent.includes('נשמר במאגר המחקר') && !!f.querySelector('.cam-undo'));
     f.querySelector('.cam-undo').click(); await pause(5); await wait(5);
@@ -206,7 +204,7 @@
       DOOR = null; LS = { ...LS, last_seen: { ...LS.last_seen, door: { value: 'open', source: 'period', from: now - 60*MIN, to: now - 30*MIN } } }; await poll(); render();
       DOOR = { value: 'open', status: 'inferred', from: now - 40*MIN, to: now }; await poll(); render();
       ok('inferred door: shown weaker, "משוער מהסימון הקודם", never as marked', txt().includes('דלת פתוחה') && txt().includes('משוער מהסימון הקודם') && !!card().querySelector('.cam-t.cam-dim') && !txt().includes('סומן ידנית'));
-      DOOR = null;
+      DOOR = null; await poll(); render();
       ok('no span covers now: the door when she was last seen', txt().includes('דלת פתוחה כשנראתה') && txt().includes(clock(now - 60*MIN))); }
     // ----- an image that cannot be shown says so on the card -----
     { const rf = window.fetch; window.fetch = (url, o) => String(url).includes('/img') ? Promise.resolve(new Response(new Blob(['not an image'], { type: 'image/jpeg' }))) : rf(url, o);
