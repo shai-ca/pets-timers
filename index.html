@@ -3460,8 +3460,8 @@ function camjCards(){
   return out;
 }
 function camjCardsHTML(p){
-  if(p !== CAMJ_P) return '<div class="camj" hidden></div>';
-  const cs = camjCards();
+  if(p !== CAMJ_P) return '';
+  const cs = camjCards(); if(!cs.length) return '';
   return `<div class="camj">${cs.map((c, i) => {
     if(c.type === 'pending'){ const x = c.ev, entry = x.kind === 'crate_entry';
       return `<div class="card slim camjc"><span><b>המצלמה: ${entry ? 'נכנסה לכלוב' : 'יצאה מהכלוב'} ב־<bdi dir="ltr">${clock(x.ts)}</bdi>?</b><small>זיהוי אוטומטי, עוד לא נבדק${camjWin(x.lo, x.hi)} · נרשם רק אם מאשרים</small></span>
@@ -3470,7 +3470,8 @@ function camjCardsHTML(p){
       <span class="rt-a"><button class="go" data-camj="fix" data-i="${i}">לשעת המצלמה</button><button class="btn" data-camj="keep" data-i="${i}">להשאיר</button></span></div>`;
   }).join('')}</div>`;
 }
-function camjPaint(){ const el = document.querySelector('#side .camj'); if(!el) return; const t = document.createElement('div'); t.innerHTML = camjCardsHTML(pet); el.replaceWith(t.firstElementChild); }
+let camjLast = '';
+function camjPaint(){ const h = camjCardsHTML(pet); if(h === camjLast) return; camjLast = h; if(pet === CAMJ_P && view === 'now') render(); }   // only when the cards really changed
 document.addEventListener('click', e => {
   const b = e.target.closest && e.target.closest('[data-camj]'); if(!b) return;
   const c = camjCards()[+b.dataset.i]; if(!c) return;
