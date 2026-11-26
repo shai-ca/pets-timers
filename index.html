@@ -3368,7 +3368,9 @@ function camjDecide(ids, d){   // approved / rejected / dismissed / deleted -> c
 }
 // Door: her painted spans from the camera, plus the app's own "הגדרות כלוב" (`cset`) entries. A gap = unknown.
 function camjDoorSpans(now){
-  const out = CAMJ.doors.slice(), cs = state.log.filter(e => e.p === CAMJ_P && e.k === 'cset' && CSET_DOOR[e.door]).sort(byT);
+  const out = CAMJ.doors.slice();
+  for(const e of CAMJ.ev){ const d = camjDec('door:' + e.event_id); if(e.kind === 'crate_entry' && d && (d.d === 'door_closed' || d.d === 'door_open')) out.push({ from: e.ts, to: now, value: d.d === 'door_closed' ? 'closed' : 'open', ans: 1 }); }
+  const cs = state.log.filter(e => e.p === CAMJ_P && e.k === 'cset' && CSET_DOOR[e.door]).sort(byT);
   cs.forEach((e, i) => out.push({ from: e.t, to: cs[i+1] ? cs[i+1].t : now, value: e.door }));
   return out;
 }
@@ -3795,16 +3797,33 @@ function camjPendingEntry(){
 }
 // The camera inside the crate card (owner, 26.11 evening): one full-width row of the card — the image with its capture
 // time and a refresh icon on its corner, a status line only when it matters, and the one approval right under it.
+// "סגרת את הדלת?" — asked only when it decides something now: her own label says she is in the crate now, the door at
+// her entry is unknown, and the journal has no session. Past or short visits are never asked about (owner, 26.11).
+function camjDoorAsk(p){
+  if(p !== CAMJ_P || !CAMJ.ready || (V[p].crate || {}).start) return null;
+  const now = Date.now(), s = camjStays(now).filter(s => s.verified && s.to == null).pop(); if(!s || !camjOccNow(p)) return null;
+  if(camjDec('door:' + s.e.event_id) || camjDoorAt(s.from, now) || camjClosed(s.from, now, now).length) return null;
+  return s.e;
+}
+function camjDoorAskHTML(p){
+  const e = camjDoorAsk(p); if(!e) return '';
+  return `<div class="camjt"><span><b>בכלוב מ־<bdi dir="ltr">${clock(e.ts)}</bdi> · סגרת את הדלת?</b><small>לפי התיוג שלך · כן = שהייה בכלוב, לא = ביקור</small></span>
+    <span class="rt-a"><button class="go" data-camdoor="door_closed" data-ev="${e.event_id}">כן</button><button class="btn" data-camdoor="door_open" data-ev="${e.event_id}">לא</button></span></div>`;
+}
+document.addEventListener('click', e => {
+  const b = e.target.closest && e.target.closest('[data-camdoor]'); if(!b) return;
+  camjDecide('door:' + b.dataset.ev, b.dataset.camdoor); camjLast = ''; camjApply(); render();
+});
 function crateCamRowHTML(p){
   if(p !== CAMJ_P) return '';
   const card = camCardHTML(p); if(!card) return '';
-  if(!/<img/.test(card)){ const act = camjActHTML(); return /cams-slot|camc" hidden/.test(card) ? `<div class="crcam${act ? '' : ' slot'}">${card}${act}</div>` : `<div class="crcam">${card}${act}</div>`; }   // the approval shows even with no image yet
+  if(!/<img/.test(card)){ const act = camjActHTML() || camjDoorAskHTML(p); return /cams-slot|camc" hidden/.test(card) ? `<div class="crcam${act ? '' : ' slot'}">${card}${act}</div>` : `<div class="crcam">${card}${act}</div>`; }   // the approval shows even with no image yet
   const st = CAMS.status, cn = st && st.crate_now, now = Date.now(), priv = camBase() && (CAM.st === 'ok' || CAM.st === 'stale');
   const shot = priv ? CAM.data && CAM.data.ls && CAM.data.ls.capture_ts : CAMS.doc && CAMS.doc.capture_ts;
   const fresh = cn && typeof cn.capture_ts === 'number' && now - cn.capture_ts <= 5*60000;
   const line = st && !camjCamOk() ? `המצלמה לא מעדכנת מאז <bdi dir="ltr">${clock(st.checked_at)}</bdi>`
     : fresh && cn.status === 'negative' && camjOccNow(p) ? 'המודל לא מזהה אותה, לפי התיוג שלך היא בכלוב' : '';
-  return `<div class="crcam"><div class="crcam-img">${card}<div class="crcam-ov">${shot ? `<span>נראתה <bdi dir="ltr">${clock(shot)}</bdi></span>` : ''}<button class="icob" data-act="camrefresh" aria-label="רענון">↻</button></div></div>${line ? `<div class="crcam-l">${line}</div>` : ''}${camjActHTML()}</div>`;
+  return `<div class="crcam"><div class="crcam-img">${card}<div class="crcam-ov">${shot ? `<span>נראתה <bdi dir="ltr">${clock(shot)}</bdi></span>` : ''}<button class="icob" data-act="camrefresh" aria-label="רענון">↻</button></div></div>${line ? `<div class="crcam-l">${line}</div>` : ''}${camjActHTML() || camjDoorAskHTML(p)}</div>`;
 }
 function camBlockHTML(p){
   if(p !== CAMJ_P) return '';

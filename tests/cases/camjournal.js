@@ -174,6 +174,20 @@
       ok('…approved: a finished stay, ending when she was taken out (never an open session while she is outside)', !!s && Math.abs(s.t - (T - 40*MIN)) < 1000 && s.end === T - 10*MIN);
       ok('no statistics on the crate card; the review is reachable from the camera sheet', !$q('#sec-crate .camj-rv') && !$q('#sec-crate').textContent.includes('שהיות ב־24'));
       CAMS.status = null; }
+    // "סגרת את הדלת?" only for her CURRENT verified stay with the door unknown; the answer decides session vs visit
+    { reset(); const T = Date.now(); seed([{ ...K0, k:'pee', t: T - 2*HOUR }]); serverSeen = true; pet = 'kishmish';
+      fb = { auth:{ currentUser:{} }, camDoc: (n, on) => { subs[n] = on; return () => {}; }, camGet: async () => null, camMerge: async () => {} };
+      DOORS = [{ from: T - 5*HOUR, to: T - 3*HOUR, value: 'open' }];   // an old mark that has stopped carrying forward
+      await send([E('ce_p1', 'crate_entry', T - 4*HOUR, { pair_id: 'ce_p1x' }), E('ce_p1x', 'crate_exit', T - 4*HOUR + 5*MIN), E('ce_d1', 'crate_entry', T - 30*MIN)]);
+      camjApply(); render(); await wait(2);
+      ok('door unknown at her current entry, no session: one question in the crate card; the past visit is not asked about', !!camjDoorAsk('kishmish') && camjDoorAsk('kishmish').event_id === 'ce_d1' && $n('#sec-crate [data-camdoor]') === 2 && !state.log.some(e => e.k === 'crate'));
+      ok('…until answered nothing starts: no session, no routine change', !state.log.some(e => e.k === 'crate') && !(V.kishmish.crate || {}).start);
+      $q('#sec-crate [data-camdoor=door_closed]').click(); await wait(3);
+      const s = state.log.find(e => e.k === 'crate');
+      ok('"כן": a session from her entry (her labels), the question gone', !!s && Math.abs(s.t - (T - 30*MIN)) < 1000 && s.end == null && !camjDoorAsk('kishmish'));
+      reset(); seed([{ ...K0, k:'pee', t: T - 2*HOUR }]); serverSeen = true; pet = 'kishmish'; CAMJ.fbLocal = {}; await send(DOC.events); camjApply(); render(); await wait(2);
+      $q('#sec-crate [data-camdoor=door_open]').click(); await wait(3);
+      ok('"לא": a visit — no session, never asked again', !state.log.some(e => e.k === 'crate') && !camjDoorAsk('kishmish')); CAMJ.fbLocal = {}; DOORS = []; }
     ok('the live app reads camera/events, the preview its test copy', camjDoc() === 'events' && (MODE = 'preview', camjDoc()) === 'events_preview');
     MODE = 'live';
     ok('the only camera write path is camera/feedback (never the journal)', merged.length > 0 && merged.every(([n]) => n === 'feedback'));
