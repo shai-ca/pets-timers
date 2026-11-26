@@ -23,8 +23,10 @@
     ok('gravel: 3 of 4 on the gravel = 75', s.gravel === 75 && s.good === 3 && s.all === 4);
     // awake time, play, the carrier, the pen change nothing in the rings
     const ringsTxt = () => { render(); return $q('.scores').textContent; };
-    V2 = true; render();
-    ok('three rings right above the routine (urgent cards stay first)', !!$q('#side > .card.scores + .card.cyc') && $n('.scores .scr') === 3 && $q('.scores').textContent.includes('75'));
+    V2 = true; view = 'now'; render();
+    ok('the rings are not on the tracking screen (owner, 26.11)', !$q('.scores'));
+    view = 'sum'; render();
+    ok('three rings at the top of the summary tab', !!$q('#main > .card.scores') && $n('.scores .scr') === 3 && $q('.scores').textContent.includes('75'));
     ok('sleep ring: observed and estimated apart, neutral colour; readiness: "אין מספיק נתונים"', $q('.scores').textContent.includes('נצפה ' + hmm(s.marked)) && $q('.scores').textContent.includes('משוער 0:00')
       && $q('.scores .scr').className.trim() === 'scr' && $q('.scores').textContent.includes('אין מספיק נתונים'));
     const before = ringsTxt();
@@ -43,7 +45,7 @@
     seed(L.concat([{...K0, k:'sleep', t: now - 5*MIN}]));
     ok('asleep: still no readiness number', scores('kishmish').ready === null && $q('.scores').textContent.includes('אין מספיק נתונים'));
     V2 = false; render();
-    ok('old design: no rings', !$q('.scores'));
+    ok('old design: no rings', !$q('.scores')); view = 'now';
     pet = 'kochik'; V2 = true; render();
     ok('Kochik: no rings (no sleep goal at her age)', !$q('.scores'));
     V2 = false;

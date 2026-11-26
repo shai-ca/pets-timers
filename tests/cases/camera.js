@@ -69,7 +69,7 @@
     ok('on: provisional, the model\'s "now" in words, no numbers', txt().includes('ניסיוני · לא מאומת') && txt().includes('עכשיו לפי המודל: לא בטוח') && !/%|0\.9/.test(txt()));
     ok('the frame-wide dog is never shown as her on the card', !txt().includes('כלב'));
     ok('the "לפני" is live (data-words, ticked)', !!card().querySelector('[data-words="' + SEEN + '"]'));
-    ok('inside the crate card (one component), not a separate card in the side column', !!card().closest('.camjb') && !$q('#side .camc'));
+    ok('inside the Now card (one component), not a separate card', !!card().closest('.nowc') && $n('.camc') === 1);
     ok('every request carries the Bearer token', calls.length >= 2 && calls.every(c => c.headers.Authorization === 'Bearer ' + TOK));
     ok('no token in any URL', calls.every(c => !c.url.includes(TOK)));
     const blob1 = card().querySelector('img').src, n1 = calls.length;

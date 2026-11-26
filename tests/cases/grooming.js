@@ -7,7 +7,7 @@
     pet = 'kochik'; seed([]);
     const card = k => $q(`#sec-bath [data-act=pt][data-k=${k}]`).closest('.card');
     ok('in order of how often: brushing, teeth, bath, spray, weight', [...document.querySelectorAll('#sec-bath .groom > .card.item [data-act=pt]')].map(b => b.dataset.k).join() === 'brush,teeth,bath,flea,weight');
-    ok('the group is "טיפוח": bath, spray, brushing, teeth, weight', $q('#sec-bath h2').textContent.includes('טיפוח') && ['bath','flea','brush','teeth','weight'].every(k => !!$q(`#sec-bath [data-act=pt][data-k=${k}]`)));
+    ok('the group is "טיפוח": bath, spray, brushing, teeth, weight', $q('#sec-bath summary').textContent.includes('טיפוח') && ['bath','flea','brush','teeth','weight'].every(k => !!$q(`#sec-bath [data-act=pt][data-k=${k}]`)));
     ok('no weight yet: the spray tile asks for one', card('flea').textContent.includes('צריך לרשום משקל'));
     // weight
     $q('#sec-bath [data-act=pt][data-k=weight]').click();

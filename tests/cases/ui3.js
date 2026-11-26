@@ -105,11 +105,9 @@
     const realAdvice = advice;
     advice = () => ({level:'info', text:'כנראה תצטרך לצאת לחצץ בעוד כחצי שעה', why:'לפי השבוע האחרון'});
     render();
-    ok('advice: one plain line in the side column for level info', $n('#side .advice') === 1 && $n('.advice') === 1 && $q('.advice').textContent.includes('חצץ') && !$q('.advice button') && !$q('.advice').closest('#main'));
-    const ac = getComputedStyle($q('.advice'));
-    ok('…calm: no border, no alert background', (ac.borderTopWidth === '0px' || ac.borderTopStyle === 'none') && (ac.backgroundColor === 'rgba(0, 0, 0, 0)' || ac.backgroundColor === 'transparent'));
+    ok('advice: said once, inside the Now card (no separate advice card)', $n('.advice') === 0 && $q('.nowc .now-a').textContent.includes('חצץ') && $n('.nowc') === 1);
     const sideKids = [...$q('#side').children].filter(x => !x.classList.contains('alertc') && !x.classList.contains('spraydry'));
-    ok('…at the top of the side column (under any alert)', sideKids[0] === $q('.advice'));
+    ok('…the Now card is at the top of the side column (under any alert)', sideKids[0] === $q('.nowc'));
     advice = realAdvice; render(); ok('…gone again with level none', $n('.advice') === 0);
 
     // --- summary rows

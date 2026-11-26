@@ -110,7 +110,7 @@
     // 6b. the advice says when the camera disagrees with the journal (and changes nothing)
     { const id = 'zz_s'; commit('', () => state.log.push({ id, p:'kishmish', k:'sleep', t: Date.now() - 4*MIN }), { quiet: true });
       await send([...DOC.events, E('ce_Q', 'crate_exit', Date.now() - 2*MIN, { source:'live_model' })]); render(); await wait(2);
-      ok('asleep in the journal + a live camera exit after it: the advice line says to check, the journal unchanged', !!$q('.advice') && $q('.advice').textContent.includes('המצלמה זיהתה יציאה') && byId(id).end == null);
+      ok('asleep in the journal + a live camera exit after it: the Now card says to check, the journal unchanged', !!$q('.nowc .now-cf') && $q('.nowc .now-cf').textContent.includes('המצלמה זיהתה יציאה') && byId(id).end == null);
       commit('', () => { state.log = state.log.filter(e => e.id !== id); }, { quiet: true }); }
     // 7. a deleted camera session never comes back
     commit('', () => { state.log = state.log.filter(e => e.id !== 'cam:ce_L0'); }, { quiet: true }); camjApply(); await wait(2);
@@ -126,15 +126,31 @@
     // 9. the crate card: image card inside, "now" only from a fresh frame, outage brings manual buttons back
     CAMS.doc = { b64: 'AAAA', capture_ts: Date.now() - 3*HOUR, detection: { status: 'positive' }, image_type: 'image/jpeg' };
     CAMS.status = { checked_at: Date.now() - MIN, crate_now: { status: 'negative', capture_ts: Date.now() - MIN } }; render(); await wait(2);
-    { const cc = $q('.card .camjb');
-      ok('one component: the camera image card sits inside the crate card, not in a separate column card', !!cc && !!cc.querySelector('.camc') && !$q('#side .camc'));
-      ok('an old image is "last seen", never "now"; "now" comes only from a fresh frame', cc.textContent.includes('נראתה לאחרונה') && cc.textContent.includes('עכשיו לפי המצלמה') && cc.textContent.includes('לא בכלוב'));
+    { const cc = $q('.nowc .nowcam');
+      ok('one component: the camera image sits in the Now card, full width, not in a separate card', !!cc && !!cc.querySelector('.camc') && $n('.camc') === 1);
+      ok('an old image is "seen in the crate at …", never "now"; "now" comes only from a fresh frame', cc.textContent.includes('נראתה בכלוב') && cc.textContent.includes('עכשיו: לא בכלוב'));
       ok('camera working: manual crate buttons folded under "עוד"', !!$q('.card details.cr-more [data-act=dur][data-k=crate]')); }
     CAMS.status = { checked_at: Date.now() - 40*MIN, crate_now: null }; render(); await wait(2);
-    ok('camera not updating: says since when, and the manual buttons are up front again', $q('.card .camjb').textContent.includes('המצלמה לא מעדכנת') && !$q('details.cr-more') && !!$q('.card [data-act=dur][data-k=crate]'));
-    ok('food / pee buttons never folded', !$q('details [data-act=pt][data-k=food]') && !$q('details [data-act=pt][data-k=pee]'));
+    ok('camera not updating: says since when, and the manual buttons are up front again', $q('.nowc .nowcam').textContent.includes('המצלמה לא מעדכנת') && !$q('details.cr-more') && !!$q('.card [data-act=dur][data-k=crate]'));
+    ok('food / pee one tap away in quick logging, never folded', !!$q('.quick [data-act=pt][data-k=food]') && !!$q('.quick [data-act=pt][data-k=pee]') && !$q('details .quick'));
     ok('coverage: outside vs inside', camjCov(now - 22*HOUR) === false && camjCov(now - HOUR) === true);
 
+    // REGRESSION (real case 26.11, 16:56): door open since 15:02, she went in at 16:23 (her label), a FALSE live exit at
+    // 16:34 (disputed by her labels), one "asleep" mark at 16:38. The app said "awake since 15:02". Replica, not real data.
+    { reset(); seed([{ ...K0, k:'food', t: Date.now() - 115*MIN }, { ...K0, k:'pee', t: Date.now() - 40*MIN }]); serverSeen = true; pet = 'kishmish';
+      fb = { auth:{ currentUser:{} }, camDoc: (n, on) => { subs[n] = on; return () => {}; }, camGet: async () => null, camMerge: async () => {} };
+      const T = Date.now(); DOORS = [{ from: T - 115*MIN, to: T - 6*MIN, value: 'open' }]; COV = [{ from: T - 3*HOUR, to: T - 6*MIN }]; render(); await wait(2);
+      await send([E('ce_r_in', 'crate_entry', T - 33*MIN), E('ce_r_x', 'crate_exit', T - 22*MIN, { source: 'live_model', disputed_by_labels: { label_before: T - 32*MIN, label_after: T - 18*MIN } }),
+        E('ce_r_on', 'sleep_onset', T - 18*MIN, { lo: T - 32*MIN, hi: T - 18*MIN, single_mark: true, n_asleep_marks: 1 })]);
+      camjApply(); render(); await wait(2);
+      const sl = state.log.find(e => e.id === 'cams:ce_r_on');
+      ok('regression 16:56: her single "asleep" mark makes her asleep now (uncertain), no session, the door irrelevant', !!sl && sl.end == null && sl.cam.unc === 1 && nowState('kishmish').w === 'ישנה' && !state.log.some(e => e.k === 'crate'));
+      ok('…not "awake since 15:02", no "to the crate" advice', !awakeSince('kishmish') && !/לכלוב$/.test(nowWhat('kishmish').t || ''));
+      ok('…the false live exit is never offered, only listed as disputed', camjPlan(state.log, Date.now()).rv.live.length === 0 && camjPlan(state.log, Date.now()).rv.disputed.length === 1 && !camjConflict());
+      ok('…an uncertain sleep never teaches the timing models', !sleepSamples('kishmish', state.log, Date.now()).some(s => s.t === sl.t));
+      // before the sleep mark: in the crate by her label, the state is uncertain — never a confident awake timer
+      await send(DOC.events.filter(e => e.event_id !== 'ce_r_on')); commit('', () => { state.log = state.log.filter(e => e.id !== 'cams:ce_r_on'); }, { quiet: true, cam: true }); render(); await wait(2);
+      ok('…with only her entry label: "in the crate, asleep or awake?", and the useful tap is "נרדמה"', nowState('kishmish').w.includes('ישנה או ערה') && nowWhat('kishmish').b.includes('data-k="sleep"')); }
     ok('the live app reads camera/events, the preview its test copy', camjDoc() === 'events' && (MODE = 'preview', camjDoc()) === 'events_preview');
     MODE = 'live';
     ok('the only camera write path is camera/feedback (never the journal)', merged.length > 0 && merged.every(([n]) => n === 'feedback'));

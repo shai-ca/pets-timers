@@ -20,7 +20,7 @@
     let commits = 0, pushes = 0; const rc = commit, rp = push;
     commit = function(){ commits++; return rc.apply(this, arguments); }; push = function(){ pushes++; return rp.apply(this, arguments); };
     const card = () => $q('.card.cams'), txt = () => (card() || {}).textContent || '';
-    const settle = async () => { const el = $q('.camc'); if(el) el.scrollIntoView(); await pause(60); await wait(3); };   // the card lives in the crate card now: listening starts when it is on screen
+    const settle = async () => { const el = $q('.camc'); if(el) el.scrollIntoView(); await pause(250); await wait(3); };   // the card lives in the crate card now: listening starts when it is on screen
 
     pet = 'kishmish'; render(); await settle();
     ok('no setting needed: Kishmish\'s screen watches the shared slot and listens while it is on screen', !!$q('.cams-slot') && !!subs.latest && !!subs.status);

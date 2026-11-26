@@ -11,6 +11,7 @@ const MIN = 60000, HOUR = 3600000;
 const tiles = p => (typeof V !== 'undefined' ? V[p] : state[p]);
 function use(s, b){ state = s; if(b !== undefined) base = b; if(typeof setState === 'function') setState(s); }
 function reset(who = 'shai', showPet = 'kishmish'){
+  if(typeof FOLD !== 'undefined'){ FOLD.clear(); if(!window.KEEP_FOLDS) ['crate','potty','play','food','rest','bath','notes','hist','cycle','pottyd'].forEach(f => FOLD.add(f)); }   // behaviour tests see every section open; tests/cases/hierarchy.js checks the real closed default
   localStorage.clear(); try { localStorage.setItem(LS_KEY + '-salvaged', '1'); } catch(e){}
   use(blank(), blank()); me = who; pet = showPet; view = 'now'; sumFilter = null;
   if(typeof ASK_WHEN !== 'undefined') ASK_WHEN = false;   // cases tap buttons and expect the entry at once; when.js tests the prompt

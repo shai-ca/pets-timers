@@ -44,14 +44,14 @@
     ok('tapping "food" on the wheel jumps to the food tiles and flashes them', went === 'sec-food' && $q('#sec-food').classList.contains('flash') && tile('food').closest('.card').classList.contains('flash'));
     $q('.sg[data-go=play]').dispatchEvent(new MouseEvent('click', { bubbles: true }));
     ok('a segment works too, and the step itself did not change', went === 'sec-play' && !!K().crate.start && $q('.rc b').textContent === 'כלוב' && state.log.length === 1);
-    ok('wheel, then sleep and crying, are in the side column; the step tiles in the main one', !!$q('#side .cyc') && !$q('#main .cyc') && $n('#side #sec-rest .card.item') === 2 && $q('#side .cyc').nextElementSibling.id === 'sec-rest' && $n('#main .card.item') === 9 && ['crate','potty','play','food','bath'].every(k => !!$q('#main #sec-' + k)));
+    ok('the wheel (folded into the routine strip) in the side column; sleep and crying with the step tiles in the main one', !!$q('#side details[data-f=cycle] .cyc') && !$q('#main .cyc') && $n('#main #sec-rest .card.item') === 2 && ['crate','potty','play','food','bath','rest'].every(k => !!$q('#main #sec-' + k)));
     pet = 'kishmish'; view = 'now'; seed([{ p:'kishmish', k:'pee', t: midnight() - 3*HOUR, w:'gravel' }]);
     $q('[data-act=prevdays]').click();
     ok('"previous days" opens yesterday in the summary', view === 'sum' && sumMode === 'day' && dayKey(sumAnchor) === dayKey(midnight() - HOUR) && $q('.card.log').textContent.includes('פיפי') && $q('.seg.sm .on').dataset.view === 'sum');
     view = 'now'; render();
     $q('[data-act=help]').click(); ok('help sheet', sh.textContent.includes('מסמנים רק בכרטיסים')); close();
     pet = 'kochik'; render(); ok('kochik: no wheel, no play card, no tags', !$q('.cyc') && !$q('.playc') && $n('.card.item') === 11 && $n('.nowt') === 0);
-    ok('kochik\'s cards are grouped by topic, each group in its own box', [...document.querySelectorAll('#main > section.grp')].map(s => s.id + ':' + s.querySelector('h2').textContent + ':' + s.querySelectorAll('.card').length).join(' | ') === 'sec-food:אוכל ושתייה:3 | sec-potty:פיפי וקקי:2 | sec-meds:תרופות וג׳ל לאוזן:2 | sec-vomit:הקאות:1 | sec-bath:טיפוח:5 | sec-notes:הערות לווטרינר:1' && !!$q('#sec-meds .medc') && !!$q('#sec-meds [data-k=gel]') && !!$q('#sec-food .water') && !!$q('#sec-food .treatc'));
+    ok('kochik\'s cards are grouped by topic, each group in its own box', [...document.querySelectorAll('#main > section.grp')].map(s => s.id + ':' + s.querySelector('h2').textContent + ':' + s.querySelectorAll('.card').length).join(' | ') === 'sec-food:אוכל ושתייה:3 | sec-potty:פיפי וקקי:2 | sec-meds:תרופות וג׳ל לאוזן:2 | sec-vomit:הקאות:1' && $n('#sec-bath .card.item') === 5 && !!$q('details#sec-bath') && !!$q('details#sec-notes') && !!$q('#sec-meds .medc') && !!$q('#sec-meds [data-k=gel]') && !!$q('#sec-food .water') && !!$q('#sec-food .treatc'));
     done();
   } catch(e){ crashed(e); }
 })();

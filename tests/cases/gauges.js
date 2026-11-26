@@ -2,7 +2,7 @@
 (async function(){
   try {
     reset();
-    const now = Date.now(), late = now - midnight() > 400*MIN, K0 = {p:'kishmish'}, card = k => $q(`[data-act=pt][data-k=${k}]`).closest('.card');
+    const now = Date.now(), late = now - midnight() > 400*MIN, K0 = {p:'kishmish'}, card = k => $q(`.card [data-act=pt][data-k=${k}]`).closest(".card");
     if(!late){ ok('skipped (too close to midnight)', true); done(); return; }
     const L = [];
     for(let i = 0; i < 6; i++) L.push({...K0, k:'pee', t: now - 60*MIN - i*150*MIN, w:'gravel'});

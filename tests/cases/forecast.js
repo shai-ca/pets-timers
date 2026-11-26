@@ -20,7 +20,7 @@
     FAKE_PHONE = true;
     seed([{ ...K0, k:'crate', t: now - 120*MIN, end: now - 5*MIN }]);
     const order = () => [...$q('#side').children].map(el => el.id || el.className.split(' ').slice(0, 2).join('.'));
-    ok('just out of the crate, on a phone: the potty group is at the top, above the wheel', !!$q('#side #sec-potty') && !$q('#main #sec-potty') && order().indexOf('sec-potty') < order().indexOf('card.cyc') && $n('#sec-potty') === 1);
+    ok('just out of the crate, on a phone: the potty group is at the top, above the wheel', !!$q('#side #sec-potty') && !$q('#main #sec-potty') && order().indexOf('sec-potty') < order().indexOf('sec-cycle') && order().indexOf('card.nowc') < order().indexOf('sec-potty') && $n('#sec-potty') === 1);   // new hierarchy: Now card, quick logging, then potty, above the routine strip
     tile('pee').click(); sh.querySelector('[data-w=pad]').click();
     ok('after a pee it goes back to its place', !$q('#side #sec-potty') && !!$q('#main #sec-potty'));
     seed([{ ...K0, k:'sleep', t: now - 60*MIN, end: now - 5*MIN }]);
