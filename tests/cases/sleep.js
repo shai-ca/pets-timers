@@ -21,7 +21,7 @@
     ok('a sleep she logged herself in that stay switches the assumption off', K().spans.length === 1 && !K().spans[0].assumed && !K().sleep.start && K().sleep.lastEnd === now - 20*MIN);
     // waking up while asleep by assumption
     seed([{ p:'kishmish', k:'crate', t: now - 30*MIN }]);
-    ok('the sleep tile offers "woke up"', $q('#sec-rest [data-act=dur][data-k=sleep]').textContent === ITEMS.sleep.stop);
+    ok('the sleep tile offers "woke up"', $q('[data-act=dur][data-k=sleep]').textContent === ITEMS.sleep.stop);
     $q('[data-act=dur][data-k=sleep]').click();
     const sl = logOf('kishmish', 'sleep')[0];
     ok('"woke up" turns the assumption into a real entry, and she is awake in the crate from then', !!sl && sl.t === now - 30*MIN + A && near(sl.end, now) && !K().sleep.start && !!K().crate.start);

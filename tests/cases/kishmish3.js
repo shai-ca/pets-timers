@@ -185,7 +185,7 @@
     seed(calm.concat([{...K0, k:'crate', t: now - 20*MIN}]));
     ok('S5: slim night screen, no advice line', !!$q('.nightc') && !$q('.card.advice'));
     FAKE_HOUR = 12; render();
-    ok('S5: …by day it is there (inside the Now card)', !!$q('.nowc .now-a'));
+    ok('S5: …by day it is there', !!$q('.card.advice'));
     // S3: censorNear censors only ends next to a possible intervention
     seed(hist.map(e => ({...e})).concat([{...K0, k:'pee', t: hist[1].end + MIN, w:'gravel'}]));
     const s0 = sleepOn(P, 15*MIN), s1 = sleepOn(P, 15*MIN, {censorNear: true}), s2 = sleepOn(P, 15*MIN, {endAsCensored: true});

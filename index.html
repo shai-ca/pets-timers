@@ -734,6 +734,8 @@
   .now-s{display:flex;align-items:baseline;justify-content:space-between;gap:12px} .now-w{font-size:17px;font-weight:600} .now-t{font-size:30px;font-weight:600;font-variant-numeric:tabular-nums;letter-spacing:-.5px}
   .now-a{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;border-radius:14px;background:var(--seg)} .now-a span{display:flex;flex-direction:column;gap:2px} .now-a b{font-size:16px} .now-a small{color:var(--muted)}
   .now-n{color:var(--muted);font-size:14px} .now-cf{font-size:13.5px;color:var(--warn,#b45309)}
+.howto>summary{cursor:pointer;color:var(--muted);font-size:13px;list-style:none} .howto>summary::-webkit-details-marker{display:none} .howto>summary::before{content:'› '}
+  .camblk{padding:12px;display:flex;flex-direction:column;gap:10px} .camblk .camj-rv{font-size:13.5px;text-align:start}
   .nowcam .card.camc{box-shadow:none;border:0;background:none;padding:0;margin:0;cursor:pointer} .nowcam .cam-b{display:none} .nowcam .cam-th{aspect-ratio:16/9;max-height:none;border-radius:14px}
   .nowcam-l{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:6px;font-size:13.5px;color:var(--muted)} .icob{border:0;background:none;padding:4px;cursor:pointer;color:var(--muted)}
   .quick{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:12px 0}
@@ -1497,7 +1499,8 @@ function advice(p){
   return say('idle', pf ? `הפיפי הבא צפוי ${clock(pf.from)}–${clock(pf.to)}; אין עכשיו שום דבר שצריך לעשות.` : 'אין עכשיו שום דבר שצריך לעשות.');
 }
 // adviceHTML(p): the advice slot in the side column (Agent E draws it). Empty while `advice` says nothing.
-function adviceHTML(p){ const a = advice(p), cf = p === CAMJ_P && typeof camjConflict === 'function' ? camjConflict() : '';
+function adviceHTML(p){ const a = advice(p), occ = p === CAMJ_P && typeof camjOccNow === 'function' && !(V[p].sleep || {}).start && !(V[p].crate || {}).start ? camjOccNow(p) : null;
+  const cf = (p === CAMJ_P && typeof camjConflict === 'function' ? camjConflict() : '') || (occ ? `לפי התיוג שלך בכלוב מ־<bdi dir="ltr">${clock(occ)}</bdi> · לא ידוע אם ישנה` : '');
   return a.level === 'none' && !cf ? '' : `<div class="card slim advice ${a.level === 'none' ? 'info' : a.level}"><span><b>${esc(a.level === 'none' ? 'כדאי לבדוק' : a.text)}</b>${a.why ? `<small>${esc(a.why)}</small>` : ''}${cf ? `<small class="cam-err">${cf}</small>` : ''}</span></div>`; }
 // advice('kochik') (Agent C, owner 26.11): one calm line about comfort and rest, or none. None while anything asks for
 // action: a medicine due (from PLAN.medLead before 11:00 / 21:00) or late, unless on a break; her pee window open or past
@@ -3022,7 +3025,7 @@ function ribbonHTML(p){
   const ks = ['sleep', 'crate', 'out'], ticks = [];
   for(let h = 0; h * 3600000 < all - 1800000; h += 3) ticks.push(`<span style="left:${(h * 3600000 / all * 100).toFixed(2)}%">${pad(h)}</span>`);
   return `<div class="card ribbon">
-    <div class="rb-h"><b>היום במבט אחד</b><small>מ־00:00 עד עכשיו</small></div>${sleepGoalHTML(p)}
+    <div class="rb-h"><b>היום במבט אחד</b><small>מ־00:00 עד עכשיו</small></div>
     <div class="rtot">${ks.map(k => `<div class="${k}"><span><i></i>${k === 'out' ? 'בחוץ · משחק וחופש' : PART[k]}</span><b>${hmm(dp.tot[k])}</b><small>${Math.round(dp.tot[k] / all * 100)}%</small></div>`).join('')}</div>
     ${partsBar(p, a, now, dp, true)}<div class="ticks" dir="ltr">${ticks.join('')}</div>
     <div class="rlg">${ico('pee','s')}פיפי ${ico('poop','s')}קקי ${ico('food','s')}ארוחה ${ico('ball','s')}משחק <em>אדום: לא בחצץ</em></div></div>`;
@@ -3710,7 +3713,10 @@ const fold = (id, summary, body, cls) => `<details class="fold ${cls || ''}" dat
 // Her own camera labels say she is inside right now (an open, verified stay): the latest such entry, else null.
 function camjOccNow(p){
   if(p !== CAMJ_P || !CAMJ.ready) return null;
-  const s = camjStays(Date.now()).filter(s => s.verified && s.to == null).pop(); return s ? s.from : null;
+  const s = camjStays(Date.now()).filter(s => s.verified && s.to == null).pop(); if(!s) return null;
+  // the journal says she was taken out after it (gravel, pee, poop, "לא עשתה", carrier, pen): that stay is over
+  const out = state.log.some(e => e.p === p && e.t > s.from && (OUT_KINDS[e.k] || e.k === 'gravel' || e.k === 'carrier' || e.k === 'pen'));
+  return out ? null : s.from;
 }
 function nowState(p){
   const S = V[p], now = Date.now(), sl = S.sleep || {}, cr = S.crate || {}, aw = PETS[p].cycle ? awakeSince(p) : 0;
@@ -3764,6 +3770,15 @@ function nowCardHTML(p){
     ${cf ? `<div class="now-cf">${cf}</div>` : ''}${act}
     ${nx ? `<div class="now-n">הבא: ${nx}</div>` : ''}
   </div>`;
+}
+// The camera in the crate section (owner, 26.11 evening): one clean block under the crate card — a large image with a
+// refresh icon and one status line; the one camera approval when it matters; a quiet link to what the camera did.
+function camBlockHTML(p){
+  if(p !== CAMJ_P) return '';
+  const cam = nowCamHTML(p), act = camjActHTML(), rvw = camjTileHTML(p);
+  if(!cam && !act && !rvw) return '';
+  if(cam && /cams-slot|camc" hidden/.test(cam)) return cam + (act || rvw ? `<div class="card camblk">${act}${rvw}</div>` : '');   // only the watched slot: nothing to show yet
+  return `<div class="card camblk">${cam}${act}${rvw}</div>`;
 }
 // One tap per common action, with the time since each (pee, poop and food keep their elapsed time up front).
 function quickHTML(p){
@@ -4073,7 +4088,7 @@ function render(){
 
   // Alerts, the retry card and the wheel live in the side column: on a computer it stays in place while
   // the tiles scroll; on a phone it is simply the top of the page.
-  let sideHTML = P.cycle ? alertsHTML(pet) + nowCardHTML(pet) + quickHTML(pet) + sleepAskHTML(pet) + stillAsleepHTML(pet) + cycleStripHTML(pet) : '';   // the rings live in the summary tab (owner, 26.11)
+  let sideHTML = P.cycle ? alertsHTML(pet) + adviceHTML(pet) + sleepAskHTML(pet) + stillAsleepHTML(pet) + (V2 ? scoresHTML(pet) : '') + cycleHTML(pet) : '';
 
   const tap = P.cycle ? routineTap(pet) : [];
   // the "טיפוח" group (owner, 25.11): compact tiles side by side, not a tall column, in the order of how often each is
@@ -4132,7 +4147,6 @@ function render(){
         <div class="acts">${k === 'crate' && P.cycle && pet === CAMJ_P && camjCamOk() ? `<details class="cr-more"><summary>עוד · רישום ידני</summary><div class="acts">` : ''}<button class="go" data-act="dur" data-k="${k}">${live?it.stop:it.start}</button>
           <button class="ghost" data-act="edit" data-k="${k}">${ico(live?'clock':'plus','s')}${live?'שעת התחלה':'הוספה'}</button>${k === 'crate' && P.cycle && pet === CAMJ_P && camjCamOk() ? '</div></details>' : ''}${k === 'sleep' && live && P.cycle ? `<button class="ghost" data-act="notasleep">${ico('none','s')}לא נרדמה</button>` : ''}${k === 'crate' && live && P.cycle ? `<button class="ghost" data-act="swap">${ico('crate','s')}החלפת כלוב</button>` : ''}</div>
         ${k === 'crate' && live && P.cycle && !slim ? `<div class="incr"><span>קיבלה בכלוב:</span><button class="btn" data-act="play" data-k="kong">${PLAY.kong}</button><button class="btn" data-act="play" data-k="lick">${PLAY.lick}</button><button class="btn" data-act="crfood">ארוחה</button></div>` : ''}
-        ${k === 'crate' && P.cycle && !slim ? camjTileHTML(pet) : ''}
         ${k === 'crate' && P.cycle ? crateExtrasHTML(pet, slim) : ''}
         ${k === 'sleep' && !live && P.cycle ? newCrateHint(pet) : ''}</div>`;
     }
@@ -4143,8 +4157,8 @@ function render(){
     // By topic, each in its own box (the owner's grouping): food and water · pee and poop · medicines and ear gel · vomiting.
     const has = k => P.items.includes(k), t = k => has(k) ? tileOf(k) : '';
     const groups = [['food', 'אוכל ושתייה', t('food') + (has('food') ? waterRowHTML(pet) : '') + (P.treats ? treatCardHTML(pet) : '')],
-      ['potty', 'פיפי וקקי', t('pee') + t('poop')], ['meds', has('gel') && P.meds ? 'תרופות וג׳ל לאוזן' : P.meds ? 'תרופות' : 'ג׳ל לאוזן', medHTML + t('gel')], ['vomit', 'הקאות', t('vomit')]];
-    h += groups.filter(g => g[2]).map(g => sec('', g[1], false, g[2], g[0])).join('') + (P.bath ? groomRowHTML(pet, groomTiles()) : '');
+      ['potty', 'פיפי וקקי', t('pee') + t('poop')], ['meds', has('gel') && P.meds ? 'תרופות וג׳ל לאוזן' : P.meds ? 'תרופות' : 'ג׳ל לאוזן', medHTML + t('gel')], ['vomit', 'הקאות', t('vomit')], ['bath', 'טיפוח', P.bath ? groomTiles() : '']];
+    h += groups.filter(g => g[2]).map(g => sec('', g[1], false, g[2], g[0])).join('');
   }
   else {
     // The tiles are grouped by the routine's steps, in its order; the group to fill in now is marked.
@@ -4163,25 +4177,22 @@ function render(){
       : `<div class="card slim gravel ${tap.includes('none') ? 'nowt' : ''}"><span><b>יוצאים לחצץ?</b>${slim ? '' : tryNowHTML(pet)}<small>${uw && uw.n >= 3 ? `בדרך כלל עושה פיפי תוך ${words(uw.ms)}` : 'השעון מודד כמה זמן לקח ומה יצא'}${ln ? ` · לא עשתה לאחרונה: ${dayLabel(ln)} <bdi dir="ltr">${clock(ln)}</bdi>` : ''}</small></span>
           <span class="rt-a"><button class="go" data-act="dur" data-k="gravel">${ITEMS.gravel.start}</button><button class="btn" data-act="pt" data-k="none">לא עשתה</button></span></div>`;
     if(slim){ camsWatch(); side.innerHTML = alertsHTML(pet) + sleepAskHTML(pet); /* v3 validation S5: no advice line on the slim night screen */ document.getElementById('main').innerHTML = nightCardsHTML(pet, tileOf, gravelRow); return; }
-    const F = (id, title, body, now) => fold(id, `${title}${now ? '<span class="tagk">עכשיו</span>' : ''}`, body, 'grpf' + (now ? ' now' : ''));
-    h += F('crate', 'כלוב', tileOf('crate'), tap.includes('crate'));
-    // a retry or a running gravel clock: the gravel card stays in view at the head of the section; the rest folds
-    const pottySec = rt || gv ? `<section class="grp now" id="sec-potty">${gravelRow}${fold('pottyd', 'צרכים · פרטים', gravelRatesHTML(pet) + tileOf('pee') + tileOf('poop'), 'grpf')}</section>`
-      : F('potty', 'צרכים · פרטים', gravelRow + gravelRatesHTML(pet) + tileOf('pee') + tileOf('poop'), tap.includes('pee'));
+    h += sec('1', 'כלוב', tap.includes('crate'), tileOf('crate') + camBlockHTML(pet), 'crate');
+    const pottySec = sec('2 · 5', 'צרכים', tap.includes('pee') || !!rt, gravelRow + gravelRatesHTML(pet) + tileOf('pee') + tileOf('poop'), 'potty');
     // Just woken up or out of the crate: on a phone the potty tiles come to the top of the page, above the wheel.
     const pottyTop = (!!pottyDue(pet) && isPhone()) || !!rt;   // a retry: the one gravel card goes to the top, on every screen
     if(!pottyTop) h += pottySec;
-    h += F('play', 'משחק וחופש', playCardHTML(pet, tap.includes('play')) + freeCardHTML(pet), tap.includes('play'));
-    h += F('food', 'אוכל ושתייה · פרטים', tileOf('food') + waterRowHTML(pet) + (P.treats ? treatCardHTML(pet) : ''), tap.includes('food'));
-    h += F('rest', 'שינה ובכי · פרטים', `<section class="duo">${tileOf('sleep')}${tileOf('cry')}</section>`, false);
-    if(P.bath) h += groomRowHTML(pet, groomTiles());
+    h += sec('3', 'משחק וחופש', tap.includes('play'), playCardHTML(pet, tap.includes('play')) + freeCardHTML(pet), 'play');
+    h += sec('4', 'אוכל ושתייה', tap.includes('food'), tileOf('food') + waterRowHTML(pet) + (P.treats ? treatCardHTML(pet) : ''), 'food');
+    if(P.bath) h += sec('', 'טיפוח', false, groomTiles(), 'bath');
     // Sleep and crying sit right under the wheel, always at hand: in the crate she is either asleep or crying.
-    if(pottyTop) sideHTML = alertsHTML(pet) + nowCardHTML(pet) + quickHTML(pet) + pottySec + sleepAskHTML(pet) + stillAsleepHTML(pet) + cycleStripHTML(pet);
+    if(pottyTop) sideHTML = alertsHTML(pet) + adviceHTML(pet) + sleepAskHTML(pet) + stillAsleepHTML(pet) + pottySec + (V2 ? scoresHTML(pet) : '') + cycleHTML(pet);
+    sideHTML += `<section class="duo" id="sec-rest">${tileOf('sleep')}${tileOf('cry')}</section>`;
   }
 
   if(P.cycle) sideHTML = sprayCardHTML(pet) + sideHTML; else h = sprayCardHTML(pet) + adviceHTML(pet) + h;   // Kochik: her calm line (Agent C); never on the slim night screen
   side.innerHTML = sideHTML; camsWatch(); camjSub();
-  { const nOpen = state.log.filter(e => e.p === pet && e.k === 'note' && !e.done).length; h += fold('notes', `הערות לווטרינר${nOpen ? ` <span class="dues">${nOpen}</span>` : ''}`, noteCardHTML(pet), 'grpf'); }
+  h += noteCardHTML(pet);
   if(P.cycle){
     const a = sod(Date.now()), b = new Date(a); b.setDate(b.getDate()+1);
     if(V2) h += ribbonHTML(pet);
@@ -4316,8 +4327,7 @@ function cycleHTML(p){
   return `<div class="card cyc ${due||over||long3?'due':''}">
     <div class="cyc-h"><b>השגרה של ${PETS[p].name}</b><small>${r && !r.brk && rn ? roundName(rn)+' · ' : r && r.brk ? 'בהפסקה · ' : ''}<button class="lnk" data-act="help">איך זה עובד?</button></small></div>
     ${V2 ? flowHTML(cls, centre) : `<div class="steps"><svg class="ring" viewBox="0 0 200 200" aria-hidden="true">${segs}</svg>
-      <div class="rc">${centre}</div>${labels}</div>
-    <div class="sub wheelhint">לחיצה על שלב בגלגל מקפיצה לכרטיסים שלו</div>`}
+      <div class="rc">${centre}</div>${labels}</div>`}
     ${long3 ? `<div class="duemsg">${ico('pee','s')}<span>עברו ${words(now - S.pee)} מהפיפי האחרון · להוציא לחצץ</span></div>` : ''}
     ${tired ? `<div class="zz">${ico('sleep','s')}<span>ערה כבר ${words(now - aw)} · לכלוב לישון</span></div>` : ''}
     ${ft && ft.phase !== 'run' && !inCrate ? `<div class="frm">${ico('paw','s')}<span>זמן החופש נגמר (${FREE.min} דקות מהפיפי) · חזרה לשגרה</span></div>` : ''}
@@ -4333,7 +4343,7 @@ function flowHTML(cls, centre){
   return `<div class="flow-now rc">${centre}</div>
     <div class="flow">${CYCLE.map((s, i) => `${i ? '<i class="ar" aria-hidden="true"></i>' : ''}<button class="fs sg rl ${cls(i)}" data-go="${STEP_SEC[i]}">${ico(STEP_ICON[i], 's')}<span>${s.n}</span></button>`).join('')}</div>
     <div class="loop" aria-hidden="true"><span>וחוזר חלילה</span></div>
-    <div class="sub wheelhint">לחיצה על שלב מקפיצה לכרטיסים שלו</div>`;
+    `;
 }
 function openHelp(){
   sh.innerHTML = `<h3>איך זה עובד?</h3>
@@ -4372,7 +4382,7 @@ function playCardHTML(p, nowt){
   const last = state.log.filter(e => e.p===p && e.k==='play').pop(), locked = !!retry(p);   // no play until she pees
   return `<div class="card playc ${nowt ? 'nowt' : ''} ${locked ? 'locked' : ''}"><div class="meds-h"><div class="ic">${ico('ball')}</div><b>משחק</b><small>${locked ? 'אחרי פיפי' : last ? `אחרון: ${PLAY[last.y] || ''} · ${dayLabel(last.t)} <bdi dir="ltr">${clock(last.t)}</bdi>` : 'במה שיחקה?'}</small></div>
     <div class="sc-b">${Object.keys(PLAY).map(y => `<button class="btn" data-act="play" data-k="${y}" ${locked ? 'disabled' : ''}>${PLAY[y]}</button>`).join('')}</div>
-    <div class="sub" style="margin-top:8px">${locked ? 'נעול בזמן ניסיון חוזר. אוכל רגיל נותנים מכרטיס האוכל.' : 'קונג, משטח ליקוק ואילוף עם אוכל נרשמים גם כארוחה.'}</div></div>`;
+    <div class="sub" style="margin-top:8px">${locked ? 'נעול בזמן ניסיון חוזר. אוכל רגיל נותנים מכרטיס האוכל.' : ''}</div></div>`;
 }
 // A crate stay longer than CRATE_MAX is flagged red — in the daytime only, so a night in the crate is not an alarm.
 function crateOver(p){   // awake in the crate too long; sleeping there is not counted against her (owner, 25.11)
@@ -4624,7 +4634,7 @@ function groomLine(p, k){
       if(left >= 0 && left <= FLEA_PLAN){ const b = new Date(due); b.setDate(b.getDate() - 2); h += H(`מקלחת עד ${dayName(b.getTime())}, ריסוס ב־${dayName(due.getTime())}`, 'plan'); }
     } else h += H(`כל ${G.flea} יום`);
     h += d ? H(`<b>${d.n} ריסוסים</b> (${d.ml.toFixed(1).replace(/\.0$/, '')} מ״ל) · ${d.kg.toFixed(1)} ק״ג × ${G.level} לק״ג (${lvl})${d.old ? ' · המשקל ישן, אולי המינון לא מעודכן' : ''}`, d.old ? 'old' : '') : H('צריך לרשום משקל כדי לחשב כמה ריסוסים');
-    h += H('חמישית מהריסוסים לכל אחד מ־5 האזורים · לפנים: לרסס על מטלית ולמרוח', 'x');
+    h += `<details class="howto x"><summary>איך מרססים</summary><div class="sub hint">חמישית מהריסוסים לכל אחד מ־5 האזורים · לפנים: לרסס על מטלית ולמרוח</div></details>`;
     return h;
   }
   if(k === 'brush' || k === 'teeth'){
@@ -5040,7 +5050,7 @@ function renderSummary(){
     if(P.cycle && !F) h += `<h2>לפי סבבים<small>לחיצה על רישום לתיקון או מחיקה</small></h2><div class="card log uni">${groupedHTML(pet, from, to)}</div>`;
     else h += `<h2>אירועי היום<small>לחיצה על רישום לתיקון או מחיקה</small></h2><div class="card log">` + (ev.length ? ev.map(logRow).join('') : `<div class="empty">אין רישומים ביום הזה</div>`) + `</div>`;
   }
-  const RINGS = V2 && P.cycle && sumMode === 'day' ? scoresHTML(pet) : '';   // the rings moved here from the tracking screen (owner, 26.11)
+  const RINGS = '';   // (the rings stay on the tracking screen, owner 26.11 evening) (owner, 26.11)
   return RINGS + h;
 }
 function tick(){

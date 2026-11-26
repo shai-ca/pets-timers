@@ -90,7 +90,7 @@
     const q = () => $q('.sleepq');
     seed([stay(4)]); ok('four minutes in: not yet', !q());
     seed([stay(6)]);
-    ok('six quiet minutes in a crate with no estimate: a small card asks, first thing in the side column', !!q() && q().textContent.includes('נרדמה?') && [...q().querySelectorAll('button')].map(b => b.textContent).join() === 'נרדמה,עדיין ערה' && q().parentElement.id === 'side' && q().previousElementSibling.classList.contains('quick') && !$q('#side .card.advice'));
+    ok('six quiet minutes in a crate with no estimate: a small card asks, first thing in the side column', !!q() && q().textContent.includes('נרדמה?') && [...q().querySelectorAll('button')].map(b => b.textContent).join() === 'נרדמה,עדיין ערה' && $q('#side').firstElementChild === q() && !$q('#side .card.advice'));
     q().querySelector('[data-act=stillawake]').click();
     ok('"still awake": the card turns into a quiet countdown to the next ask, with "נרדמה" still at hand — nothing is saved', q().classList.contains('wait') && q().textContent.includes('עדיין ערה') && q().textContent.includes('נשאל שוב בעוד') && Math.abs(+q().querySelector('[data-until]').dataset.until - (Date.now() + 5*MIN)) < 3000 && !q().querySelector('[data-act=stillawake]') && !!q().querySelector('[data-act=dur][data-k=sleep]') && state.log.length === 1 && noDiff(diff(base, state)));
     awakeUntil = Date.now() - 1; q().querySelector('[data-until]').dataset.until = awakeUntil; tick(); ok('…when the countdown reaches zero the question is back by itself', !!q() && !q().classList.contains('wait') && !!q().querySelector('[data-act=stillawake]'));

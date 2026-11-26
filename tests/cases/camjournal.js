@@ -110,7 +110,7 @@
     // 6b. the advice says when the camera disagrees with the journal (and changes nothing)
     { const id = 'zz_s'; commit('', () => state.log.push({ id, p:'kishmish', k:'sleep', t: Date.now() - 4*MIN }), { quiet: true });
       await send([...DOC.events, E('ce_Q', 'crate_exit', Date.now() - 2*MIN, { source:'live_model' })]); render(); await wait(2);
-      ok('asleep in the journal + a live camera exit after it: the Now card says to check, the journal unchanged', !!$q('.nowc .now-cf') && $q('.nowc .now-cf').textContent.includes('המצלמה זיהתה יציאה') && byId(id).end == null);
+      ok('asleep in the journal + a live camera exit after it: the advice line says to check, the journal unchanged', !!$q('.advice') && $q('.advice').textContent.includes('המצלמה זיהתה יציאה') && byId(id).end == null);
       commit('', () => { state.log = state.log.filter(e => e.id !== id); }, { quiet: true }); }
     // 7. a deleted camera session never comes back
     commit('', () => { state.log = state.log.filter(e => e.id !== 'cam:ce_L0'); }, { quiet: true }); camjApply(); await wait(2);
@@ -126,13 +126,13 @@
     // 9. the crate card: image card inside, "now" only from a fresh frame, outage brings manual buttons back
     CAMS.doc = { b64: 'AAAA', capture_ts: Date.now() - 3*HOUR, detection: { status: 'positive' }, image_type: 'image/jpeg' };
     CAMS.status = { checked_at: Date.now() - MIN, crate_now: { status: 'negative', capture_ts: Date.now() - MIN } }; render(); await wait(2);
-    { const cc = $q('.nowc .nowcam');
-      ok('one component: the camera image sits in the Now card, full width, not in a separate card', !!cc && !!cc.querySelector('.camc') && $n('.camc') === 1);
+    { const cc = $q('#sec-crate .camblk .nowcam');
+      ok('one clean camera block in the crate section: large image, one line, refresh', !!cc && !!cc.querySelector('.camc') && $n('.camc') === 1 && !!cc.querySelector('[data-act=camrefresh]'));
       ok('an old image is "seen in the crate at …", never "now"; "now" comes only from a fresh frame', cc.textContent.includes('נראתה בכלוב') && cc.textContent.includes('עכשיו: לא בכלוב'));
       ok('camera working: manual crate buttons folded under "עוד"', !!$q('.card details.cr-more [data-act=dur][data-k=crate]')); }
     CAMS.status = { checked_at: Date.now() - 40*MIN, crate_now: null }; render(); await wait(2);
-    ok('camera not updating: says since when, and the manual buttons are up front again', $q('.nowc .nowcam').textContent.includes('המצלמה לא מעדכנת') && !$q('details.cr-more') && !!$q('.card [data-act=dur][data-k=crate]'));
-    ok('food / pee one tap away in quick logging, never folded', !!$q('.quick [data-act=pt][data-k=food]') && !!$q('.quick [data-act=pt][data-k=pee]') && !$q('details .quick'));
+    ok('camera not updating: says since when, and the manual buttons are up front again', $q('#sec-crate .nowcam').textContent.includes('המצלמה לא מעדכנת') && !$q('details.cr-more') && !!$q('.card [data-act=dur][data-k=crate]'));
+    ok('food / pee buttons stay one tap away on their cards, never folded', !!$q('#sec-food [data-act=pt][data-k=food]') && !!$q('#sec-potty [data-act=pt][data-k=pee]') && !$q('details [data-act=pt][data-k=food]'));
     ok('coverage: outside vs inside', camjCov(now - 22*HOUR) === false && camjCov(now - HOUR) === true);
 
     // REGRESSION (real case 26.11, 16:56): door open since 15:02, she went in at 16:23 (her label), a FALSE live exit at
