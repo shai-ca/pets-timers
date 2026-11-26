@@ -86,6 +86,16 @@
     ok('sync round-trip keeps tu', JSON.stringify(b.log[0].tu) === JSON.stringify([now - HOUR, now]));
     const bad = norm({v:2, log: [{id:'x2', p:P, k:'pee', t: now, tu: [now + HOUR, now - HOUR]}, {id:'x3', p:P, k:'pee', t: now, tu: 'x'}]}).log;
     ok('norm repairs a bad range (sorted, to ≤ t) and never drops it', bad[0].tu[0] === now - HOUR && bad[0].tu[1] === now && Array.isArray(bad[1].tu) && bad[1].tu[0] < bad[1].tu[1] + 1 && bad[1].tu[1] === now);
+    // across midnight: counted in neither day, once in a period holding the whole range; the clock wording says it
+    { const m0 = midnight(), ev = { p:'kishmish', k:'pee', t: m0 + 6*HOUR, w:'crate', tu:[m0 - 2*HOUR, m0 + 6*HOUR] };
+      seed([{ p:'kishmish', k:'pee', t: m0 - 5*HOUR, w:'gravel' }, ev]);
+      const d1 = stats('kishmish', m0 - 24*HOUR, m0), d2 = stats('kishmish', m0, m0 + 24*HOUR), both = stats('kishmish', m0 - 24*HOUR, m0 + 24*HOUR);
+      ok('unknown time across midnight: in neither day, "unsure" in both, counted once over the two days', d1.pee === 1 && d2.pee === 0 && d1.unsure.pee === 1 && d2.unsure.pee === 1 && both.pee === 2 && !both.unsure.pee);
+      ok('…and the miss is not given to the discovery day', successOf('kishmish', m0, m0 + 24*HOUR).all === 0);
+      view = 'sum'; sumMode = 'day'; sumAnchor = m0 + HOUR; render();
+      ok('the day summary says it is not counted there', !!$q('.tuunsure') && $q('.tuunsure').textContent.includes('לא ידוע באיזה יום')); view = 'now'; render();
+      ok('the pee clock says a later pee at an unknown time happened', $q('#sec-potty').textContent.includes('מאז הפיפי האחרון שזמנו ידוע') && $q('#sec-potty').textContent.includes('לא אומר שהיא התאפקה'));
+    }
     done();
   } catch(e){ crashed(e); }
   finally { window.Date = RealDate; }

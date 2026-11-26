@@ -85,6 +85,14 @@ Initial thresholds here are starting points for a review, not hard rules.
    - **Until then:** at most a descriptive line ("בדרך כלל ערה כ־X דקות (n)"). Never a countdown, deadline or
      warning, never a penalty for being awake, and never a planning target.
 
+11. **Unknown-time pee / poop — two gaps left at deploy (26.11):** the retry card's own "פיפי" button has no
+    "לא ידוע מתי" option (the ordinary pee card has it), and the "היום במבט אחד" day ribbon draws no range for these
+    entries (the summary timeline does). Neither blocks use.
+12. **"היא עדיין ישנה?" frequency:** now at most once per sleep, by day, only when something practical depends on it
+    (1–3 a day on 23–25.11, from 12–17). The owner evaluates it in normal use before reducing it further.
+13. **Camera / computer vision:** a separate project; to be integrated experimentally later, after connectivity,
+    labelling and validation are ready. Not part of v3.
+
 ## Kept from earlier sessions
 
 - Re-run the planning backtest after more days in the mesh crate.

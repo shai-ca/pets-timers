@@ -849,6 +849,11 @@ const hasWhere = k => k==='pee' || k==='poop';
 // poop counts, the places and the misses; it is NEVER a time she peed: no clock reset, no gap, no model, no sleep / wake
 // inference, no retry, no gravel rate, and logging it ends nothing (`logUnknown`, not `impliesOut`).
 const isTU = e => !!e && Array.isArray(e.tu);
+// Which period an entry belongs to. An unknown-time pee / poop belongs to a period only if its WHOLE range lies in it
+// (owner, 26.11: across midnight the discovery day is not its confirmed day); otherwise it is 'unsure' there — never
+// counted in either day, but counted once in any longer period that holds the whole range.
+const inPeriod = (e, a, b) => isTU(e) ? e.tu[0] >= a && e.tu[1] < b : e.t >= a && e.t < b;
+const unsurePeriod = (e, a, b) => isTU(e) && !inPeriod(e, a, b) && e.tu[1] >= a && e.tu[0] < b;
 const tuText = e => `בזמן לא ידוע (בין ${dayLabel(e.tu[0]) === dayLabel(e.t) ? '' : dayLabel(e.tu[0]) + ' '}${clock(e.tu[0])} ל־${clock(e.tu[1])}, נמצא ב־${clock(e.t)})`;
 const TU_BACK = 12*3600000;   // with nothing to start the suggested range from: this long before it was found
 // Strictly inside a crate stay (a meal that ENDED a stay under the old rule sits on its edge and does not count).
@@ -2698,7 +2703,7 @@ function logUnknown(p, k, from, to){
 // The clock above keeps counting from the last known time.
 function unknownLine(p, k){
   const u = V[p][k + 'U']; if(!u || (V[p][k] || 0) >= u.t || Date.now() - u.t > 24*3600000) return '';
-  return `<div class="sub hint tuline">${ITEMS[k].log} ${tuText(u).replace(/, נמצא ב־.*\)$/, ')')}${WHERE[u.w] ? ' · ' + WHERE[u.w] : ''} · השעון למעלה מהפעם האחרונה שהזמן ידוע</div>`;
+  return `<div class="sub hint tuline">${ITEMS[k].log} ${tuText(u).replace(/, נמצא ב־.*\)$/, ')')}${WHERE[u.w] ? ' · ' + WHERE[u.w] : ''} · אחרי הפעם שזמנה ידוע היה ${ITEMS[k].log} נוסף בזמן לא ידוע, כך שהשעון לא אומר שהיא התאפקה כל הזמן הזה</div>`;
 }
 function endDurAt(p, k, ts){   // "woke up / came out 10 minutes ago"
   const t = Math.min(ts, Date.now());
@@ -3184,7 +3189,7 @@ function render(){
       const t = S[k];
       h += `<div class="card item ${nowt} ${openX.has(pet+k) ? 'open' : ''}">
         <div class="ic">${ico(k)}</div>
-        <div><div class="lbl">${P.cycle && k === 'food' ? 'מאז הארוחה האחרונה' : it.lbl}</div>   <!-- the clock counts from the last MEAL; a bite is the line under it -->
+        <div><div class="lbl">${P.cycle && k === 'food' ? 'מאז הארוחה האחרונה' : hasWhere(k) && unknownLine(pet, k) ? `מאז ה${it.log} האחרון שזמנו ידוע` : it.lbl}</div>   <!-- the clock counts from the last MEAL; a bite is the line under it -->
           ${k === 'weight' ? `<div class="big txt ${t?'':'none'}">${weightOf(pet).last ? `${weightOf(pet).last.kg.toFixed(1)} ק״ג` : '–'}</div>`
           : it.slow ? `<div class="big txt ${t?'':'none'}">${t ? wordsLong(Date.now()-t) : '–'}</div>`
                     : `<div class="big ${t?'':'none'}" ${t?`data-since="${t}"`:''}>${t ? dur(Date.now()-t) : '–'}</div>`}
@@ -3800,7 +3805,7 @@ function crateMealHint(p){   // on the crate card, only while she is out of it
 function todayWhere(p, k){
   if(!hasWhere(k)) return '';
   const a = sod(Date.now()).getTime(), c = {}; let none = 0;
-  for(const e of state.log) if(e.p===p && e.k===k && e.t >= a){ if(WHERE[e.w]) c[e.w] = (c[e.w] || 0) + 1; else none++; }
+  for(const e of state.log) if(e.p===p && e.k===k && inPeriod(e, a, Infinity)){ if(WHERE[e.w]) c[e.w] = (c[e.w] || 0) + 1; else none++; }
   const parts = whereKeys(p).filter(w => c[w]).map(w => `<em class="wh ${w}">${WHERE_SHORT[w]} ${c[w]}</em>`);
   if(none) parts.push(`<em class="wh no">לא סומן ${none}</em>`);
   const miss = PETS[p].cycle ? Object.keys(c).filter(w => w !== 'gravel' && w !== 'out').reduce((n, w) => n + c[w], 0) : 0;
@@ -3854,12 +3859,13 @@ function sumShift(dir){
   sumAnchor = Math.min(d.getTime(), Date.now());
 }
 function stats(p, from, to){
-  const r = {food:0, pee:0, poop:0, gel:0, none:0, vomit:0, treat:0, sleep:{n:0,ms:0}, cry:{n:0,ms:0}, crate:{n:0,ms:0}, medoff:{n:0,ms:0}, gravel:{n:0,ms:0}, carrier:{n:0,ms:0}, pen:{n:0,ms:0}, away:{n:0,ms:0}, meds:0, w:{pee:{}, poop:{}}, q:{}};
+  const r = {food:0, pee:0, poop:0, gel:0, none:0, vomit:0, treat:0, sleep:{n:0,ms:0}, cry:{n:0,ms:0}, crate:{n:0,ms:0}, medoff:{n:0,ms:0}, gravel:{n:0,ms:0}, carrier:{n:0,ms:0}, pen:{n:0,ms:0}, away:{n:0,ms:0}, meds:0, w:{pee:{}, poop:{}}, q:{}, unsure:{}};
   const add = (k, a, b) => { const ov = Math.min(b,to) - Math.max(a,from); if(ov > 0){ r[k].ms += ov; r[k].n++; } };
   for(const e of state.log){
     if(e.p !== p) continue;
     if(ITEMS[e.k].dur){ if(e.k !== 'sleep') add(e.k, e.t, e.end == null ? Date.now() : e.end); }
-    else if(typeof r[e.k]==='number' && e.t >= from && e.t < to){ r[e.k]++; if(WHERE[e.w] && r.w[e.k]) r.w[e.k][e.w] = (r.w[e.k][e.w] || 0) + 1; if((kindsOf(p, e.k) || {})[e.q]) r.q[e.q] = (r.q[e.q] || 0) + 1; }
+    else if(typeof r[e.k]==='number' && unsurePeriod(e, from, to)){ r.unsure[e.k] = (r.unsure[e.k] || 0) + 1; }
+    else if(typeof r[e.k]==='number' && inPeriod(e, from, to)){ r[e.k]++; if(WHERE[e.w] && r.w[e.k]) r.w[e.k][e.w] = (r.w[e.k][e.w] || 0) + 1; if((kindsOf(p, e.k) || {})[e.q]) r.q[e.q] = (r.q[e.q] || 0) + 1; }
   }
   for(const sp of V[p].spans) if(sp.t <= Date.now()) add('sleep', sp.t, sp.end == null ? Date.now() : sp.end);   // logged + assumed
   const meds = V[p].meds;
@@ -3917,7 +3923,7 @@ function whereBarsHTML(p, from, to, F){
   const days = []; let max = 0, any = 0;
   eachDay(from, to, (d, a, b) => {
     const c = {out:0, pad:0, acc:0, unk:0};
-    for(const e of state.log) if(e.p===p && hasWhere(e.k) && (!F || e.k===F) && e.t >= a && e.t < b) c[whereCls(e.w)]++;
+    for(const e of state.log) if(e.p===p && hasWhere(e.k) && (!F || e.k===F) && inPeriod(e, a, b)) c[whereCls(e.w)]++;
     const n = c.out + c.pad + c.acc + c.unk; max = Math.max(max, n); any += n;
     days.push({d:new Date(d), a, c, n});
   });
@@ -4020,7 +4026,7 @@ function gravelRatesHTML(p){   // one calm line under the gravel card; hidden wh
 // period, so one bad day is seen against the trend.
 function successOf(p, a, b){
   let all = 0, good = 0;
-  for(const e of state.log) if(e.p===p && e.k==='pee' && e.t >= a && e.t < b){ all++; if(e.w === 'gravel' || e.w === 'out') good++; }
+  for(const e of state.log) if(e.p===p && e.k==='pee' && inPeriod(e, a, b)){ all++; if(e.w === 'gravel' || e.w === 'out') good++; }
   return {all, good, pct: all ? Math.round(good/all*100) : null};
 }
 function successHTML(p, from, to, multi){
@@ -4074,6 +4080,9 @@ function renderSummary(){
   h += `<div class="tiles">` + P.items.filter(k => !ITEMS[k].dur).map(k => k === 'food' && P.cycle ? mealTileHTML(pet, from, to, tcls(k), avg) :
     `<button class="${tcls(k)}" data-act="filt" data-k="${k}"><div class="ic">${ico(k)}</div><b>${st[k]}</b><span>${SUM_LBL[k]}</span>${avg(st[k])}${whereLine(st.w[k])}${k === 'poop' && (st.q.dia || st.q.soft) ? `<small>${st.q.dia ? `<em class="wh floor">שלשול ${st.q.dia}</em>` : ''}${st.q.dia && st.q.soft ? ' · ' : ''}${st.q.soft ? `רך ${st.q.soft}` : ''}</small>` : ''}${k === 'vomit' && (st.q.bile || st.q.food) ? `<small>${['bile','food'].filter(q => st.q[q]).map(q => `${VOMIT[q]} ${st.q[q]}`).join(' · ')}</small>` : ''}</button>`).join('') + (P.treats && !F ? `<div class="tile"><div class="ic">${ico('treat')}</div><b>${st.treat}</b><span>${SUM_LBL.treat}</span>${st.treat ? `<small>שומניים ${st.q.fat || 0}</small>` : ''}</div>` : '') + `</div>`;
   const durs = P.items.filter(k => ITEMS[k].dur);
+  // unknown-time pee / poop whose range crosses this period's edge: counted in no single day, said once here
+  { const u = Object.keys(st.unsure).filter(k => st.unsure[k]).map(k => `${ITEMS[k].log} ${st.unsure[k]}`);
+    if(u.length) h += `<div class="sub hint tuunsure">ועוד ${u.join(' · ')} בזמן לא ידוע שטווח האפשרי שלו חוצה את גבול התקופה — לא נספר כאן, כי לא ידוע באיזה יום היה</div>`; }
   if(durs.length) h += `<div class="tiles two">` + durs.map(k =>
     `<button class="${tcls(k)}" data-act="filt" data-k="${k}"><div class="ic">${ico(k)}</div><b class="t">${st[k].ms ? words(st[k].ms) : '–'}</b>
       <span>${SUM_LBL[k]} · ${st[k].n===1 ? 'פעם אחת' : st[k].n+' פעמים'}</span>
