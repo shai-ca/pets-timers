@@ -758,6 +758,7 @@
   .cyc-fold>summary{padding:10px 12px} .strip{display:flex;gap:6px;flex-wrap:wrap} .strip .st{font-size:12.5px;font-weight:500;padding:4px 9px;border-radius:999px;background:var(--seg);color:var(--muted)} .strip .st.done{opacity:.55} .strip .st.cur{background:var(--acc);color:#fff}
   .camjb{margin-top:10px;display:flex;flex-direction:column;gap:6px} .camjb .card.camc{box-shadow:none;border:0;background:none;padding:0;margin:0} .camj-lines{display:flex;flex-direction:column;gap:2px} .camj-rv{text-align:start;font-size:13.5px}
   .cjr{display:flex;flex-wrap:wrap;gap:6px 10px;justify-content:space-between;align-items:center;padding:8px 0;border-top:1px solid var(--line)} .cjr>span:first-child{display:flex;flex-direction:column} .cjr small{color:var(--muted)}
+  .card.slim.water.hascam{flex-wrap:wrap} .card.slim.water.hascam .camjf{flex:1 1 100%;margin-top:4px} .camj-img{display:block;width:100%;max-width:280px;border-radius:10px;margin-top:6px} .camj-noimg{display:block}
   .camjt{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;justify-content:space-between;margin-top:10px;padding:10px 12px;border-radius:12px;background:var(--seg)} .camjt span:first-child{display:flex;flex-direction:column;gap:2px} .camjt small{color:var(--muted)} .camjt.dim b{font-weight:500}
   .cam-th img{width:100%;max-width:100%;height:100%;object-fit:contain;background:#000;display:block;min-width:0}
   .cam-b{display:flex;flex-direction:column;gap:1px;min-width:0;flex:1}
@@ -1051,9 +1052,11 @@ function derive(s){
     const scan = retryScan(p, s.log);
     S.retryStays = scan.stays; S.retryNones = scan.nones;
     S.spans = sleepSpans(p, s.log, now);
+    // §12b: the camera's probable sleep, as ESTIMATED pieces (`cam`) where nothing else is known — never written
+    { const cp = camProbSpans(p, s.log, now, S.spans); if(cp.length) S.spans = S.spans.concat(cp).sort((x,y) => x.t-y.t); }
     for(const sp of S.spans){
       if(sp.t > now) continue;
-      if(sp.end == null){ if(!(S.sleep.start <= sp.t)){ S.sleep.start = sp.t; S.sleep.assumed = !!sp.assumed; S.sleep.stay = sp.stay; } }
+      if(sp.end == null){ if(!(S.sleep.start <= sp.t)){ S.sleep.start = sp.t; S.sleep.assumed = !!sp.assumed; S.sleep.stay = sp.stay; S.sleep.cam = sp.cam || null; } }
       else if(!(S.sleep.lastEnd >= sp.end)){ S.sleep.lastStart = sp.t; S.sleep.lastEnd = sp.end; }
     }
   }
@@ -1350,7 +1353,7 @@ function episodes(p, from, to, opts){
   const o = opts || {}, join = o.join != null ? o.join : NAP_JOIN, now = o.now != null ? o.now : Date.now();
   const log = o.log || state.log, L = log.filter(e => e.p===p);
   const all = o.spans || (!o.log && V && V[p] ? V[p].spans : sleepSpans(p, log, now));
-  const sp = all.filter(x => x.t <= now && x.t < to && (x.end == null ? now : x.end) > from).sort((x,y) => x.t-y.t);
+  const sp = all.filter(x => !x.cam && x.t <= now && x.t < to && (x.end == null ? now : x.end) > from).sort((x,y) => x.t-y.t);
   const ent = new Map(L.filter(e => e.k==='sleep').map(e => [e.id, e]));
   const ev = L.filter(e => MEANINGFUL[e.k] && !isTU(e));   // an unknown-time pee says nothing about when she woke
   const eventIn = (a, b) => ev.some(e => (e.k === 'crate' || !ITEMS[e.k].dur)
@@ -1768,6 +1771,9 @@ function pottyExpect(p, now){
   } else {
     const g = peeGapWin(p, now);
     if(g) pee = {from: g.from, to: g.to, trigger: g.byAge ? 'age' : 'gap', src: g.byAge ? 'rule' : 'learned', n: g.n};
+    // §12d: just woke (nothing since): the pee comes within PEE_WAKE of the waking — a range when the waking is a window
+    const aw = PETS[p].cycle && !(S.sleep && S.sleep.start) ? awakeSince(p) : 0, ww = aw ? wakeWin(p) : null, done = Math.max(S.pee || 0, S.poop || 0, S.none || 0);
+    if(aw && done < aw && now <= (ww ? ww.hi : aw) + PEE_WAKE + 30*60000) pee = {...pee, afterWake: {from: aw, to: (ww ? ww.hi : aw) + PEE_WAKE, range: !!ww}};
   }
   let poop = none;
   const mc = mealPoopCue(p), m = poopModel(p);
@@ -2270,6 +2276,17 @@ function waitOf(e){
   return g ? e.t - g.t : null;
 }
 const waitTag = e => { const w = waitOf(e); return w == null ? '' : ` · אחרי ${words(w)} בחצץ`; };
+// THE LAST GRAVEL OUTING (owner, 26.11): what the most recent FINISHED outing ended with, from the results that belong to
+// it (`gravelOf`) — never the latest potty entry on its own, and never "לא עשתה" read from a missing result: an outing
+// with nothing recorded gives no line. Time to the pee only as measured by that outing's clock. Display only.
+function lastOuting(p){
+  const g = state.log.filter(e => e.p===p && e.k==='gravel' && e.end != null).sort((x,y) => y.t - x.t)[0]; if(!g) return null;
+  const r = state.log.filter(e => e.p===p && (e.k==='pee' || e.k==='poop' || e.k==='none') && !isTU(e) && gravelOf(e) === g).sort((x,y) => x.t - y.t);
+  const pee = r.find(e => e.k==='pee'), poop = r.some(e => e.k==='poop'), none = r.some(e => e.k==='none');
+  const out = pee && poop ? 'פיפי וקקי' : pee ? `פיפי${pee.t > g.t ? ` תוך ${words(pee.t - g.t)}` : ''}` : poop ? 'קקי' : none ? 'לא עשתה' : null;
+  return out ? {g, out, text: `ניסיון אחרון: ${out} · <bdi dir="ltr">${clock(g.t)}</bdi>${dayLabel(g.t) === 'היום' ? '' : ' ' + dayLabel(g.t)}`} : null;
+}
+const lastOutingText = p => { const o = lastOuting(p); return o ? ` · ${o.text}` : ''; };
 function usualWait(p, kinds, from, to){   // median wait for these kinds in a period, with how many it is based on
   const g = state.log.filter(e => e.p===p && kinds.includes(e.k) && e.t >= from && e.t < to).map(waitOf).filter(w => w != null);
   return g.length ? {ms: median(g), n: g.length} : null;
@@ -2530,6 +2547,8 @@ function notAsleep(p, sure){
     bg.classList.add('show'); return;
   }
   awakeUntil = now + SLEEP_ASK;
+  if(sl.assumed && sl.cam){   // the camera's probable sleep (§12b): nothing in the journal to change — a "wrong" example for the camera
+    camjDecide(sl.cam, 'rejected'); setState(state); render(); showToast(`${name} · לא נרדמה (נשלח למצלמה כדוגמה שגויה)`); return; }
   commit(`${name} · לא נרדמה`, () => {
     const no = (c, t) => { if(c) c.nsx = (Array.isArray(c.nsx) ? c.nsx : []).concat([t]); };
     if(sl.assumed){ no(state.log.find(e => e.id === sl.stay), sl.start); return; }
@@ -2567,8 +2586,8 @@ function crateCompareHTML(p, from, to){
 }
 // One row for "I saw her drink" — no amount. The same row for both dogs.
 function waterRowHTML(p){
-  const lw = V[p].water;
-  return `<div class="card slim water"><span><b>שתתה מים?</b><small>${lw ? `פעם אחרונה: ${dayLabel(lw)} <bdi dir="ltr">${clock(lw)}</bdi>${byOf(p,'water',lw)}` : 'עוד לא נרשמה שתייה'}</small></span><button class="btn" data-act="pt" data-k="water">שתתה</button></div>`;
+  const lw = V[p].water, cam = typeof camjFeedHTML === 'function' ? camjFeedHTML(p, 'water') : '';   // §12c: a camera detection to approve, inside the row
+  return `<div class="card slim water${cam ? ' hascam' : ''}"><span><b>שתתה מים?</b><small>${lw ? `פעם אחרונה: ${dayLabel(lw)} <bdi dir="ltr">${clock(lw)}</bdi>${byOf(p,'water',lw)}` : 'עוד לא נרשמה שתייה'}</small></span><button class="btn" data-act="pt" data-k="water">שתתה</button>${cam}</div>`;
 }
 // NIGHT: between 23:00 and 06:00 the page is dark and shows only what is needed half asleep (crate, pee, poop
 // and a cry row); the food alert is silent. `FAKE_HOUR` / `FAKE_PHONE` are for the tests only.
@@ -2603,6 +2622,9 @@ function isPhone(){ return FAKE_PHONE != null ? FAKE_PHONE : !(PHONE_MQ && PHONE
 // the screen shows the range.
 function wakeWin(p){
   const aw = awakeSince(p); if(!aw) return null;
+  const cp = V[p].spans.find(x => x.cam && x.end === aw && typeof x.ohi === 'number' && x.ohi > aw + 60000);
+  if(cp){ const nx = state.log.filter(e => e.p === p && e.t > aw && (AWAKE_PT[e.k] || OUT_KINDS[e.k] || e.k === 'gravel' || e.k === 'cry') && !isTU(e)).map(e => e.t);
+    return { lo: aw, hi: Math.min(cp.ohi, Date.now(), ...nx) }; }
   const s = state.log.find(e => e.p === p && e.k === 'sleep' && e.end === aw && e.cam && typeof e.cam.ohi === 'number' && e.cam.ohi > aw + 60000);
   return s ? { lo: aw, hi: Math.min(s.cam.ohi, Date.now()) } : null;
 }
@@ -2656,7 +2678,7 @@ const ALERT = {food: 3.5*3600000, pee: 6*3600000, poop: 48*3600000, again: 45*60
 const WAKE = {days:3, napQ:.75, minNap:15*60000, sleepNoPee:4*3600000, askAgain:20*60000};   // askAgain: "עדיין ישנה" hides the question this long
 function napMedian(p){
   const now = Date.now(), from = now - WAKE.days*86400000;
-  const n = V[p].spans.filter(x => x.end != null && x.end <= now && x.t >= from && x.end - x.t >= WAKE.minNap && !touchesNight(x.t, x.end)).map(x => x.end - x.t);
+  const n = V[p].spans.filter(x => !x.cam && x.end != null && x.end <= now && x.t >= from && x.end - x.t >= WAKE.minNap && !touchesNight(x.t, x.end)).map(x => x.end - x.t);
   return n.length >= 3 ? quantile(n.sort((x,y) => x-y), WAKE.napQ) : 0;   // descriptive only
 }
 function wakeBy(p){
@@ -2976,7 +2998,7 @@ function roundName(r){ const dl = dayLabel(r.t); return `סבב ${r.n}${dl==='ה
 // One pet's entries in [from, to), oldest first, with the running timers as rows of their own.
 function entriesIn(p, from, to){
   const now = Date.now();
-  const assumed = V[p].spans.filter(sp => sp.assumed && sp.t <= now && sp.t >= from && sp.t < to).map(sp => ({p, k:'sleep', t:sp.t, end: sp.end == null ? undefined : sp.end, assumed:true, stay:sp.stay}));
+  const assumed = V[p].spans.filter(sp => sp.assumed && sp.t <= now && sp.t >= from && sp.t < to).map(sp => ({p, k:'sleep', t:sp.t, end: sp.end == null ? undefined : sp.end, assumed:true, stay:sp.stay, ...(sp.cam ? {cam: sp.cam} : {})}));
   return state.log.filter(e => e.p===p && e.t >= from && e.t < to && !ITEMS[e.k].hid && !ITEMS[e.k].nolist).concat(assumed).sort((x,y) => x.t - y.t);
 }
 // A day's entries grouped by round: newest round first, the entries inside a round in the order they happened.
@@ -3001,7 +3023,7 @@ function groupedHTML(p, from, to){
   // the bottom, so the day's rows add up to the day's totals.
   const now = Date.now(), over = e => e.t < from && (e.end == null ? now : e.end) > from;
   const night = state.log.filter(e => e.p===p && (e.k==='crate' || e.k==='sleep') && over(e))
-    .concat(V[p].spans.filter(sp => sp.assumed && sp.t <= now && over(sp)).map(sp => ({p, k:'sleep', t:sp.t, end: sp.end == null ? undefined : sp.end, assumed:true, stay:sp.stay}))).sort((x,y) => x.t - y.t);
+    .concat(V[p].spans.filter(sp => sp.assumed && sp.t <= now && over(sp)).map(sp => ({p, k:'sleep', t:sp.t, end: sp.end == null ? undefined : sp.end, assumed:true, stay:sp.stay, ...(sp.cam ? {cam: sp.cam} : {})}))).sort((x,y) => x.t - y.t);
   const lead = all.filter(e => at(e) < (rs.length ? rs[0].t : to));
   if(lead.length) parts.push(`<div class="rd"><div class="rd-h"><b>${rs.length ? 'לפני הסבב הראשון' : 'בלי סבב'}</b></div>${rows(lead)}</div>`);
   if(night.length) parts.push(`<div class="rd night"><div class="rd-h"><b>מהלילה</b><span>התחיל ביום הקודם ונמשך אל תוך היום הזה</span></div>${rows(night)}</div>`);
@@ -3073,20 +3095,20 @@ const TRY = {wake:[0, 10*60000], food:POTTY_CUE.mealTry, water:[10*60000, 20*600
 function tryNow(p){
   const S = V[p], now = Date.now();
   if(!PETS[p].cycle || (S.sleep && S.sleep.start)) return null;
-  const nw = napWake(p); if(nw) return {t: nw.t, why: 'אחרי שהתעוררה', nap: nw.len};
+  const nw = napWake(p); if(nw) return {t: nw.t, why: 'אחרי שהתעוררה', nap: nw.len, ...(nw.hi ? {hi: nw.hi} : {})};
   if(S.crate && S.crate.start) return null;
   const done = Math.max(S.pee || 0, S.poop || 0, S.none || 0), c = [];
   // a sleep that ended at a drink is not "she woke up" for potty advice (v3: a drink alone gives no potty advice)
-  if(S.sleep && S.sleep.lastEnd && !state.log.some(e => e.p===p && e.k==='water' && e.t === S.sleep.lastEnd)) c.push([S.sleep.lastEnd, TRY.wake, 'אחרי שהתעוררה']);
+  if(S.sleep && S.sleep.lastEnd && !state.log.some(e => e.p===p && e.k==='water' && e.t === S.sleep.lastEnd)){ const ww = wakeWin(p); c.push([S.sleep.lastEnd, TRY.wake, 'אחרי שהתעוררה', false, ww && ww.lo === S.sleep.lastEnd ? ww.hi : 0]); }
   const fw = state.log.filter(e => e.p===p && (e.k==='water' || (e.k==='food' && mealKind(e) === 'meal')) && e.t <= now).sort((x,y) => y.t - x.t)[0];
   if(fw) c.push([fw.t, fw.k === 'water' ? TRY.water : TRY.food, fw.k === 'water' ? 'אחרי שתייה' : 'אחרי ארוחה', fw.k === 'food']);
-  const hit = c.filter(([t, [a, b]]) => t > done && now - t >= a && now - t <= b).sort((x,y) => y[0] - x[0])[0];
-  return hit ? {t: hit[0], why: hit[2], meal: !!hit[3]} : null;
+  const hit = c.filter(([t, [a, b], , , hi]) => t > done && now - t >= a && now - Math.max(t, hi || 0) <= b).sort((x,y) => y[0] - x[0])[0];
+  return hit ? {t: hit[0], why: hit[2], meal: !!hit[3], ...(hit[4] ? {hi: hit[4]} : {})} : null;
 }
 // The gravel card's hint line, from `tryNow`.
 function tryNowHTML(p){
   const h = tryNow(p); if(!h) return '';
-  const ago = h.t >= Date.now() - 60000 ? 'עכשיו' : words(Date.now() - h.t);
+  const ago = h.hi && h.hi - h.t >= 60000 ? `לפני ${words(Math.max(0, Date.now() - h.hi))}–${words(Date.now() - h.t)}` : h.t >= Date.now() - 60000 ? 'עכשיו' : words(Date.now() - h.t);   // §12d: a range when the waking is a window
   const head = h.nap ? 'ישר לחצץ' : h.meal ? 'זה זמן טוב לצאת לחצץ' : 'זה זמן טוב לנסות';
   return `<small class="trynow">${head} · ${ago} ${h.why}${h.nap ? ` (ישנה ${words(h.nap)})` : ''}</small>`;
 }
@@ -3108,7 +3130,7 @@ function pottyDue(p){
   // sleep that ended with it neither (a drink ending a marked sleep OUT of the crate keeps the reminder, as before).
   // v3: an exit with the crate door open is hers, not "taken out" (`selfExit`).
   const byMove = t => (state.log.some(e => e.p===p && (e.k==='water' || e.k==='carrier' || e.k==='pen') && e.t === t) && state.log.some(e => e.p===p && e.k==='crate' && e.end === t)) || !!selfExit(p, t);
-  if(S.sleep && S.sleep.lastEnd && !byMove(S.sleep.lastEnd)) c.push([S.sleep.lastEnd, 'אחרי שינה']);
+  if(S.sleep && S.sleep.lastEnd && !byMove(S.sleep.lastEnd)){ const ww = PETS[p].cycle ? wakeWin(p) : null; c.push([S.sleep.lastEnd, 'אחרי שינה', ww && ww.lo === S.sleep.lastEnd ? ww.hi : 0]); }
   if(S.crate && S.crate.lastEnd && !byMove(S.crate.lastEnd)) c.push([S.crate.lastEnd, 'אחרי יציאה מהכלוב']);
   if(typeof S.food === 'number') c.push([S.food, 'אחרי אוכל']);
   const fc = peeForecast(p);
@@ -3116,8 +3138,8 @@ function pottyDue(p){
   c.sort((a,b) => b[0]-a[0]);
   if(!c.length) return null;
   const done = Math.max(S.pee || 0, S.poop || 0, S.none || 0, S.out || 0);
-  if(done >= c[0][0] || Date.now() - c[0][0] > DUE_MAX) return null;
-  return {t:c[0][0], why:c[0][1]};
+  if(done >= c[0][0] || Date.now() - Math.max(c[0][0], c[0][2] || 0) > DUE_MAX) return null;
+  return {t:c[0][0], why:c[0][1], ...(c[0][2] ? {hi: c[0][2]} : {})};
 }
 function dayKey(t){ const d=new Date(t); return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`; }
 function medsOf(p){ return V[p].meds[dayKey(Date.now())] || {}; }
@@ -3355,6 +3377,7 @@ const CAMJ = { ev: [], cov: [], doors: [], ready: false, unsub: null, unsubF: nu
 // The camera has the final word on times (owner, 26.11): manual logging is often late, so a manual entry up to
 // CAMJ_LATE after the camera's time (or CAMJ_MATCH before it) is the same event, and takes the camera's time.
 const CAMJ_LATE = 30*60000;
+const CAMJ_FEED = { food_seen: 'food', water_seen: 'water' };   // §12c: detection kind -> journal kind (approved by a tap only)
 const CAMJ_P = 'kishmish', CAMJ_MATCH = 10*60000, CAMJ_TTL = 6*3600000, CAMJ_SEC = 60000, CAMJ_WIDE = 15*60000, CAMJ_LIVE = 15*60000;
 let serverSeen = false;   // the journal has come from the server at least once here (never reconcile a stale copy)
 const camjDoc = () => MODE === 'live' ? 'events' : 'events_preview';
@@ -3362,14 +3385,28 @@ const byTs = (a, b) => a.ts - b.ts, byT = (a, b) => a.t - b.t;
 function camjValid(d){
   const num = x => typeof x === 'number' && isFinite(x);
   const ev = d && Array.isArray(d.events) ? d.events.filter(e => e && typeof e.event_id === 'string' && /^[\w:.\-]{1,100}$/.test(e.event_id)
-      && (e.kind === 'crate_entry' || e.kind === 'crate_exit' || ((e.kind === 'sleep_onset' || e.kind === 'sleep_wake') && e.source === 'owner_label')) && num(e.ts) && (e.source === 'owner_label' || e.source === 'live_model')
+      && (e.kind === 'crate_entry' || e.kind === 'crate_exit' || e.kind === 'sleep_onset' || e.kind === 'sleep_wake' || CAMJ_FEED[e.kind]) && num(e.ts) && (e.source === 'owner_label' || e.source === 'live_model')
       && (e.status === 'active' || e.status === 'retracted'))
-    .map(e => { const lo = num(e.lo) ? Math.min(e.lo, e.ts) : e.ts, hi = num(e.hi) ? Math.max(e.hi, e.ts) : e.ts; return { ...e, lo, hi, wide: !!e.wide || hi - lo > CAMJ_WIDE }; }) : [];
+    .map(e => { const lo = num(e.lo) ? Math.min(e.lo, e.ts) : e.ts, hi = num(e.hi) ? Math.max(e.hi, e.ts) : e.ts;
+      // §12a: IR / capped flags and the supporting frame (only a well-formed id and a numeric capture time are kept)
+      const img = typeof e.image_id === 'string' && /^[\w:.\-]{1,100}$/.test(e.image_id) ? { image_id: e.image_id, image_ts: num(e.image_ts) ? e.image_ts : null } : { image_id: null, image_ts: null };
+      return { ...e, lo, hi, wide: !!e.wide || hi - lo > CAMJ_WIDE, ir: e.ir === true, uncertain: e.uncertain === true, ...img }; }) : [];
   const cov = d && Array.isArray(d.coverage) ? d.coverage.filter(r => r && num(r.from) && num(r.to) && r.from <= r.to).map(r => [r.from, r.to]) : [];
   const doors = d && Array.isArray(d.door_spans) ? d.door_spans.filter(r => r && num(r.from) && num(r.to) && r.from <= r.to && (r.value === 'open' || r.value === 'closed')).map(r => ({ from: r.from, to: r.to, value: r.value })) : [];
   return { ev, cov, doors };
 }
+const CAMJ_KIND = { crate_entry: 'כניסה לכלוב', crate_exit: 'יציאה מהכלוב', sleep_onset: 'נרדמה', sleep_wake: 'התעוררה', food_seen: 'אכלה', water_seen: 'שתתה' };
 const camjDec = id => CAMJ.fbLocal[id] || CAMJ.fb[id] || null;
+// §12a — IR / capped live calls are CONTEXT ONLY: never offered, never estimated sleep, never a timer change.
+const camjCtx = e => !!e && e.source === 'live_model' && (e.ir || e.uncertain);
+// §12a — an event's supporting image, only if it was captured inside the event's own window (never an older frame as
+// evidence of a newer event). → {ok:true, id, ts} | {ok:false, why:'none'|'older'|'newer'|'nots'}
+function camjEvImg(e, end){
+  if(!e || !e.image_id) return { ok: false, why: 'none' };
+  if(typeof e.image_ts !== 'number') return { ok: false, why: 'nots' };
+  const a = e.lo - 60000, b = (end != null ? Math.max(end, e.hi) : e.hi) + 60000;
+  return e.image_ts < a ? { ok: false, why: 'older' } : e.image_ts > b ? { ok: false, why: 'newer' } : { ok: true, id: e.image_id, ts: e.image_ts };
+}
 function camjDecide(ids, d){   // approved / rejected / dismissed / deleted -> camera/feedback (preview / sandbox: this page only)
   const at = Date.now(), m = {}; for(const id of [].concat(ids)) if(id) m[id] = { d, by: String(me || '').slice(0, 40), at };
   Object.assign(CAMJ.fbLocal, m);
@@ -3424,8 +3461,8 @@ function camjSessions(now){
 // VERIFIED SLEEP (owner, 26.11): episodes from her own explicit "asleep" marks (camera §11d). Independent of the door,
 // of sessions and of occupancy; nothing from the model, nothing from stillness. t = her first asleep mark (onset window
 // kept), end = her last asleep mark of the episode (wake window kept); open when no awake mark came yet.
-function camjSleeps(){
-  const act = CAMJ.ev.filter(e => e.status === 'active'), on = act.filter(e => e.kind === 'sleep_onset').sort(byTs), wk = act.filter(e => e.kind === 'sleep_wake').sort(byTs), used = new Set();
+function camjSleeps(src){
+  const act = CAMJ.ev.filter(e => e.status === 'active' && e.source === (src || 'owner_label')), on = act.filter(e => e.kind === 'sleep_onset').sort(byTs), wk = act.filter(e => e.kind === 'sleep_wake').sort(byTs), used = new Set();
   return on.map(o => {
     const nx = on.find(z => z.ts > o.ts);
     let w = o.pair_id ? wk.find(z => z.event_id === o.pair_id) : null;
@@ -3462,6 +3499,64 @@ function camjSleepPlan(L, now, acts, rv){
     acts.push({ do: 'slink', id, first, last });
   }
   for(const e of sl){ if(e.cam && e.cam.cid && e.cam.cid.startsWith('cams:') && !e.cam.h && e.cam.in && retracted.has(e.cam.in)) acts.push(e.id.startsWith('cams:') ? { do: 'remove', id: e.id } : { do: 'unlink', id: e.id }); }
+}
+// §12c FOOD / WATER DETECTIONS: never written on their own. Each undecided, daylight, not-uncertain detection of the last
+// CAMJ_TTL with no manual entry of the same kind from CAMJ_MATCH before it to CAMJ_LATE after it (late logging) is
+// offered for one tap in the existing food card / water row (newest first). rv.feed = {food:[ev…], water:[ev…]},
+// rv.fmatched (a manual entry covers it), rv.fdone (approved -> the `cam:` entry), rejections into rv.rejected.
+function camjFeedPlan(L, now, rv){
+  const sup = new Set(CAMJ.ev.map(e => e.supersedes).filter(Boolean));
+  rv.feed = { food: [], water: [] }; rv.fmatched = []; rv.fdone = [];
+  for(const e of CAMJ.ev){
+    const k = CAMJ_FEED[e.kind]; if(!k || e.status !== 'active' || sup.has(e.event_id)) continue;
+    const made = L.find(x => x.id === 'cam:' + e.event_id); if(made){ rv.fdone.push({ ev: e, e: made }); continue; }
+    if(now - e.ts > CAMJ_TTL || camjCtx(e)) continue;   // too old to ask about / context only (rv.context)
+    const d = camjDec(e.event_id); if(d){ if(d.d === 'rejected') rv.rejected.push(e); continue; }
+    const m = L.find(x => x.k === k && !isTU(x) && x.t - e.ts <= CAMJ_LATE && e.ts - x.t <= CAMJ_MATCH);
+    if(m){ rv.fmatched.push({ ev: e, e: m }); continue; }
+    rv.feed[k].push(e);
+  }
+  rv.feed.food.sort((a, b) => b.ts - a.ts); rv.feed.water.sort((a, b) => b.ts - a.ts);
+}
+// §12b PROBABLE SLEEP (live model): ESTIMATED sleep, never written, never marked. Daylight and not uncertain only; a
+// rejected onset ("לא נרדמה") is out. An open onset runs only while the camera's coverage reaches within CAMJ_RUN of now.
+const CAMJ_RUN = 3*60000;
+function camjProbSleeps(now){
+  let ok = false; try { ok = CAMJ.ready; } catch(e){ return []; }   // derive runs at start-up, before this section exists
+  if(!ok) return [];
+  const covEnd = CAMJ.cov.length ? Math.max(...CAMJ.cov.map(r => r[1])) : -Infinity;
+  return camjSleeps('live_model').filter(c => !camjCtx(c.on) && !(c.wk && camjCtx(c.wk)) && !(camjDec(c.on.event_id) && camjDec(c.on.event_id).d === 'rejected') && c.t <= now)
+    .filter(c => c.end != null || (covEnd >= now - CAMJ_RUN && now - c.t <= 16*3600000))
+    .map(c => ({ ...c, id: 'camp:' + c.on.event_id }));
+}
+// The pieces of probable sleep that may be shown as estimated: never over a sleep already known (marked or estimated),
+// never across anything that shows her awake or out, never in a stretch she said "לא ישנה"; pieces under SLEEP_PIECE
+// are dropped. → [{t, end|null, assumed:true, cam:<onset event id>, olo?, ohi?}]
+function camProbSpans(p, log, now, spans){
+  if(!PETS[p] || !PETS[p].cycle) return [];
+  const cs = camjProbSleeps(now); if(!cs.length || p !== CAMJ_P) return [];   // (camjProbSleeps first: it is safe before this section has run)
+  const L = log.filter(e => e.p === p && !isTU(e));
+  const cuts = L.filter(e => AWAKE_PT[e.k] || OUT_KINDS[e.k]).map(e => [e.t, e.t])
+    .concat(L.filter(e => e.k === 'cry' || e.k === 'gravel').map(e => [e.t, e.end == null ? now : e.end]))
+    .concat(L.filter(e => e.k === 'sleep' && e.end != null).map(e => [e.end, e.end]))
+    .concat(spans.map(x => [x.t, x.end == null ? now : x.end]))
+    .concat(L.filter(e => e.k === 'crate' && e.ns).map(e => [e.t, e.end == null ? now : e.end]));
+  const no = L.filter(e => e.k === 'crate' && Array.isArray(e.nsx)).flatMap(e => e.nsx);
+  const out = [];
+  for(const c of cs){
+    const a0 = c.t, b0 = c.end == null ? now : c.end;
+    const cut = cuts.filter(([x, y]) => y >= a0 && x <= b0).sort((u, v) => u[0] - v[0]);
+    let cur = a0; const parts = [];
+    for(const [x, y] of cut){ if(x > cur) parts.push([cur, Math.min(x, b0)]); cur = Math.max(cur, y); if(cur >= b0) break; }
+    if(cur < b0) parts.push([cur, b0]);
+    parts.forEach(([x, y], i) => {
+      const last = i === parts.length - 1 && y === b0, open = last && c.end == null;
+      if(no.some(t => t >= x && t <= y)) return;
+      if(!open && y - x < SLEEP_PIECE) return;
+      out.push({ t: x, end: open ? null : y, assumed: true, cam: c.on.event_id, ...(last && c.wk ? { olo: c.olo, ohi: c.ohi } : {}) });
+    });
+  }
+  return out;
 }
 // Reconcile: journal actions (applied automatically) + what the crate card and the review view show.
 function camjPlan(log, now){
@@ -3514,7 +3609,9 @@ function camjPlan(log, now){
     const d = camjDoorAt(s.from, now); rv.visits.push({ s, door: d ? d.value : 'unknown' }); }
   // live: only where it changes something, and only the latest
   const sup = new Set(CAMJ.ev.map(e => e.supersedes).filter(Boolean));
-  const lives = CAMJ.ev.filter(e => e.status === 'active' && e.source === 'live_model' && !sup.has(e.event_id) && now - e.ts <= CAMJ_TTL);
+  const lives0 = CAMJ.ev.filter(e => e.status === 'active' && e.source === 'live_model' && (e.kind === 'crate_entry' || e.kind === 'crate_exit') && !sup.has(e.event_id) && now - e.ts <= CAMJ_TTL);
+  rv.context = CAMJ.ev.filter(e => e.status === 'active' && camjCtx(e) && !sup.has(e.event_id) && now - e.ts <= CAMJ_TTL).sort((a, b) => b.ts - a.ts);   // §12a: IR / uncertain — context only
+  const lives = lives0.filter(e => !camjCtx(e));
   for(const e of lives) if(camjDec(e.event_id) && camjDec(e.event_id).d === 'rejected') rv.rejected.push(e);
   rv.disputed = lives.filter(e => e.disputed_by_labels && !camjDec(e.event_id));
   const undecided = lives.filter(e => !camjDec(e.event_id) && !e.disputed_by_labels);
@@ -3523,7 +3620,8 @@ function camjPlan(log, now){
   else { const x = undecided.filter(e => e.kind === 'crate_entry' && now - e.ts <= CAMJ_TTL && !sess.some(s => Math.abs(s.t - e.ts) <= CAMJ_MATCH || (s.t <= e.ts && (s.end == null || s.end >= e.ts)))).sort(byTs).pop();
     if(x) rv.live.push({ ev: x, kind: 'start' }); }
   rv.liveMore = Math.max(0, undecided.length - rv.live.length);
-  rv.pending = CAMJ.ev.filter(e => e.status === 'active' && e.source === 'live_model' && e.kind === 'crate_entry' && !sup.has(e.event_id) && !e.disputed_by_labels && !camjDec(e.event_id)
+  camjFeedPlan(L, now, rv);
+  rv.pending = CAMJ.ev.filter(e => e.status === 'active' && e.source === 'live_model' && e.kind === 'crate_entry' && !camjCtx(e) && !sup.has(e.event_id) && !e.disputed_by_labels && !camjDec(e.event_id)
     && !sess.some(s => Math.abs(s.t - e.ts) <= CAMJ_MATCH || (s.t <= e.ts && (s.end == null || s.end >= e.ts)))).sort((a, b) => b.ts - a.ts);
   return { acts, rv };
 }
@@ -3567,6 +3665,11 @@ function camjDo(a, who){   // inside a commit's mutate
     const endAt = [o && o.t, xo && xo.ts].filter(v => v != null).sort((a, b) => a - b)[0];
     const e = newStay(CAMJ_P, 'crate', x.ts, endAt != null && endAt < Date.now() - 60000 ? Math.max(endAt, x.ts + 1) : undefined);   // she was taken out since: the stay ends there
     e.id = id; e.cam = { cid: id, in: x.event_id, it: x.ts, ilo: x.lo, ihi: x.hi, src: 'live_model', ...ok }; state.log.push(e);
+  } else if(a.do === 'feed'){   // §12c: a caregiver approved a food / water detection — a normal entry at the camera's time
+    const x = a.ev, k = CAMJ_FEED[x.kind], id = 'cam:' + x.event_id; if(!k || find(id)) return;
+    impliesOut(CAMJ_P, k, x.ts);   // exactly what logging it by hand at that time does (water: awake and out)
+    const im = camjEvImg(x);
+    state.log.push({ id, p: CAMJ_P, k, t: x.ts, cam: { in: x.event_id, it: x.ts, ilo: x.lo, ihi: x.hi, src: x.source, ...(im.ok ? { img: im.id } : {}), ...ok } });
   } else if(a.do === 'screate'){
     const c = a.c; if(find(c.id)) return;
     const e = { id: c.id, p: CAMJ_P, k: 'sleep', t: c.t, ...(c.end != null ? { end: Math.max(c.end, c.t + 1) } : {}),
@@ -3584,10 +3687,10 @@ function camjDo(a, who){   // inside a commit's mutate
 function camjHuman(a, b){
   const B = new Map(b.map(e => [e.id, e]));
   for(const o of a){
-    if(o.p !== CAMJ_P || (o.k !== 'crate' && o.k !== 'sleep')) continue;
-    if(o.k === 'sleep' && !o.cam) continue;
+    if(o.p !== CAMJ_P || (o.k !== 'crate' && o.k !== 'sleep' && o.k !== 'food' && o.k !== 'water')) continue;
+    if(o.k !== 'crate' && !o.cam) continue;
     const n = B.get(o.id);
-    if(!n){ if(o.cam && o.cam.cid) camjDecide(o.cam.cid, 'deleted'); continue; }
+    if(!n){ if(o.cam && o.cam.cid) camjDecide(o.cam.cid, 'deleted'); else if(o.cam && o.cam.in && (o.k === 'food' || o.k === 'water')) camjDecide(o.cam.in, 'deleted'); continue; }
     if(n.t !== o.t || (o.end != null && n.end !== o.end)) n.cam = { ...(n.cam || {}), h: 1 };   // a correction, not just ending the timer
   }
 }
@@ -3600,7 +3703,7 @@ function camjSub(){
   if(document.hidden || Date.now() < CAMJ.retryAt || !fb || !fb.camDoc || !fb.auth || !fb.auth.currentUser) return;
   if(!CAMJ.unsub) CAMJ.unsub = fb.camDoc(camjDoc(), (d, cache) => {
     if(!cache) camsUse(JSON.stringify(d || {}).length);
-    const v = camjValid(d); CAMJ.ev = v.ev; CAMJ.cov = v.cov; CAMJ.doors = v.doors; CAMJ.ready = !!d; camjApply(); camjPaint();
+    const v = camjValid(d); CAMJ.ev = v.ev; CAMJ.cov = v.cov; CAMJ.doors = v.doors; CAMJ.ready = !!d; setState(state); camjApply(); camjLast = ''; camjPaint();   // re-derive: probable sleep (§12b) reads the observations
   }, e => { CAMJ.retryAt = Date.now() + (e && e.code === 'permission-denied' ? 3600000 : 60000); if(CAMJ.unsub){ CAMJ.unsub(); CAMJ.unsub = null; } });
   if(!CAMJ.unsubF && MODE === 'live') CAMJ.unsubF = fb.camDoc('feedback', d => { CAMJ.fb = d && d.decisions && typeof d.decisions === 'object' ? d.decisions : {}; camjPaint(); }, () => { CAMJ.unsubF = () => {}; });   // no access yet: decisions stay on this device
 }
@@ -3614,8 +3717,9 @@ function camjCov(t){
 }
 const camjWin = (lo, hi) => hi - lo >= 60000 ? ` (בין <bdi dir="ltr">${clock(lo)}</bdi> ל־<bdi dir="ltr">${clock(hi)}</bdi>)` : '';
 function camjNote(e, long){   // list rows and the entry's sheet
-  if((e.k !== 'crate' && !(e.k === 'sleep' && e.cam)) || e.p !== CAMJ_P) return '';
+  if((e.k !== 'crate' && !((e.k === 'sleep' || e.k === 'food' || e.k === 'water') && e.cam)) || e.p !== CAMJ_P) return '';
   const c = e.cam || {};
+  if(e.k === 'food' || e.k === 'water') return ` · זיהוי מצלמה (אושר)${long ? camjWin(c.ilo, c.ihi) : ''}`;
   if(c.cid || c.in){
     const src = /^cams?:/.test(e.id || '') ? (c.src === 'live_model' ? 'מצלמה (אושר)' : e.k === 'sleep' ? 'מהתיוג שלך' : 'מצלמה') : c.was ? 'תוקן לפי המצלמה' : 'אושר במצלמה';
     if(!long) return ` · ${src}${c.single ? ' · נראתה ישנה (סימון אחד)' : c.unc ? ' · שעה לא ודאית' : ''}`;
@@ -3646,7 +3750,7 @@ function camjActHTML(){
   const more = (pl.pending || []).length - 1;
   const x = lv.ev, end = lv.kind === 'end';
   const o = !end ? camjOutAfter(x.ts) : null;
-  return `<div class="camjt"><span><b>${end ? `יצאה מהכלוב ב־<bdi dir="ltr">${clock(x.ts)}</bdi>?` : o ? `הייתה בכלוב <bdi dir="ltr">${clock(x.ts)}–${clock(o.t)}</bdi>?` : `נכנסה לכלוב ב־<bdi dir="ltr">${clock(x.ts)}</bdi>?`}</b><small>זיהוי מצלמה</small></span>
+  return `<div class="camjt"><span><b>${end ? `יצאה מהכלוב ב־<bdi dir="ltr">${clock(x.ts)}</bdi>?` : o ? `הייתה בכלוב <bdi dir="ltr">${clock(x.ts)}–${clock(o.t)}</bdi>?` : `נכנסה לכלוב ב־<bdi dir="ltr">${clock(x.ts)}</bdi>?`}</b><small>זיהוי מצלמה</small>${camjImgHTML(x)}</span>
     <span class="rt-a"><button class="go" data-camj="${end ? 'end' : 'start'}">${end ? 'אישור' : o ? 'אישור' : 'שהייה מ־' + clock(x.ts)}</button><button class="btn" data-camj="reject">לא נכון</button></span></div>${more > 0 ? `<button class="lnk camj-rv" data-camj="review">עוד ${more} זיהויים לאישור</button>` : ''}`;
 }
 // In the crate card: one quiet link to what the camera did (details on demand).
@@ -3689,6 +3793,8 @@ function camjReview(){
     ${sec('ביקורים (לא נרשמים ביומן)', rv.visits.map(r => row(`${when(r.s.from, r.s.to)}<small>${r.door === 'open' ? 'דלת פתוחה' : r.dismissed ? 'הושאר כתצפית' : 'מצב הדלת לא ידוע'} · לא משפיע על השגרה או השינה</small>`)))}
     ${sec('זיהויים לאישור', (rv.pending || []).map(e => row(`נכנסה לכלוב ${when(e.ts)}<small>זיהוי מצלמה · לא נרשם עד שמאשרים</small>`, `<span class="rt-a"><button class="go" data-cjp="ok" data-ev="${e.event_id}">אישור</button><button class="btn" data-cjp="no" data-ev="${e.event_id}">לא נכון</button></span>`)))}
     ${sec('לבדיקה, לא חובה', (rv.optional || []).map(c => c.sleepDiff ? row(`שינה שרשמת: ${when(state.log.find(e => e.id === c.sleepDiff.id).t, state.log.find(e => e.id === c.sleepDiff.id).end)}<small>לפי התיוג שלך ישנה גם ${c.sleepDiff.before ? 'לפני השעה שרשמת' : ''}${c.sleepDiff.before && c.sleepDiff.after ? ' ו' : ''}${c.sleepDiff.after ? 'אחרי השעה שרשמת' : ''} · שני הרישומים נשמרים</small>`) : row(`נראתה ישנה ב־${when(c.t)}${camjWin(c.ilo, c.ohi != null ? c.ohi : c.ihi)}<small>נרשם כשינה לא ודאית · לא נכנס לחישובי זמנים</small>`, `<span class="rt-a"><button class="lnk" data-cjo="${c.id}">זו לא הייתה שינה</button></span>`)))}
+    ${sec('אוכל ושתייה לאישור', [...(rv.feed.food || []), ...(rv.feed.water || [])].sort((a, b) => b.ts - a.ts).map(e => row(`${CAMJ_FEED[e.kind] === 'food' ? 'אכלה' : 'שתתה'} ${when(e.ts)}${camjWin(e.lo, e.hi)}<small>זיהוי מצלמה · לא נרשם עד שמאשרים</small>${camjImgHTML(e)}`, `<span class="rt-a"><button class="go" data-camf="ok" data-ev="${esc(e.event_id)}">אישור</button><button class="btn" data-camf="no" data-ev="${esc(e.event_id)}">לא נכון</button></span>`)))}
+    ${sec('להקשר בלבד', (rv.context || []).map(e => row(`${CAMJ_KIND[e.kind] || e.kind} ${when(e.ts)}<small>${e.ir ? 'תאורת לילה (IR)' : 'זיהוי לא ודאי'} · לא לאישור, לא משנה דבר</small>`)), 'המודל לא בטוח מספיק')}
     ${sec('זיהויים במחלוקת', (rv.disputed || []).map(e => row(`${e.kind === 'crate_entry' ? 'כניסה' : 'יציאה'} ${when(e.ts)}<small>התיוג שלך לפני ואחרי סותר אותו · לא נרשם</small>`)))}
     ${sec('זיהויים שסומנו "לא נכון"', rv.rejected.map(e => row(`${e.kind === 'crate_entry' ? 'כניסה' : 'יציאה'} ${when(e.ts)}<small>נשמר כדוגמה שגויה לבדיקת המודל</small>`)))}
     <div class="foot"><button class="btn" id="camX">סגירה</button></div></div>`;
@@ -3708,7 +3814,7 @@ function camjReview(){
   bg.classList.add('show');
 }
 let camjLast = '';
-function camjPaint(){ const h = pet === CAMJ_P ? camjTileHTML(pet) + camjActHTML() + camjConflict() : ''; if(h === camjLast) return; camjLast = h; if(pet === CAMJ_P && view === 'now') render(); }
+function camjPaint(){ const h = pet === CAMJ_P ? camjTileHTML(pet) + camjActHTML() + camjConflict() + camjFeedHTML(pet, 'food') + camjFeedHTML(pet, 'water') : ''; if(h === camjLast) return; camjLast = h; if(pet === CAMJ_P && view === 'now') render(); }
 document.addEventListener('click', e => {
   const r = e.target.closest && e.target.closest('[data-act=camrefresh]'); if(r){ e.stopPropagation(); if(camBase()) camPoll(); else camsRefresh(); return; }
   const b = e.target.closest && e.target.closest('[data-camj]'); if(!b) return;
@@ -3733,6 +3839,49 @@ function camjAsk(lv, manual){
     <div class="chips"><button id="cjCam" class="sel">לפי המצלמה (<bdi dir="ltr">${clock(x.ts)}</bdi>) · מומלץ</button><button id="cjNow">לפי עכשיו</button></div>`, cancelBtn, null);
   sh.querySelector('#cjCam').onclick = () => { close(); camjDecide(x.event_id, 'approved'); commit(`${nm} · ${entry ? ITEMS.crate.start : ITEMS.crate.stop} (מצלמה, אושר)`, () => camjDo(entry ? { do: 'start', ev: x } : { do: 'end', id: lv.stay, ev: x }, me), { cam: true }); };
   sh.querySelector('#cjNow').onclick = () => { close(); camjDecide(x.event_id, 'approved'); manual(x); };
+  const cc = sh.querySelector('#cancel'); if(cc) cc.onclick = close;
+  bg.classList.add('show');
+}
+
+// ----- §12: food / water approvals in their own cards, probable sleep, per-event images -----
+// An event's supporting image (§12a): only a frame captured inside the event's window; loaded only on a device with the
+// owner's private service (token in the header, blob URL), never stored. Other devices get one quiet line.
+CAMJ.imgs = {};
+function camjImgHTML(e, end){
+  const r = camjEvImg(e, end);
+  if(!r.ok) return r.why === 'none' ? '' : `<small class="cam-dim camj-noimg">${r.why === 'older' ? 'התמונה מוקדמת מהזיהוי · לא מוצגת' : 'אין תמונה מזמן הזיהוי'}</small>`;
+  const priv = camBase() && (CAM.st === 'ok' || CAM.st === 'stale'), c = CAMJ.imgs[r.id];
+  if(!priv) return `<small class="cam-dim camj-noimg">יש תמונה מ־<bdi dir="ltr">${clock(r.ts)}</bdi> · רק במכשיר עם גישה למצלמה</small>`;
+  if(c && c.url) return `<img class="camj-img" src="${c.url}" alt="" data-ts="${r.ts}">`;
+  if(!c){ CAMJ.imgs[r.id] = { loading: true };
+    camImage('/img?id=' + encodeURIComponent(r.id)).then(im => { CAMJ.imgs[r.id] = im.ok ? { url: im.url } : { err: im.why }; camjLast = ''; render(); }); }
+  return c && c.err ? `<small class="cam-dim camj-noimg">התמונה לא נטענה</small>` : '';
+}
+// One detection to approve (the newest), with "עוד N" to the review. Never written without a tap.
+function camjFeedHTML(p, k){
+  if(p !== CAMJ_P || !CAMJ.ready) return '';
+  const list = camjPlan(state.log, Date.now()).rv.feed[k]; if(!list || !list.length) return '';
+  const x = list[0], more = list.length - 1, w = k === 'food' ? 'אכלה' : 'שתתה';
+  return `<div class="camjt camjf" data-feed="${k}"><span><b>${w} ב־<bdi dir="ltr">${clock(x.ts)}</bdi>?</b><small>זיהוי מצלמה${camjWin(x.lo, x.hi)} · לא נרשם עד שמאשרים</small>${camjImgHTML(x)}</span>
+    <span class="rt-a"><button class="go" data-camf="ok" data-ev="${esc(x.event_id)}">אישור</button><button class="btn" data-camf="no" data-ev="${esc(x.event_id)}">לא נכון</button></span></div>${more > 0 ? `<button class="lnk camj-rv" data-camj="review">עוד ${more} זיהויים לאישור</button>` : ''}`;
+}
+function camjFeedRowHTML(p, k){ const h = camjFeedHTML(p, k); return h ? `<div class="crcam camfw">${h}</div>` : ''; }   // a full-width row of the food card, like the crate's
+function camjFeedDo(id, yes){
+  const x = CAMJ.ev.find(e => e.event_id === id), k = x && CAMJ_FEED[x.kind]; if(!k) return;
+  if(!yes){ camjDecide(id, 'rejected'); camjLast = ''; render(); showToast(`${PETS[CAMJ_P].name} · זיהוי המצלמה סומן "לא נכון"`); return; }
+  camjDecide(id, 'approved');
+  commit(`${PETS[CAMJ_P].name} · ${ITEMS[k].log} (מצלמה, אושר)`, () => camjDo({ do: 'feed', ev: x }, me), { cam: true });
+}
+document.addEventListener('click', e => {
+  const b = e.target.closest && e.target.closest('[data-camf]'); if(!b) return;
+  e.stopPropagation(); camjFeedDo(b.dataset.ev, b.dataset.camf === 'ok'); if(bg.classList.contains('show') && sh.querySelector('.cam-sheet')) camjReview();
+}, true);
+// A row of the camera's probable sleep (§12b) in the list: what it is, and the one correction ("לא ישנה").
+function camProbSheet(id, t){
+  const sp = V[CAMJ_P].spans.find(x => x.cam === id && x.t === t) || V[CAMJ_P].spans.find(x => x.cam === id), ev = CAMJ.ev.find(e => e.event_id === id); if(!sp) return;
+  sheet(`${PETS[CAMJ_P].name} · שינה משוערת`, `<div class="sub" style="font-size:14.5px">המצלמה העריכה שהיא ישנה <bdi dir="ltr">${clock(sp.t)}${sp.end ? '–' + clock(sp.end) : ''}</bdi>${sp.end == null ? ' (עדיין)' : ''}. זו הערכה של המודל, לא מאומתת: היא לא נרשמת ביומן ולא נכנסת לחישובי זמנים.${sp.ohi != null ? ` התעוררה בין <bdi dir="ltr">${clock(sp.olo)}</bdi> ל־<bdi dir="ltr">${clock(sp.ohi)}</bdi>.` : ''}</div>${ev ? camjImgHTML(ev, sp.end) : ''}
+    <div class="chips" style="margin-top:12px"><button id="cpNo">לא ישנה</button></div>`, cancelBtn, null);
+  sh.querySelector('#cpNo').onclick = () => { close(); camjDecide(id, 'rejected'); setState(state); render(); showToast(`${PETS[CAMJ_P].name} · ההערכה הוסרה (נשלח למצלמה כדוגמה שגויה)`); };
   const cc = sh.querySelector('#cancel'); if(cc) cc.onclick = close;
   bg.classList.add('show');
 }
@@ -4179,7 +4328,7 @@ function render(){
           <div class="sub">${t ? `${dayLabel(t)} ב־${clock(t)}${whereOf(pet,k,t) || (hasWhere(k) ? ` · <button class="lnk" data-act="where" data-k="${k}">איפה?</button>` : '')}${typeOf(pet,k,t)}${byOf(pet,k,t)}` : 'עוד לא נרשם'}</div>
           ${hasWhere(k) ? unknownLine(pet, k) : ''}${P.cycle && k === 'pee' ? peeCardLines(pet) : ''}${k === 'pee' ? holdHint(pet) : ''}${P.cycle && k === 'poop' ? mealPoopHTML(pet) + poopLine(pet) + (V2 && !mealPoopCue(pet) ? gaugeHTML(poopWindow(pet), 'לחלון', 'הקקי האחרון ב־') : '') + poopHints(pet) : ''}${P.cycle && k === 'food' && S.bite > (S.food || 0) ? `<div class="sub hint bite">ביס אחרון ב־<bdi dir="ltr">${clock(S.bite)}</bdi> · לא מאפס את השעון</div>` : ''}${P.cycle && k === 'food' ? mealLine(pet) + (V2 ? gaugeHTML(mealWindow(pet), 'לארוחה', 'הארוחה האחרונה ב־') : '') : ''}${k === 'bath' ? bathLine(pet) + (V2 && !noBathUntil(pet) ? gaugeHTML(bathWindow(pet), 'למקלחת', 'המקלחת האחרונה ב־') : '') : ''}${GROOM[pet] && ['flea','brush','teeth','weight'].includes(k) ? groomLine(pet, k) : ''}${todayWhere(pet,k) ? `<div class="sub hint x">${todayWhere(pet,k)}</div>` : ''}${P.cycle && typical(pet,k) ? `<div class="sub hint x">${typical(pet,k)}</div>` : ''}${it.note ? `<div class="sub hint x">${it.note}</div>` : ''}MOREBTN</div>
         <div class="acts"><button class="go" data-act="pt" data-k="${k}">${it.btn}</button>
-          ${P.cycle && k === 'food' ? `<button class="ghost" data-act="nofood">${ico('none','s')}לא אכלה</button>` : ''}</div></div>`;
+          ${P.cycle && k === 'food' ? `<button class="ghost" data-act="nofood">${ico('none','s')}לא אכלה</button>` : ''}</div>${P.cycle && k === 'food' && !slim ? camjFeedRowHTML(pet, 'food') : ''}</div>`;
       // "עוד" (new design): the reference lines (class `x`) fold away until asked for; the old design shows them as always.
       h = h.replace('MOREBTN', '');   // no "עוד" (owner, 25.11): it only ever hid a line or two
     } else {
@@ -4188,7 +4337,7 @@ function render(){
       if(live){
         lbl = `<span class="dot"></span>${it.live}${d.assumed ? ' כנראה' : ''} כבר`;
         big = `<div class="big" data-since="${d.start}">${dur(Date.now()-d.start)}</div>`;
-        sub = `מ־${clock(d.start)}` + (d.assumed ? ' · לפי הנחה' : '') + (k === 'sleep' && !d.assumed && sinceCrate(pet, d.start) != null ? ` · ${sinceCrate(pet, d.start) < 60000 ? 'מיד' : words(sinceCrate(pet, d.start))} אחרי הכניסה לכלוב` : '');
+        sub = `מ־${clock(d.start)}` + (d.assumed ? (d.cam ? ' · הערכת מצלמה, לא מאומת' : ' · לפי הנחה') : '') + (k === 'sleep' && !d.assumed && sinceCrate(pet, d.start) != null ? ` · ${sinceCrate(pet, d.start) < 60000 ? 'מיד' : words(sinceCrate(pet, d.start))} אחרי הכניסה לכלוב` : '');
 
       } else if(k === 'sleep' && aw && Date.now() - aw < 6*3600000){   // awake: how long for — it is what decides when she goes back to sleep
         const ww = P.cycle ? wakeWin(pet) : null;
@@ -4249,7 +4398,7 @@ function render(){
       : gv
       ? `<div class="card slim gravel on${rc}">${rh}<span><b>בחצץ כבר <span class="rt-t" data-since="${gv}">${dur(Date.now() - gv)}</span></b><small>${gravelDone(pet, gv) || 'פיפי וקקי נרשמים והשעון ממשיך · "לא עשתה" או "סיום" סוגרים את היציאה'}</small></span>
           <span class="rt-a"><button class="go" data-act="pt" data-k="pee">פיפי</button><button class="go" data-act="pt" data-k="poop">קקי</button><button class="btn" data-act="pt" data-k="none">לא עשתה</button><button class="btn gend" data-act="dur" data-k="gravel">סיום</button></span></div>`
-      : `<div class="card slim gravel ${tap.includes('none') ? 'nowt' : ''}"><span><b>יוצאים לחצץ?</b>${slim ? '' : tryNowHTML(pet)}<small>${uw && uw.n >= 3 ? `בדרך כלל עושה פיפי תוך ${words(uw.ms)}` : 'השעון מודד כמה זמן לקח ומה יצא'}${ln ? ` · לא עשתה לאחרונה: ${dayLabel(ln)} <bdi dir="ltr">${clock(ln)}</bdi>` : ''}</small></span>
+      : `<div class="card slim gravel ${tap.includes('none') ? 'nowt' : ''}"><span><b>יוצאים לחצץ?</b>${slim ? '' : tryNowHTML(pet)}<small>${uw && uw.n >= 3 ? `בדרך כלל עושה פיפי תוך ${words(uw.ms)}` : 'השעון מודד כמה זמן לקח ומה יצא'}${lastOutingText(pet)}</small></span>
           <span class="rt-a"><button class="go" data-act="dur" data-k="gravel">${ITEMS.gravel.start}</button><button class="btn" data-act="pt" data-k="none">לא עשתה</button></span></div>`;
     if(slim){ camsWatch(); side.innerHTML = alertsHTML(pet) + sleepAskHTML(pet); /* v3 validation S5: no advice line on the slim night screen */ document.getElementById('main').innerHTML = nightCardsHTML(pet, tileOf, gravelRow); return; }
     h += sec('1', 'כלוב', tap.includes('crate'), tileOf('crate'), 'crate');
@@ -4519,7 +4668,7 @@ function poopModel(p){
   const poops = L.filter(e => e.k==='poop' && !isTU(e)).map(e => e.t).sort((x,y) => x-y);
   if(state.log.filter(e => e.p===p && e.k==='poop' && !isTU(e) && e.t <= now).length < POOP_MIN) return null;   // too few poops to call anything "usual"
   const anchors = { food: L.filter(e => mealKind(e) === 'meal').map(e => e.t).sort((x,y) => x-y),
-    wake: V[p].spans.filter(sp => sp.end != null && sp.end >= since && sp.end <= now && sp.end - sp.t >= 20*60000).map(sp => sp.end).sort((x,y) => x-y) };
+    wake: V[p].spans.filter(sp => !sp.cam && sp.end != null && sp.end >= since && sp.end <= now && sp.end - sp.t >= 20*60000).map(sp => sp.end).sort((x,y) => x-y) };
   let best = null;
   for(const anchor of ['food','wake']){
     const A = anchors[anchor], g = [];
@@ -4661,7 +4810,8 @@ function bathWindow(p){ const t = V[p].bath; if(!t) return null; const due = bat
 function sleepWindow(p){   // awake out of the crate: an hour awake is the trainer's limit (`AWAKE`)
   const S = V[p], aw = awakeSince(p);
   if(!aw || (S.sleep && S.sleep.start) || (S.crate && S.crate.start) || aw < Date.now() - 4*3600000) return null;
-  return {last: aw, from: aw + AWAKE.warn, to: aw + AWAKE.max, end: aw + 1.25*AWAKE.max};
+  const ww = wakeWin(p), hi = ww ? ww.hi : aw;   // §12d: waking known only as a window -> the window carries through
+  return {last: aw, from: aw + AWAKE.warn, to: hi + AWAKE.max, end: hi + 1.25*AWAKE.max, ...(ww ? {wake: ww} : {})};
 }
 const BATH_DAYS = 10;
 function bathLine(p){
@@ -4760,7 +4910,8 @@ function napWake(p){
   for(let i = sp.length - 2; i >= 0 && sp[i].end >= start - 60000; i--) start = Math.min(start, sp[i].t);
   const done = Math.max(S.pee || 0, S.poop || 0, S.none || 0);
   if(state.log.some(e => e.p===p && e.k==='water' && e.t === end)) return null;   // v3: woke at a drink — a drink alone gives no potty advice
-  return end - start >= POTTY_CUE.nap && now - end <= POTTY_CUE.napFor && done < end ? {t: end, len: end - start} : null;
+  const ww = wakeWin(p), hi = ww && ww.lo === end ? ww.hi : end;   // §12d: woke somewhere in [end, hi]
+  return end - start >= POTTY_CUE.nap && now - hi <= POTTY_CUE.napFor && done < end ? {t: end, len: end - start, ...(hi > end ? {hi} : {})} : null;
 }
 // "מה עושים עכשיו?" (`cycleHTML`) starts with this after such a nap.
 function wakeGravelWhat(p){ const w = napWake(p); return w ? `${PETS[p].name} התעוררה משינה של ${words(w.len)}: <b>ישר לחצץ</b>. ` : ''; }
@@ -4772,6 +4923,8 @@ function peeAsleep(p){
 }
 function peeCardLines(p){   // the pee card's forecast: the window line + bar, or while she sleeps the one line
   if(peeAsleep(p) === 'wake') return `<div class="sub fc wakepee">פיפי צפוי מיד כשהיא מתעוררת</div>`;
+  const aw = PETS[p].cycle && V[p] ? pottyExpect(p).pee : null;   // §12d: the waking is a window -> the pee after it is a range
+  if(aw && aw.afterWake && aw.afterWake.range) return `<div class="sub fc wakepee">התעוררה בין <bdi dir="ltr">${clock(aw.afterWake.from)}</bdi> ל־<bdi dir="ltr">${clock(aw.afterWake.to - PEE_WAKE)}</bdi> · פיפי צפוי עד <bdi dir="ltr">${clock(aw.afterWake.from + PEE_WAKE)}–${clock(aw.afterWake.to)}</bdi></div>` + forecastLine(p) + (V2 ? gaugeHTML(peeWindow(p), 'לחלון', 'הפיפי האחרון ב־') : '');
   return forecastLine(p) + (V2 ? gaugeHTML(peeWindow(p), 'לחלון', 'הפיפי האחרון ב־') : '');
 }
 // Meals: the last MEAL was at most POTTY_CUE.mealPoop ago and no poop since → its time, else 0.
@@ -4812,7 +4965,7 @@ function byOf(p, k, t){   // " · name" of whoever logged this event, if known
 }
 function logRow(e){
   const live = isLive(e);
-  if(e.assumed) return `<div class="r guess" data-stay="${e.stay}" data-t="${e.t}">${ico('sleep','s')}<span>${live ? 'ישנה כנראה עכשיו' : 'ישנה'} <i class="by">משוער</i>${e.end ? ' · '+words(e.end-e.t) : ''}</span>
+  if(e.assumed) return `<div class="r guess" ${e.cam ? `data-camsl="${esc(e.cam)}"` : `data-stay="${e.stay}"`} data-t="${e.t}">${ico('sleep','s')}<span>${live ? 'ישנה כנראה עכשיו' : 'ישנה'} <i class="by">משוער${e.cam ? ' · מצלמה' : ''}</i>${e.end ? ' · '+words(e.end-e.t) : ''}</span>
      <time>${dayLabel(e.t)} <bdi dir="ltr">${clock(e.t)}${e.end ? '–'+clock(e.end) : ''}</bdi></time></div>`;
   return `<div class="r" ${live ? `data-live="${e.k}"` : `data-e="${state.log.indexOf(e)}"`}>${ico(iconOf(e.k),'s')}<span>${live ? ITEMS[e.k].live+' עכשיו' : e.k === 'swap' && CRATES[e.c] ? 'הועברה ל'+CRATES[e.c] : lblOf(e)}${e.k === 'crate' && PETS[e.p].cycle && (CRATES[e.c] || e.t >= SLEEP2_FROM) ? ' · '+CRATES[crateKind(e)] : ''}${isRetryStay(e) ? ' · ניסיון חוזר' : ''}${camjNote(e)}${CRY_LBL[cryKind(e)] ? ' · '+CRY_LBL[cryKind(e)] : ''}${mealKind(e) ? ' · '+MEAL_LBL[mealKind(e)] : ''}${typeTag(e.q, !!PETS[e.p].cycle)}${e.n ? ' · '+esc(e.n) : ''}${afterCrate(e.p, e)}${PLAY[e.y] ? ' · '+PLAY[e.y] : e.y === 'play' ? ' · במשחק' : ''}${whereTag(e.w)}${isTU(e) ? ' · '+tuText(e) : ''}${waitTag(e)}${e.end ? ' · '+words(e.end-e.t) : ''}${byName(e.by) ? `<i class="by">${byName(e.by)}</i>` : ''}${fatLine(e) ? `<small class="ctx">${fatLine(e)}</small>` : ''}</span>
      <time>${dayLabel(e.t)} <bdi dir="ltr">${clock(e.t)}${e.end ? '–'+clock(e.end) : ''}</bdi></time></div>`;
@@ -4984,7 +5137,7 @@ const RATES = {days:3, wake:15*60000, meal:30*60000, crate:10*60000};
 const RATE_LBL = [['wake','אחרי התעוררות'], ['meal','אחרי ארוחה'], ['crate','לפני כלוב']];
 function gravelRates(p, now = Date.now()){
   const L = state.log.filter(e => e.p===p && !isTU(e)), from = now - RATES.days*86400000, r = {wake:{n:0, good:0}, meal:{n:0, good:0}, crate:{n:0, good:0}};
-  const wakes = V[p].spans.filter(s => s.end != null && s.end <= now).map(s => s.end);
+  const wakes = V[p].spans.filter(s => !s.cam && s.end != null && s.end <= now).map(s => s.end);
   const meals = L.filter(e => mealKind(e) === 'meal').map(e => e.t), crates = L.filter(e => e.k === 'crate').map(e => e.t);
   const before = (ts, t, w) => ts.some(x => x <= t && t - x <= w);
   // one gravel outing with a pee AND a poop is one outing (owner, 25.11): grouped by the outing they belong to
@@ -5223,7 +5376,7 @@ function kishStats(now){
   const p = 'kishmish', from = now - PLAN.days*86400000;
   // A nap = sleep pieces less than PLAN.join apart (a short cry or a kong in between splits the estimate, not her nap).
   const sp = [];
-  for(const x of V[p].spans.filter(x => x.end != null && x.end <= now && x.t >= from).sort((a,b) => a.t-b.t)){
+  for(const x of V[p].spans.filter(x => !x.cam && x.end != null && x.end <= now && x.t >= from).sort((a,b) => a.t-b.t)){
     const l = sp[sp.length-1]; if(l && x.t - l.end <= PLAN.join) l.end = Math.max(l.end, x.end); else sp.push({t: x.t, end: x.end});
   }
   for(let i = sp.length - 1; i >= 0; i--) if(sp[i].end - sp[i].t < WAKE.minNap || touchesNight(sp[i].t, sp[i].end)) sp.splice(i, 1);
@@ -5791,6 +5944,8 @@ document.getElementById('shell').addEventListener('click', e => {
   if(e.target.id === 'sumDate'){ try{ e.target.showPicker(); }catch(_){} return; }
   const ent = e.target.closest('.r[data-e], .d[data-e]');
   if(ent){ openEntrySheet(+ent.dataset.e); return; }
+  const cs = e.target.closest('.r[data-camsl]');
+  if(cs){ camProbSheet(cs.dataset.camsl, +cs.dataset.t); return; }
   const gs = e.target.closest('.r[data-stay]');
   if(gs){ assumeSheet(gs.dataset.stay, +gs.dataset.t); return; }
   const lv = e.target.closest('.r[data-live]');
