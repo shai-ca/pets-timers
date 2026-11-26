@@ -20,7 +20,9 @@ service cloud.firestore {
     // heartbeat. Every caregiver may read; only the camera's own Firebase account may write, only these two documents,
     // only in this shape; it can never touch state/main. <CAMERA_UID> and the emails live only in the live rules.
     match /camera/{d} {
-      allow read: if caregiver() && d in ['latest', 'status'];
+      allow read: if caregiver() && d in ['latest', 'status', 'events', 'events_preview', 'feedback'];
+      allow read: if d == 'feedback' && request.auth != null && request.auth.uid == '<CAMERA_UID>';   // the camera reads her decisions
+      allow create, update: if d == 'feedback' && caregiver() && request.resource.data.keys().hasOnly(['decisions']) && request.resource.data.decisions is map;
       allow create, update: if request.auth != null && request.auth.uid == '<CAMERA_UID>'
         && request.resource.data.published_at is int
         && request.resource.data.published_at > request.time.toMillis() - 300000
@@ -34,6 +36,9 @@ service cloud.firestore {
               && (!('view' in request.resource.data) || request.resource.data.view in ['full', 'crop'])
               && (!('w' in request.resource.data) || (request.resource.data.w is int && request.resource.data.w <= 1920))
               && (!('h' in request.resource.data) || (request.resource.data.h is int && request.resource.data.h <= 1080)))
+          || ((d == 'events' || d == 'events_preview')
+              && request.resource.data.keys().hasOnly(['schema','events','coverage','door_spans','updated_at','published_at','model_version'])
+              && request.resource.data.events is list && request.resource.data.events.size() <= 400)
           || (d == 'status'
               && request.resource.data.keys().hasOnly(['checked_at','service','model_version','experimental','crate_now','budget','published_at'])
               && request.resource.data.checked_at is int));
