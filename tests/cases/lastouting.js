@@ -4,7 +4,7 @@
 (async function(){
   try {
     const row = () => { const c = [...document.querySelectorAll('#sec-potty .card.slim.gravel, .card.slim.gravel')][0]; return c ? c.textContent : ''; };
-    const at = (h, m) => { const d = new Date(); d.setHours(h, m, 0, 0); return d.getTime(); };
+    const B = Date.now() - 10*HOUR, at = (h, m) => B - (11*60 - (h*60 + m))*MIN;   // "10:45" = 10 h 15 min ago (no retry still running): every seeded time is in the past at any hour (at 01:00 the fixed clock times were still ahead)
     const K0 = { p:'kishmish' };
     const usual = () => JSON.stringify([usualWait('kishmish', ['pee'], 0, Date.now() + 1), gravelRates('kishmish'), peeForecast('kishmish')]);
 
