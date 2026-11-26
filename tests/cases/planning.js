@@ -59,7 +59,7 @@
     ok('planning stands on its own: no dog selector on this tab, and it is back on the others', getComputedStyle($q('.wrap > .seg:not(.sm)')).display === 'none' && (() => { view = 'now'; render(); const back = getComputedStyle($q('.wrap > .seg:not(.sm)')).display !== 'none'; view = 'plan'; render(); return back; })());
     ok('the next task of each dog is at the top, Kochik included; the task list is open and names the dog', $n('.pl-next li b') >= 2 && [...document.querySelectorAll('.pl-next li b')].map(b => b.textContent).join().includes('קוצ׳יק') && !!$q('details.pl-care[open]') && [...document.querySelectorAll('.pl-care li .pl-td')].some(x => x.textContent === 'קוצ׳יק'));
     ok('the timeline: an hour grid, a now line, labels inside wide stretches', $n('.pl-grid i') >= 8 && !!$q('.pl-grid .pl-now') && !!$q('.pl-lane.me .pl-s i'));
-    ok('later rounds are drawn as an estimate (faded), what is happening now is not', $n('.pl-lane.me .pl-s.est') >= 1 && !$q('.pl-lane.me .pl-s.lv-free').classList.contains('est'));
+    ok('no wake range from the contract: even the current sleep is a faded estimate, labelled so', $q('.pl-lane.me .pl-s.lv-free').classList.contains('est') && M.dur.wake === 'estimate' && f.notes.some(s => s.includes(PL_EST)) && $q('.pl-card.free').textContent.includes(PL_EST));
     ok('far times (3 h on) are not minute-precise', lv.filter(x => x.a >= NOW + PLAN.far).every(x => x.far) && [...document.querySelectorAll('.pl-list .pl-w .pl-wt bdi')].some(b => b.textContent.startsWith('~')));
     // 2. Read-only: building, clicking, toggling never writes
     $q('[data-pl=day][data-v="1"]').click();

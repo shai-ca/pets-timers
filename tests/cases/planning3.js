@@ -92,6 +92,7 @@
     ok('wakeExpect: the current sleep ends in its range (12:30–12:50), care at the middle', s0.wake.from === at(0, 12, 30) && s0.wake.to === at(0, 12, 50) && M.ks.care[0].a === at(0, 12, 40) && M.dur.wake === 'contract');
     ok('…free at home until 12:30, "maybe" (faded) 12:30–12:40, not busy', planClass(M, at(0, 12, 20)).k !== 'care' && planClass(M, at(0, 12, 35)).k === 'uns' && planLevels(M).some(x => x.k === 'uns' && x.a === at(0, 12, 30) && x.b === at(0, 12, 40)));
     const fc = planBuild(0, 20*MIN).free.find(f => f.sl.cur);
+    ok('…with the contract\'s range the current sleep is not faded', !planLevels(M).find(x => x.a === NOW).est);
     ok('…the outing ends where her wake range begins, high confidence from the contract', !M.free.some(f => f.sl.cur) && !!fc && fc.a === NOW && fc.b === at(0, 12, 30) && fc.conf === 'high');
     ok('kochikExpect: her next pee follows its window and gap, combined with Kishmish\'s outing', M.kpee[0].a === at(0, 13) && M.kpee[0].combo && M.kpee[1].a === at(0, 14, 30));
     wakeExpect = real.wakeExpect;
@@ -100,8 +101,23 @@
     ok('pottyExpect: her pee window ending at 12:20 closes the outing', M.free.every(f => f.a >= at(0, 12, 20) || f.b <= at(0, 12, 20)) && /חלון הפיפי/.test(M.ks.sleeps[0].why));
     wakeExpect = () => ({state:'unknown', since:null, sleepOn:null, likely:null, wakeBy:null, words:'unknown', src:'stub', n:0}); pottyExpect = () => ({pee:null, poop:null}); kochikExpect = () => ({gap:null, from:null, to:null, cap:null, sick:false, n:0, src:'stub'});
     M = plan(hist().concat(away(2, 90)));
-    ok('contracts say nothing: the marked stand-ins are used (adapter), the plan still works', M.dur.wake === 'adapter' && M.kg.src === 'adapter' && M.free.length >= 1);
+    ok('contracts say nothing: the marked stand-ins are used (adapter), the plan still works', M.dur.wake === 'estimate' && M.kg.src === 'adapter' && M.free.length >= 1);
     ({wakeExpect, kochikExpect, pottyExpect} = real);
+    // 9. Validator findings (26.11): later pee limits from her usual gap, not from a window stretched by sleep; a
+    //    night sleep without a range follows the night rule; nap lengths from marked sleeps only.
+    pottyExpect = () => ({pee: {from: at(0, 13, 20), to: at(0, 15, 40), trigger: 'wake', src: 'learned', n: 9}, poop: null});
+    M = plan(hist().concat(away(2, 90)));
+    const g9 = peeGapWin('kishmish', NOW), later = M.ks.sleeps.filter(x => !x.cur && x.peeTo);
+    ok('S3: the current pee window from pottyExpect, later ones from her usual gap', M.ks.sleeps[0].peeTo === at(0, 15, 40) && !!g9 && later.length >= 1 && later.every(x => Math.abs(x.peeTo - x.prep.c) < (g9.to - g9.last) + 30*MIN) && M.dur.pee.span === g9.to - g9.last);
+    ({wakeExpect, kochikExpect, pottyExpect} = real);
+    wakeExpect = () => ({state:'asleep', since: at(-1, 22, 50), sleepOn: null, likely: null, wakeBy: null, words: 'unknown', src: 'model', n: 0});
+    NOW = at(0, 6, 0);
+    M = plan(hist(100, 'none').filter(e => e.t < at(0, 6)).concat([{...K0, k:'crate', t: at(-1, 22, 45)}, {...K0, k:'sleep', t: at(-1, 22, 50)}]));
+    ok('S4: a night sleep with no range wakes by the night rule (her usual morning), not a day-nap range', M.dur.wake === 'night' && M.ks.sleeps[0].wake.from === planAt(NOW, M.st.morning));
+    wakeExpect = real.wakeExpect; NOW = at(0, 12);
+    seed(hist()); const n9 = planNaps(NOW).n;
+    seed(hist().concat([{...K0, k:'crate', t: at(-1, 6, 30), end: at(-1, 6, 59)}, {...K0, k:'sleep', t: at(-1, 6, 31), end: at(-1, 6, 55), a: 1}]));
+    ok('planNaps learns from marked sleeps only (a sleep whose start was the app\'s estimate is left out)', n9 > 0 && planNaps(NOW).n === n9 && episodes('kishmish', at(-1, 6), at(-1, 7)).some(e => e.src === 'mixed'));
     view = 'now'; window.Date = RealDate;
     done();
   } catch(e){ crashed(e); }
