@@ -736,6 +736,10 @@
   .now-n{color:var(--muted);font-size:14px} .now-cf{font-size:13.5px;color:var(--warn,#b45309)}
 .howto>summary{cursor:pointer;color:var(--muted);font-size:13px;list-style:none} .howto>summary::-webkit-details-marker{display:none} .howto>summary::before{content:'› '}
 .card.item .crcam{grid-column:1/-1;display:flex;flex-direction:column;gap:8px;padding-top:12px;margin-top:2px;border-top:1px solid var(--line)}
+  /* on a phone the image block is the first thing in the side column (release 5): a plain card, the image edge to edge */
+  #side > .crcam.crtop{display:flex;flex-direction:column;gap:8px;min-width:0;background:var(--card);border:1px solid var(--line);border-radius:20px;padding:10px;box-shadow:0 1px 2px rgba(40,30,20,.03)}
+  .v2 #side > .crcam.crtop{border-radius:16px;box-shadow:none;border-color:transparent}
+  #side > .crcam.crtop.slot{padding:0;margin:0 0 -10px;gap:0;background:none;border:0;box-shadow:none} #side > .crcam.crtop .crcam-l{padding:0 4px}
   .card.item .crcam.slot{padding:0;margin:0;border:0;gap:0}
   .crcam-img{position:relative} .crcam .card.camc{box-shadow:none;border:0;background:none;padding:0;margin:0;cursor:pointer}
   .crcam-img .cam-b{display:none} .card.item .crcam{min-width:0}
@@ -2430,7 +2434,7 @@ function sleepGoalHTML(p){   // information, not a target (owner, 26.11): no "mi
   const s = scores(p), now = Date.now(), pc = Math.min(100, s.total / (24*3600000) * 100);
   const tg = `טווח מקובל לגילה: ${g}–${sleepGoalTop(p)} שעות ב־24 שעות — מידע, לא יעד`, tf = `נצפה ${hmm(s.marked)} · משוער ${hmm(s.est)} מאז ${when(now - 24*3600000)}`;
   return `<div class="gauge goal"><div class="gg" dir="ltr" data-tip="${tg}" title="${tg}"><span class="gf" style="width:${pc.toFixed(1)}%" data-tip="${tf}" title="${tf}"></span></div>
-    <small>ב־24 השעות האחרונות ישנה <b dir="ltr">${hmm(s.total)}</b> (נצפה ${hmm(s.marked)} · משוער ${hmm(s.est)}) · טווח מקובל לגילה ${g}–${sleepGoalTop(p)} שעות, לא יעד${s.total > sleepGoalTop(p)*3600000 ? sleepMuchNote() : ''}</small><div class="ptip"></div></div>`;
+    <small>ב־24 השעות האחרונות נספרה שינה של <b dir="ltr">${hmm(s.total)}</b> (נצפה ${hmm(s.marked)} · משוער ${hmm(s.est)}) · טווח מקובל לגילה ${g}–${sleepGoalTop(p)} שעות, לא יעד${s.total > sleepGoalTop(p)*3600000 ? sleepMuchNote() : ''}</small><div class="ptip"></div></div>`;
 }
 // THE RINGS (owner, 25.11; redone 26.11: nothing may reward keeping her in the crate or penalise healthy wakefulness).
 // All from the list, last 24 hours; no 0–100 score for sleep or readiness any more:
@@ -2467,7 +2471,9 @@ function ringHTML(v, label, sub, cls, txt){
   const C = 2 * Math.PI * 26, f = v == null ? 0 : Math.min(1, v / 100), c = cls != null ? cls : v == null ? 'na' : v >= 85 ? 'hi' : v >= 70 ? 'mid' : 'lo';
   return `<span class="scr ${c}"><svg viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="26" class="rt"/><circle cx="32" cy="32" r="26" class="rv" stroke-dasharray="${(f*C).toFixed(1)} ${C.toFixed(1)}" transform="rotate(-90 32 32)"/></svg><b>${txt != null ? txt : v == null ? '–' : v}</b><span>${label}</span><small>${sub}</small></span>`;
 }
-const SLEEP_RANGE = {below: 'מתחת לטווח הגיל', in: 'בטווח הגיל', above: 'מעל טווח הגיל'};
+// reduced logging (owner, 26.11): the total is what was marked or estimated — a sleep nobody logged (outside the crate,
+// in the carrier, on a lap) is not in it, so "below" is said as a reading of the list, not of her
+const SLEEP_RANGE = {below: 'מתחת לטווח הגיל לפי מה שנרשם (שינה שלא נרשמה לא נספרת)', in: 'בטווח הגיל', above: 'מעל טווח הגיל'};
 function scoresHTML(p){
   const s = scores(p); if(!s) return '';
   return `<button class="card scores" data-act="scores" aria-label="המדדים של ${PETS[p].name}: לחיצה להסבר"><span class="scg">
@@ -2476,7 +2482,7 @@ function scoresHTML(p){
 function openScores(p){
   const s = scores(p); if(!s) return;
   const S = V[p], now = Date.now(), nf = `${pad(s.nightFrom)}:00`, nt = `${pad(s.nightTo)}:00`;
-  const doing = s.asleep ? 'ישנה עכשיו' : S.crate && S.crate.start ? 'ערה בכלוב' : S.pen && S.pen.start ? 'בגדר' : S.carrier && S.carrier.start ? 'במנשא' : 'ערה, מחוץ לכלוב';
+  const unk = !s.asleep && awakeUnknown(p), doing = s.asleep ? 'ישנה עכשיו' : unk ? 'לא נרשמה שינה' : S.crate && S.crate.start ? 'ערה בכלוב' : S.pen && S.pen.start ? 'בגדר' : S.carrier && S.carrier.start ? 'במנשא' : 'ערה, מחוץ לכלוב';
   sh.innerHTML = `<h3>${PETS[p].name} · איך מחושבים המדדים</h3>
     <div class="help">
       <p><b>שינה ${hmm(s.total)}</b> ב־24 השעות האחרונות: <b>נצפה ${hmm(s.marked)}</b> (סומן ביד) · <b>משוער ${hmm(s.est)}</b> (הערכה של האפליקציה בכלוב — פחות בטוחה).<br>
@@ -2687,7 +2693,18 @@ function awakeSince(p){
   if(slept.length) return Math.max(...slept);
   return Math.max(0, ...state.log.filter(e => e.p===p && e.k==='crate' && e.end != null && e.end <= now && !rs.has(e.id)).map(e => e.end));
 }
-const AWAKE = {warn:45*60000, max:60*60000};
+const AWAKE = {warn:45*60000, max:60*60000, seen:45*60000};
+// REDUCED LOGGING (owner, 26.11: she now logs mainly potty events, much less sleep): `awakeSince` is when the last LOGGED
+// sleep (or crate stay) ended, not proof that she has been awake since. The awake timer is claimed only while something
+// shows her awake within AWAKE.seen (45 min — past her median awake stretch, 41 min, on the fully logged 23–24.11):
+// the waking itself or a MEANINGFUL entry (a pee, a meal, play, gravel, a cry, the crate…) after it. Past that the sleep
+// tile says "לא נרשמה שינה מאז HH:MM" (no running timer, no orange), the "to sleep" bar is hidden, and the wheel's
+// reminder becomes conditional ("אם היא ערה"). Display only: nothing stored, no alert, threshold or learner changes.
+function awakeSeen(p){
+  const aw = awakeSince(p); if(!aw) return 0; const now = Date.now();
+  return Math.max(aw, ...state.log.filter(e => e.p===p && MEANINGFUL[e.k] && !isTU(e)).flatMap(e => [e.t, e.end]).filter(t => t != null && t >= aw && t <= now));
+}
+function awakeUnknown(p){ const aw = awakeSince(p); return !!aw && Date.now() - awakeSeen(p) > AWAKE.seen; }
 // WHAT A CRY MEANT, read from what happened around it (nothing is asked, nothing is stored):
 //  "protest"  — it began within CRY.protest of going into the crate;
 //  "asked"    — it began after a sleep in that stay, she was taken out within CRY.out of it (counted from when it
@@ -4309,10 +4326,16 @@ document.addEventListener('click', e => {
   }
   camjLast = ''; camjApply(); render();
 });
-function crateCamRowHTML(p){
+// `part` (release 5, owner 27.11): on a phone the image block goes to the top of the screen (`camTop`) — 'img' is that
+// block (image, the line on it, its notes, "תמונה חדשה"), 'act' the camera's questions that stay in the crate card.
+// No part = both together in the crate card, exactly as before (wide screens).
+function camTop(p){ return p === CAMJ_P && view === 'now' && isPhone(); }
+function crateCamRowHTML(p, part){
   if(p !== CAMJ_P) return '';
   const card = camCardHTML(p); if(!card) return '';
-  if(!/<img/.test(card)){ const act = camjActHTML() || camjDoorAskHTML(p); return /cams-slot|camc" hidden/.test(card) ? `<div class="crcam${act ? '' : ' slot'}">${card}${act}</div>` : `<div class="crcam">${card}${act}</div>`; }   // the approval shows even with no image yet
+  const act = part === 'img' ? '' : camjActHTML() || camjDoorAskHTML(p), top = part === 'img' ? ' crtop' : '';
+  if(part === 'act') return act ? `<div class="crcam">${act}</div>` : '';
+  if(!/<img/.test(card)){ return /cams-slot|camc" hidden/.test(card) ? `<div class="crcam${act ? '' : ' slot'}${top}">${card}${act}</div>` : `<div class="crcam${top}">${card}${act}</div>`; }   // the approval shows even with no image yet
   const st = CAMS.status, cn = st && st.crate_now, now = Date.now(), priv = camBase() && (CAM.st === 'ok' || CAM.st === 'stale');
   const sn = !priv && camsShown(), snap = sn && sn.snap ? sn : null;   // a snapshot on the card: its own line, no occupancy words
   const shot = snap ? null : priv ? CAM.data && CAM.data.ls && CAM.data.ls.capture_ts : CAMS.doc && CAMS.doc.capture_ts;
@@ -4321,7 +4344,7 @@ function crateCamRowHTML(p){
   const line = st && !camjCamOk() ? `המצלמה לא מעדכנת מאז <bdi dir="ltr">${clock(st.checked_at)}</bdi>` : older ? `התמונה מ־<bdi dir="ltr">${clock(shot)}</bdi>, לפני הזיהוי ב־<bdi dir="ltr">${clock(pe.ev.ts)}</bdi>`
     : fresh && cn.status === 'negative' && camjOccNow(p) ? 'המודל לא מזהה אותה, לפי התיוג שלך היא בכלוב' : '';
   const rq = priv ? '' : camsReqHTML();   // "תמונה חדשה" replaces the plain re-read icon while the listener is live
-  return `<div class="crcam"><div class="crcam-img">${card}<div class="crcam-ov">${snap ? `<span>${camsSnapWhen(snap, now)}</span>` : shot ? `<span>נראתה <bdi dir="ltr">${clock(shot)}</bdi></span>` : ''}${rq ? '' : '<button class="icob" data-act="camrefresh" aria-label="רענון">↻</button>'}</div></div>${line ? `<div class="crcam-l">${line}</div>` : ''}${rq}${camjActHTML() || camjDoorAskHTML(p)}</div>`;
+  return `<div class="crcam${top}"><div class="crcam-img">${card}<div class="crcam-ov">${snap ? `<span>${camsSnapWhen(snap, now)}</span>` : shot ? `<span>נראתה <bdi dir="ltr">${clock(shot)}</bdi></span>` : ''}${rq ? '' : '<button class="icob" data-act="camrefresh" aria-label="רענון">↻</button>'}</div></div>${line ? `<div class="crcam-l">${line}</div>` : ''}${rq}${act}</div>`;
 }
 function camBlockHTML(p){
   if(p !== CAMJ_P) return '';
@@ -4505,7 +4528,7 @@ function camsPaint(){
 // the page jump: scroll anchoring lost its node).
 function camsRowPatch(){
   const c = document.querySelector('.crcam .camc'), row = c && c.closest('.crcam'), img = row && row.querySelector(':scope > .crcam-img'); if(!img || pet !== CAMJ_P) return;
-  const t = document.createElement('div'); t.innerHTML = crateCamRowHTML(pet); const n = t.querySelector('.crcam'); if(!n) return;
+  const t = document.createElement('div'); t.innerHTML = crateCamRowHTML(pet, row.classList.contains('crtop') ? 'img' : undefined); const n = t.querySelector('.crcam'); if(!n) return;
   const sw = (sel, after) => { const a = row.querySelector(':scope ' + sel), b = n.querySelector(':scope ' + sel);
     if(a && b){ if(a.outerHTML !== b.outerHTML) a.replaceWith(b); } else if(a) a.remove(); else if(b) after.after(b); };
   sw('> .crcam-img > .crcam-ov', img.querySelector('.camc'));
@@ -4832,6 +4855,11 @@ function render(){
         big = `<div class="big" data-since="${d.start}">${dur(Date.now()-d.start)}</div>`;
         sub = `מ־${clock(d.start)}` + (d.assumed ? (d.cam ? ' · הערכת מצלמה, לא מאומת' : ' · לפי הנחה') : '') + (k === 'sleep' && !d.assumed && sinceCrate(pet, d.start) != null ? ` · ${sinceCrate(pet, d.start) < 60000 ? 'מיד' : words(sinceCrate(pet, d.start))} אחרי הכניסה לכלוב` : '');
 
+      } else if(k === 'sleep' && aw && Date.now() - aw < 6*3600000 && P.cycle && awakeUnknown(pet)){   // nothing shows her awake lately: no awake timer (reduced logging)
+        const seen = awakeSeen(pet);
+        lbl = 'לא נרשמה שינה מאז';
+        big = `<div class="big txt"><bdi dir="ltr">${clock(aw)}</bdi></div>`;
+        sub = `${dayLabel(aw) === 'היום' ? '' : dayLabel(aw) + ' · '}נראתה ערה לאחרונה ב־<bdi dir="ltr">${clock(seen)}</bdi> · ייתכן שישנה בלי רישום`;
       } else if(k === 'sleep' && aw && Date.now() - aw < 6*3600000){   // awake: how long for — it is what decides when she goes back to sleep
         const ww = P.cycle ? wakeWin(pet) : null;
         lbl = 'ערה כבר';
@@ -4856,13 +4884,13 @@ function render(){
       const over = k==='crate' && crateOver(pet);
       if(over) sub += ` · יותר מ${words(CRATE_MAX)}`;
       if(k === 'crate' && live && P.cycle) sub += crateAwakeNote(pet);   // a quiet line after a while awake in the crate
-      const warn = k === 'sleep' && !live && aw && Date.now() - aw >= AWAKE.warn && Date.now() - aw < 6*3600000;
+      const warn = k === 'sleep' && !live && aw && Date.now() - aw >= AWAKE.warn && Date.now() - aw < 6*3600000 && !(P.cycle && awakeUnknown(pet));
       h += `<div class="card item ${nowt} ${live?'live':''} ${k==='cry' || over?'cry':''} ${warn?'warn':''}">
         <div class="ic">${ico(k)}</div>
         <div><div class="lbl">${lbl}</div>${big}<div class="sub">${sub}</div>${V2 && k === 'sleep' && !live && P.cycle ? gaugeHTML(sleepWindow(pet), 'לשינה', 'ערה מ־') : ''}${V2 && k === 'sleep' && P.cycle ? sleepGoalHTML(pet) : ''}</div>
         <div class="acts">${k === 'crate' && P.cycle && pet === CAMJ_P && camjCamOk() && !camjPendingEntry() ? `<details class="cr-more"><summary>עוד · רישום ידני</summary><div class="acts">` : ''}<button class="go" data-act="dur" data-k="${k}">${live?it.stop:it.start}</button>
           <button class="ghost" data-act="edit" data-k="${k}">${ico(live?'clock':'plus','s')}${live?'שעת התחלה':'הוספה'}</button>${k === 'crate' && P.cycle && pet === CAMJ_P && camjCamOk() && !camjPendingEntry() ? '</div></details>' : ''}${k === 'crate' && P.cycle && !slim ? doorBtnHTML(pet, live) : ''}${k === 'sleep' && live && P.cycle ? `<button class="ghost" data-act="notasleep">${ico('none','s')}לא נרדמה</button>` : ''}${k === 'crate' && live && P.cycle ? `<button class="ghost" data-act="swap">${ico('crate','s')}החלפת כלוב</button>` : ''}</div>
-        ${k === 'crate' && P.cycle && !slim ? crateCamRowHTML(pet) : ''}
+        ${k === 'crate' && P.cycle && !slim ? crateCamRowHTML(pet, camTop(pet) ? 'act' : undefined) : ''}
         ${k === 'crate' && live && P.cycle && !slim ? `<div class="incr"><span>קיבלה בכלוב:</span><button class="btn" data-act="play" data-k="kong">${PLAY.kong}</button><button class="btn" data-act="play" data-k="lick">${PLAY.lick}</button><button class="btn" data-act="crfood">ארוחה</button></div>` : ''}${k === 'crate' && P.cycle && !slim ? crateToyHTML(pet) : ''}
         ${k === 'crate' && P.cycle ? crateExtrasHTML(pet, slim) : ''}
         ${k === 'sleep' && P.cycle && !slim ? camjSugSleepRowHTML(pet) : ''}
@@ -4908,7 +4936,7 @@ function render(){
     sideHTML += `<section class="duo" id="sec-rest">${tileOf('sleep')}${tileOf('cry')}</section>`;
   }
 
-  if(P.cycle) sideHTML = sprayCardHTML(pet) + sideHTML; else h = sprayCardHTML(pet) + adviceHTML(pet) + h;   // Kochik: her calm line (Agent C); never on the slim night screen
+  if(P.cycle) sideHTML = (camTop(pet) ? crateCamRowHTML(pet, 'img') : '') + sprayCardHTML(pet) + sideHTML; else h = sprayCardHTML(pet) + adviceHTML(pet) + h;   // Kochik: her calm line (Agent C); never on the slim night screen. On a phone Kishmish's camera image comes first (release 5)
   side.innerHTML = sideHTML; camsWatch(); camjSub();
   h += noteCardHTML(pet);
   if(P.cycle){
@@ -5048,7 +5076,7 @@ function cycleHTML(p){
     ${V2 ? flowHTML(cls, centre) : `<div class="steps"><svg class="ring" viewBox="0 0 200 200" aria-hidden="true">${segs}</svg>
       <div class="rc">${centre}</div>${labels}</div>`}
     ${long3 ? `<div class="duemsg">${ico('pee','s')}<span>עברו ${words(now - S.pee)} מהפיפי האחרון · להוציא לחצץ</span></div>` : ''}
-    ${tired ? `<div class="zz">${ico('sleep','s')}<span>ערה כבר ${p === CAMJ_P && wakeWin(p) ? `${words(now - wakeWin(p).hi)}–${words(now - aw)}` : words(now - aw)} · ${p === CAMJ_P && camjPendingEntry() ? 'המצלמה: כנראה בכלוב' : 'לכלוב לישון'}</span></div>` : ''}
+    ${tired ? `<div class="zz">${ico('sleep','s')}<span>${awakeUnknown(p) ? `לא נרשמה שינה מאז <bdi dir="ltr">${clock(aw)}</bdi> · ${p === CAMJ_P && camjPendingEntry() ? 'המצלמה: כנראה בכלוב' : 'אם היא ערה, לכלוב לישון'}` : `ערה כבר ${p === CAMJ_P && wakeWin(p) ? `${words(now - wakeWin(p).hi)}–${words(now - aw)}` : words(now - aw)} · ${p === CAMJ_P && camjPendingEntry() ? 'המצלמה: כנראה בכלוב' : 'לכלוב לישון'}`}</span></div>` : ''}
     ${ft && ft.phase !== 'run' && !inCrate ? `<div class="frm">${ico('paw','s')}<span>זמן החופש נגמר (${FREE.min} דקות מהפיפי) · חזרה לשגרה</span></div>` : ''}
     ${over ? `<div class="duemsg">${ico('crate','s')}<span>ערה בכלוב יותר מ${words(CRATE_MAX)} · מ־<bdi dir="ltr">${clock(S.crate.start)}</bdi></span></div>` : ''}
     ${due && !long3 ? `<div class="duemsg">${ico('pee','s')}<span>זמן להוציא לצרכים · ${due.why}, לפני <span data-words="${due.t}">${words(now-due.t)}</span></span></div>` : ''}
@@ -5304,7 +5332,7 @@ function mealWindow(p){   // the same reading as `mealLine`: last meal + her usu
 function bathWindow(p){ const t = V[p].bath; if(!t) return null; const due = bathDue(p); return {last: t, from: due.getTime(), to: due.getTime(), end: due.getTime() + 86400000}; }   // one day: the due day, the same date as the line above
 function sleepWindow(p){   // awake out of the crate: an hour awake is the trainer's limit (`AWAKE`)
   const S = V[p], aw = awakeSince(p);
-  if(!aw || (S.sleep && S.sleep.start) || (S.crate && S.crate.start) || aw < Date.now() - 4*3600000) return null;
+  if(!aw || (S.sleep && S.sleep.start) || (S.crate && S.crate.start) || aw < Date.now() - 4*3600000 || awakeUnknown(p)) return null;   // reduced logging: no bar from an unlogged gap
   const ww = wakeWin(p), hi = ww ? ww.hi : aw;   // §12d: waking known only as a window -> the window carries through
   return {last: aw, from: aw + AWAKE.warn, to: hi + AWAKE.max, end: hi + 1.25*AWAKE.max, ...(ww ? {wake: ww} : {})};
 }

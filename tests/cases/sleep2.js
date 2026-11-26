@@ -82,8 +82,10 @@
     const sl = () => $q('#sec-rest .card.item');
     seed([{ ...K0, k:'crate', t: now - 140*MIN, end: now - 100*MIN, c:'mesh' }, { ...K0, k:'sleep', t: now - 130*MIN, end: now - 100*MIN }, { ...K0, k:'pee', t: now - 95*MIN, w:'gravel' }, { ...K0, k:'crate', t: now - 60*MIN, end: now - 20*MIN, c:'mesh' }, { ...K0, k:'none', t: now - 18*MIN, x: 1 }]);
     ok('forty minutes awake in the crate, then out: awake since she last slept (100 minutes), not since she came out', awakeSince('kishmish') === now - 100*MIN && sl().textContent.includes('ערה כבר') && +sl().querySelector('[data-since]').dataset.since === now - 100*MIN && sl().classList.contains('warn') && $q('.cyc').textContent.includes('לכלוב לישון'));
-    seed([{ ...K0, k:'crate', t: now - 140*MIN, end: now - 100*MIN, c:'mesh' }, { ...K0, k:'sleep', t: now - 130*MIN, end: now - 100*MIN }, stay(50)]);
+    seed([{ ...K0, k:'crate', t: now - 140*MIN, end: now - 100*MIN, c:'mesh' }, { ...K0, k:'sleep', t: now - 130*MIN, end: now - 100*MIN }, stay(50), { ...K0, k:'cry', t: now - 20*MIN, end: now - 12*MIN }]);   // (release 5: a cry 12 min ago shows her awake)
     ok('awake inside the crate: the timer runs there too, and nothing tells her to go to the crate', awakeSince('kishmish') === now - 100*MIN && sl().textContent.includes('ערה כבר') && sl().classList.contains('warn') && !$q('.cyc').textContent.includes('לכלוב לישון'));
+    seed([{ ...K0, k:'crate', t: now - 140*MIN, end: now - 100*MIN, c:'mesh' }, { ...K0, k:'sleep', t: now - 130*MIN, end: now - 100*MIN }, stay(50)]);
+    ok('in the crate with nothing logged for 50 minutes (release 5): no awake timer, no orange — "לא נרשמה שינה מאז"', awakeSince('kishmish') === now - 100*MIN && sl().textContent.includes('לא נרשמה שינה מאז') && !sl().textContent.includes('ערה כבר') && !sl().classList.contains('warn') && !$q('.cyc').textContent.includes('לכלוב לישון'));
     seed([{ ...K0, k:'crate', t: now - 60*MIN, end: now - 20*MIN, c:'mesh' }]);
     ok('no sleep known at all: it falls back to when she came out of the crate', awakeSince('kishmish') === now - 20*MIN);
     // "did she fall asleep?" — asked after five quiet minutes in the crate when nothing says she is asleep

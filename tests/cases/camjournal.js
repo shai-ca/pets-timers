@@ -203,7 +203,7 @@
       const n = (($q('#side').innerText + $q('#main').innerText).match(/לאשר בכרטיס הכלוב/g) || []).length;
       ok('a waiting camera entry: the instruction appears once on the screen (' + n + ')', n === 1); }
     // waking known only as a window: the screen shows a range, never a made-up moment
-    { reset(); const T = Date.now(); seed([{ ...K0, k:'gravel', t: T - 60*MIN, end: T - 57*MIN }]); serverSeen = true; pet = 'kishmish';
+    { reset(); const T = Date.now(); seed([{ ...K0, k:'gravel', t: T - 60*MIN, end: T - 57*MIN }, { ...K0, k:'play', t: T - 10*MIN, y:'rope' }]); serverSeen = true; pet = 'kishmish';   // (release 5: a play 10 min ago shows her awake now)
       fb = { auth:{ currentUser:{} }, camDoc: (n, on) => { subs[n] = on; return () => {}; }, camGet: async () => null, camMerge: async () => {} };
       await send([E('ce_w1', 'sleep_onset', T - 100*MIN, { lo: T - 110*MIN, hi: T - 100*MIN, single_mark: true })]); camjApply(); render(); await wait(2);
       const w = wakeWin('kishmish'), tile = $q('#sec-rest .card.item');

@@ -38,6 +38,24 @@ For every future analysis, model review or calibration:
 Status: recorded only. No model change and no journal change without a separate investigation and her approval.
 
 
+## Reduced logging — audit of 27.11 (release 5): deferred findings
+
+Fixed in release 5: the awake timer / orange / "לכלוב לישון" from an unlogged gap, and the sleep total's wording (see
+CLAUDE.md, "Reduced logging"). Not changed, for a separate decision:
+1. **A camera link moved a manual crate stay hours back.** A retry stay written by a "לא עשתה" (26.11 night) was linked
+   (`camjDo` `link`) to an owner-label occupancy whose door-close time was 3½ h earlier, and took that time (`cam.was`
+   keeps the original). Result: one running session of almost 7 h overlapping two other camera sessions; the screen showed
+   her in the crate from the early evening and estimated sleep in it. Needs a limit on how far `link` may move a start
+   (and a look at retry stays), then her OK before touching the journal.
+2. **"while awake" in the red pee alert, `long3` ("3 שעות מהפיפי · להוציא לחצץ") and `crateOver` ("ערה בכלוב יותר
+   משעתיים")** read "no sleep logged" as awake. Thresholds untouched by rule; wording could say "לא נרשמה שינה".
+3. **Food timer / 3.5 h banner / wake-by from the meal** count from the last LOGGED meal. Meals are still logged most
+   days; wording "מאז האוכל האחרון שנרשם" is possible but it is a safety card — her call.
+4. **Learners on mixed completeness:** `planCareDur` (crate exit → next crate entry; fewer crate entries make it longer),
+   `napMedian` / `sleepOn` / `kishStats` (fewer marked naps), planning's current out-phase (`since = awakeSince`) — no
+   completeness measure per period yet (see "Documentation completeness").
+5. `nowState` (unused now card) says "ערה" for up to 12 h from the last logged sleep; give it `awakeUnknown` if revived.
+
 Each item: what to check · why not now · data needed · when to look again · what success looks like.
 Initial thresholds here are starting points for a review, not hard rules.
 

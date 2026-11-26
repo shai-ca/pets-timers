@@ -8,9 +8,10 @@
     // awake timer
     seed([{ ...K0, k:'crate', t: now - 120*MIN, end: now - 30*MIN }, { ...K0, k:'pee', t: now - 28*MIN, w:'pad' }]);
     ok('awake: the sleep tile counts from when she woke up', awakeSince('kishmish') === now - 30*MIN && sleepTile().textContent.includes('ערה כבר') && +sleepTile().querySelector('[data-since]').dataset.since === now - 30*MIN && !sleepTile().classList.contains('warn'));
-    seed([{ ...K0, k:'crate', t: now - 120*MIN, end: now - 50*MIN }, { ...K0, k:'pee', t: now - 48*MIN, w:'pad' }]);
+    // (release 5, reduced logging: the claim needs something showing her awake in the last AWAKE.seen — here a play)
+    seed([{ ...K0, k:'crate', t: now - 120*MIN, end: now - 50*MIN }, { ...K0, k:'pee', t: now - 48*MIN, w:'pad' }, { ...K0, k:'play', t: now - 10*MIN, y:'rope' }]);
     ok('45 minutes awake: the tile turns orange, no "crate to sleep" yet', sleepTile().classList.contains('warn') && !$q('.cyc').textContent.includes('לכלוב לישון'));
-    seed([{ ...K0, k:'crate', t: now - 150*MIN, end: now - 65*MIN }, { ...K0, k:'pee', t: now - 60*MIN, w:'pad' }]);
+    seed([{ ...K0, k:'crate', t: now - 150*MIN, end: now - 65*MIN }, { ...K0, k:'pee', t: now - 60*MIN, w:'pad' }, { ...K0, k:'play', t: now - 10*MIN, y:'rope' }]);
     ok('an hour awake: "crate to sleep"', sleepTile().classList.contains('warn') && $q('.cyc').textContent.includes('לכלוב לישון'));
     seed([{ ...K0, k:'crate', t: now - 150*MIN, end: now - 65*MIN }, { ...K0, k:'none', t: now - 60*MIN }, { ...K0, k:'crate', t: now - 55*MIN, end: now - 40*MIN }, { ...K0, k:'pee', t: now - 38*MIN, w:'gravel' }]);
     ok('a retry wait is not a sleep: the awake timer keeps running through it', awakeSince('kishmish') === now - 65*MIN);
