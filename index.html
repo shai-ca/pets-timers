@@ -1689,6 +1689,10 @@ setState(state);
 // — what was changed here — is ever sent, and it is applied on top of whatever the server holds at that
 // moment (see `push`). Both are saved together in one localStorage write, so they cannot get out of step.
 let base = null;
+// Start-up: what this phone had (its list and the base it last knew the server had). A function so the tests can
+// "reopen the app" (`syncsafe.js`); called once, right here.
+function loadLocal(){
+  state = blank(); base = null;
 try {
   // The list and its base are read FIRST and derived after (v3 fix): `derive` reaches constants defined further down
   // the script (OUT_KINDS, PEE_RHYTHM…), so deriving here threw for any list with a pee in it — and the catch then
@@ -1703,6 +1707,8 @@ try {
 } catch(e){}
 try { setState(state); } catch(e){}   // may still fail this early (see above); `render` derives again
 if(!base) base = clone(state);
+}
+loadLocal();
 try { const p = localStorage.getItem(LS_KEY+'-tab'); if(p && PETS[p]) pet = p; } catch(e){}
 try { const u = localStorage.getItem(LS_KEY+'-user'); if(USERS[u] || isGuest(u)) me = u; } catch(e){}
 // DESIGN V2 (25.11): a display choice of this phone only (`localStorage`, never the list). On by default;
