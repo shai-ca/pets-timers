@@ -188,6 +188,19 @@
       reset(); seed([{ ...K0, k:'pee', t: T - 2*HOUR }]); serverSeen = true; pet = 'kishmish'; CAMJ.fbLocal = {}; await send(DOC.events); camjApply(); render(); await wait(2);
       $q('#sec-crate [data-camdoor=door_open]').click(); await wait(3);
       ok('"לא": a visit — no session, never asked again', !state.log.some(e => e.k === 'crate') && !camjDoorAsk('kishmish')); CAMJ.fbLocal = {}; DOORS = []; }
+    // real case 26.11 18:30: an "asleep" mark at 16:38 with no wake mark, then the gravel at 17:13 in the journal
+    { reset(); const T = Date.now(); seed([{ ...K0, k:'gravel', t: T - 75*MIN, end: T - 72*MIN }]); serverSeen = true; pet = 'kishmish';
+      fb = { auth:{ currentUser:{} }, camDoc: (n, on) => { subs[n] = on; return () => {}; }, camGet: async () => null, camMerge: async () => {} };
+      DOORS = []; await send([E('ce_q1', 'sleep_onset', T - 110*MIN, { lo: T - 124*MIN, hi: T - 110*MIN, single_mark: true })]); camjApply(); await wait(2);
+      const q = state.log.find(e => e.id === 'cams:ce_q1');
+      ok('an open sleep the journal later shows her awake in: imported (not dropped), ending at her mark, the wake window up to that entry', !!q && q.end != null && q.cam.unc === 1 && q.cam.ohi === T - 75*MIN && !camjPlan(state.log, Date.now()).rv.resolve.some(r => r.c && r.c.id === 'cams:ce_q1'));
+      ok('…so "awake since" starts at that sleep, not hours earlier', awakeSince('kishmish') >= T - 110*MIN); }
+    // the camera sentence appears once (advice line), not repeated in the routine's line
+    { reset(); const T = Date.now(); seed([{ ...K0, k:'pee', t: T - 90*MIN }]); serverSeen = true; pet = 'kishmish'; FAKE_HOUR = 12;
+      fb = { auth:{ currentUser:{} }, camDoc: (n, on) => { subs[n] = on; return () => {}; }, camGet: async () => null, camMerge: async () => {} };
+      await send([E('ce_z', 'crate_entry', T - 5*MIN, { source: 'live_model' })]); render(); await wait(2);
+      const n = (($q('#side').innerText + $q('#main').innerText).match(/לאשר בכרטיס הכלוב/g) || []).length;
+      ok('a waiting camera entry: the instruction appears once on the screen (' + n + ')', n === 1); }
     ok('the live app reads camera/events, the preview its test copy', camjDoc() === 'events' && (MODE = 'preview', camjDoc()) === 'events_preview');
     MODE = 'live';
     ok('the only camera write path is camera/feedback (never the journal)', merged.length > 0 && merged.every(([n]) => n === 'feedback'));

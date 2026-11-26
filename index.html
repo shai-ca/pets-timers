@@ -3440,6 +3440,8 @@ function camjSleepPlan(L, now, acts, rv){
     if(m){ if(!c.single) (byEntry.get(m.id) || byEntry.set(m.id, []).get(m.id)).push(c); rv.matched.push({ c, e: m }); continue; }   // a single mark never moves her times
     if((c.unc || c.ounc) && !c.single){ rv.resolve.push({ c, why: 'wide' }); continue; }
     const clash = L.find(e => awakeK(e) && e.t > c.t && e.t < (c.end == null ? now : c.end));
+    if(clash && c.end == null){   // no wake mark yet, but the journal has her awake later: she woke between her mark and it
+      const cc = { ...c, end: c.t + 1, ounc: true, olo: c.t, ohi: clash.t, unc: true }; acts.push({ do: 'screate', c: cc }); rv.imported.push({ c: cc }); continue; }
     if(clash){ rv.resolve.push({ c, why: 'journal', clash }); continue; }
     acts.push({ do: 'screate', c }); rv.imported.push({ c });
   }
@@ -3555,7 +3557,7 @@ function camjDo(a, who){   // inside a commit's mutate
   } else if(a.do === 'screate'){
     const c = a.c; if(find(c.id)) return;
     const e = { id: c.id, p: CAMJ_P, k: 'sleep', t: c.t, ...(c.end != null ? { end: Math.max(c.end, c.t + 1) } : {}),
-      cam: { cid: c.id, in: c.on.event_id, it: c.t, ilo: c.ilo, ihi: c.ihi, src: 'owner_label', ...(c.wk ? { out: c.wk.event_id, ot: c.end, olo: c.olo, ohi: c.ohi } : {}), ...(c.unc ? { unc: 1 } : {}), ...(c.single ? { single: 1 } : {}), ...ok } };
+      cam: { cid: c.id, in: c.on.event_id, it: c.t, ilo: c.ilo, ihi: c.ihi, src: 'owner_label', ...(c.wk ? { out: c.wk.event_id, ot: c.end, olo: c.olo, ohi: c.ohi } : c.ohi != null ? { olo: c.olo, ohi: c.ohi } : {}), ...(c.unc ? { unc: 1 } : {}), ...(c.single ? { single: 1 } : {}), ...ok } };
     state.log.push(e);
   } else if(a.do === 'slink'){   // a sleep she logged by hand: linked to her camera marks, NEVER shortened or moved (owner, 26.11)
     const o = find(a.id), f = a.first, l = a.last; if(!o) return;
@@ -4382,7 +4384,7 @@ function cycleHTML(p){
     ${V2 ? flowHTML(cls, centre) : `<div class="steps"><svg class="ring" viewBox="0 0 200 200" aria-hidden="true">${segs}</svg>
       <div class="rc">${centre}</div>${labels}</div>`}
     ${long3 ? `<div class="duemsg">${ico('pee','s')}<span>עברו ${words(now - S.pee)} מהפיפי האחרון · להוציא לחצץ</span></div>` : ''}
-    ${tired ? `<div class="zz">${ico('sleep','s')}<span>ערה כבר ${words(now - aw)} · ${p === CAMJ_P && camjPendingEntry() ? `המצלמה רואה אותה בכלוב מ־<bdi dir="ltr">${clock(camjPendingEntry().ts)}</bdi> · לאשר בכרטיס הכלוב` : 'לכלוב לישון'}</span></div>` : ''}
+    ${tired ? `<div class="zz">${ico('sleep','s')}<span>ערה כבר ${words(now - aw)} · ${p === CAMJ_P && camjPendingEntry() ? 'המצלמה: כנראה בכלוב' : 'לכלוב לישון'}</span></div>` : ''}
     ${ft && ft.phase !== 'run' && !inCrate ? `<div class="frm">${ico('paw','s')}<span>זמן החופש נגמר (${FREE.min} דקות מהפיפי) · חזרה לשגרה</span></div>` : ''}
     ${over ? `<div class="duemsg">${ico('crate','s')}<span>ערה בכלוב יותר מ${words(CRATE_MAX)} · מ־<bdi dir="ltr">${clock(S.crate.start)}</bdi></span></div>` : ''}
     ${due && !long3 ? `<div class="duemsg">${ico('pee','s')}<span>זמן להוציא לצרכים · ${due.why}, לפני <span data-words="${due.t}">${words(now-due.t)}</span></span></div>` : ''}
