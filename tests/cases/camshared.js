@@ -10,7 +10,7 @@
     seed([{ ...K0, k:'food', t: now - 2*HOUR }, { ...K0, k:'crate', t: now - 40*MIN }]);
     const IMG = '/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAAMCAgICAgMCAgIDAwMDBAYEBAQEBAgGBgUGCQgKCgkICQkKDA8MCgsOCwkJDRENDg8QEBEQCgwSExIQEw8QEBD/yQALCAABAAEBAREA/8wABgAQEAX/2gAIAQEAAD8A0s8g/9k=';
     const BYTES = s => ({ toBase64: () => s, toUint8Array: () => ({ length: Math.floor(s.length * 3 / 4) }) });   // like Firestore Bytes
-    const DOC = (o = {}) => ({ image: BYTES(IMG), image_type:'image/jpeg', bytes: 120, capture_ts: now - 6*MIN, published_at: now - 6*MIN,
+    const DOC = (o = {}) => ({ view:'full', w: 800, h: 450, image: BYTES(IMG), image_type:'image/jpeg', bytes: 120, capture_ts: now - 6*MIN, published_at: now - 6*MIN,
       detection:{ status:'positive', confidence: 0.9 }, model_version:'t7', validated:false, experimental:true, sha256_16:'abc', ...o });
     const subs = {}, names = []; let opened = 0, closed = 0, gets = 0;
     fb = { auth:{ currentUser:{ getIdToken: async () => 'T' } },
@@ -28,7 +28,7 @@
     ok('its own listener: only camera/latest and camera/status are opened', names.every(n => n === 'latest' || n === 'status'));
 
     subs.latest.onData(DOC(), false); subs.status.onData({ checked_at: now - 2*MIN, service:'ok' }, false); await wait(2);
-    ok('the image, automatically: a data URL of the crop, large', !!card() && /^data:image\/jpeg;base64,/.test(card().querySelector('.cam-th img').src));
+    ok('the image, automatically: a data URL of the full frame, large, in its own 16:9 shape', !!card() && /^data:image\/jpeg;base64,/.test(card().querySelector('.cam-th img').src) && /800\s*\/\s*450/.test(card().querySelector('.cam-th').style.aspectRatio));
     ok('capture time, "לפני", experimental and unverified', txt().includes(clock(now - 6*MIN)) && txt().includes('לפני') && txt().includes('ניסיוני · לא מאומת') && txt().includes('נראתה לאחרונה בכלוב'));
     ok('freshness: the camera is looking', txt().includes('המצלמה פעילה'));
     const used = JSON.parse(localStorage.getItem('pets-timers-v1-camb'));
@@ -73,8 +73,11 @@
     CAMS_DAY_BYTES = 12e6; CAMS_HARD_BYTES = 20e6; CAMS.stopped = false; localStorage.removeItem('pets-timers-v1-camb');
 
     // the owner's local service on this device wins (full frame + labeling stay private there)
-    localStorage.setItem('pets-timers-v1-cam', 'http://127.0.0.1:8787'); render(); await settle();
-    ok('owner\'s device with the local service: the private card, not the shared one', !card() && !!$q('#side .card.camc'));
+    localStorage.setItem('pets-timers-v1-cam', 'http://127.0.0.1:8787'); CAM.st = 'down'; render(); await settle();
+    ok('a private address set but not reachable (iPhone, Tailscale off): the SHARED card still shows', !!card());
+    CAM.st = 'ok'; render(); await settle();
+    ok('private service answering on this device: the private card instead, never both', !card() && $n('#side .card.camc') === 1);
+    CAM.st = 'off';
     localStorage.removeItem('pets-timers-v1-cam'); render(); await settle();
 
     // a passing error (network): no tight retry loop; it waits a minute

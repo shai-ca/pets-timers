@@ -3258,11 +3258,19 @@ function camStatusHTML(){
 }
 // The card. Only on Kishmish's tracking screen, only on a device where it is switched on; `render` leaves it out of
 // the slim night screen. No numbers: place, capture time, a live "לפני", the connection.
+// Which card: the owner's private service when it answers on this device (full frame, labeling); otherwise the
+// SHARED card that every caregiver gets with no setting and no Tailscale — also on a device where a private address
+// is set but not reachable right now (e.g. the iPhone with Tailscale off). Never both.
 function camCardHTML(p){
   if(p !== 'kishmish') return '';
-  if(!camBase()) return camsCardHTML();   // every caregiver: the shared crop (no setting, no Tailscale)
+  const priv = camBase() && (CAM.st === 'ok' || CAM.st === 'stale');
+  if(!priv && CAMS.doc && fb && fb.camDoc && !CAMS.denied) return camsCardHTML();
+  if(!camBase()) return camsCardHTML();   // nothing published yet: just the watched slot
+  return camPrivHTML(p);
+}
+function camPrivHTML(p){
   if(CAM.st === 'off') CAM.st = 'wait';
-  if(CAM.st === 'forbidden') return '<div class="camc" hidden></div>';   // an account not on the camera's list: no card at all; the setting link says why
+  if(CAM.st === 'forbidden') return fb && fb.camDoc && !CAMS.denied ? '<div class="camc cams cams-slot" aria-hidden="true"></div>' : '<div class="camc" hidden></div>';   // an account not on the camera's list: no card at all; the setting link says why
   const d = CAM.data, ls = d && d.ls, live = CAM.st === 'ok' || CAM.st === 'stale';
   let body;
   if(ls && live) body = `<span class="cam-w">${CAM_WHERE[ls.where] || CAM_WHERE.unknown}${ls.basis === 'label' ? '<small class="cam-l">תויג ידנית</small>' : ''}</span>
@@ -3280,6 +3288,7 @@ function camPaint(){   // repaint just the card and the setting link (never `ren
   const sl = document.querySelector('#dsw [data-cam=set]'); if(sl) sl.textContent = camSetText();
   const el = document.querySelector('#side .camc'); if(!el) return;
   const t = document.createElement('div'); t.innerHTML = camCardHTML(pet); if(t.firstElementChild) el.replaceWith(t.firstElementChild); else el.remove();
+  camsWatch();
   const s = sh.querySelector('.cam-main'); if(s && bg.classList.contains('show')) camSheet(true);
 }
 // ---------- shared camera card (all caregivers; owner, 26.11) ----------
@@ -3317,7 +3326,7 @@ function camsSeen(on){   // on screen and visible -> listen; otherwise stop afte
 }
 function camsWatch(){   // after every render: watch the card (or its empty slot)
   if(CAMS.io){ CAMS.io.disconnect(); CAMS.io = null; }
-  const el = document.querySelector('#side .cams'); if(!el){ camsSeen(false); return; }
+  const el = document.querySelector('#side .camc'); if(!el || !fb || !fb.camDoc){ camsSeen(false); return; }   // either card (or the slot) on screen
   if(typeof IntersectionObserver === 'undefined'){ camsSeen(true); return; }
   const r = el.getBoundingClientRect(); if(r.bottom > 0 && r.top < innerHeight) camsSeen(true);   // on screen now: do not wait for the observer
   CAMS.io = new IntersectionObserver(es => camsSeen(es.some(e => e.isIntersecting))); CAMS.io.observe(el);
@@ -3337,14 +3346,14 @@ function camsCardHTML(){
     : `<span class="cam-t cam-err">אין עדכון מהמצלמה מאז <bdi dir="ltr">${typeof st.checked_at === 'number' ? clock(st.checked_at) : '—'}</bdi></span>`;
   const cap = CAMS.stopped ? `<span class="cam-t cam-dim">עדכון אוטומטי נעצר להיום, כדי לשמור על המכסה החינמית${camsUsed() < CAMS_HARD_BYTES ? ' · <button class="lnk" data-cams="refresh">רענון</button>' : ''}</span>` : '';
   return `<div class="card camc cams" role="button" tabindex="0" data-cams="open">
-    <span class="cam-th"><img src="data:image/jpeg;base64,${d.b64}" alt="קישמיש בכלוב"></span>
+    <span class="cam-th"${Number.isInteger(d.w) && Number.isInteger(d.h) && d.w > 0 && d.h > 0 ? ` style="aspect-ratio:${d.w}/${d.h}"` : ''}><img src="data:image/jpeg;base64,${d.b64}" alt="קישמיש בכלוב"></span>
     <span class="cam-b"><span class="cam-h"><b>נראתה לאחרונה בכלוב</b><small>ניסיוני · לא מאומת</small></span>
       <span class="cam-t"><bdi dir="ltr">${clock(d.capture_ts)}</bdi>${dayLabel(d.capture_ts) === 'היום' ? '' : ' · ' + dayLabel(d.capture_ts)} · לפני <span data-words="${d.capture_ts}">${words(now - d.capture_ts)}</span></span>
       ${look}${cap}</span></div>`;
 }
 function camsPaint(){
-  const el = document.querySelector('#side .cams'); if(!el) return;
-  const t = document.createElement('div'); t.innerHTML = camsCardHTML(); const n = t.firstElementChild;
+  const el = document.querySelector('#side .camc'); if(!el) return;
+  const t = document.createElement('div'); t.innerHTML = camCardHTML(pet); const n = t.firstElementChild;
   if(n) el.replaceWith(n); else el.remove();
   camsWatch();
 }
