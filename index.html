@@ -719,6 +719,31 @@
   main.grps.solo > .card.slim.advice{grid-column:1/-1} .card.slim.advice small{display:block}   /* Kochik: one full-width line above her groups */
   .card.slim.xsum svg{color:var(--acc)}
   .cset-door,.cset-cover{margin-bottom:12px}
+  /* ---------- camera (experimental, shadow mode) — one block; remove with the JS section of the same name ---------- */
+  .card.camc{display:flex;align-items:center;gap:12px;padding:10px 12px;cursor:pointer;text-align:right}
+  .card.camc:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+  .cam-th{flex:none;width:76px;height:56px;border-radius:12px;overflow:hidden;background:var(--seg);display:grid;place-items:center;color:var(--muted)}
+  .cam-th img{width:100%;height:100%;object-fit:cover;display:block}
+  .cam-b{display:flex;flex-direction:column;gap:1px;min-width:0;flex:1}
+  .cam-h{display:flex;align-items:baseline;gap:8px;font-size:13px} .cam-h b{font-weight:600}
+  .cam-h small,.cam-x{font-size:11px;color:var(--muted);font-weight:400}
+  .cam-w{font-size:14.5px;font-weight:500} .cam-l{font-size:11px;color:var(--muted);font-weight:400;margin-inline-start:6px}
+  .cam-t{font-size:12.5px;color:var(--muted)}
+  .cam-s{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--muted)}
+  .cam-s i{width:7px;height:7px;border-radius:50%;background:var(--faint);flex:none}
+  .cam-s.ok i{background:var(--ok)} .cam-s.warn i{background:var(--warn)} .cam-s.bad i{background:var(--alert)}
+  .cam-sheet{max-height:82vh;overflow-y:auto}
+  .cam-big{display:block;width:100%;max-height:52vh;object-fit:contain;border-radius:14px;background:#000;margin-bottom:10px}
+  .cam-meta{font-size:14px;margin-bottom:6px} .cam-dim{color:var(--muted);font-size:12.5px}
+  .cam-how{font-size:12px;color:var(--muted);margin-top:8px} .cam-how summary{cursor:pointer} .cam-how div{margin-top:4px;line-height:1.5}
+  .cam-f{border:1px solid var(--line);border-radius:16px;padding:10px;margin-bottom:10px}
+  .cam-fh{display:flex;gap:10px;align-items:center;margin-bottom:8px;font-size:13.5px}
+  .cam-fi{flex:none;width:120px;height:80px;border-radius:10px;overflow:hidden;background:var(--seg)} .cam-fi img{width:100%;height:100%;object-fit:cover}
+  .chips.cam-c{margin-bottom:6px;gap:6px;align-items:center} .chips.cam-c span{font-size:12px;color:var(--muted);min-width:42px}
+  .chips.cam-c button{padding:6px 10px;font-size:13px}
+  .cam-fa{display:flex;align-items:center;gap:10px;margin-top:6px;font-size:13px;color:var(--muted)} .cam-fa .btn.primary{padding:8px 16px}
+  .cam-fa .btn:disabled{opacity:.4;cursor:default}
+  .dsw .lnk.cam-set{font-size:12px;margin-top:8px}
 </style>
 </head>
 <body>
@@ -3127,6 +3152,202 @@ function csetSheet(p){
   bg.classList.add('show');
 }
 
+// ---------- camera (experimental, shadow mode) ----------
+// A card "נראתה לאחרונה" on Kishmish's tracking screen, from the camera service on the Mac (contract:
+// ~/pets-integration/CAMERA-API.md). SHADOW MODE: nothing here may call commit() / push(), touch `state`, `V`, the
+// journal, advice, sleep, routine, planning, alerts or notifications. Everything lives in this section plus one CSS
+// block, so it can be removed in one go. Per device only: localStorage CAM_KEY = the service's base URL (off when
+// absent). Images are fetched with the Authorization header and shown as blob URLs (never a token in a URL); no
+// response or image is ever stored anywhere. Every request has a CAM_TIMEOUT_MS timeout; errors only change the
+// card's status line.
+const CAM_KEY = LS_KEY + '-cam', CAM_DEFAULT = 'http://127.0.0.1:8787', CAM_CLIENT = 'pets-timers/cam-exp-d88f721';
+let CAM_TIMEOUT_MS = 4000, CAM_POLL_MS = 30000, CAM_STALE_S = 180;   // tests shorten the timeout
+let CAM_NOT_CHROME = !/Chrome\//.test(navigator.userAgent) || /Edg\//.test(navigator.userAgent);   // Safari may refuse https → http://127.0.0.1
+const CAM = { st: 'off', hint: false, ts: false, data: null, thumb: null, thumbId: null, at: 0, busy: null, lbl: [] };
+function camTailnet(){ try { return /\.ts\.net$/i.test(new URL(camBase()).hostname); } catch(e){ return false; } }   // phones: Tailscale Serve, https://<mac>.<tailnet>.ts.net
+function camBase(){ try { return localStorage.getItem(CAM_KEY) || ''; } catch(e){ return ''; } }
+function camUrl(path){   // only ever a path on the configured service: an `img` pointing elsewhere is refused
+  const b = camBase(); if(!b) return null;
+  try { const u = new URL(path, b + '/'); return u.origin === new URL(b).origin ? u.href : null; } catch(e){ return null; }
+}
+async function camToken(){
+  const u = fb && fb.auth && fb.auth.currentUser; if(!u || !u.getIdToken) return null;
+  try { return await u.getIdToken(); } catch(e){ return null; }
+}
+// One request: Bearer token, timeout, never throws. → {ok, status, json|blob} or {ok:false, err:'noauth'|'timeout'|'net'|'bad'}
+async function camReq(path, opts = {}){
+  const url = camUrl(path); if(!url) return { ok: false, err: 'bad' };
+  const tok = await camToken(); if(!tok) return { ok: false, err: 'noauth' };
+  const ac = new AbortController(), tm = setTimeout(() => ac.abort(), CAM_TIMEOUT_MS);
+  try {
+    const headers = { Authorization: 'Bearer ' + tok };
+    if(opts.body){ headers['content-type'] = 'application/json'; headers['x-pets-camera'] = '1'; }
+    const r = await fetch(url, { method: opts.body ? 'POST' : 'GET', headers, body: opts.body ? JSON.stringify(opts.body) : undefined,
+                                 signal: ac.signal, cache: 'no-store', credentials: 'omit', referrerPolicy: 'no-referrer' });
+    if(!r.ok) return { ok: false, status: r.status };
+    return opts.blob ? { ok: true, blob: await r.blob() } : { ok: true, json: await r.json() };
+  } catch(e){ return { ok: false, err: e && e.name === 'AbortError' ? 'timeout' : 'net' }; }
+  finally { clearTimeout(tm); }
+}
+const camStatusOf = r => r.err === 'noauth' ? 'noauth' : r.status === 401 ? 'auth' : r.status === 403 ? 'forbidden' : 'down';
+function camPoll(){
+  if(CAM.busy) return CAM.busy;
+  if(!camBase()){ CAM.st = 'off'; return Promise.resolve(); }
+  CAM.busy = (async () => {
+    const r = await camReq('/api/last_seen');
+    CAM.at = Date.now();
+    if(!r.ok){ CAM.st = camStatusOf(r); CAM.ts = r.err === 'net' && camTailnet(); CAM.hint = r.err === 'net' && !CAM.ts && CAM_NOT_CHROME; camPaint(); return; }
+    const j = r.json || {}, ls = j.last_seen && typeof j.last_seen === 'object' ? j.last_seen : null;
+    CAM.data = { ls, detector: j.detector || null, latest: j.latest || null, dog: j.frame_dog_unverified || null };
+    CAM.hint = CAM.ts = false;
+    const lt = j.latest && j.latest.capture_ts;
+    CAM.st = !lt || (Date.now() - lt) / 1000 > CAM_STALE_S ? 'stale' : 'ok';
+    if(ls && ls.image_id !== CAM.thumbId){
+      const im = await camReq(ls.img || ('/img?id=' + encodeURIComponent(ls.image_id)), { blob: true });
+      if(im.ok){ if(CAM.thumb) URL.revokeObjectURL(CAM.thumb); CAM.thumb = URL.createObjectURL(im.blob); CAM.thumbId = ls.image_id; }
+    } else if(!ls && CAM.thumb){ URL.revokeObjectURL(CAM.thumb); CAM.thumb = CAM.thumbId = null; }
+    camPaint();
+  })().catch(() => { CAM.st = 'down'; }).finally(() => { CAM.busy = null; });
+  return CAM.busy;
+}
+const CAM_WHERE = { crate: 'בכלוב', frame: 'בתמונה, מחוץ לכלוב', unknown: 'לא ידוע איפה' };
+const CAM_NOW = { positive: 'נראית בכלוב', uncertain: 'לא בטוח', negative: 'הכלוב נראה ריק', unavailable: 'אין תמונה עדכנית' };
+const camMin = t => Math.max(1, Math.round((Date.now() - t) / 60000));
+function camStatusHTML(){
+  const lt = CAM.data && CAM.data.latest && CAM.data.latest.capture_ts;
+  const [cls, txt] = {
+    ok: ['ok', 'מחובר'], stale: ['warn', lt ? `התמונות לא מתעדכנות (${camMin(lt)} דק׳)` : 'התמונות לא מתעדכנות'],
+    down: ['bad', 'המצלמה לא זמינה' + (CAM.ts ? ' (Tailscale כבוי?)' : CAM.hint ? ' · המצלמה זמינה כרגע רק ב־Chrome במק' : '')],
+    noauth: ['bad', 'לא מחובר לחשבון'], auth: ['bad', 'צריך להתחבר'], forbidden: ['bad', 'החשבון הזה לא מורשה למצלמה'],
+    off: ['wait', 'בודק…'], wait: ['wait', 'בודק…'] }[CAM.st] || ['wait', 'בודק…'];
+  return `<span class="cam-s ${cls}"><i></i>${txt}</span>`;
+}
+// The card. Only on Kishmish's tracking screen, only on a device where it is switched on; `render` leaves it out of
+// the slim night screen. No numbers: place, capture time, a live "לפני", the connection.
+function camCardHTML(p){
+  if(p !== 'kishmish' || !camBase()) return '';
+  if(CAM.st === 'off') CAM.st = 'wait';
+  if(CAM.st === 'forbidden') return '<div class="camc" hidden></div>';   // an account not on the camera's list: no card at all; the setting link says why
+  const d = CAM.data, ls = d && d.ls, live = CAM.st === 'ok' || CAM.st === 'stale';
+  let body;
+  if(ls && live) body = `<span class="cam-w">${CAM_WHERE[ls.where] || CAM_WHERE.unknown}${ls.basis === 'label' ? '<small class="cam-l">תויג ידנית</small>' : ''}</span>
+      <span class="cam-t"><bdi dir="ltr">${clock(ls.capture_ts)}</bdi>${dayLabel(ls.capture_ts) === 'היום' ? '' : ' · ' + dayLabel(ls.capture_ts)} · לפני <span data-words="${ls.capture_ts}">${words(Date.now() - ls.capture_ts)}</span></span>`;
+  else if(d && live) body = `<span class="cam-w">${d.detector ? 'לא זוהתה ב־36 השעות האחרונות' : 'זיהוי עוד לא זמין'}</span>
+      <span class="cam-t">${d.latest && d.latest.capture_ts ? `התמונה האחרונה לפני <span data-words="${d.latest.capture_ts}">${words(Date.now() - d.latest.capture_ts)}</span>` : 'אין עדיין תמונות'}</span>`;
+  else body = `<span class="cam-w">—</span>`;
+  const now = d && d.detector && d.detector.crate_now && CAM_NOW[d.detector.crate_now.status];
+  return `<div class="card camc" role="button" tabindex="0" data-cam="open">
+    <span class="cam-th">${CAM.thumb && ls && live ? `<img src="${CAM.thumb}" alt="">` : ico('crate')}</span>
+    <span class="cam-b"><span class="cam-h"><b>נראתה לאחרונה</b><small>ניסיוני · לא מאומת</small></span>${body}
+      ${now && live ? `<span class="cam-t">עכשיו לפי המודל: ${now}</span>` : ''}${camStatusHTML()}</span></div>`;
+}
+function camPaint(){   // repaint just the card and the setting link (never `render`, never the list)
+  const sl = document.querySelector('#dsw [data-cam=set]'); if(sl) sl.textContent = camSetText();
+  const el = document.querySelector('#side .camc'); if(!el) return;
+  const t = document.createElement('div'); t.innerHTML = camCardHTML(pet); if(t.firstElementChild) el.replaceWith(t.firstElementChild); else el.remove();
+  const s = sh.querySelector('.cam-main'); if(s && bg.classList.contains('show')) camSheet(true);
+}
+// Tap the card: the image large, time, place; the model behind "איך זה מחושב"; "תיוג" one tap further.
+function camSheet(repaint){
+  const d = CAM.data, ls = d && d.ls, dt = d && d.detector, dog = d && d.dog;
+  const how = ls ? (ls.basis === 'label' ? 'לפי תיוג ידני שלך על התמונה הזו.' : `לפי מודל זיהוי (${esc(ls.model || (dt && dt.model) || '')} ${esc(ls.model_version || (dt && dt.model_version) || '')}), ניסיוני ולא מאומת.`) + (ls.ir ? ' צילום לילה (אינפרא־אדום): פחות ודאי.' : '') : 'אין עדיין זיהוי של קישמיש.';
+  sh.innerHTML = `<div class="cam-sheet cam-main"><h3>נראתה לאחרונה <small class="cam-x">ניסיוני · מצב צל</small></h3>
+    ${CAM.thumb && ls ? `<img class="cam-big" src="${CAM.thumb}" alt="">` : ''}
+    <div class="cam-meta">${ls ? `<b>${CAM_WHERE[ls.where] || CAM_WHERE.unknown}</b> · ${dayLabel(ls.capture_ts)} <bdi dir="ltr">${new Date(ls.capture_ts).toLocaleTimeString('he-IL', {hour:'2-digit', minute:'2-digit', second:'2-digit'})}</bdi> · לפני <span data-words="${ls.capture_ts}">${words(Date.now() - ls.capture_ts)}</span>` : (dt ? 'לא זוהתה ב־36 השעות האחרונות' : 'זיהוי עוד לא זמין')}</div>
+    <div class="cam-meta">${camStatusHTML()}</div>
+    ${dog && dog.capture_ts ? `<div class="cam-meta cam-dim">כלב בתמונה (לא מזוהה) · לפני ${words(Date.now() - dog.capture_ts)}</div>` : ''}
+    <details class="cam-how"><summary>איך זה מחושב</summary><div>${how} המצלמה רק מציגה: שום דבר ממנה לא נכנס ליומן, לעצות או לחישובים.</div></details>
+    <div class="foot"><button class="lnk" id="camLbl">תיוג</button><button class="btn" id="camX">סגירה</button></div></div>`;
+  sh.querySelector('#camX').onclick = close;
+  sh.querySelector('#camLbl').onclick = camLabelView;
+  if(!repaint) bg.classList.add('show');
+}
+// ----- labeling (blind: the app's state and the model's prediction are never shown here) -----
+const CAM_G = [
+  ['occupancy', 'בכלוב', [['occupied', 'קישמיש בכלוב'], ['empty', 'ריק'], ['unknown', 'לא ידוע']]],
+  ['visibility', 'רואים', [['visible', 'רואים'], ['partial', 'חלקית'], ['occluded', 'מוסתר']]],
+  ['posture', 'תנוחה', [['lying', 'שוכבת'], ['sitting', 'יושבת'], ['standing', 'עומדת'], ['moving', 'זזה']]],
+  ['state', 'מצב', [['awake', 'ערה'], ['awake_resting', 'ערה ונחה'], ['asleep', 'ישנה'], ['playing', 'משחקת']]],
+  ['door', 'דלת', [['closed', 'סגורה'], ['open', 'פתוחה']]],
+  ['certainty', 'ודאות', [['sure', 'בטוחה'], ['probable', 'כנראה'], ['unsure', 'לא בטוחה']]]];
+function camFreeLbl(){ CAM.lbl.forEach(u => URL.revokeObjectURL(u)); CAM.lbl = []; }
+async function camLabelView(){
+  camFreeLbl();
+  sh.innerHTML = `<div class="cam-sheet"><h3>תיוג <small class="cam-x">בלי לראות את האפליקציה</small></h3><div class="cam-list"><div class="sub">טוען…</div></div>
+    <div class="foot"><button class="lnk" id="camBack">חזרה</button><button class="btn" id="camX">סגירה</button></div></div>`;
+  sh.querySelector('#camX').onclick = () => { camFreeLbl(); close(); };
+  sh.querySelector('#camBack').onclick = () => { camFreeLbl(); camSheet(); };
+  bg.classList.add('show');
+  const to = Date.now(), r = await camReq(`/api/v1/samples?from=${to - 60*60000}&to=${to}&grouped=1&blind=1`);
+  const box = sh.querySelector('.cam-list'); if(!box) return;
+  if(!r.ok || !Array.isArray(r.json)){ box.innerHTML = `<div class="sub">${camStatusHTML()}</div>`; return; }
+  const items = r.json.slice(0, 12);
+  if(!items.length){ box.innerHTML = '<div class="sub">אין תמונות מהשעה האחרונה</div>'; return; }
+  box.innerHTML = items.map((it, i) => `<div class="cam-f" data-i="${i}"><div class="cam-fh"><span class="cam-fi"></span><span><b><bdi dir="ltr">${clock(it.capture_ts)}</bdi></b>${it.group && it.group.n > 1 ? ` · ${it.group.n} תמונות דומות` : ''}${it.label ? ' · <small>תויג כבר</small>' : ''}</span></div>
+    ${CAM_G.map(([k, t, vs]) => `<div class="chips cam-c" data-g="${k}"><span>${t}</span>${vs.map(([v, n]) => `<button data-v="${v}">${n}</button>`).join('')}</div>`).join('')}
+    <div class="cam-fa"><button class="btn primary cam-save" disabled>שמירה</button><span class="cam-res"></span></div></div>`).join('');
+  box.querySelectorAll('.cam-f').forEach(f => {
+    const it = items[+f.dataset.i], pick = {}; let saved = null;
+    f.querySelectorAll('.cam-c').forEach(g => g.querySelectorAll('button').forEach(b => b.onclick = () => {
+      const k = g.dataset.g; pick[k] = pick[k] === b.dataset.v ? undefined : b.dataset.v;
+      g.querySelectorAll('button').forEach(x => x.classList.toggle('sel', x.dataset.v === pick[k]));
+      f.querySelector('.cam-save').disabled = !pick.occupancy;
+    }));
+    const res = f.querySelector('.cam-res');
+    f.querySelector('.cam-save').onclick = async () => {
+      const empty = pick.occupancy === 'empty';
+      const body = { image_id: it.image_id, method: 'camera', occupancy: pick.occupancy, visibility: pick.visibility || null,
+        posture: empty ? null : pick.posture || null, state: empty ? null : pick.state || null, door: pick.door || 'unknown',
+        certainty: pick.certainty || 'sure', shown: { app_state: false, prediction: false }, blind: true,
+        labeler: String(me || '').slice(0, 40), client: CAM_CLIENT.slice(0, 40), apply_to_group: true };
+      const sup = saved ? saved[0] : it.label && it.label.label_id; if(sup) body.supersedes = sup;
+      const p = await camReq('/api/labels', { body });
+      if(!p.ok){ res.textContent = 'לא נשמר · ' + camStatusHTML().replace(/<[^>]+>/g, ''); return; }
+      saved = (p.json && p.json.label_ids) || [];
+      res.innerHTML = 'נשמר במאגר המחקר · <button class="lnk cam-undo">ביטול</button>';
+      res.querySelector('.cam-undo').onclick = async () => {
+        const u = await camReq('/api/retract', { body: { label_ids: saved } });
+        if(u.ok){ saved = null; res.textContent = 'בוטל'; } else res.textContent = 'הביטול לא הצליח';
+      };
+    };
+    camReq(it.img || it.image, { blob: true }).then(im => {
+      if(!im.ok || !sh.contains(f)) return;
+      const u = URL.createObjectURL(im.blob); CAM.lbl.push(u);
+      f.querySelector('.cam-fi').innerHTML = `<img src="${u}" alt="">`;
+    });
+  });
+}
+// The per-device switch: a quiet link at the bottom, beside the design switch.
+const camSetText = () => 'מצלמה (ניסיוני) · במכשיר הזה' + (!camBase() ? '' : CAM.st === 'forbidden' ? ' · החשבון הזה לא מורשה למצלמה' : ' · פועלת');
+const camSetLinkHTML = () => `<br><button class="lnk cam-set" data-cam="set">${camSetText()}</button>`;
+function camSetSheet(){
+  const b = camBase();
+  sh.innerHTML = `<h3>מצלמה (ניסיוני) · במכשיר הזה</h3>
+    ${b && CAM.st === 'forbidden' ? '<div class="sub"><b>החשבון הזה לא מורשה למצלמה.</b> הכרטיס לא מוצג עד שהחשבון יאושר במק.</div>' : ''}
+    <div class="sub">כרטיס "נראתה לאחרונה" במסך של קישמיש, רק במכשיר הזה. התמונות נשארות במק; שום דבר מהמצלמה לא נשמר ביומן ולא משנה עצות או חישובים.</div>
+    <label class="field">כתובת <input type="text" id="camIn" dir="ltr" value="${esc(b || CAM_DEFAULT)}" autocomplete="off"></label>
+    <div class="foot">${b ? '<button class="btn" id="camOff">כיבוי</button>' : cancelBtn}<button class="btn primary" id="camOn">${b ? 'שמירה' : 'הפעלה'}</button></div>`;
+  const off = sh.querySelector('#camOff'), c = sh.querySelector('#cancel');
+  if(c) c.onclick = close;
+  if(off) off.onclick = () => { try { localStorage.removeItem(CAM_KEY); } catch(e){} if(CAM.thumb) URL.revokeObjectURL(CAM.thumb); Object.assign(CAM, { st: 'off', data: null, thumb: null, thumbId: null }); close(); render(); };
+  sh.querySelector('#camOn').onclick = () => {
+    const i = sh.querySelector('#camIn'); let u;
+    try { u = new URL(i.value.trim()); if(!/^https?:$/.test(u.protocol)) throw 0; } catch(e){ i.classList.add('bad'); return; }
+    try { localStorage.setItem(CAM_KEY, u.origin); } catch(e){}
+    Object.assign(CAM, { st: 'wait', data: null }); close(); render(); camPoll();
+  };
+  bg.classList.add('show');
+}
+document.addEventListener('click', e => {
+  const t = e.target.closest && e.target.closest('[data-cam]'); if(!t) return;
+  if(t.dataset.cam === 'open') camSheet(); else if(t.dataset.cam === 'set') camSetSheet();
+});
+document.addEventListener('keydown', e => { if((e.key === 'Enter' || e.key === ' ') && e.target.closest && e.target.closest('.camc')){ e.preventDefault(); camSheet(); } });
+document.addEventListener('visibilitychange', () => { if(!document.hidden && Date.now() - CAM.at > 5000) camPoll(); });
+setInterval(() => { if(!document.hidden && camBase()) camPoll(); }, CAM_POLL_MS);
+setTimeout(() => { if(camBase()) camPoll(); }, 0);
+// ---------- end camera ----------
+
 // ---------- render ----------
 // The night screen's cards (v3 hook — Agent E edits only this). Kishmish: the crate tile (with only a running carrier /
 // pen line, no setup), the gravel card, pee, poop, ONE drink row and a slim cry row. Kochik (v3): pee, poop, the drink
@@ -3149,7 +3370,7 @@ function render(){
   document.body.classList.toggle('planv', view === 'plan');   // planning is about both dogs together: no dog selector there (owner, 25.11)   // the colours follow the light (20:00 – sunrise); `night` above is the cut-down screen
   document.querySelectorAll('.seg button').forEach(b => b.classList.toggle('on', b.dataset.pet===pet || b.dataset.view===view));
   document.querySelectorAll('.seg button[data-pet]').forEach(b => { b.innerHTML = `${PETS[b.dataset.pet].name}<small class="age">${ageText(ageOf(b.dataset.pet))}</small>`; });
-  document.getElementById('dsw').innerHTML = `<button class="lnk" data-act="v2">${V2 ? 'עיצוב חדש פעיל · חזרה לעיצוב הקודם' : 'לנסות את העיצוב החדש'}</button>`;
+  document.getElementById('dsw').innerHTML = `<button class="lnk" data-act="v2">${V2 ? 'עיצוב חדש פעיל · חזרה לעיצוב הקודם' : 'לנסות את העיצוב החדש'}</button>` + camSetLinkHTML();   // camera (experimental): the per-device switch
   const side = document.getElementById('side'); side.innerHTML = '';
   document.getElementById('main').className = view === 'now' && !slim ? (PETS[pet].cycle ? 'grps' : 'grps solo') : '';
   if(view==='sum'){ document.getElementById('main').innerHTML = renderSummary(); return; }
@@ -3177,7 +3398,7 @@ function render(){
 
   // Alerts, the retry card and the wheel live in the side column: on a computer it stays in place while
   // the tiles scroll; on a phone it is simply the top of the page.
-  let sideHTML = P.cycle ? alertsHTML(pet) + adviceHTML(pet) + sleepAskHTML(pet) + stillAsleepHTML(pet) + (V2 ? scoresHTML(pet) : '') + cycleHTML(pet) : '';
+  let sideHTML = P.cycle ? alertsHTML(pet) + adviceHTML(pet) + camCardHTML(pet) + sleepAskHTML(pet) + stillAsleepHTML(pet) + (V2 ? scoresHTML(pet) : '') + cycleHTML(pet) : '';
 
   const tap = P.cycle ? routineTap(pet) : [];
   // the "טיפוח" group (owner, 25.11): compact tiles side by side, not a tall column, in the order of how often each is
@@ -3276,7 +3497,7 @@ function render(){
 waterRowHTML(pet) + (P.treats ? treatCardHTML(pet) : ''), 'food');
     if(P.bath) h += sec('', 'טיפוח', false, groomTiles(), 'bath');
     // Sleep and crying sit right under the wheel, always at hand: in the crate she is either asleep or crying.
-    if(pottyTop) sideHTML = alertsHTML(pet) + adviceHTML(pet) + sleepAskHTML(pet) + stillAsleepHTML(pet) + pottySec + (V2 ? scoresHTML(pet) : '') + cycleHTML(pet);
+    if(pottyTop) sideHTML = alertsHTML(pet) + adviceHTML(pet) + camCardHTML(pet) + sleepAskHTML(pet) + stillAsleepHTML(pet) + pottySec + (V2 ? scoresHTML(pet) : '') + cycleHTML(pet);
     sideHTML += `<section class="duo" id="sec-rest">${tileOf('sleep')}${tileOf('cry')}</section>`;
   }
 
