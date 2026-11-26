@@ -8,6 +8,7 @@
 (async function(){
   try {
     reset(); localStorage.removeItem('pets-timers-v1-cam'); localStorage.removeItem('pets-timers-v1-camb');
+    const FEAT0 = CAM_FEATURES; CAM_FEATURES = { sleepSuggest: true, eatSuggest: true, drinkSuggest: true, irContext: true, liveSleepEstimate: true, foodWaterEvents: true };   // §12 paths, switched on for their tests (off in the release: camfix.js)
     const K0 = { p:'kishmish' }, subs = {}, merged = [];
     fb = { auth:{ currentUser:{} }, camDoc: (n, on) => { subs[n] = on; return () => { delete subs[n]; }; }, camGet: async () => null, camMerge: async (n, d) => { merged.push([n, d]); } };
     let T = Date.now(), COV = [{ from: T - 30*HOUR, to: T }], DOC = null;
@@ -103,9 +104,7 @@
     commit('', () => { state.log.push({ p:'kishmish', k:'sleep', t: T - 80*MIN, end: T - 70*MIN }); state.log.push({ p:'kishmish', k:'play', y:'rope', t: T - 55*MIN }); }, { quiet: true });
     { const cp = V.kishmish.spans.filter(x => x.cam), mk = V.kishmish.spans.filter(x => !x.cam);
       const over = cp.some(c => mk.some(m => c.t < m.end && c.end > m.t));
-      ok('never over a marked sleep, split at what shows her awake (play), pieces under 5 min dropped', !over && cp.length === 3 && cp[0].t === T - 100*MIN && cp[0].end === T - 80*MIN && cp[1].t === T - 70*MIN && cp[1].end === T - 55*MIN && cp[2].t === T - 55*MIN && cp[2].end === T - 35*MIN);
-      commit('', () => state.log.push({ p:'kishmish', k:'pee', t: T - 67*MIN }), { quiet: true });
-      ok('…a piece cut to under 5 min by an entry is not shown', !V.kishmish.spans.some(x => x.cam && x.t >= T - 70*MIN && x.end <= T - 67*MIN)); }
+      ok('never over a marked sleep; her marked waking ENDS the camera estimate — it never resumes after it (owner 26.11)', !over && cp.length === 1 && cp[0].t === T - 100*MIN && cp[0].end === T - 80*MIN); }
     // IR / uncertain / rejected / no coverage: nothing
     await fresh([{ ...K0, k:'pee', t: T - 3*HOUR }]);
     await send([E('ce_n1', 'sleep_onset', T - 100*MIN, { ir: true, pair_id: 'ce_n1w' }), E('ce_n1w', 'sleep_wake', T - 60*MIN, { ir: true }), E('ce_n2', 'sleep_onset', T - 50*MIN, { uncertain: true, pair_id: 'ce_n2w' }), E('ce_n2w', 'sleep_wake', T - 30*MIN)]); render(); await wait(2);
@@ -127,7 +126,7 @@
     camjApply(); await wait(3);
     ok('her labeled sleep still becomes a marked entry; the live one stays an estimate beside it', !!byId('cams:ce_o1') && !state.log.some(e => e.id && e.id.includes('ce_l1')) && V.kishmish.spans.some(x => x.cam === 'ce_l1'));
     ok('the only camera write path is camera/feedback', merged.every(([n]) => n === 'feedback'));
-    CAMS.doc = null; CAMS.status = null; fb = null; CAMJ.ready = false; CAMJ.ev = []; setState(state);
+    CAMS.doc = null; CAMS.status = null; fb = null; CAMJ.ready = false; CAMJ.ev = []; CAM_FEATURES = FEAT0; setState(state);
     done();
   } catch(e){ crashed(e); }
 })();

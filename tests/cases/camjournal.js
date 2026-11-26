@@ -95,6 +95,7 @@
 
     // 6. live: nothing written without a tap; only the latest; reject -> feedback
     const nOpen = () => stays().filter(e => e.end == null).length;
+    DOORS = [...DOORS, { from: Date.now() - 100*MIN, to: Date.now() + HOUR, value: 'closed' }];   // live approvals below: door marked closed (an open / unknown door is covered in camfix.js)
     await send([...DOC.events, E('ce_L0', 'crate_entry', Date.now() - 90*MIN, { source:'live_model' }), E('ce_L1', 'crate_entry', Date.now() - 20*MIN, { source:'live_model' })]); camjApply(); render(); await wait(2);
     ok('live entries: nothing written, ONE offer in the crate card (the latest), the rest counted', nOpen() === 0 && $n('.card .camjt') === 1 && $q('.card .camjt').textContent.includes(clock(Date.now() - 20*MIN)) && camjPlan(state.log, Date.now()).rv.liveMore === 1);
     $q('.card .camjt [data-camj=reject]').click(); await wait(2);
@@ -164,12 +165,12 @@
     // a camera entry the journal has since taken her out of (real case 26.11, 17:19 → gravel 17:4x)
     { reset(); const T = Date.now(); seed([{ ...K0, k:'none', t: T - 45*MIN }]); serverSeen = true; pet = 'kishmish';
       fb = { auth:{ currentUser:{} }, camDoc: (n, on) => { subs[n] = on; return () => {}; }, camGet: async () => null, camMerge: async () => {} };
-      await send([E('ce_k', 'crate_entry', T - 40*MIN, { source: 'live_model' })]);
+      DOORS = []; await send([E('ce_k', 'crate_entry', T - 40*MIN, { source: 'live_model' })]);   // door unknown: the card asks about the door
       CAMS.status = { checked_at: Date.now() - MIN, crate_now: null }; render(); await wait(2);
       ok('pending camera entry, she is still out in the journal: the routine / advice point to the crate card; manual buttons visible', !!camjPendingEntry() && camjConflict().includes('לאשר בכרטיס הכלוב') && !!$q('#sec-crate .crcam .camjt') && !$q('details.cr-more') && !!$q('#sec-crate [data-act=dur][data-k=crate]'));
       commit('', () => state.log.push({ p:'kishmish', k:'gravel', t: T - 10*MIN, end: T - 5*MIN }), { quiet: true }); render(); await wait(2);
       ok('…then taken to the gravel: no longer "in the crate now"; offered as a past stay', !camjPendingEntry() && $q('#sec-crate .crcam .camjt').textContent.includes('הייתה בכלוב'));
-      $q('#sec-crate .crcam .camjt [data-camj=start]').click(); await wait(2);
+      $q('#sec-crate .crcam .camjt [data-camdoor=door_closed]').click(); await wait(3);   // "סגרת את הדלת?" כן
       const s = state.log.find(e => e.id === 'cam:ce_k');
       ok('…approved: a finished stay, ending when she was taken out (never an open session while she is outside)', !!s && Math.abs(s.t - (T - 40*MIN)) < 1000 && s.end === T - 10*MIN);
       ok('no statistics on the crate card; the review is reachable from the camera sheet', !$q('#sec-crate .camj-rv') && !$q('#sec-crate').textContent.includes('שהיות ב־24'));
