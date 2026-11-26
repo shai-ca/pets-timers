@@ -4193,7 +4193,7 @@ function render(){
       } else if(k === 'sleep' && aw && Date.now() - aw < 6*3600000){   // awake: how long for — it is what decides when she goes back to sleep
         const ww = P.cycle ? wakeWin(pet) : null;
         lbl = 'ערה כבר';
-        big = ww ? `<div class="big"><span data-since="${ww.hi}">${dur(Date.now()-ww.hi)}</span><small class="rng">–</small><span data-since="${ww.lo}">${dur(Date.now()-ww.lo)}</span></div>`
+        big = ww ? `<div class="big"><bdi dir="ltr"><span data-since="${ww.hi}">${dur(Date.now()-ww.hi)}</span><small class="rng">–</small><span data-since="${ww.lo}">${dur(Date.now()-ww.lo)}</span></bdi></div>`   /* shorter–longer, read in order */
           : `<div class="big" data-since="${aw}">${dur(Date.now()-aw)}</div>`;
         sub = (ww ? `התעוררה בין <bdi dir="ltr">${clock(ww.lo)}</bdi> ל־<bdi dir="ltr">${clock(ww.hi)}</bdi>` : `מ־${clock(aw)}`) + (d.lastEnd ? ` · ישנה לאחרונה ${words(d.lastEnd-d.lastStart)}` : '');
       } else if(d.lastEnd){
