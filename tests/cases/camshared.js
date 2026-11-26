@@ -19,13 +19,13 @@
     const W0 = WRITE_CALLS, B0 = BLOCKED_CALLS, log0 = JSON.stringify(state.log);
     let commits = 0, pushes = 0; const rc = commit, rp = push;
     commit = function(){ commits++; return rc.apply(this, arguments); }; push = function(){ pushes++; return rp.apply(this, arguments); };
-    const card = () => $q('#side .card.cams'), txt = () => (card() || {}).textContent || '';
-    const settle = async () => { await pause(60); await wait(3); };
+    const card = () => $q('.card.cams'), txt = () => (card() || {}).textContent || '';
+    const settle = async () => { const el = $q('.camc'); if(el) el.scrollIntoView(); await pause(60); await wait(3); };   // the card lives in the crate card now: listening starts when it is on screen
 
     pet = 'kishmish'; render(); await settle();
-    ok('no setting needed: Kishmish\'s screen watches the shared slot and listens while it is on screen', !!$q('#side .cams-slot') && !!subs.latest && !!subs.status);
+    ok('no setting needed: Kishmish\'s screen watches the shared slot and listens while it is on screen', !!$q('.cams-slot') && !!subs.latest && !!subs.status);
     ok('nothing published yet: no card at all', !card());
-    ok('its own listeners: only camera documents (latest, status, and the events for the journal) — never the journal\'s', names.every(n => ['latest', 'status', 'events'].includes(n)));
+    ok('its own listeners: only camera documents (latest, status, and the events for the journal) — never the journal\'s', names.every(n => ['latest', 'status', 'events', 'feedback'].includes(n)));
 
     subs.latest.onData(DOC(), false); subs.status.onData({ checked_at: now - 2*MIN, service:'ok' }, false); await wait(2);
     ok('the image, automatically: a data URL of the full frame, large, in its own 16:9 shape', !!card() && /^data:image\/jpeg;base64,/.test(card().querySelector('.cam-th img').src) && /800\s*\/\s*450/.test(card().querySelector('.cam-th').style.aspectRatio));
@@ -76,7 +76,7 @@
     localStorage.setItem('pets-timers-v1-cam', 'http://127.0.0.1:8787'); CAM.st = 'down'; render(); await settle();
     ok('a private address set but not reachable (iPhone, Tailscale off): the SHARED card still shows', !!card());
     CAM.st = 'ok'; render(); await settle();
-    ok('private service answering on this device: the private card instead, never both', !card() && $n('#side .card.camc') === 1);
+    ok('private service answering on this device: the private card instead, never both', !card() && $n('.card.camc') === 1);
     CAM.st = 'off';
     localStorage.removeItem('pets-timers-v1-cam'); render(); await settle();
 
@@ -86,7 +86,7 @@
       CAMS.retryAt = 0; render(); await settle(); ok('…then it listens again', opened > o0 && !!subs.latest); }
     // refused by the rules (not a caregiver): nothing, and no retry
     subs.latest.onErr({ code:'permission-denied' }); await wait(2); const o1 = opened; render(); await settle();
-    ok('permission denied: no card, no slot, no new listener', !card() && !$q('#side .cams') && opened === o1);
+    ok('permission denied: no card, no slot, no new listener', !card() && !$q('.cams') && opened === o1);
 
     ok('shadow: the list unchanged, no commit, no push, no write', JSON.stringify(state.log) === log0 && commits === 0 && pushes === 0 && WRITE_CALLS === W0 && BLOCKED_CALLS === B0);
     CAMS.denied = false; fb = null;

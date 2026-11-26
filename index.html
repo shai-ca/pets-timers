@@ -4010,6 +4010,7 @@ waterRowHTML(pet) + (P.treats ? treatCardHTML(pet) : ''), 'food');
     h += `<h2>היסטוריה<small>לחיצה על רישום לתיקון או מחיקה · <button class="lnk" data-act="addev">הוספת רישום</button></small></h2><div class="card log">` + (items.length ? items.map(logRow).join('') : `<div class="empty">אין עדיין רישומים</div>`) + `</div>`;
   }
   document.getElementById('main').innerHTML = h;
+  camsWatch();   // the camera card lives in the crate card (main column): watch it once it is drawn
   if(noteFocus){ const ni = document.getElementById('noteIn'); if(ni){ ni.focus(); ni.setSelectionRange(ni.value.length, ni.value.length); } }
 }
 // NOTES FOR THE VET (owner, 25.11): `note` entries (text in `n`, up to NOTE_MAX, shown only as text; `done` = when it

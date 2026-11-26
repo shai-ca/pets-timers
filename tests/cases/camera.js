@@ -40,7 +40,7 @@
       if(u.pathname === '/api/events/retract') return Promise.resolve(res({ schema:'cam-api/1', retracted: 1 }));
       return Promise.resolve(res({ error:'not found' }, 404));
     };
-    const card = () => $q('#side .card.camc'), txt = () => (card() || {}).textContent || '';
+    const card = () => $q('.card.camc'), txt = () => (card() || {}).textContent || '';
     const poll = async () => { await camPoll(); await wait(3); };
     // ----- shadow: what must not move -----
     let commits = 0, pushes = 0;
@@ -69,7 +69,7 @@
     ok('on: provisional, the model\'s "now" in words, no numbers', txt().includes('ניסיוני · לא מאומת') && txt().includes('עכשיו לפי המודל: לא בטוח') && !/%|0\.9/.test(txt()));
     ok('the frame-wide dog is never shown as her on the card', !txt().includes('כלב'));
     ok('the "לפני" is live (data-words, ticked)', !!card().querySelector('[data-words="' + SEEN + '"]'));
-    ok('in the side column, right after alerts / advice', card().parentElement.id === 'side');
+    ok('inside the crate card (one component), not a separate card in the side column', !!card().closest('.camjb') && !$q('#side .camc'));
     ok('every request carries the Bearer token', calls.length >= 2 && calls.every(c => c.headers.Authorization === 'Bearer ' + TOK));
     ok('no token in any URL', calls.every(c => !c.url.includes(TOK)));
     const blob1 = card().querySelector('img').src, n1 = calls.length;
