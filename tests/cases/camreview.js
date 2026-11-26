@@ -30,23 +30,23 @@
       ok('pending approvals come FIRST, before every folded section', iAct > 0 && iFold > iAct);
       const folds = [...r.querySelectorAll('details.cjd')];
       ok('imported, matched, visits, context: folded by default, each with its count', folds.length >= 4 && folds.every(d => !d.open) && ['imp', 'mat', 'vis', 'ctx'].every(id => !!r.querySelector(`details[data-cjd=${id}] .cjn`)) && r.querySelector('details[data-cjd=imp] .cjn').textContent === '(1)');
-      ok('each pending entry has שהייה / ביקור מרצון / לא נכון / להסתיר', r.querySelectorAll('[data-cjp=ok]').length === 2 && r.querySelectorAll('[data-cjp=visit]').length === 2 && r.querySelectorAll('[data-cjp=dismiss]').length === 2 && r.textContent.includes('ביקור מרצון (דלת פתוחה)')); }
+      ok('each pending entry has the four answers + להסתיר', ['closed', 'open', 'no', 'unsure'].every(a => r.querySelectorAll(`[data-camans=${a}]`).length === 2) && r.querySelectorAll('[data-cjp=dismiss]').length === 2); }
 
     // 2. "להסתיר": not wrong, nothing written, gone from the pending list, kept under "הוסתרו"
     { const before = L0(); sh.querySelector('[data-cjp=dismiss][data-ev=ce_p1]').click(); await wait(3);
       const r = sh.querySelector('.cam-sheet');
       ok('"להסתיר": decision "dismissed" (not "rejected"), journal unchanged, feedback sent', camjDec('ce_p1').d === 'dismissed' && L0() === before && merged.some(([n, d]) => n === 'feedback' && d.decisions.ce_p1 && d.decisions.ce_p1.d === 'dismissed'));
-      ok('…gone from the pending list, listed (folded) under "הוסתרו"; still in the camera data', !r.querySelector('[data-cjp=ok][data-ev=ce_p1]') && r.querySelector('details[data-cjd=hid]').textContent.includes(clock(T - 40*MIN)) && !camjPlan(state.log, Date.now()).rv.rejected.some(e => e.event_id === 'ce_p1') && CAMJ.ev.some(e => e.event_id === 'ce_p1')); }
+      ok('…gone from the pending list, listed (folded) under "הוסתרו"; still in the camera data', !r.querySelector('[data-camans=closed][data-ev=ce_p1]') && r.querySelector('details[data-cjd=hid]').textContent.includes(clock(T - 40*MIN)) && !camjPlan(state.log, Date.now()).rv.rejected.some(e => e.event_id === 'ce_p1') && CAMJ.ev.some(e => e.event_id === 'ce_p1')); }
     // 3. "ביקור מרצון" from the review: a decision only
-    { const n0 = roundStarts('kishmish').length, c0 = crates().length; sh.querySelector('[data-cjp=visit][data-ev=ce_p2]').click(); await wait(3);
-      ok('review "ביקור מרצון": no crate entry, no cycle, decision "visit", listed as a visit', crates().length === c0 && roundStarts('kishmish').length === n0 && camjDec('ce_p2').d === 'visit' && sh.querySelector('details[data-cjd=vis]').textContent.includes('ביקור מרצון')); close(); }
+    { const n0 = roundStarts('kishmish').length, c0 = crates().length; sh.querySelector('[data-camans=open][data-ev=ce_p2]').click(); await wait(3);
+      ok('review "ביקור מרצון": no crate entry, no cycle, decision "visit", listed as a visit', crates().length === c0 && roundStarts('kishmish').length === n0 && camjDec('ce_p2').d === 'visit' && sh.querySelector('details[data-cjd=ans]').textContent.includes('הייתה, דלת פתוחה')); close(); }
     // …and from the card, with the door marked closed (the "שהייה" offer gets its visit twin)
     await fresh(() => [{ ...K0, k:'pee', t: T - HOUR, w:'gravel' }]);
     DOORS = [{ from: T - 40*MIN, to: T, value: 'closed' }];
     await send([L('ce_c', 'crate_entry', T - 20*MIN)]);
     { const q = $q('#sec-crate .camjt'), r0 = JSON.stringify(routine('kishmish'));
-      ok('card: "שהייה מ־HH:MM" / "ביקור מרצון (דלת פתוחה)" / "לא נכון"', !!q && !!q.querySelector('[data-camj=start]') && q.querySelector('[data-camvisit]').textContent.includes('ביקור מרצון') && !!q.querySelector('[data-camj=reject]'));
-      q.querySelector('[data-camvisit]').click(); await wait(3);
+      ok('card (door marked closed): the same four answers, in order', !!q && [...q.querySelectorAll('[data-camans]')].map(b => b.textContent).join('|') === 'הייתה, דלת סגורה|הייתה, דלת פתוחה|לא הייתה בכלוב|לא זוכרת');
+      q.querySelector('[data-camans=open]').click(); await wait(3);
       ok('…"ביקור מרצון": no crate entry, routine unchanged, nothing more to approve', !crates().length && JSON.stringify(routine('kishmish')) === r0 && camjDec('ce_c').d === 'visit' && !$q('#sec-crate .camjt')); }
     // dismissing an eating suggestion and a sleep suggestion
     await fresh(() => [{ ...K0, k:'pee', t: T - 3*HOUR }]);
@@ -78,7 +78,7 @@
     { const rv = camjPlan(state.log, Date.now()).rv;
       ok('model_switch:true entry: never offered (card or pending), uncertain context', !rv.live.length && !rv.pending.length && rv.context.some(e => e.event_id === 'ce_n1') && !$q('#sec-crate .camjt'));
       const r = await review(), ctx = r.querySelector('details[data-cjd=ctx]');
-      ok('…listed in the folded "להקשר בלבד" with a neutral note and "להסתיר", no approve button', !!ctx && !ctx.open && ctx.textContent.includes('החליפה מודל') && !!ctx.querySelector('[data-cjp=dismiss][data-ev=ce_n1]') && !r.querySelector('[data-cjp=ok][data-ev=ce_n1]'));
+      ok('…listed in the folded "להקשר בלבד" with a neutral note and "להסתיר", no approve button', !!ctx && !ctx.open && ctx.textContent.includes('החליפה מודל') && !!ctx.querySelector('[data-cjp=dismiss][data-ev=ce_n1]') && !r.querySelector('[data-camans][data-ev=ce_n1]'));
       ctx.querySelector('[data-cjp=dismiss]').click(); await wait(3);
       ok('…"להסתיר": moves to "הוסתרו", decision "dismissed", nothing written', camjDec('ce_n1').d === 'dismissed' && !camjPlan(state.log, Date.now()).rv.context.some(e => e.event_id === 'ce_n1') && sh.querySelector('details[data-cjd=hid]').textContent.includes(clock(T - 30*MIN)) && !crates().length); close(); }
     await send([L('ce_g', 'crate_entry', T - 15*MIN, { model_version: 'occ-C', prev_model_version: 'occ-B' })]);

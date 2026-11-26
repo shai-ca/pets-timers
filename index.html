@@ -3442,7 +3442,9 @@ function camjEvImg(e, end){
   return e.image_ts < a ? { ok: false, why: 'older' } : e.image_ts > b ? { ok: false, why: 'newer' } : { ok: true, id: e.image_id, ts: e.image_ts };
 }
 function camjDecide(ids, d){   // approved / rejected / dismissed / deleted -> camera/feedback (preview / sandbox: this page only)
-  const at = Date.now(), m = {}; for(const id of [].concat(ids)) if(id) m[id] = { d, by: String(me || '').slice(0, 40), at };
+  const at = Date.now(), m = {};
+  for(const id of [].concat(ids)) if(id){ const old = camjDec(id);   // a changed answer keeps the earlier ones (provenance)
+    m[id] = { d, by: String(me || '').slice(0, 40), at, ...(old && old.d && old.d !== d ? { prev: [...(Array.isArray(old.prev) ? old.prev : []), { d: old.d, at: old.at, by: old.by }].slice(-10) } : old && old.prev ? { prev: old.prev } : {}) }; }   // the same answer again adds no history
   Object.assign(CAMJ.fbLocal, m);
   if(MODE === 'live' && fb && fb.camMerge) fb.camMerge('feedback', { decisions: m }).catch(() => {});
 }
@@ -3474,7 +3476,7 @@ function camjLiveDoor(x, now){
 // Physical occupancy from the events: [{e, x, from, to, verified, wide}] (rejected live events and superseded ones out).
 function camjStays(now){
   const act = CAMJ.ev.filter(e => e.status === 'active'), sup = new Set(act.map(e => e.supersedes).filter(Boolean));
-  const ok = act.filter(e => !sup.has(e.event_id) && !(e.source === 'live_model' && camjDec(e.event_id) && camjDec(e.event_id).d === 'rejected'));
+  const ok = act.filter(e => !sup.has(e.event_id) && !(camjDec(e.event_id) && camjDec(e.event_id).d === 'rejected' && (e.source === 'live_model' || e.kind === 'crate_entry')));
   const ins = ok.filter(e => e.kind === 'crate_entry').sort(byTs), outs = ok.filter(e => e.kind === 'crate_exit').sort(byTs), used = new Set(), res = [];
   for(const e of ins){
     const nextIn = ins.find(o => o.ts > e.ts), free = o => o.ts > e.ts && (!nextIn || o.ts < nextIn.ts) && !used.has(o.event_id);
@@ -3856,11 +3858,66 @@ function camjActHTML(){
   const more = (pl.pending || []).length - 1;
   const x = lv.ev, end = lv.kind === 'end';
   const o = !end ? camjOutAfter(x.ts) : null;
-  if(!end && lv.door === 'unknown') return `<div class="camjt"><span><b>${o ? `הייתה בכלוב <bdi dir="ltr">${clock(x.ts)}–${clock(o.t)}</bdi>?` : `בכלוב מ־<bdi dir="ltr">${clock(x.ts)}</bdi>?`}</b><small>זיהוי מצלמה · הדלת לא ידועה</small>${camjImgHTML(x)}</span>
-    <span class="rt-a"><button class="go" data-camdoor="door_closed" data-live="1" data-ev="${esc(x.event_id)}">שהייה (דלת סגורה)</button><button class="btn" data-camdoor="door_open" data-live="1" data-ev="${esc(x.event_id)}">ביקור מרצון (דלת פתוחה)</button><button class="lnk" data-camj="reject">לא נכון</button></span></div>${more > 0 ? `<button class="lnk camj-rv" data-camj="review">עוד ${more} זיהויים לאישור</button>` : ''}`;
+  if(!end) return `<div class="camjt"><span><b>${o ? `הייתה בכלוב <bdi dir="ltr">${clock(x.ts)}–${clock(o.t)}</bdi>?` : `נכנסה לכלוב ב־<bdi dir="ltr">${clock(x.ts)}</bdi>?`}</b><small>זיהוי מצלמה${lv.door === 'unknown' ? ' · הדלת לא ידועה' : ''}</small>${camjImgHTML(x)}</span>
+    ${camjAnsBtns(x.event_id)}</div>${more > 0 ? `<button class="lnk camj-rv" data-camj="review">עוד ${more} זיהויים לאישור</button>` : ''}`;
   return `<div class="camjt"><span><b>${end ? `יצאה מהכלוב ב־<bdi dir="ltr">${clock(x.ts)}</bdi>?` : o ? `הייתה בכלוב <bdi dir="ltr">${clock(x.ts)}–${clock(o.t)}</bdi>?` : `נכנסה לכלוב ב־<bdi dir="ltr">${clock(x.ts)}</bdi>?`}</b><small>זיהוי מצלמה</small>${camjImgHTML(x)}</span>
     <span class="rt-a"><button class="go" data-camj="${end ? 'end' : 'start'}">${end ? 'אישור' : o ? 'אישור' : 'שהייה מ־' + clock(x.ts)}</button>${!end ? `<button class="btn" data-camvisit="${esc(x.event_id)}">ביקור מרצון (דלת פתוחה)</button>` : ''}<button class="btn" data-camj="reject">לא נכון</button></span></div>${more > 0 ? `<button class="lnk camj-rv" data-camj="review">עוד ${more} זיהויים לאישור</button>` : ''}`;
 }
+// CRATE OCCUPANCY: exactly four answers, everywhere (owner, next-review — the old כן / לא / לא נכון were ambiguous)
+const CAMJ_ANS = { closed: 'הייתה, דלת סגורה', open: 'הייתה, דלת פתוחה', no: 'לא הייתה בכלוב', unsure: 'לא זוכרת' };
+const CAMJ_D2A = { approved: 'closed', visit: 'open', rejected: 'no', unsure: 'unsure', dismissed: 'dismiss', confirmed: 'ok', drinking: 'drink' };
+const camjAnsBtns = (id, extra) => `<span class="rt-a">${Object.keys(CAMJ_ANS).map((a, i) => `<button class="${i ? 'btn' : 'go'}" data-camans="${a}" data-ev="${esc(id)}">${CAMJ_ANS[a]}</button>`).join('')}${extra || ''}</span>`;
+// The answers of the other kinds (food / sleep suggestions) — the same words as their own cards
+const camjFoodAns = x => ({ ok: 'אישור', no: 'לא נכון', ...(x.sug ? { drink: 'שתתה, לא אכלה' } : {}), unsure: 'לא בטוחה' });
+const camjSleepAns = { ok: 'אישור', no: 'לא נכון', unsure: 'לא בטוחה' };
+const camjAnsWord = (x, d) => { const a = CAMJ_D2A[d]; return a === 'dismiss' ? 'הוסתר' : x.kind === 'crate_entry' ? CAMJ_ANS[a] : (x.kind === 'sleep_onset' ? camjSleepAns : camjFoodAns(x))[a] || d; };
+// The journal side of an answer: a crate session (live entries; her labelled ones follow via the reconcile), a food /
+// water entry, a confirmed sleep — `cam:<event id>`, created through the same code (and dedup) as a first answer.
+function camjMake(x){
+  if(x.kind === 'crate_entry') return camjDo({ do: 'start', ev: x, retro: true }, me);
+  if(CAMJ_FEED[x.kind]) return camjDo({ do: 'feed', ev: x }, me);
+  const c = camjSleeps('live_model').find(z => z.on.event_id === x.event_id), eid = 'cam:' + x.event_id; if(!c || state.log.some(e => e.id === eid)) return;
+  state.log.push({ id: eid, p: CAMJ_P, k: 'sleep', t: c.t, ...(c.end != null ? { end: Math.max(c.end, c.t + 1) } : {}),
+    cam: { cid: eid, in: x.event_id, it: c.t, ilo: c.ilo, ihi: c.ihi, src: 'live_model', conf: 1, ok: me, ...(c.wk ? { out: c.wk.event_id, ot: c.end, olo: c.olo, ohi: c.ohi } : {}), ...(c.unc || c.ounc ? { unc: 1 } : {}) } });
+}
+// Set or CHANGE an answer: the feedback decision (history kept in `prev`) and the journal entry move together; the same
+// answer twice, or the same on two phones, changes nothing more (deterministic id, created only when missing).
+function camjSetAnswer(id, ans){
+  const x = CAMJ.ev.find(e => e.event_id === id); if(!x) return;
+  const nm = PETS[CAMJ_P].name, eid = 'cam:' + id, crate = x.kind === 'crate_entry';
+  let d;
+  if(crate){ d = { closed: 'approved', open: 'visit', no: 'rejected', unsure: 'unsure', dismiss: 'dismissed' }[ans]; if(!d) return;
+    if(ans === 'closed' || ans === 'open') camjDecide('door:' + id, ans === 'closed' ? 'door_closed' : 'door_open'); }
+  else if(CAMJ_FEED[x.kind] || (x.kind === 'sleep_onset' && x.sug)){ d = { ok: x.sug ? 'confirmed' : 'approved', no: 'rejected', unsure: 'unsure', drink: 'drinking', dismiss: 'dismissed' }[ans]; if(!d) return; }
+  else return;
+  camjDecide(id, d);
+  const want = crate ? ans === 'closed' : ans === 'ok', has = state.log.some(e => e.id === eid);
+  const what = crate ? 'בכלוב' : CAMJ_FEED[x.kind] ? ITEMS[CAMJ_FEED[x.kind]].log : 'שינה', msg = `${nm} · ${what} <bdi dir="ltr">${clock(x.ts)}</bdi>: ${camjAnsWord(x, d)}`;
+  if(crate && x.source === 'owner_label'){ setState(state); camjLast = ''; camjApply(); render(); }   // her labels: the reconcile adds / removes the session
+  else if(want && !has) commit('', () => camjMake(x), { cam: true, quiet: true });
+  else if(!want && has) commit('', () => { state.log = state.log.filter(e => e.id !== eid); }, { cam: true, quiet: true });
+  else { setState(state); camjLast = ''; render(); }
+  // the toast: what was answered, and "שינוי תשובה" (the answer itself is undone by changing it, both sides together)
+  showToast(''); document.getElementById('toastMsg').innerHTML = msg; document.getElementById('undo').hidden = true; lastUndo = null;
+  const tw = document.getElementById('toastWhere'); if(tw) tw.innerHTML = `<button class="btn" data-camchg="${esc(id)}">שינוי תשובה</button>`;
+}
+function camjChangeSheet(id){
+  const x = CAMJ.ev.find(e => e.event_id === id); if(!x) return;
+  const cur = camjDec(id), ca = cur && CAMJ_D2A[cur.d], opts = x.kind === 'crate_entry' ? CAMJ_ANS : x.kind === 'sleep_onset' ? camjSleepAns : camjFoodAns(x);
+  const what = x.kind === 'crate_entry' ? 'בכלוב' : CAMJ_FEED[x.kind] ? ITEMS[CAMJ_FEED[x.kind]].log : 'שינה';
+  sheet(`${PETS[CAMJ_P].name} · שינוי תשובה`, `<div class="sub">${what} <bdi dir="ltr">${clock(x.ts)}</bdi>${dayLabel(x.ts) === 'היום' ? '' : ' · ' + dayLabel(x.ts)} · עכשיו: <b>${cur ? camjAnsWord(x, cur.d) : 'בלי תשובה'}</b></div>
+    <div class="chips" style="margin-top:10px">${Object.keys(opts).map(a => `<button data-chg="${a}" class="${a === ca ? 'sel' : ''}">${opts[a]}</button>`).join('')}</div>`, cancelBtn, null);
+  sh.querySelectorAll('[data-chg]').forEach(b => b.onclick = () => { close(); camjSetAnswer(id, b.dataset.chg); });
+  const cc = sh.querySelector('#cancel'); if(cc) cc.onclick = close;
+  bg.classList.add('show');
+}
+document.addEventListener('click', e => {
+  const b = e.target.closest && e.target.closest('[data-camans]'), c = e.target.closest && e.target.closest('[data-camchg]'); if(!b && !c) return;
+  e.stopPropagation();
+  if(c){ document.getElementById('toast').classList.remove('show'); camjChangeSheet(c.dataset.camchg); return; }
+  const inRv = bg.classList.contains('show') && sh.querySelector('.cam-sheet');
+  camjSetAnswer(b.dataset.ev, b.dataset.camans); if(inRv) camjReview();
+}, true);
 // "ביקור מרצון": she went in on her own — a decision only (feedback `visit`), no crate entry, so no routine cycle.
 document.addEventListener('click', e => {
   const b = e.target.closest && e.target.closest('[data-camvisit]'); if(!b) return;
@@ -3908,7 +3965,7 @@ function camjReview(){
     : row(`יציאה בשעה לא ודאית${camjWin(r.x.lo, r.x.hi)}<small>השהייה נשארת פתוחה עד שתסיימי אותה</small>`));
   // actionable: live entries (incl. those right after a model switch), food / sleep suggestions, what needs resolving
   const entryRow = (e, note) => { const dr = camjLiveDoor(e, now); return row(`נכנסה לכלוב ${when(e.ts)}<small>${note || 'זיהוי מצלמה · לא נרשם עד שמאשרים'}${dr === 'unknown' ? ' · הדלת לא ידועה' : ''}</small>`,
-    `<span class="rt-a"><button class="go" data-cjp="ok" data-ev="${e.event_id}">${dr === 'unknown' ? 'שהייה (דלת סגורה)' : 'שהייה'}</button><button class="btn" data-cjp="visit" data-ev="${e.event_id}">ביקור מרצון (דלת פתוחה)</button><button class="btn" data-cjp="no" data-ev="${e.event_id}">לא נכון</button>${hide('data-cjp', e.event_id)}</span>`); };
+    camjAnsBtns(e.event_id, hide('data-cjp', e.event_id))); };
   const feedRows = [...(rv.feed.food || []), ...(CAM_FEATURES.drinkSuggest ? rv.feed.water || [] : [])].sort((a, b) => b.ts - a.ts).map(e => row(`${CAMJ_FEED[e.kind] === 'food' ? 'אכלה' : 'שתתה'} ${when(e.ts)}${camjWin(e.lo, e.hi)}<small>${e.sug ? 'הצעה מהמצלמה, ניסיונית' : 'זיהוי מצלמה'} · לא נרשם עד שמאשרים</small>${camjImgHTML(e)}`, `<span class="rt-a"><button class="go" data-camf="ok" data-ev="${esc(e.event_id)}">אישור</button><button class="btn" data-camf="no" data-ev="${esc(e.event_id)}">לא נכון</button>${e.sug && e.kind === 'food_seen' ? `<button class="btn" data-camf="drink" data-ev="${esc(e.event_id)}">שתתה, לא אכלה</button>` : ''}<button class="lnk" data-camf="unsure" data-ev="${esc(e.event_id)}">לא בטוחה</button>${hide('data-camf', e.event_id)}</span>`));
   const sugSleepRows = camjSugSleeps(now).map(c => row(`ישנה ${span(c, true)}${c.end == null ? ' (עדיין)' : ''}<small>הצעה מהמצלמה, ניסיונית · משוער עד שמאשרים</small>`, `<span class="rt-a"><button class="go" data-camss="ok" data-ev="${esc(c.on.event_id)}">אישור</button><button class="btn" data-camss="no" data-ev="${esc(c.on.event_id)}">לא נכון</button><button class="lnk" data-camss="unsure" data-ev="${esc(c.on.event_id)}">לא בטוחה</button>${hide('data-camss', c.on.event_id)}</span>`));
   const act = sec('זיהויים לאישור', (rv.pending || []).map(e => entryRow(e))) + sec('אוכל לאישור', feedRows) + sec('שינה לאישור', sugSleepRows) + sec('לבירור', resolveRows);
@@ -3919,8 +3976,12 @@ function camjReview(){
   const byE = new Map(); for(const r of rv.matched){ const g = byE.get(r.e.id) || byE.set(r.e.id, { e: r.e, n: 0, sleep: r.c.k === 'sleep' }).get(r.e.id); g.n++; }
   const matRows = [...byE.values()].map(g => row(`${g.sleep ? 'שינה' : 'שהייה'} ${span(g.e, g.sleep)}${g.e.cam && g.e.cam.was ? `<small>תוקן מ־${when(g.e.cam.was.t, g.e.cam.was.end)}</small>` : `<small>השעה הידנית נשמרה${g.n > 1 ? ` · ${g.n} תצפיות מצלמה` : ''}</small>`}`));
   const visitRows = rv.visits.map(r => row(`${r.live ? 'ביקור · ' : ''}${r.s.to != null ? span({ t: r.s.from, end: r.s.to }) : when(r.s.from)}<small>${r.door === 'open' ? 'דלת פתוחה' : r.dismissed ? 'הושאר כתצפית' : 'מצב הדלת לא ידוע'} · לא משפיע על השגרה או השינה</small>`))
-    .concat((rv.vdec || []).map(e => row(`ביקור מרצון ${when(e.ts)}<small>לפי התשובה שלך · לא נרשם ביומן, לא משפיע על השגרה</small>`)));
+;
   const kindW = e => CAMJ_KIND[e.kind] || e.kind;
+  const changeable = e => e.kind === 'crate_entry' || !!CAMJ_FEED[e.kind] || (e.kind === 'sleep_onset' && e.sug);
+  const chg = e => changeable(e) ? `<span class="rt-a"><button class="lnk" data-camchg="${esc(e.event_id)}">שינוי תשובה</button></span>` : '';
+  const ansRows = CAMJ.ev.filter(e => changeable(e) && camjDec(e.event_id) && !['dismissed', 'deleted'].includes(camjDec(e.event_id).d)).sort((a, b) => b.ts - a.ts)
+    .map(e => row(`${kindW(e)} ${when(e.ts)}<small>${camjAnsWord(e, camjDec(e.event_id).d)}${camjDec(e.event_id).d === 'unsure' ? ' · לא נחשב כתשובה שלילית' : ''}${camjDec(e.event_id).prev ? ' · שונה' : ''}</small>`, chg(e)));
   sh.innerHTML = `<div class="cam-sheet"><h3>מהמצלמה · כלוב <small class="cam-x">ניסיוני</small></h3>
     <div class="sub">השבוע: <b>${fromCam}</b> שהיות נרשמו מהמצלמה, <b>${fixed}</b> תוקנו לפי המצלמה, ${manual - fixed} ידנית בלבד.</div>
     ${act || '<div class="sub" style="margin:14px 0">אין כרגע מה לאשר.</div>'}
@@ -3933,8 +3994,9 @@ function camjReview(){
       ? row(`${kindW(e)} ${when(e.ts)}<small>לא ודאי: באותו זמן המצלמה החליפה מודל, ייתכן שזה רק השינוי · לא לאישור, לא משנה דבר</small>`, `<span class="rt-a">${hide('data-cjp', e.event_id)}</span>`)
       : row(`${kindW(e)} ${when(e.ts)}<small>${e.ir ? 'תאורת לילה (IR)' : 'זיהוי לא ודאי'} · לא לאישור, לא משנה דבר</small>`)), 'המודל לא בטוח מספיק')}
     ${fold('dis', 'זיהויים במחלוקת', (rv.disputed || []).map(e => row(`${e.kind === 'crate_entry' ? 'כניסה' : 'יציאה'} ${when(e.ts)}<small>התיוג שלך לפני ואחרי סותר אותו · לא נרשם</small>`)))}
-    ${fold('hid', 'הוסתרו', (rv.dismissed || []).map(e => row(`${kindW(e)} ${when(e.ts)}<small>הוסתר בלי לסמן כשגוי · נשמר במצלמה</small>`)))}
-    ${fold('rej', 'סומנו "לא נכון"', rv.rejected.map(e => row(`${kindW(e)} ${when(e.ts)}<small>נשמר כדוגמה שגויה לבדיקת המודל</small>`)))}
+    ${fold('ans', 'התשובות שלך', ansRows, 'אפשר לשנות')}
+    ${fold('hid', 'הוסתרו', (rv.dismissed || []).map(e => row(`${kindW(e)} ${when(e.ts)}<small>הוסתר בלי לסמן כשגוי · נשמר במצלמה</small>`, chg(e))))}
+    ${fold('rej', 'סומנו "לא נכון"', rv.rejected.filter(e => !changeable(e)).map(e => row(`${kindW(e)} ${when(e.ts)}<small>נשמר כדוגמה שגויה לבדיקת המודל</small>`)))}
     </div>
     <div class="foot"><button class="btn" id="camX">סגירה</button></div></div>`;
   sh.querySelectorAll('details[data-cjd]').forEach(d => d.ontoggle = () => { d.open ? CAMJ_RVOPEN.add(d.dataset.cjd) : CAMJ_RVOPEN.delete(d.dataset.cjd); });
@@ -4011,15 +4073,12 @@ function camjFeedHTML(p, k){
 function camjFeedRowHTML(p, k){ const h = camjFeedHTML(p, k); return h ? `<div class="crcam camfw">${h}</div>` : ''; }   // a full-width row of the food card, like the crate's
 function camjFeedDo(id, ans){   // ans: 'ok' | 'no' | 'unsure' ("לא בטוחה": nothing written, just hidden)
   const x = CAMJ.ev.find(e => e.event_id === id), k = x && CAMJ_FEED[x.kind]; if(!k) return;
-  if(ans === 'unsure' || ans === 'drink' || ans === 'dismiss'){ camjDecide(id, ans === 'drink' ? 'drinking' : ans === 'dismiss' ? 'dismissed' : 'unsure'); camjLast = ''; render(); return; }   // nothing written   // "לא בטוחה" / "שתתה, לא אכלה": nothing written, hidden
-  if(ans !== 'ok'){ camjDecide(id, 'rejected'); camjLast = ''; render(); showToast(`${PETS[CAMJ_P].name} · זיהוי המצלמה סומן "לא נכון"`); return; }
-  camjDecide(id, x.sug ? 'confirmed' : 'approved');
-  commit(`${PETS[CAMJ_P].name} · ${ITEMS[k].log} (מצלמה, אושר)`, () => camjDo({ do: 'feed', ev: x }, me), { cam: true });
+  camjSetAnswer(id, ans); if(ans !== 'ok') return;   // the decision and the entry together (also when changed later)
   // the same one-tap correction a manual "אכלה" gets: under the two-hour rule it may have come out as a bite
   const fe = state.log.find(e => e.id === 'cam:' + id);
   if(k === 'food' && fe && mealKind(fe) === 'bite'){
     const tw = document.getElementById('toastWhere');
-    if(tw){ tw.innerHTML = `<button class="btn" id="toMeal">זו הייתה ארוחה</button>`;
+    if(tw){ tw.innerHTML += `<button class="btn" id="toMeal">זו הייתה ארוחה</button>`;
       tw.querySelector('#toMeal').onclick = () => commit(`${PETS[CAMJ_P].name} · ${ITEMS.food.log} · ${MEAL_LBL.meal}`, () => { const z = state.log.find(e => e.id === fe.id); if(z) z.m = 'meal'; }); }
   }
 }
@@ -4048,14 +4107,8 @@ function camjSugSleepRowHTML(p){
     <span class="rt-a"><button class="go" data-camss="ok" data-ev="${esc(id)}">אישור</button><button class="btn" data-camss="no" data-ev="${esc(id)}">לא נכון</button><button class="lnk" data-camss="unsure" data-ev="${esc(id)}">לא בטוחה</button></span></div>${list.length > 1 ? `<small class="cam-dim">עוד ${list.length - 1} הצעות שינה</small>` : ''}</div>`;
 }
 function camjSugSleepDo(id, ans){
-  const c = camjSugSleeps(Date.now()).find(x => x.on.event_id === id); if(!c) return;
-  if(ans !== 'ok'){ camjDecide(id, ans === 'unsure' ? 'unsure' : ans === 'dismiss' ? 'dismissed' : 'rejected'); setState(state); camjLast = ''; render(); return; }
-  camjDecide(id, 'confirmed');
-  commit(`${PETS[CAMJ_P].name} · שינה (הצעת מצלמה, אושר)`, () => {
-    const eid = 'cam:' + id; if(state.log.some(e => e.id === eid)) return;
-    state.log.push({ id: eid, p: CAMJ_P, k: 'sleep', t: c.t, ...(c.end != null ? { end: Math.max(c.end, c.t + 1) } : {}),
-      cam: { cid: eid, in: id, it: c.t, ilo: c.ilo, ihi: c.ihi, src: 'live_model', conf: 1, ok: me, ...(c.wk ? { out: c.wk.event_id, ot: c.end, olo: c.olo, ohi: c.ohi } : {}), ...(c.unc || c.ounc ? { unc: 1 } : {}) } });
-  }, { cam: true });
+  if(!camjSugSleeps(Date.now()).some(x => x.on.event_id === id)) return;
+  camjSetAnswer(id, ans);
 }
 document.addEventListener('click', e => {
   const b = e.target.closest && e.target.closest('[data-camss]'); if(!b) return;
@@ -4155,13 +4208,13 @@ function camjPendingEntry(){
 function camjDoorAsk(p){
   if(p !== CAMJ_P || !CAMJ.ready || (V[p].crate || {}).start) return null;
   const now = Date.now(), s = camjStays(now).filter(s => s.verified && s.to == null).pop(); if(!s || !camjOccNow(p)) return null;
-  if(camjDec('door:' + s.e.event_id) || camjDoorAt(s.from, now) || camjClosed(s.from, now, now).length) return null;
+  if(camjDec('door:' + s.e.event_id) || camjDec(s.e.event_id) || camjDoorAt(s.from, now) || camjClosed(s.from, now, now).length) return null;
   return s.e;
 }
 function camjDoorAskHTML(p){
   const e = camjDoorAsk(p); if(!e) return '';
-  return `<div class="camjt"><span><b>בכלוב מ־<bdi dir="ltr">${clock(e.ts)}</bdi> · סגרת את הדלת?</b><small>לפי התיוג שלך · כן = שהייה בכלוב, לא = ביקור</small></span>
-    <span class="rt-a"><button class="go" data-camdoor="door_closed" data-ev="${e.event_id}">כן</button><button class="btn" data-camdoor="door_open" data-ev="${e.event_id}">לא</button></span></div>`;
+  return `<div class="camjt"><span><b>בכלוב מ־<bdi dir="ltr">${clock(e.ts)}</bdi> · הדלת?</b><small>לפי התיוג שלך · הדלת לא ידועה</small></span>
+    ${camjAnsBtns(e.event_id)}</div>`;
 }
 document.addEventListener('click', e => {
   const b = e.target.closest && e.target.closest('[data-camdoor]'); if(!b) return;
