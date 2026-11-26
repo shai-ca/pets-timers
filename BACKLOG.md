@@ -60,6 +60,31 @@ Initial thresholds here are starting points for a review, not hard rules.
    - **Look again:** then.
    - **Success:** fewer than 20% interrupted.
 
+10. **Sleep pressure: wake window ↔ sleep history (Kishmish), both directions.**
+   - **Check:** whether preceding sleep, or sleep in the last 3/6 h, predicts the next wake window or the time from
+     crate to sleep; and whether wake history predicts the next sleep's length. One predictor at a time, fixed in
+     advance, against the median. A homeostatic "sleep pressure" model only if a single predictor holds up, with
+     her own parameters (no human values). Keep apart: spontaneous sleep onset, the moment she is put in the
+     crate, and crate-to-sleep latency.
+   - **Why not now (25.11 analysis):**
+     - 14 clean wake windows; every window ended when she was put in the crate (0 spontaneous onsets).
+     - 19 of 43 crate stays have no sleep marked.
+     - The setup changed (box → mesh, blankets off).
+     - The one apparent signal (preceding sleep) reverses when tested in time order.
+     - A Process-S fit was worse than the median.
+     - Kochik has no sleep data at all.
+   - **Data needed:**
+     - at least 40 clean wake windows in one setup, over at least 7 days;
+     - at least 30 crate stays with the falling-asleep time marked, and "לא נרדמה" marked where she stayed awake;
+     - ideally at least 15 spontaneous sleep onsets in the open crate / pen. These are the informative ones as she
+       moves toward independence.
+   - **Look again:** after 7 consecutive days in the same setup with at least 80% of crate stays marked (not before
+     3.12.2026).
+   - **Success:** the predictor's 95% CI excludes 0, and it beats the median by at least 20% in both leave-one-out
+     and time-ordered tests, in two separate weeks.
+   - **Until then:** at most a descriptive line ("בדרך כלל ערה כ־X דקות (n)"). Never a countdown, deadline or
+     warning, never a penalty for being awake, and never a planning target.
+
 ## Kept from earlier sessions
 
 - Re-run the planning backtest after more days in the mesh crate.
