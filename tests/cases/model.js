@@ -89,7 +89,7 @@ function strHash(s){ let h = 0; for(let i = 0; i < s.length; i++) h = (h * 31 + 
     ok('…probabilities fall with the horizon', so.pAtLeast[0].p >= so.pAtLeast[1].p && so.pAtLeast[1].p >= so.pAtLeast[2].p);
     ok('…shrunk toward the pooled rate: never exactly 0 at the end', so50.pAtLeast[0].p > 0);
     const sc = sleepOn('kishmish', 50*MIN, {endAsCensored: true});
-    ok('endAsCensored: every end censored → no observed ends → she sleeps on', sc.censored === 10 && sc.pAtLeast[1].p === 1);
+    ok('endAsCensored: every end censored → no real endings → "unknown" (not a fake p = 1)', sc.censored === 10 && sc.pAtLeast[1].p === null && sc.words === 'unknown');
     seed(naps(10, 60).concat([{ ...K0, k:'sleep', t: now - 30*MIN }]));
     ok('a running sleep counts, right-censored (unless it is night now)', touchesNight(now - 30*MIN, now) ? sleepOn('kishmish', 30*MIN).n === 10 : sleepOn('kishmish', 30*MIN).n === 11 && sleepOn('kishmish', 30*MIN).censored === 1);
     seed(naps(10, 60).map(e => ({ ...e, a: 1 })));
@@ -152,5 +152,7 @@ function strHash(s){ let h = 0; for(let i = 0; i < s.length; i++) h = (h * 31 + 
     { reset(); const g = realisticLog(); SLEEP2_FROM = g.from; const s = norm({v:2, log: g.log}), sp = sleepSpans('kishmish', s.log, Date.UTC(2026, 10, 22));
       ok('realistic log: sleepSpans identical to main@61a7b2c (30 spans, 13 estimated, same hash)', `${sp.length} ${sp.filter(x => x.assumed).length} ${strHash(canon(sp))}` === '30 13 71807902'); }
   } catch(e){ crashed(e); }
-  done();
+  // sleepOn: with every end censored (all near a crate exit) there are no real endings — "unknown", not p = 1
+    { const so = sleepOn('kishmish', 15*MIN, {endAsCensored:true}); ok('sleepOn: too few real endings → unknown, never a fake certainty', so.words === 'unknown' && so.pAtLeast.every(x => x.p === null)); }
+    done();
 })();

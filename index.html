@@ -1352,7 +1352,8 @@ function sleepOn(p, elapsedMs, opts){
   }
   const h0 = R > 0 ? E / R : 0, N = SLEEP_PRIOR_N;
   const q = k => { const r = rows[k]; return r ? (r.n - r.ev + N * (1 - h0)) / (r.n + N) : 1 - h0; };
-  const enough = data.length >= SLEEP_ON.minEp, s0 = Math.floor(Math.max(0, elapsedMs) / S);
+  // enough = enough naps AND enough real endings: with almost every end censored the table has no events and would say p = 1
+  const enough = data.length >= SLEEP_ON.minEp && data.length - censored >= SLEEP_ON.minEp, s0 = Math.floor(Math.max(0, elapsedMs) / S);
   const pAtLeast = SLEEP_ON.horizons.map(min => { if(!enough) return {min, p: null}; let pr = 1; for(let k = s0; k < s0 + Math.round(min*60000 / S); k++) pr *= q(k); return {min, p: pr}; });
   const pj = (pAtLeast.find(x => x.min === SLEEP_ON.judge) || {}).p;
   const words = !enough ? 'unknown' : pj >= SLEEP_ON.likely ? 'likely' : pj <= SLEEP_ON.unlikely ? 'unlikely' : 'unsure';
@@ -2837,7 +2838,8 @@ function tryNow(p){
   const nw = napWake(p); if(nw) return {t: nw.t, why: 'אחרי שהתעוררה', nap: nw.len};
   if(S.crate && S.crate.start) return null;
   const done = Math.max(S.pee || 0, S.poop || 0, S.none || 0), c = [];
-  if(S.sleep && S.sleep.lastEnd) c.push([S.sleep.lastEnd, TRY.wake, 'אחרי שהתעוררה']);
+  // a sleep that ended at a drink is not "she woke up" for potty advice (v3: a drink alone gives no potty advice)
+  if(S.sleep && S.sleep.lastEnd && !state.log.some(e => e.p===p && e.k==='water' && e.t === S.sleep.lastEnd)) c.push([S.sleep.lastEnd, TRY.wake, 'אחרי שהתעוררה']);
   const fw = state.log.filter(e => e.p===p && (e.k==='water' || (e.k==='food' && mealKind(e) === 'meal')) && e.t <= now).sort((x,y) => y.t - x.t)[0];
   if(fw) c.push([fw.t, fw.k === 'water' ? TRY.water : TRY.food, fw.k === 'water' ? 'אחרי שתייה' : 'אחרי ארוחה', fw.k === 'food']);
   const hit = c.filter(([t, [a, b]]) => t > done && now - t >= a && now - t <= b).sort((x,y) => y[0] - x[0])[0];

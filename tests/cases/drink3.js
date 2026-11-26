@@ -17,7 +17,7 @@
       const w = logOf(P, 'water')[0], c = logOf(P, 'crate')[0], s = logOf(P, 'sleep')[0], tag = night ? 'night' : 'day';
       ok(tag + ': the drink ends the crate stay and the sleep at its own time', !!w && c.end === w.t && s.end === w.t);
       ok(tag + ': no cycle step, no potty tiles tagged', routineTap(P).length === 0 && (!routine(P) || routine(P).i !== 1));
-      ok(tag + ': no "ישר לחצץ", no take-out reminder, no retry', !napWake(P) && !pottyDue(P) && !retry(P) && !($q("#side").textContent + $q("#main").textContent).includes("ישר לחצץ"));
+      ok(tag + ': no "ישר לחצץ", no take-out reminder, no retry, no "זמן טוב לנסות" after it', !napWake(P) && !pottyDue(P) && !retry(P) && !tryNow(P) && !($q("#side").textContent + $q("#main").textContent).includes("ישר לחצץ"));
       if(night) ok('night: the night screen stays, with no advice line', !!$q('.nightc') && !$q('.card.advice'));
     }
     reset('shai', 'kochik'); seed([{p:'kochik', k:'sleep', t: now - 30*MIN}]);
