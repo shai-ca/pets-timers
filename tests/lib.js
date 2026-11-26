@@ -23,6 +23,7 @@ function reset(who = 'shai', showPet = 'kishmish'){
   if(typeof RETRY3_FROM !== 'undefined') RETRY3_FROM = Infinity;   // …not yet her own rhythm (25.11); rhythm.js moves it
   if(typeof CRATE_TREAT_FROM !== 'undefined') CRATE_TREAT_FROM = Infinity;   // no treat delay in the crate (25.11); sleepcrate.js moves it
   if(typeof SLEEP2_FROM !== 'undefined') SLEEP2_FROM = Infinity;   // cases are written against the closed-box rules; crate2.js and sleep2.js move the cut-off
+  if(typeof SIMPLE !== 'undefined') SIMPLE = false;   // the full screen; simple.js switches "מסך יונתן" on
   if(typeof DUP_MS !== 'undefined') DUP_MS = 0;   // most cases tap the same button repeatedly on purpose; extras.js tests the guard
   close(); renderMe(); document.getElementById('toast').classList.remove('show'); render();
 }

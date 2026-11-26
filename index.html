@@ -783,6 +783,24 @@
   .cam-fa{display:flex;align-items:center;gap:10px;margin-top:6px;font-size:13px;color:var(--muted)} .cam-fa .btn.primary{padding:8px 16px}
   .cam-fa .btn:disabled{opacity:.4;cursor:default}
   .dsw .lnk.cam-set{font-size:12px;margin-top:8px}
+  /* ---------- "מסך יונתן" (simple screen): big targets, the same cards and buttons, one narrow column ---------- */
+  main.simple{width:100%;max-width:560px;margin:0 auto;gap:12px}
+  .smp-h{flex-wrap:wrap;gap:8px 12px} .smp-h > span{display:flex;flex-direction:column;gap:2px} .smp-h small{font-size:12.5px;color:var(--muted)}
+  .smp-rt{flex-wrap:wrap}
+  .smp-since,.smp-two,.smp-g{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+  .smp-c{display:flex;flex-direction:column;gap:1px;min-width:0;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:10px 14px}
+  .v2 .smp-c{border-color:transparent}
+  .smp-c small{font-size:12.5px;color:var(--muted)}
+  .smp-c b{font-size:22px;font-weight:600;font-variant-numeric:tabular-nums;direction:ltr;text-align:right;line-height:1.25}
+  .smp-c b.none{color:var(--faint)}
+  .go.smp-b{min-width:0;width:100%;min-height:64px;padding:12px;font-size:19px;font-weight:600;border-radius:16px;white-space:normal;line-height:1.2}
+  .go.smp-b.smp-main{min-height:88px;font-size:22px}
+  .go.smp-b.sec{background:var(--card);color:var(--ink);border:1.5px solid var(--line)}
+  .night .go.smp-b.sec{background:var(--surf)}
+  .smp-out{display:flex;flex-direction:column;gap:12px;border-color:var(--ok);background:var(--ok-soft)}
+  .smp-oh{display:flex;flex-direction:column;gap:3px} .smp-oh b{font-size:17px;font-weight:600} .smp-oh small{font-size:13px;color:var(--muted)} .smp-oh small b{font-size:inherit;color:var(--ink)}
+  .btn.smp-end{width:100%;min-height:52px;font-size:16px;font-weight:600;border-radius:14px}
+  .dsw .lnk.smp-set{margin-bottom:8px}
 </style>
 </head>
 <body>
@@ -1868,6 +1886,9 @@ try { const u = localStorage.getItem(LS_KEY+'-user'); if(USERS[u] || isGuest(u))
 // additions (the step strip, "עוד", the day ribbon); every button keeps its `data-act`, so the actions are the same code.
 let V2 = true;   // the default since 25.11 evening (the owner: "תפעיל את העיצוב החדש"); a phone that chose the old one keeps it
 try { V2 = localStorage.getItem(LS_KEY+'-v2') !== '0'; } catch(e){}
+// "מסך יונתן" (26.11): the simple screen is also a choice of this phone only (`…-simple` = "1"), off by default.
+const readSimple = () => { try { return localStorage.getItem(LS_KEY+'-simple') === '1'; } catch(e){ return false; } };
+let SIMPLE = readSimple();
 const openX = new Set();   // tiles whose extra lines are unfolded ("עוד"), this session only
 function saveLocal(){ try{ localStorage.setItem(LS_DATA, JSON.stringify({state, base})); }catch(e){} }
 
@@ -2213,8 +2234,8 @@ function tapPoint(p, k, t, sure, extra){
     tw.querySelector('#toMeal').onclick = () => commit(`${PETS[p].name} · ${ITEMS.food.log} · ${MEAL_LBL.meal}`, () => { const x = state.log.find(z => z.id === id); if(x) x.m = 'meal'; });
   }
   stillCrying(p, t, () => {
-    if(hasWhere(k) && e.id) whereSheet(e.id);
-    else if(hasType(p, k) && e.id) typeSheet(e.id);   // vomiting: straight to "of what?"
+    if(hasWhere(k) && e.id && !e.w) whereSheet(e.id);   // the place given with the tap (the simple screen's outing: `w:'gravel'`) is not asked again
+    else if(hasType(p, k) && e.id && !e.q) typeSheet(e.id);   // vomiting: straight to "of what?"; a poop with its place given: "what was it like?"
   });
 }
 function tapDur(p, k, at, camOk){   // `at`: start a timer that began earlier ("she went in 10 minutes ago and is still there")
@@ -4406,6 +4427,60 @@ setInterval(() => { if(!document.hidden && camBase()) camPoll(); }, CAM_POLL_MS)
 setTimeout(() => { if(camBase()) camPoll(); }, 0);
 // ---------- end camera ----------
 
+// ---------- "מסך יונתן" (simple screen, optional, this phone only) ----------
+// A cut-down Kishmish screen for fast logging: three big buttons (יצאנו לחצץ · אכלה · שתתה), the outing's four results
+// while it runs, and two small clocks. Every button is an ordinary action through the same code as the full screen
+// (`tapDur` / `tapPoint`: the double-tap guard, contradictions, crate / sleep / outing endings, retries, the bite toast,
+// undo, `by`, sync and the preview / sandbox blocking are all theirs) — only "now", no "מתי?" sheet: an earlier time is
+// one tap away on the full screen. A pee / poop during the outing carries `w:'gravel'` (the outing says where), so
+// "איפה?" is not asked; a poop still gets "איך הוא היה?". Nothing is stored but the choice (`SIMPLE`, localStorage).
+// Kishmish by day only: Kochik keeps her screen, and the night screen (23–06) is unchanged.
+const simpleOn = () => SIMPLE && view === 'now' && !!PETS[pet].cycle && !isNight();
+function setSimple(on){
+  SIMPLE = !!on; try { localStorage.setItem(LS_KEY+'-simple', SIMPLE ? '1' : '0'); } catch(_){}
+  render(); window.scrollTo(0, 0);
+}
+function simpleHTML(p){
+  const S = V[p], gv = (S.gravel || {}).start, rt = retry(p), name = PETS[p].name;
+  const since = (t, lbl) => `<div class="smp-c"><small>${lbl}</small>${t ? `<b data-since="${t}">${dur(Date.now() - t)}</b><small>${dayLabel(t)} <bdi dir="ltr">${clock(t)}</bdi></small>` : `<b class="none">–</b><small>עוד לא נרשם</small>`}</div>`;
+  const big = (k, txt, cls) => `<button class="go smp-b${cls ? ' ' + cls : ''}" data-act="spl" data-k="${k}">${txt}</button>`;
+  const outing = gv
+    ? `<div class="card smp-out"><div class="smp-oh"><b>בחצץ כבר <span data-since="${gv}">${dur(Date.now() - gv)}</span></b><small>${gravelDone(p, gv) || 'פיפי וקקי נרשמים והשעון ממשיך · "לא עשתה" או "סיום" סוגרים את היציאה'}</small></div>
+        <div class="smp-g">${big('pee', 'פיפי')}${big('poop', 'קקי')}${big('both', 'פיפי וקקי')}${big('none', 'לא עשתה', 'sec')}</div>
+        <button class="btn smp-end" data-act="spl" data-k="end">סיום</button></div>`
+    : big('gravel', ITEMS.gravel.start, 'smp-main');
+  return alertsHTML(p)
+    + `<div class="card slim smp-h"><span><b>מסך יונתן</b><small>${name} · רישום מהיר, עכשיו</small></span><button class="btn" data-act="simple" data-k="0">למסך המלא</button></div>`
+    + (rt ? `<div class="card slim withrt smp-rt ${rt.state}">${retryHead(rt)}</div>` : '')
+    + `<div class="smp-since">${since(S.pee, 'מאז הפיפי')}${since(S.food, 'מאז הארוחה')}</div>`
+    + outing
+    + `<div class="smp-two">${big('food', 'אכלה')}${big('water', 'שתתה')}</div>`;
+}
+// One button of the simple screen = the same call the full screen's button ends in (after its "מתי?" → now).
+function simpleAct(p, k){
+  if(!me){ openUserSheet(() => simpleAct(p, k)); return; }   // who is logging, before anything is written
+  const gv = (V[p].gravel || {}).start, w = gv ? {w:'gravel'} : undefined;
+  if(k === 'gravel'){ if(!gv) tapDur(p, 'gravel'); }   // = data-act="dur" data-k="gravel" (start)
+  else if(k === 'end'){ if(gv) tapDur(p, 'gravel'); }  // = "סיום"
+  else if(k === 'pee' || k === 'poop') tapPoint(p, k, undefined, false, w);
+  else if(k === 'both') simpleBoth(p, w);
+  else if(k === 'none' || k === 'food' || k === 'water') tapPoint(p, k);
+}
+// "פיפי וקקי": the two ordinary taps, one after the other, through `tapPoint` — every side effect as for two taps; the
+// double-tap and contradiction questions are asked once for both, and one undo takes back both.
+function simpleBoth(p, w){
+  const go = () => {
+    const before = clone(state), n = () => state.log.filter(e => e.p===p && (e.k==='pee' || e.k==='poop')).length, n0 = n(), c0 = contraOk;
+    contraOk = true;   // already asked (or nothing to ask) below
+    try { tapPoint(p, 'pee', undefined, true, w); tapPoint(p, 'poop', undefined, true, w); } finally { contraOk = c0; }
+    if(n() === n0 + 2) showToast(`${PETS[p].name} · פיפי וקקי`, {before, after: clone(state)});
+  };
+  const ask = () => { if(!contraGuard(p, 'pee', undefined, go)) go(); };
+  const d = recentDouble(p, e => e.k === 'pee' || e.k === 'poop');
+  if(d) askAgain(d, ITEMS[d.k].log, ask); else ask();
+}
+// ---------- end simple screen ----------
+
 // ---------- render ----------
 // The night screen's cards (v3 hook — Agent E edits only this). Kishmish: the crate tile (with only a running carrier /
 // pen line, no setup), the gravel card, pee, poop, ONE drink row and a slim cry row. Kochik (v3): pee, poop, the drink
@@ -4428,11 +4503,13 @@ function render(){
   document.body.classList.toggle('planv', view === 'plan');   // planning is about both dogs together: no dog selector there (owner, 25.11)   // the colours follow the light (20:00 – sunrise); `night` above is the cut-down screen
   document.querySelectorAll('.seg button').forEach(b => b.classList.toggle('on', b.dataset.pet===pet || b.dataset.view===view));
   document.querySelectorAll('.seg button[data-pet]').forEach(b => { b.innerHTML = `${PETS[b.dataset.pet].name}<small class="age">${ageText(ageOf(b.dataset.pet))}</small>`; });
-  document.getElementById('dsw').innerHTML = `<button class="lnk" data-act="v2">${V2 ? 'עיצוב חדש פעיל · חזרה לעיצוב הקודם' : 'לנסות את העיצוב החדש'}</button>` + camSetLinkHTML();   // camera (experimental): the per-device switch
+  const smp = simpleOn(), smpLink = view === 'now' && PETS[pet].cycle && !night ? `<button class="lnk smp-set" data-act="simple" data-k="${SIMPLE ? 0 : 1}">${SIMPLE ? 'מסך יונתן פעיל · למסך המלא' : 'מסך יונתן · רישום מהיר'}</button><br>` : '';   // the simple screen: Kishmish, by day
+  document.getElementById('dsw').innerHTML = smpLink + `<button class="lnk" data-act="v2">${V2 ? 'עיצוב חדש פעיל · חזרה לעיצוב הקודם' : 'לנסות את העיצוב החדש'}</button>` + (smp ? '' : camSetLinkHTML());   // camera (experimental): the per-device switch — not on the simple screen
   const side = document.getElementById('side'); side.innerHTML = '';
   document.getElementById('main').className = view === 'now' && !slim ? (PETS[pet].cycle ? 'grps' : 'grps solo') : '';
   if(view==='sum'){ document.getElementById('main').innerHTML = renderSummary(); return; }
   if(view==='plan'){ planRender(); return; }   // the planning tab (its block is before the events)
+  if(smp){ const m = document.getElementById('main'); m.className = 'simple'; m.innerHTML = simpleHTML(pet); camsWatch(); camjSub(); return; }   // "מסך יונתן"
   const P = PETS[pet], S = V[pet], aw = P.cycle ? awakeSince(pet) : 0;
   let h = '', medHTML = '';
   // A group of tiles in an outer box with a heading. Kishmish's follow the routine's steps; Kochik's follow topics.
@@ -6070,6 +6147,7 @@ function goSec(key){
   setTimeout(() => els.forEach(n => n.classList.remove('flash')), 1500);
 }
 document.getElementById('dsw').addEventListener('click', e => {
+  const sm = e.target.closest('[data-act=simple]'); if(sm){ setSimple(sm.dataset.k === '1'); return; }   // "מסך יונתן" on / off (this phone)
   if(!e.target.closest('[data-act=v2]')) return;
   V2 = !V2; try { localStorage.setItem(LS_KEY+'-v2', V2 ? '1' : '0'); } catch(_){}
   render(); window.scrollTo(0, 0);
@@ -6102,7 +6180,9 @@ document.getElementById('shell').addEventListener('click', e => {
   if(row){ sumMode = 'day'; sumAnchor = +row.dataset.day; render(); window.scrollTo(0,0); return; }
   const b = e.target.closest('button'); if(!b) return;
   const k = b.dataset.k, a = b.dataset.act;
-  if(a==='mode'){ sumMode = k; render(); }
+  if(a==='spl') simpleAct(pet, k);   // "מסך יונתן": the same actions, now
+  else if(a==='simple') setSimple(k === '1');
+  else if(a==='mode'){ sumMode = k; render(); }
   else if(a==='copylog') exportLog(false);
   else if(a==='sharelog') exportLog(true);
   else if(a==='filt'){ sumFilter = sumFilter === k ? null : k; render(); }
