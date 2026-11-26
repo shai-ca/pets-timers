@@ -162,6 +162,7 @@
   .tl-t .f{position:absolute;top:4px;bottom:4px;width:2px;margin-left:-1px;border-radius:1px;background:var(--ink);opacity:.5}
   .tl-t .d{position:absolute;top:50%;width:13px;height:13px;margin:-6.5px 0 0 -6.5px;padding:0;border:2px solid var(--card);border-radius:50%;background:var(--c);cursor:pointer}
   .tl-t .d.poop{border-radius:3px}
+  .tl-t .u{position:absolute;top:50%;height:10px;margin-top:-5px;padding:0;border:1px dashed var(--c);border-radius:5px;background:var(--c);opacity:.3;cursor:pointer}
   .tl-t .d::after{content:"";position:absolute;inset:-9px -5px}
   .tl-x{position:relative;height:14px;font-size:10.5px;color:var(--faint);font-variant-numeric:tabular-nums}
   .tl-x span{position:absolute;transform:translateX(-50%)} .tl-x span:first-child{transform:none} .tl-x span:last-child{transform:translateX(-100%)}
@@ -843,6 +844,13 @@ const WHERE = {out:'בחוץ', gravel:'על החצץ במרפסת', balcony:'ע�
 const whereKeys = p => PETS[p].where || Object.keys(WHERE);
 const WHERE_SHORT = {out:'בחוץ', gravel:'חצץ', balcony:'רצפת המרפסת', pad:'פד', home:'בית', floor:'רצפה', crate:'כלוב'};
 const hasWhere = k => k==='pee' || k==='poop';
+// UNKNOWN TIME (owner, 26.11: she found a pee in the crate in the morning). A pee / poop whose time is not known is the
+// ordinary entry with `t` = when it was FOUND and `tu: [from, to]` (to = t): interval-censored. It counts in the pee /
+// poop counts, the places and the misses; it is NEVER a time she peed: no clock reset, no gap, no model, no sleep / wake
+// inference, no retry, no gravel rate, and logging it ends nothing (`logUnknown`, not `impliesOut`).
+const isTU = e => !!e && Array.isArray(e.tu);
+const tuText = e => `בזמן לא ידוע (בין ${dayLabel(e.tu[0]) === dayLabel(e.t) ? '' : dayLabel(e.tu[0]) + ' '}${clock(e.tu[0])} ל־${clock(e.tu[1])}, נמצא ב־${clock(e.t)})`;
+const TU_BACK = 12*3600000;   // with nothing to start the suggested range from: this long before it was found
 // Strictly inside a crate stay (a meal that ENDED a stay under the old rule sits on its edge and does not count).
 const inCrate = e => PETS[e.p].cycle && state.log.some(s => s.p===e.p && s.k==='crate' && s.t < e.t && (s.end == null || s.end > e.t));
 const lblOf = e => e.k === 'play' && inCrate(e) ? 'קיבלה בכלוב' : e.k === 'food' && inCrate(e) ? 'אכלה בכלוב' : e.k === 'weight' && typeof e.kg === 'number' ? `משקל ${e.kg.toFixed(1)} ק״ג` : e.k === 'cset' ? csetLbl(e) : e.k === 'away' ? awayLbl(e) : ITEMS[e.k].log;
@@ -925,6 +933,13 @@ function norm(s){   // any saved or received data -> the current shape (also upg
   const b = blank();
   if(!s || typeof s !== 'object') return b;
   b.log = Array.isArray(s.log) ? clone(s.log).filter(e => e && ITEMS[e.k] && PETS[e.p] && typeof e.t === 'number') : [];
+  // `tu` (unknown time): two numbers, from ≤ to ≤ t. Repaired, never dropped — dropping it would turn the discovery
+  // time into the time she peed.
+  for(const e of b.log) if('tu' in e){
+    const u = Array.isArray(e.tu) ? e.tu.filter(x => typeof x === 'number' && isFinite(x)) : [];
+    const hi = Math.min(e.t, u.length ? Math.max(...u) : e.t), lo = Math.min(hi, u.length ? Math.min(...u) : e.t - TU_BACK);
+    e.tu = [lo, hi];
+  }
   if(s.legacy) b.legacy = clone(s.legacy);
   if(!(s.v >= 2)){
     // Version 1 kept a pet object next to the list. It is preserved untouched under `legacy` (nothing reads
@@ -960,7 +975,8 @@ function derive(s){
         const c = S[e.k] = S[e.k] || {};
         if(e.end == null){ if(!(c.start <= e.t)) c.start = e.t; }
         else if(!(c.lastEnd >= e.end)){ c.lastStart = e.t; c.lastEnd = e.end; }
-      } else if(!(S[e.k] >= e.t)) S[e.k] = e.t;
+      } else if(isTU(e)){ const u = e.k + 'U'; if(!(S[u] && S[u].t >= e.t)) S[u] = e; }   // unknown time: never the "last" time
+      else if(!(S[e.k] >= e.t)) S[e.k] = e.t;
     }
     // Food (routine pets): the timer, the alert and the forecasts follow MEALS; a bite in between does not reset them.
     S.mealOf = PETS[p].cycle ? mealKinds(p, s.log) : new Map();
@@ -1000,7 +1016,7 @@ function mealKinds(p, log){
     const day0 = sod(e.t).getTime(), out = Math.max(0, ...stays.filter(c => c.end != null && c.end <= e.t).map(c => c.end)), base = out >= day0 ? out : day0;
     let went = false, first = true;
     for(let j = i - 1; j >= 0 && L[j].t >= base; j--){
-      const x = L[j], it = ITEMS[x.k]; if(!it || it.dur || it.hid || it.aux) continue;   // `aux` (a crate-setup change) is not a routine step
+      const x = L[j], it = ITEMS[x.k]; if(!it || it.dur || it.hid || it.aux || isTU(x)) continue;   // `aux` (a crate-setup change) is not a routine step
       if(first && x.k === 'brk') return false;   // a break in the routine: no step at all
       first = false;
       if(x.k === 'nofood' || (x.k === 'food' && m.get(x) === 'meal')) return false;   // the round's food step is behind her
@@ -1076,7 +1092,7 @@ const POTTY_CUE = {nap:45*60000, napFor:30*60000, mealPoop:30*60000, mealTry:[10
 // "התעוררה" on an estimated sleep are not samples (`a:1`; older ones sit exactly on the old two-minute mark).
 const AWAKE_PT = {food:1, nofood:1, water:1, play:1, swap:1};
 function sleepSamples(p, log, now){
-  const L = log.filter(e => e.p===p), stays = L.filter(e => e.k==='crate'), out = [];
+  const L = log.filter(e => e.p===p && !isTU(e)), stays = L.filter(e => e.k==='crate'), out = [];
   const setupPts = L.filter(x => SETUP_PT[x.k]).flatMap(x => x.end != null ? [x.t, x.end] : [x.t]);
   for(const s of L.filter(e => e.k==='sleep' && !e.a)){
     const c = stays.filter(x => x.t <= s.t && (x.end == null ? now : x.end) >= s.t).sort((x,y) => x.t-y.t).pop(); if(!c) continue;
@@ -1115,7 +1131,7 @@ function treatAwakeUntil(L, c, s){   // the earliest an estimate may begin in th
   return t ? t + CRATE_TREAT_AWAKE*60000 : 0;
 }
 function sleepSpans(p, log, now){
-  const L = log.filter(e => e.p===p), sleeps = L.filter(e => e.k==='sleep'), cries = L.filter(e => e.k==='cry');
+  const L = log.filter(e => e.p===p && !isTU(e)), sleeps = L.filter(e => e.k==='sleep'), cries = L.filter(e => e.k==='cry');
   const out = sleeps.map(e => ({t:e.t, end: e.end == null ? null : e.end, id:e.id}));
   if(PETS[p].cycle){
     // What she was seen doing splits a stay from SLEEP2_FROM on; a change of crate splits it always.
@@ -1187,7 +1203,7 @@ function needsPee(L, t, wakes, meals){
   return wakes.some(recent) || meals.some(recent);
 }
 function retryScan(p, log){
-  const stays = new Set(), nones = new Set(), L = log.filter(e => e.p===p).sort((x,y) => x.t-y.t), wakes = L.filter(e => e.k==='sleep' && e.end != null).map(e => e.end);
+  const stays = new Set(), nones = new Set(), L = log.filter(e => e.p===p && !isTU(e)).sort((x,y) => x.t-y.t), wakes = L.filter(e => e.k==='sleep' && e.end != null).map(e => e.end);
   const meals = [...mealKinds(p, log)].filter(x => x[1] === 'meal').map(x => x[0].t);
   let last = null;   // the latest pee / poop / "nothing", and whether it calls for a retry
   for(const e of L){
@@ -1269,7 +1285,7 @@ function episodes(p, from, to, opts){
   const all = o.spans || (!o.log && V && V[p] ? V[p].spans : sleepSpans(p, log, now));
   const sp = all.filter(x => x.t <= now && x.t < to && (x.end == null ? now : x.end) > from).sort((x,y) => x.t-y.t);
   const ent = new Map(L.filter(e => e.k==='sleep').map(e => [e.id, e]));
-  const ev = L.filter(e => MEANINGFUL[e.k]);
+  const ev = L.filter(e => MEANINGFUL[e.k] && !isTU(e));   // an unknown-time pee says nothing about when she woke
   const eventIn = (a, b) => ev.some(e => (e.k === 'crate' || !ITEMS[e.k].dur)
     ? (e.t >= a && e.t <= b) || (e.k === 'crate' && e.end != null && e.end >= a && e.end <= b)
     : e.t <= b && (e.end == null ? now : e.end) >= a);
@@ -1342,7 +1358,7 @@ function learnedNight(p, opts){
 function sleepOn(p, elapsedMs, opts){
   const o = opts || {}, now = o.now != null ? o.now : Date.now(), S = SLEEP_ON.step;
   const eps = learnEpisodes(p, now - SLEEP_ON.days*86400000, now, {...o, now}).filter(e => e.src === 'marked');
-  const near = !o.censorNear ? [] : (o.log || state.log).filter(e => e.p===p).flatMap(e => e.k === 'crate' ? (e.end != null ? [e.end] : [])
+  const near = !o.censorNear ? [] : (o.log || state.log).filter(e => e.p===p && !isTU(e)).flatMap(e => e.k === 'crate' ? (e.end != null ? [e.end] : [])
     : (e.k === 'gravel' || e.k === 'carrier' || e.k === 'pen' || e.k === 'pee' || e.k === 'poop' || e.k === 'none') ? [e.t] : []);
   const cut = t => near.some(x => Math.abs(x - t) <= SLEEP_ON.near);
   const data = eps.map(e => ({d: Math.max(0, (e.end == null ? now : e.end) - e.t), ev: e.end != null && !o.endAsCensored && !cut(e.end)}));
@@ -1368,14 +1384,16 @@ function sleepOn(p, elapsedMs, opts){
 const PEE_WAKE = 15*60000;
 function peeGapsObs(p, from, to, opts){
   const o = opts || {}, log = o.log || state.log, now = o.now != null ? o.now : Date.now();
-  const L = log.filter(e => e.p===p).sort((x,y) => x.t-y.t), pees = L.filter(e => e.k==='pee').map(e => e.t);
+  const L = log.filter(e => e.p===p).sort((x,y) => x.t-y.t), pees = L.filter(e => e.k==='pee' && !isTU(e)).map(e => e.t);
   const eps = episodes(p, from - 86400000, to, {...o, now}).filter(e => e.end != null), gaps = [];
   for(let i = 1; i < pees.length; i++){
     const a = pees[i-1], b = pees[i]; if(b < from || b >= to) continue;
     gaps.push({a, b, gap: b - a, night: touchesNight(a, b), afterWake: eps.some(e => e.end >= a && e.end <= b && b - e.end <= PEE_WAKE), outcome: 'pee'});
   }
   const attempts = L.filter(e => e.k==='none' && e.t >= from && e.t < to).map(e => ({t: e.t, outcome: 'none', note: 'no pee observed in that attempt'}));
-  return {gaps, attempts};
+  // a pee found later, time unknown: an interval-censored record of its own, never a gap (for future use)
+  const intervals = L.filter(e => e.k==='pee' && isTU(e) && e.t >= from && e.t < to).map(e => ({lo: e.tu[0], hi: e.tu[1], censored: 'interval'}));
+  return {gaps, attempts, intervals};
 }
 // advice(p) -> {level:'none'|'info'|'act', text, why}. Kishmish only (Kochik: always none — Agent C). Exactly one calm
 // line or none, in this order: (1) safety — a red card (`alerts`: food / pee / poop) or past wake-by ("כדאי להעיר")
@@ -1484,7 +1502,7 @@ function kbAdd(t, n){ const d = new Date(t); d.setDate(d.getDate() + n); return 
 function kbSpread(v){ const n = v.length; if(!n) return {n: 0, mean: null, sd: null}; const m = v.reduce((a, b) => a + b, 0) / n; return {n, mean: m, sd: n > 1 ? Math.sqrt(v.reduce((a, x) => a + (x - m) ** 2, 0) / (n - 1)) : 0}; }
 // One period [from, to) (both local midnights) of dog p; L = her entries sorted by time.
 function kbStats(p, from, to, L){
-  const B = KOCHIK_BASE, E = L.filter(e => e.t >= from && e.t < to && !KB_SKIP[e.k]), days = [], byDay = {};
+  const B = KOCHIK_BASE, E = L.filter(e => e.t >= from && e.t < to && !KB_SKIP[e.k] && !isTU(e)), days = [], byDay = {};   // unknown-time entries: not learned from
   for(let d = from; d < to; d = kbAdd(d, 1)) days.push(d);
   for(const e of E) (byDay[dayKey(e.t)] = byDay[dayKey(e.t)] || []).push(e);
   const logged = days.filter(d => byDay[dayKey(d)]);
@@ -1687,7 +1705,7 @@ function pottyExpect(p, now){
   if(mc) poop = {from: mc, to: mc + POTTY_CUE.mealPoop, trigger: 'meal', src: 'rule', n: 0};
   else if(typeof S.poop === 'number'){
     if(m && m.last != null && m.last > S.poop) poop = {from: m.last + quantile(m.g, .25), to: m.last + quantile(m.g, .75), trigger: m.anchor === 'food' ? 'meal' : 'wake', src: 'learned', n: m.g.length};
-    else { const g = poopGap(p); if(g){ const n = state.log.filter(e => e.p===p && e.k==='poop' && e.t >= now - 14*86400000).length - 1; poop = {from: S.poop + .75*g, to: S.poop + 1.25*g, trigger: 'gap', src: 'learned', n}; } }
+    else { const g = poopGap(p); if(g){ const n = state.log.filter(e => e.p===p && e.k==='poop' && !isTU(e) && e.t >= now - 14*86400000).length - 1; poop = {from: S.poop + .75*g, to: S.poop + 1.25*g, trigger: 'gap', src: 'learned', n}; } }
   }
   return {pee, poop};
 }
@@ -1720,7 +1738,7 @@ function sleepOrigin(p, span){
 function kochikRhythm(now, log){
   now = now != null ? now : Date.now();
   const L = (log || state.log).filter(e => e.p==='kochik' && e.t <= now), from = now - PLAN.days*86400000;
-  const ts = L.filter(e => e.k==='pee').map(e => e.t).sort((x,y) => x-y), g = [];
+  const ts = L.filter(e => e.k==='pee' && !isTU(e)).map(e => e.t).sort((x,y) => x-y), g = [];
   for(let i = 1; i < ts.length; i++){ const a = ts[i-1], b = ts[i], d = b - a; if(b >= from && d >= 10*PL_M && d <= PLAN.kochikLong && !planNight(a, b)) g.push(d); }
   g.sort((x,y) => x-y);
   const sick = L.filter(e => e.t >= now - 24*PL_H && ((e.k==='poop' && e.q==='dia') || e.k==='vomit')).sort((x,y) => x.t-y.t).pop() || null;
@@ -2154,19 +2172,19 @@ function endGravel(p, t, staleOnly){   // staleOnly: a pee / poop only tidies up
   const g = state.log.filter(e => e.p===p && e.k==='gravel' && e.end == null);
   for(const e of g){
     if(e.t < t && t - e.t <= GRAVEL_MAX){ if(!staleOnly) e.end = t; continue; }
-    const res = state.log.filter(x => x.p===p && (x.k==='pee' || x.k==='poop') && x.t > e.t && x.t - e.t <= GRAVEL_MAX).sort((x,y) => y.t - x.t)[0];
+    const res = state.log.filter(x => x.p===p && (x.k==='pee' || x.k==='poop') && !isTU(x) && x.t > e.t && x.t - e.t <= GRAVEL_MAX).sort((x,y) => y.t - x.t)[0];
     if(res) e.end = res.t; else state.log = state.log.filter(x => x !== e);
   }
 }
 // The gravel outing a result belongs to: started before it and still running then (or ended at / after it).
-const gravelOf = e => state.log.find(x => x.p===e.p && x.k==='gravel' && x.t < e.t && e.t - x.t <= GRAVEL_MAX && (x.end == null || x.end >= e.t));
+const gravelOf = e => !isTU(e) && state.log.find(x => x.p===e.p && x.k==='gravel' && x.t < e.t && e.t - x.t <= GRAVEL_MAX && (x.end == null || x.end >= e.t));
 // The wait behind a pee / poop / "לא עשתה": what she said afterwards (`g`, minutes), else the time since the outing began.
 function gravelDone(p, from){   // what this outing has had so far: "נרשם: פיפי 17:40 · קקי 17:42"
-  const r = state.log.filter(e => e.p===p && (e.k==='pee' || e.k==='poop') && e.t > from).sort((x,y) => x.t - y.t);
+  const r = state.log.filter(e => e.p===p && (e.k==='pee' || e.k==='poop') && !isTU(e) && e.t > from).sort((x,y) => x.t - y.t);
   return r.length ? `נרשם: ${r.map(e => `${ITEMS[e.k].log} <bdi dir="ltr">${clock(e.t)}</bdi>`).join(' · ')} · אפשר להוסיף, או "סיום"` : '';
 }
 function waitOf(e){
-  if(!(e.k === 'pee' || e.k === 'poop' || e.k === 'none')) return null;
+  if(!(e.k === 'pee' || e.k === 'poop' || e.k === 'none') || isTU(e)) return null;
   if(typeof e.g === 'number' && e.g > 0) return e.g * 60000;
   const g = gravelOf(e);
   return g ? e.t - g.t : null;
@@ -2180,7 +2198,7 @@ function usualWait(p, kinds, from, to){   // median wait for these kinds in a pe
 // Logging it ended the running stay at its time (`impliesOut`); choosing "in the crate" reopens that stay —
 // unless a later crate stay has begun since. A sleep it ended stays ended: she was awake to do it.
 function pottyInCrate(x){
-  if(!x || !PETS[x.p].cycle || !OUT_KINDS[x.k]) return;
+  if(!x || !PETS[x.p].cycle || !OUT_KINDS[x.k] || isTU(x)) return;   // unknown time: it ended no stay, so there is nothing to reopen
   const c = state.log.find(e => e.p===x.p && e.k==='crate' && e.end === x.t);
   if(c && !state.log.some(e => e.p===x.p && e.k==='crate' && e !== c && e.t > c.t)) delete c.end;
 }
@@ -2290,7 +2308,7 @@ function scores(p){
   const night = inN(all), nightMarked = inN(union(sp.filter(seen)));
   const top = sleepGoalTop(p), range = total < g*H ? 'below' : total > top*H ? 'above' : 'in';
   const asleep = !!(V[p].sleep && V[p].sleep.start), aw = awakeSince(p);
-  const pts = state.log.filter(e => e.p===p && (e.k==='pee' || e.k==='poop') && e.t >= a && e.t <= now && WHERE[e.w]);
+  const pts = state.log.filter(e => e.p===p && (e.k==='pee' || e.k==='poop') && !isTU(e) && e.t >= a && e.t <= now && WHERE[e.w]);
   const good = pts.filter(e => e.w === 'gravel' || e.w === 'out').length;
   return {total, marked, est, share: total / (24*H), g, top, range, night, nightMarked, nightFrom: NS.from, nightTo: NS.to,
     ready: null, asleep, awakeFrom: asleep ? null : aw || null, gravel: pts.length >= 3 ? Math.round(good / pts.length * 100) : null, good, all: pts.length};
@@ -2378,7 +2396,7 @@ function askTreat(p, q){   // one sheet: what it was (optional, with her earlier
 // WHAT HAPPENED BEFORE A DIARRHOEA — facts only: the latest fatty treat in the 24 hours before it, if there was one.
 const FAT_WINDOW = 24*3600000;
 function fatBefore(e){
-  if(e.k !== 'poop' || e.q !== 'dia') return null;
+  if(e.k !== 'poop' || e.q !== 'dia' || isTU(e)) return null;   // unknown time: no "N hours after a treat"
   return state.log.filter(x => x.p===e.p && x.k==='treat' && x.q==='fat' && x.t <= e.t && e.t - x.t <= FAT_WINDOW).pop() || null;
 }
 function fatLine(e){   // "8 שעות אחרי חטיף שומני (שי, 09:15)"
@@ -2523,7 +2541,7 @@ function cryKind(e){
   if(e.t - st.t <= CRY.protest) return 'protest';
   if(st.end == null || !V[e.p].spans.some(sp => sp.t < e.t && (sp.end == null ? now : sp.end) > st.t)) return null;
   if(st.end - Math.min(e.end == null ? st.end : e.end, st.end) > CRY.out) return null;
-  if(L.some(x => (x.k==='pee' || x.k==='poop') && x.t >= st.end - 60000 && x.t - st.end <= CRY.need)) return 'asked';
+  if(L.some(x => (x.k==='pee' || x.k==='poop') && !isTU(x) && x.t >= st.end - 60000 && x.t - st.end <= CRY.need)) return 'asked';
   return now - st.end < CRY.need ? null : 'askedNo';
 }
 function cryStats(p, from, to){
@@ -2634,11 +2652,53 @@ function alertsHTML(p){
 // buttons, any number of minutes, or a clock time. The owner is with the puppy when things happen and
 // often cannot tap at that very minute. `go(ts)` gets a time, or nothing for "now".
 let ASK_WHEN = true;
-function askWhen(title, go, extra){   // `extra`: something to ask in the same sheet, above the times (a treat's name)
+function askWhen(title, go, extra, unk){   // `extra`: something to ask in the same sheet, above the times (a treat's name); `unk` {p, k}: offer "לא ידוע מתי"
   if(!ASK_WHEN){ go(); return; }
-  sheet(title, (extra || '') + chips([0,5,10,15,20,30,60,120,180]).replace('class="chips"', 'class="chips when"') + `<div class="sub" style="margin:4px 0 8px">או ביום ובשעה:</div>${dayPick()}<label class="field">בשעה ${timeField("tIn", nowStr())}</label>`,
+  sheet(title, (extra || '') + chips([0,5,10,15,20,30,60,120,180]).replace('class="chips"', 'class="chips when"') + `<div class="sub" style="margin:4px 0 8px">או ביום ובשעה:</div>${dayPick()}<label class="field">בשעה ${timeField("tIn", nowStr())}</label>`
+    + (unk ? `<div class="sub" style="margin-top:10px"><button class="lnk" id="tuGo">לא ידוע מתי</button></div>` : ''),
     cancelBtn, () => { const v = timeVal('tIn'); if(!v) return; close(); const ts = timeToTs(v); go(Date.now() - ts < 60000 ? undefined : ts); },
     ts => go(Date.now() - ts < 1000 ? undefined : ts));
+  const u = unk && sh.querySelector('#tuGo'); if(u) u.onclick = () => unknownSheet(unk.p, unk.k);
+}
+// UNKNOWN TIME, the suggested range: from the later of (a) the start of the crate stay she is in now, or of the last one
+// that ended in the last TU_BACK, and (b) the last pee / poop of this kind with a known time — before either she was
+// seen (put in the crate, or peeing), so it cannot have happened earlier than that; with neither, TU_BACK before now.
+// To = now (when it was found). Both editable; then the usual "where?" / "what kind?" questions.
+function tuSuggest(p, k, now){
+  const L = state.log.filter(e => e.p===p), last = L.filter(e => e.k===k && !isTU(e) && e.t <= now).reduce((m, e) => Math.max(m, e.t), 0);
+  const st = PETS[p].cycle ? L.filter(e => e.k==='crate' && e.t <= now && (e.end == null || now - e.end <= TU_BACK)).sort((x,y) => x.t-y.t).pop() : null;
+  const from = Math.max(st ? st.t : 0, last);
+  return {from: from || now - TU_BACK, to: now, why: !from ? 'בלי נקודת התחלה ידועה: 12 שעות אחורה' : st && st.t >= last ? 'מהכניסה לכלוב' : `מה${ITEMS[k].log} האחרון`};
+}
+function unknownSheet(p, k){
+  const now = Date.now(), g = tuSuggest(p, k, now), back = Math.max(0, Math.round((sod(now) - sod(g.from)) / 86400000));
+  sheet(`${PETS[p].name} · ${ITEMS[k].log} · לא ידוע מתי`,
+    `<div class="sub" style="margin-bottom:8px">מתי זה יכול היה לקרות? (${g.why})</div><div class="sub" style="margin:4px 0 8px">מ־ ביום:</div>${dayPick()}
+     <label class="field">מ־ ${timeField('tuA', clock(g.from))}</label><label class="field">עד (מתי נמצא) ${timeField('tuB', clock(g.to))}</label>
+     <div class="sub">נספר בספירה ובפספוסים, אבל לא כזמן שבו עשתה: השעון ממשיך מהפעם האחרונה שהזמן שלה ידוע.</div>`,
+    cancelBtn, () => {
+      const a = timeVal('tuA'), b = timeVal('tuB'); if(!a || !b) return;
+      const d0 = dayBack; dayBack = 0; let to = timeToTs(b); dayBack = d0;
+      to = Math.min(to, Date.now());
+      let from = timeToTs(a); while(from > to) from -= 86400000;
+      close(); logUnknown(p, k, from, to);
+    });
+  // the suggested day of "from" is selected
+  const btn = sh.querySelector(`[data-day="${Math.min(back, 2)}"]`); if(btn) btn.click();
+}
+// Logs it: t = when found, tu = [from, to]. No impliesOut / leaveCrate / endGravel — a stay or a sleep goes on unless
+// someone says otherwise. In a crate stay the whole time: "בכלוב" is preselected; "where?" and "what kind?" follow.
+function logUnknown(p, k, from, to){
+  const t = to, e = {p, k, t, tu: [Math.min(from, t), t]};
+  if(PETS[p].cycle && whereKeys(p).includes('crate') && state.log.some(c => c.p===p && c.k==='crate' && c.t <= e.tu[0] && (c.end == null || c.end >= t))) e.w = 'crate';
+  commit(`${PETS[p].name} · ${ITEMS[k].log} · בזמן לא ידוע`, () => { state.log.push(e); });
+  if(e.id) whereSheet(e.id);
+}
+// The pee / poop card: "פיפי בזמן לא ידוע (בין A ל־B)" while the newest such entry is newer than the last known one.
+// The clock above keeps counting from the last known time.
+function unknownLine(p, k){
+  const u = V[p][k + 'U']; if(!u || (V[p][k] || 0) >= u.t || Date.now() - u.t > 24*3600000) return '';
+  return `<div class="sub hint tuline">${ITEMS[k].log} ${tuText(u).replace(/, נמצא ב־.*\)$/, ')')}${WHERE[u.w] ? ' · ' + WHERE[u.w] : ''} · השעון למעלה מהפעם האחרונה שהזמן ידוע</div>`;
 }
 function endDurAt(p, k, ts){   // "woke up / came out 10 minutes ago"
   const t = Math.min(ts, Date.now());
@@ -2653,7 +2713,7 @@ function endDurAt(p, k, ts){   // "woke up / came out 10 minutes ago"
 // Tapping the same button twice within two minutes asks first. (On 23.11 the same entries were logged
 // twice at 15:54 and at 16:00.) Entries given an explicit time ("שעה אחרת") are not checked.
 let DUP_MS = 2*60000;
-function recentDouble(p, same){ const now = Date.now(); return state.log.filter(e => e.p===p && same(e) && Math.abs(now - e.t) < DUP_MS).pop() || null; }
+function recentDouble(p, same){ const now = Date.now(); return state.log.filter(e => e.p===p && !isTU(e) && same(e) && Math.abs(now - e.t) < DUP_MS).pop() || null; }
 function askAgain(e, label, yes){
   sh.innerHTML = `<h3>כבר נרשם</h3><div class="sub" style="font-size:14.5px;margin-bottom:18px">${label} כבר נרשם ב־<bdi dir="ltr">${clock(e.t)}</bdi>${byName(e.by) ? ' על ידי ' + byName(e.by) : ''}. לרשום שוב?</div>
     <div class="foot"><button class="btn" id="cancel">לא, זו טעות</button><button class="btn primary" id="ok">לרשום שוב</button></div>`;
@@ -2667,7 +2727,7 @@ const CONTRA = {food:['nofood'], nofood:['food'], pee:['none'], poop:['none'], n
 let contraOk = false;   // set for one call when the owner confirmed
 function contradiction(p, k, t){
   const o = CONTRA[k], at = t || Date.now();
-  return o ? state.log.filter(e => e.p===p && o.includes(e.k) && Math.abs(at - e.t) < DUP_MS).pop() || null : null;
+  return o ? state.log.filter(e => e.p===p && o.includes(e.k) && !isTU(e) && Math.abs(at - e.t) < DUP_MS).pop() || null : null;
 }
 // true = it asked (the caller stops); `go` logs as usual after "yes".
 function contraGuard(p, k, t, go){
@@ -2702,7 +2762,7 @@ function retry(p){
   let N = null, tries = 0;
   for(let i = L.length-1; i >= 0; i--){
     const e = L[i];
-    if(e.k === 'pee') break;
+    if(e.k === 'pee' && !isTU(e)) break;
     if(e.k === 'none'){ if(!N){ if(e.x || !calls.has(e)) return null; N = e; } if(calls.has(e)) tries++; }
   }
   if(!N) return null;
@@ -2716,7 +2776,7 @@ function retry(p){
 }
 function freeTime(p){
   if(!PETS[p].cycle) return null;
-  const pe = state.log.filter(e => e.p===p && e.k==='pee').pop(), now = Date.now();
+  const pe = state.log.filter(e => e.p===p && e.k==='pee' && !isTU(e)).pop(), now = Date.now();
   if(!pe || !(pe.w === 'gravel' || pe.w === 'out')) return null;
   if(state.log.some(e => e.p===p && e.k==='crate' && e.t > pe.t)) return null;   // back in the crate: free time is over
   const el = now - pe.t; if(el > (FREE.max + 20)*60000) return null;
@@ -2752,7 +2812,7 @@ function retryStats(p, from, to){
   for(const c of L){
     if(c.k !== 'crate' || c.end == null || c.t < from || c.t >= to || !isRetryStay(c)) continue;
     n++;
-    const next = L.find(e => (e.k==='pee' || e.k==='poop' || e.k==='none') && e.t >= c.end);
+    const next = L.find(e => (e.k==='pee' || e.k==='poop' || e.k==='none') && !isTU(e) && e.t >= c.end);
     if(next && next.k === 'pee' && next.t - c.end <= RETRY.gap && (next.w === 'gravel' || next.w === 'out')) good++;
   }
   return {n, good};
@@ -2792,7 +2852,7 @@ function routine(p){
   if(S.crate.start) return {i:0, t:S.crate.start, next:1, retry:!!rt};
   const lastOut = Math.max(0, ...state.log.filter(e => e.p===p && e.k==='crate' && e.end != null).map(e => e.end));
   const out = lastOut >= day0 ? lastOut : 0, base = out || day0;
-  const ev = state.log.filter(e => e.p===p && e.t >= base && !ITEMS[e.k].dur && !ITEMS[e.k].hid && !ITEMS[e.k].aux);
+  const ev = state.log.filter(e => e.p===p && e.t >= base && !ITEMS[e.k].dur && !ITEMS[e.k].hid && !ITEMS[e.k].aux && !isTU(e));   // a pee found later moves no step
   const went = e => e.k==='pee' || e.k==='poop', isM = e => e.k==='nofood' || mealKind(e) === 'meal';   // a bite is not the round's meal: the wheel and the food timer agree
   const last = ev[ev.length-1];
   if(last && last.k === 'brk') return {brk:true, t:last.t, next:0};
@@ -2883,7 +2943,7 @@ const hmm = ms => { const m = Math.round(ms / 60000); return `${Math.floor(m/60)
 function partsBar(p, a, b, dp, hint){
   const W = Math.max(1, b - a), pc = t => ((t - a) / W * 100).toFixed(2);
   const bar = dp.segs.map(s => { const wd = (s.b - s.a) / W * 100; return `<span class="pt ${s.k}" style="left:${pc(s.a)}%;width:${wd.toFixed(2)}%" data-tip="${PART[s.k]} ${clock(s.a)}–${s.b >= Date.now() - 1000 ? 'עכשיו' : clock(s.b)} · ${words(s.b - s.a)}">${wd >= 13 ? `<i>${clock(s.a)}</i>` : ''}</span>`; }).join('');   // a part wide enough carries its start time
-  const mk = state.log.filter(e => e.p===p && e.t >= a && e.t < b && (e.k==='pee' || e.k==='poop' || e.k==='play' || (e.k==='food' && mealKind(e) === 'meal'))).map(e => {
+  const mk = state.log.filter(e => e.p===p && !isTU(e) && e.t >= a && e.t < b && (e.k==='pee' || e.k==='poop' || e.k==='play' || (e.k==='food' && mealKind(e) === 'meal'))).map(e => {
     const bad = (e.k==='pee' || e.k==='poop') && WHERE[e.w] && e.w !== 'gravel' && e.w !== 'out';
     const tip = `${e.k === 'food' ? 'ארוחה' : e.k === 'play' ? 'משחק' + (PLAY[e.y] ? ' · ' + PLAY[e.y] : '') : ITEMS[e.k].log} ${clock(e.t)}${WHERE[e.w] ? ' · ' + WHERE[e.w] : ''}`;
     return `<svg class="i mk ${e.k} ${bad ? 'bad' : ''}" viewBox="0 0 24 24" style="left:${pc(e.t)}%" data-tip="${tip}"><rect class="hit" x="-4" y="-4" width="32" height="32"/>${ICONS[e.k === 'play' ? 'ball' : e.k]}</svg>`;
@@ -3129,7 +3189,7 @@ function render(){
           : it.slow ? `<div class="big txt ${t?'':'none'}">${t ? wordsLong(Date.now()-t) : '–'}</div>`
                     : `<div class="big ${t?'':'none'}" ${t?`data-since="${t}"`:''}>${t ? dur(Date.now()-t) : '–'}</div>`}
           <div class="sub">${t ? `${dayLabel(t)} ב־${clock(t)}${whereOf(pet,k,t) || (hasWhere(k) ? ` · <button class="lnk" data-act="where" data-k="${k}">איפה?</button>` : '')}${typeOf(pet,k,t)}${byOf(pet,k,t)}` : 'עוד לא נרשם'}</div>
-          ${P.cycle && k === 'pee' ? peeCardLines(pet) : ''}${k === 'pee' ? holdHint(pet) : ''}${P.cycle && k === 'poop' ? mealPoopHTML(pet) + poopLine(pet) + (V2 && !mealPoopCue(pet) ? gaugeHTML(poopWindow(pet), 'לחלון', 'הקקי האחרון ב־') : '') + poopHints(pet) : ''}${P.cycle && k === 'food' && S.bite > (S.food || 0) ? `<div class="sub hint bite">ביס אחרון ב־<bdi dir="ltr">${clock(S.bite)}</bdi> · לא מאפס את השעון</div>` : ''}${P.cycle && k === 'food' ? mealLine(pet) + (V2 ? gaugeHTML(mealWindow(pet), 'לארוחה', 'הארוחה האחרונה ב־') : '') : ''}${k === 'bath' ? bathLine(pet) + (V2 && !noBathUntil(pet) ? gaugeHTML(bathWindow(pet), 'למקלחת', 'המקלחת האחרונה ב־') : '') : ''}${GROOM[pet] && ['flea','brush','teeth','weight'].includes(k) ? groomLine(pet, k) : ''}${todayWhere(pet,k) ? `<div class="sub hint x">${todayWhere(pet,k)}</div>` : ''}${P.cycle && typical(pet,k) ? `<div class="sub hint x">${typical(pet,k)}</div>` : ''}${it.note ? `<div class="sub hint x">${it.note}</div>` : ''}MOREBTN</div>
+          ${hasWhere(k) ? unknownLine(pet, k) : ''}${P.cycle && k === 'pee' ? peeCardLines(pet) : ''}${k === 'pee' ? holdHint(pet) : ''}${P.cycle && k === 'poop' ? mealPoopHTML(pet) + poopLine(pet) + (V2 && !mealPoopCue(pet) ? gaugeHTML(poopWindow(pet), 'לחלון', 'הקקי האחרון ב־') : '') + poopHints(pet) : ''}${P.cycle && k === 'food' && S.bite > (S.food || 0) ? `<div class="sub hint bite">ביס אחרון ב־<bdi dir="ltr">${clock(S.bite)}</bdi> · לא מאפס את השעון</div>` : ''}${P.cycle && k === 'food' ? mealLine(pet) + (V2 ? gaugeHTML(mealWindow(pet), 'לארוחה', 'הארוחה האחרונה ב־') : '') : ''}${k === 'bath' ? bathLine(pet) + (V2 && !noBathUntil(pet) ? gaugeHTML(bathWindow(pet), 'למקלחת', 'המקלחת האחרונה ב־') : '') : ''}${GROOM[pet] && ['flea','brush','teeth','weight'].includes(k) ? groomLine(pet, k) : ''}${todayWhere(pet,k) ? `<div class="sub hint x">${todayWhere(pet,k)}</div>` : ''}${P.cycle && typical(pet,k) ? `<div class="sub hint x">${typical(pet,k)}</div>` : ''}${it.note ? `<div class="sub hint x">${it.note}</div>` : ''}MOREBTN</div>
         <div class="acts"><button class="go" data-act="pt" data-k="${k}">${it.btn}</button>
           ${P.cycle && k === 'food' ? `<button class="ghost" data-act="nofood">${ico('none','s')}לא אכלה</button>` : ''}</div></div>`;
       // "עוד" (new design): the reference lines (class `x`) fold away until asked for; the old design shows them as always.
@@ -3448,7 +3508,7 @@ const afterCrate = (p, e) => { const d = e.k === 'sleep' && !e.assumed ? sinceCr
 // once there is enough data to mean something.
 function median(a){ const s = a.slice().sort((x,y) => x-y), m = s.length >> 1; return s.length % 2 ? s[m] : (s[m-1]+s[m])/2; }
 function peeGaps(p){   // gaps between consecutive pees in the last 7 days; nights and long breaks left out
-  const since = Date.now() - 7*86400000, t = state.log.filter(e => e.p===p && e.k==='pee' && e.t >= since).map(e => e.t), g = [];
+  const since = Date.now() - 7*86400000, t = state.log.filter(e => e.p===p && e.k==='pee' && !isTU(e) && e.t >= since).map(e => e.t), g = [];
   for(let i = 1; i < t.length; i++){ const d = t[i]-t[i-1]; if(d >= 10*60000 && d <= 5*3600000) g.push(d); }
   return g;
 }
@@ -3466,8 +3526,8 @@ const POOP_MIN = 7;   // poops in her history before "בדרך כלל … אחר
 const POOP_AFTER = {food:'אחרי אוכל', wake:'אחרי שהתעוררה'};
 function poopModel(p){
   const now = Date.now(), since = now - 14*86400000, L = state.log.filter(e => e.p===p && e.t >= since && e.t <= now);
-  const poops = L.filter(e => e.k==='poop').map(e => e.t).sort((x,y) => x-y);
-  if(state.log.filter(e => e.p===p && e.k==='poop' && e.t <= now).length < POOP_MIN) return null;   // too few poops to call anything "usual"
+  const poops = L.filter(e => e.k==='poop' && !isTU(e)).map(e => e.t).sort((x,y) => x-y);
+  if(state.log.filter(e => e.p===p && e.k==='poop' && !isTU(e) && e.t <= now).length < POOP_MIN) return null;   // too few poops to call anything "usual"
   const anchors = { food: L.filter(e => mealKind(e) === 'meal').map(e => e.t).sort((x,y) => x-y),
     wake: V[p].spans.filter(sp => sp.end != null && sp.end >= since && sp.end <= now && sp.end - sp.t >= 20*60000).map(sp => sp.end).sort((x,y) => x-y) };
   let best = null;
@@ -3483,7 +3543,7 @@ function poopModel(p){
 }
 function poopLine(p){
   const m = poopModel(p), now = Date.now(); if(!m || m.last == null) return '';
-  if(state.log.some(e => e.p===p && e.k==='poop' && e.t >= m.last)) return '';
+  if(state.log.some(e => e.p===p && e.k==='poop' && !isTU(e) && e.t >= m.last)) return '';
   const from = m.last + quantile(m.g, .25), to = m.last + quantile(m.g, .75);
   if(now > to + 30*60000) return '';
   return `<div class="sub hint fc">הקקי הבא צפוי בסביבות <bdi dir="ltr">${clock(from)}–${clock(to)}</bdi></div>`;
@@ -3519,7 +3579,7 @@ function touchesNight(a, b){   // does [a, b] reach into 23:00–05:00 on any ni
 // Her usual gap as of time t (only pees before t count, so a past "לא עשתה" is judged by what was known then).
 function usualPeeGap(p, t, log){
   const R = PEE_RHYTHM, from = t - R.days*86400000;
-  const ts = (log || state.log).filter(e => e.p===p && e.k==='pee' && e.t < t).map(e => e.t).sort((x,y) => x-y), g = [];
+  const ts = (log || state.log).filter(e => e.p===p && e.k==='pee' && !isTU(e) && e.t < t).map(e => e.t).sort((x,y) => x-y), g = [];
   for(let i = 1; i < ts.length; i++){
     const a = ts[i-1], b = ts[i], d = b - a;
     if(b >= from && d >= R.minGap && d <= R.maxGap && !touchesNight(a, b)) g.push(d);
@@ -3564,7 +3624,7 @@ function forecastWhy(p){   // where the window comes from, in plain words
 // there is not enough history — a plain line saying so.
 const POOP_QUIET = 30*3600000;
 function poopGap(p){
-  const t = state.log.filter(e => e.p===p && e.k==='poop' && e.t >= Date.now() - 14*86400000).map(e => e.t).sort((x,y) => x-y), g = [];
+  const t = state.log.filter(e => e.p===p && e.k==='poop' && !isTU(e) && e.t >= Date.now() - 14*86400000).map(e => e.t).sort((x,y) => x-y), g = [];
   for(let i = 1; i < t.length; i++) g.push(t[i] - t[i-1]);
   return g.length >= 3 ? median(g) : 0;
 }
@@ -3764,7 +3824,7 @@ function logRow(e){
   const live = isLive(e);
   if(e.assumed) return `<div class="r guess" data-stay="${e.stay}" data-t="${e.t}">${ico('sleep','s')}<span>${live ? 'ישנה כנראה עכשיו' : 'ישנה'} <i class="by">משוער</i>${e.end ? ' · '+words(e.end-e.t) : ''}</span>
      <time>${dayLabel(e.t)} <bdi dir="ltr">${clock(e.t)}${e.end ? '–'+clock(e.end) : ''}</bdi></time></div>`;
-  return `<div class="r" ${live ? `data-live="${e.k}"` : `data-e="${state.log.indexOf(e)}"`}>${ico(iconOf(e.k),'s')}<span>${live ? ITEMS[e.k].live+' עכשיו' : e.k === 'swap' && CRATES[e.c] ? 'הועברה ל'+CRATES[e.c] : lblOf(e)}${e.k === 'crate' && PETS[e.p].cycle && (CRATES[e.c] || e.t >= SLEEP2_FROM) ? ' · '+CRATES[crateKind(e)] : ''}${isRetryStay(e) ? ' · ניסיון חוזר' : ''}${CRY_LBL[cryKind(e)] ? ' · '+CRY_LBL[cryKind(e)] : ''}${mealKind(e) ? ' · '+MEAL_LBL[mealKind(e)] : ''}${typeTag(e.q, !!PETS[e.p].cycle)}${e.n ? ' · '+esc(e.n) : ''}${afterCrate(e.p, e)}${PLAY[e.y] ? ' · '+PLAY[e.y] : e.y === 'play' ? ' · במשחק' : ''}${whereTag(e.w)}${waitTag(e)}${e.end ? ' · '+words(e.end-e.t) : ''}${byName(e.by) ? `<i class="by">${byName(e.by)}</i>` : ''}${fatLine(e) ? `<small class="ctx">${fatLine(e)}</small>` : ''}</span>
+  return `<div class="r" ${live ? `data-live="${e.k}"` : `data-e="${state.log.indexOf(e)}"`}>${ico(iconOf(e.k),'s')}<span>${live ? ITEMS[e.k].live+' עכשיו' : e.k === 'swap' && CRATES[e.c] ? 'הועברה ל'+CRATES[e.c] : lblOf(e)}${e.k === 'crate' && PETS[e.p].cycle && (CRATES[e.c] || e.t >= SLEEP2_FROM) ? ' · '+CRATES[crateKind(e)] : ''}${isRetryStay(e) ? ' · ניסיון חוזר' : ''}${CRY_LBL[cryKind(e)] ? ' · '+CRY_LBL[cryKind(e)] : ''}${mealKind(e) ? ' · '+MEAL_LBL[mealKind(e)] : ''}${typeTag(e.q, !!PETS[e.p].cycle)}${e.n ? ' · '+esc(e.n) : ''}${afterCrate(e.p, e)}${PLAY[e.y] ? ' · '+PLAY[e.y] : e.y === 'play' ? ' · במשחק' : ''}${whereTag(e.w)}${isTU(e) ? ' · '+tuText(e) : ''}${waitTag(e)}${e.end ? ' · '+words(e.end-e.t) : ''}${byName(e.by) ? `<i class="by">${byName(e.by)}</i>` : ''}${fatLine(e) ? `<small class="ctx">${fatLine(e)}</small>` : ''}</span>
      <time>${dayLabel(e.t)} <bdi dir="ltr">${clock(e.t)}${e.end ? '–'+clock(e.end) : ''}</bdi></time></div>`;
 }
 
@@ -3833,7 +3893,14 @@ function timelineHTML(p, from, to, F){   // F: only this kind (optional)
     state.log.forEach((e, i) => {
       if(e.p !== p || e.t < a || e.t >= b) return;
       if(e.k === 'food'){ if(meals) m += `<i class="f" style="left:${pct(e.t)}%" title="אוכל ${clock(e.t)}"></i>`; }
+      else if(hasWhere(e.k) && (!F || F === e.k) && isTU(e)) return;   // drawn below, as a range
       else if(hasWhere(e.k) && (!F || F === e.k)){ const tip = `${ITEMS[e.k].log} ${clock(e.t)}${WHERE[e.w] ? ' · '+WHERE[e.w] : ' · לא סומן איפה'}`; m += `<button class="d ${e.k} ${whereCls(e.w)}" data-e="${i}" style="left:${pct(e.t)}%" title="${tip}" aria-label="${tip}"></button>`; }
+    });
+    // unknown time: a faint range over [from, found], never a dot (it may run across midnight)
+    state.log.forEach((e, i) => {
+      if(e.p !== p || !isTU(e) || !hasWhere(e.k) || (F && F !== e.k) || e.tu[1] < a || e.tu[0] >= b) return;
+      const tip = `${ITEMS[e.k].log} · ${tuText(e)}${WHERE[e.w] ? ' · '+WHERE[e.w] : ''}`;
+      m += `<button class="u ${e.k} ${whereCls(e.w)}" data-e="${i}" style="left:${pct(e.tu[0])}%;width:${Math.max(.8, pct(e.tu[1]) - pct(e.tu[0])).toFixed(2)}%" title="${tip}" aria-label="${tip}"></button>`;
     });
     rows.push(`<div class="tl-row"><span class="tl-d">${DOW[d.getDay()]} · <bdi dir="ltr">${ddmm(a)}</bdi></span><div class="tl-t" dir="ltr">${m}</div></div>`);
   });
@@ -3875,7 +3942,7 @@ function logText(p, from, to){
     for(const e of ev){
       const it = ITEMS[e.k];
       const live = isLive(e), time = e.end ? `${clock(e.t)}–${clock(e.end)}` : live ? `${clock(e.t)}–עכשיו` : clock(e.t);
-      const what = (live ? it.live : e.k === 'swap' && CRATES[e.c] ? 'הועברה ל'+CRATES[e.c] : e.assumed ? it.log : lblOf(e)) + (e.k === 'crate' && PETS[e.p].cycle && (CRATES[e.c] || e.t >= SLEEP2_FROM) ? ` · ${CRATES[crateKind(e)]}` : '') + (e.assumed ? ' (משוער)' : '') + (!e.assumed && CRY_LBL[cryKind(e)] ? ` · ${CRY_LBL[cryKind(e)]}` : '') + (!e.assumed && mealKind(e) ? ` · ${MEAL_LBL[mealKind(e)]}` : '') + (PLAY[e.y] ? ` · ${PLAY[e.y]}` : e.y === 'play' ? ' · במשחק' : '') + (WHERE[e.w] ? ` · ${WHERE[e.w]}` : '') + (e.assumed ? '' : waitTag(e)) + (KIND_LBL[e.q] ? ` · ${KIND_LBL[e.q]}` : '') + (e.n ? ` · ${e.n}` : '') + (!e.assumed && fatLine(e) ? ` · ${fatLine(e)}` : '')
+      const what = (live ? it.live : e.k === 'swap' && CRATES[e.c] ? 'הועברה ל'+CRATES[e.c] : e.assumed ? it.log : lblOf(e)) + (e.k === 'crate' && PETS[e.p].cycle && (CRATES[e.c] || e.t >= SLEEP2_FROM) ? ` · ${CRATES[crateKind(e)]}` : '') + (e.assumed ? ' (משוער)' : '') + (!e.assumed && CRY_LBL[cryKind(e)] ? ` · ${CRY_LBL[cryKind(e)]}` : '') + (!e.assumed && mealKind(e) ? ` · ${MEAL_LBL[mealKind(e)]}` : '') + (PLAY[e.y] ? ` · ${PLAY[e.y]}` : e.y === 'play' ? ' · במשחק' : '') + (WHERE[e.w] ? ` · ${WHERE[e.w]}` : '') + (isTU(e) ? ` · ${tuText(e)}` : '') + (e.assumed ? '' : waitTag(e)) + (KIND_LBL[e.q] ? ` · ${KIND_LBL[e.q]}` : '') + (e.n ? ` · ${e.n}` : '') + (!e.assumed && fatLine(e) ? ` · ${fatLine(e)}` : '')
         + (e.end ? ` · ${words(e.end - e.t)}` : live ? ` · כבר ${words(Date.now() - e.t)}` : '') + (e.assumed ? '' : afterCrate(p, e));
       out.push(`${time}  ${what}`);
     }
@@ -3925,7 +3992,7 @@ function mealTileHTML(p, a, b, cls, avg){   // the summary's food tile for a cyc
 const RATES = {days:3, wake:15*60000, meal:30*60000, crate:10*60000};
 const RATE_LBL = [['wake','אחרי התעוררות'], ['meal','אחרי ארוחה'], ['crate','לפני כלוב']];
 function gravelRates(p, now = Date.now()){
-  const L = state.log.filter(e => e.p===p), from = now - RATES.days*86400000, r = {wake:{n:0, good:0}, meal:{n:0, good:0}, crate:{n:0, good:0}};
+  const L = state.log.filter(e => e.p===p && !isTU(e)), from = now - RATES.days*86400000, r = {wake:{n:0, good:0}, meal:{n:0, good:0}, crate:{n:0, good:0}};
   const wakes = V[p].spans.filter(s => s.end != null && s.end <= now).map(s => s.end);
   const meals = L.filter(e => mealKind(e) === 'meal').map(e => e.t), crates = L.filter(e => e.k === 'crate').map(e => e.t);
   const before = (ts, t, w) => ts.some(x => x <= t && t - x <= w);
@@ -4140,7 +4207,7 @@ const plTod = t => (t - sod(t).getTime()) / PL_H;
 function kochikGap(now){ const r = kochikRhythm(now); return {gap: r.gap, q: r.q, n: r.n, g: r.g, cap: r.cap, sick: r.sick}; }
 function kochikFirstPee(now){   // when her day usually starts: the median first pee after 06:00
   const by = {};
-  for(const e of state.log) if(e.p==='kochik' && e.k==='pee' && e.t <= now && e.t >= now - PLAN.days*86400000 && plTod(e.t) >= 6 && plTod(e.t) < 11){ const k = dayKey(e.t); if(!(by[k] <= plTod(e.t))) by[k] = plTod(e.t); }
+  for(const e of state.log) if(e.p==='kochik' && e.k==='pee' && !isTU(e) && e.t <= now && e.t >= now - PLAN.days*86400000 && plTod(e.t) >= 6 && plTod(e.t) < 11){ const k = dayKey(e.t); if(!(by[k] <= plTod(e.t))) by[k] = plTod(e.t); }
   const v = Object.values(by); return v.length >= 2 ? median(v) : PLAN.fb.kochikFirst;
 }
 function kochikMeals(now){   // her usual meal times: clock times seen on at least two days (thin data: always "weak")
@@ -4153,7 +4220,7 @@ function kochikMeals(now){   // her usual meal times: clock times seen on at lea
 // A crate stay that began after a pee on the gravel (the last pee before it, at most an hour before; a "לא עשתה" in
 // between does not undo it).
 function planSafeStay(c, now){
-  const prev = state.log.filter(e => e.p==='kishmish' && e.k==='pee' && e.t <= Math.min(c + PL_M, now)).sort((x,y) => x.t-y.t).pop();
+  const prev = state.log.filter(e => e.p==='kishmish' && e.k==='pee' && !isTU(e) && e.t <= Math.min(c + PL_M, now)).sort((x,y) => x.t-y.t).pop();
   return !!prev && (prev.w === 'gravel' || prev.w === 'out') && c - prev.t <= 60*PL_M;
 }
 // KISHMISH'S RHYTHM from her own last days (spans = marked + estimated sleep, as everywhere in the app).
@@ -4352,7 +4419,7 @@ function planKish(from, to, fresh, X, groom){
     sleeps.push({a: from, onset: S.sleep.start, c: null, wake: {from: wf, to: wt, mid, src: w.src}, safe: false, seen: true, cur: true, est: false, outside: true, unsafe: 'קישמיש ישנה מחוץ לכלוב'});
     cur = {t: mid, spread: (wt - wf) / 2, own: (wt - wf) / 2}; estFrom = w.src === 'estimate' ? from : mid;
   } else {
-    const since = awakeSince(p) || from, peed = state.log.some(e => e.p===p && e.k==='pee' && e.t >= since && e.t <= from && (e.w === 'gravel' || e.w === 'out'));
+    const since = awakeSince(p) || from, peed = state.log.some(e => e.p===p && e.k==='pee' && !isTU(e) && e.t >= since && e.t <= from && (e.w === 'gravel' || e.w === 'out'));
     const b = outPhase(from, Math.max(from + 5*PL_M, since + D), 0, false, {peed, now: true});
     cur = cratePhase(b, 0, false, null, true);
   }
@@ -4775,7 +4842,7 @@ document.getElementById('shell').addEventListener('click', e => {
   else if(a==='ptype'){ const e = state.log.filter(x => x.p===pet && x.k===k).pop(); if(e) typeSheet(e.id); }
   else if(a==='pt' && k === 'weight') weightSheet(pet);
   else if(a==='pt'){
-    const ask = () => askWhen(`${PETS[pet].name} · ${ITEMS[k].log} — מתי?`, ts => ts ? logAt(pet, k, ts) : tapPoint(pet, k, ts, true));   // an earlier time: logAt asks if a later one is already logged
+    const ask = () => askWhen(`${PETS[pet].name} · ${ITEMS[k].log} — מתי?`, ts => ts ? logAt(pet, k, ts) : tapPoint(pet, k, ts, true), '', hasWhere(k) ? {p: pet, k} : null);   // an earlier time: logAt asks if a later one is already logged; pee / poop: also "לא ידוע מתי"
     const d = recentDouble(pet, e => e.k === k);
     if(d) askAgain(d, ITEMS[k].log, ask); else ask();
   }
@@ -5024,7 +5091,7 @@ function openEntrySheet(i){
   const prevStay = isCrateE ? state.log.filter(x => x.p===e.p && x.k==='crate' && x.id !== e.id && x.end != null && x.end <= e.t && e.t - x.end <= 15*60000).sort((x,y) => x.t-y.t).pop() : null;
   const canReopen = !!it.dur && !(V[e.p][e.k] || {}).start && !state.log.some(x => x.p===e.p && x.k===e.k && x.end > e.end);
   sheet(`${name} · ${it.log} · ${dayLabel(e.t)} <bdi dir="ltr">${clock(e.t)}</bdi>`,
-    pt ? `<label class="field">תיקון השעה ${timeField("tIn", clock(e.t))}</label>` +
+    pt ? (isTU(e) ? `<div class="sub" style="margin-bottom:8px">${tuText(e)}</div>` : '') + `<label class="field">${isTU(e) ? 'מתי נמצא' : 'תיקון השעה'} ${timeField("tIn", clock(e.t))}</label>` +
          (hasWhere(e.k) ? `<div class="sub" style="margin:14px 0 8px">איפה?</div><div class="chips">${whereKeys(e.p).map(w => `<button data-w="${w}" class="${e.w===w?'sel':''}">${WHERE[w]}</button>`).join('')}</div>` : '') +
          (PETS[e.p].cycle && waitOf({...e, g: 1}) != null ? `<div class="sub" style="margin:14px 0 8px">כמה זמן לקח בחצץ?${typeof e.g !== 'number' && waitOf(e) != null ? ' (נמדד: ' + words(waitOf(e)) + ')' : ''}</div><div class="chips">${GRAVEL_OPTS.map(m => `<button data-g="${m}" class="${e.g===m?'sel':''}">${m} דק׳</button>`).join('')}</div>` : '') +
          (mealKind(e) ? `<div class="sub" style="margin:14px 0 8px">ארוחה או ביס?</div><div class="chips">${Object.keys(MEAL_LBL).map(m => `<button data-m="${m}" class="${mealKind(e)===m?'sel':''}">${MEAL_LBL[m]}</button>`).join('')}</div><div class="sub hint">ארוחה מאפסת את השעון של האוכל; ביס לא.</div>` : '') +
@@ -5064,6 +5131,7 @@ function openEntrySheet(i){
         if(gm) x.g = gm; else delete x.g;
         if(mk !== mk0) x.m = mk;   // her correction; from here on it wins over the two-hour rule
         x.t = d.getTime();
+        if(isTU(x)) x.tu = [Math.min(x.tu[0], x.t), x.t];   // unknown time: "found" is the end of the range
       });
     });
   let w = e.w, q = e.q, gm = e.g; const mk0 = mealKind(e); let mk = mk0;
