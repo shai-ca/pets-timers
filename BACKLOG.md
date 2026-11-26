@@ -1,5 +1,26 @@
 # Backlog — things deliberately not done yet
 
+## Documentation completeness (owner, 26.11.2026 — read before any analysis)
+
+The owner has recently been logging mainly Kishmish's **potty events** (pee, poop, "לא עשתה", gravel outings) and much less
+of her sleep, meals, play, crate visits and door actions. This is a change in **documentation completeness**, not
+necessarily in her behaviour. Her goal is to keep reducing manual logging, not to keep exhaustive records. The exact start
+date was not given ("recently", reported 26.11 night); establish it from the data before relying on it.
+
+For every future analysis, model review or calibration:
+- **A missing entry is not a negative observation.** No sleep entry ≠ awake; no meal ≠ not fed; no crate entry ≠ out of the crate.
+- **Time since the last recorded event may be much longer than time since the actual event** (food timer, awake timer,
+  sleep totals, routine step, wake-by, alerts that count from the last entry).
+- **Missing sleep records must not be read as continuous wakefulness** (awake timer, sleep goal, scores, planning).
+- **Predictions should carry the reduced completeness as uncertainty** (wider ranges, fewer claims), not as behaviour.
+- **Never invent missing events retrospectively,** in the journal or in derived data.
+- **Keep apart:** manual observations, camera predictions (estimates, suggestions) and confirmed events (approved / labelled).
+- Learners trained on periods of different completeness need a completeness measure per period (e.g. entries per kind per
+  day, as `kochikBaseline`'s `logging` does) before comparing periods.
+
+Status: recorded only. No model change and no journal change without a separate investigation and her approval.
+
+
 Each item: what to check · why not now · data needed · when to look again · what success looks like.
 Initial thresholds here are starting points for a review, not hard rules.
 
