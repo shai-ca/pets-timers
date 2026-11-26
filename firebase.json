@@ -10,6 +10,7 @@
       ".firebase/**",
       "**/node_modules/**",
       "CLAUDE.md",
+      "BACKLOG.md",
       "firestore.rules",
       "tests/**",
       "deploy.sh",
