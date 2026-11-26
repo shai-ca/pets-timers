@@ -55,10 +55,17 @@
     seed(hist.concat(fed(now - 50*MIN), [{...K0, k:'sleep', t: now - 50*MIN}]));
     ok('50 minutes (most of her naps last longer): no question', !stillAsleep(P));
     seed(hist.concat(fed(now - 80*MIN), [{...K0, k:'sleep', t: now - 80*MIN}]));
-    ok('80 minutes (longer than most of her naps): the question, with a forward range', !!stillAsleep(P) && stillAsleep(P).src === 'learned' && !!$q('.sleepq.still') && $q('.sleepq.still').textContent.includes('ייתכן'));
+    ok('80 minutes, nothing practical due (owner, 26.11): no question, only the passive line with her range', !stillAsleep(P) && !$q('.sleepq.still') && $q('.card.cyc').textContent.includes('כנראה תתעורר בין'));
+    const due = [{...K0, k:'food', t: now - 100*MIN, m:'meal'}, {...K0, k:'pee', t: now - 160*MIN, w:'gravel'}, {...K0, k:'sleep', t: now - 80*MIN}];
+    seed(hist.concat(due));
+    ok('80 minutes and her pee window open: the question, with a forward range and why', !!stillAsleep(P) && stillAsleep(P).src === 'learned' && !!$q('.sleepq.still') && $q('.sleepq.still').textContent.includes('ייתכן'));
     $q('.sleepq.still [data-act=stillasleep]').click();
     ok('"עדיין ישנה" still hides it for 20 minutes, nothing saved', !$q('.sleepq.still') && stillUntil > Date.now() && logOf(P, 'sleep').filter(e => e.end == null).length === 1);
-    stillUntil = 0;
+    stillUntil = 0; render();
+    ok('…and never asks again about this sleep (once per episode)', !stillAsleep(P) && !$q('.sleepq.still'));
+    stillDone.clear();
+    const n2 = new Date(now); n2.setHours(22, 40, 0, 0); 
+    ok('never at night (22:30–07:00 or touching the night)', planNight(n2.getTime(), n2.getTime() + MIN));
 
     // ---- pottyExpect ----
     st = now - 30*MIN; seed(hist.concat(fed(st), [{...K0, k:'sleep', t: st}]));
@@ -185,7 +192,8 @@
     ok('S3: censorNear censors the one end next to a pee, keeps the others as events', s0.censored === 0 && s1.censored === 1 && s1.pAtLeast[0].p > 0 && s1.pAtLeast[0].p < 1);
     ok('S3: endAsCensored (every end censored) has no real endings → "unknown", no fake certainty', s2.censored === 8 && s2.pAtLeast[0].p === null && s2.words === 'unknown');
     // S4: the old-rule question shows no wake time
-    seed(fed(now - 90*MIN).concat([{...K0, k:'sleep', t: now - 70*MIN}]));
+    stillDone.clear();
+    seed([{...K0, k:'food', t: now - 100*MIN, m:'meal'}, {...K0, k:'pee', t: now - 160*MIN, w:'gravel'}, {...K0, k:'sleep', t: now - 70*MIN}]);
     ok('S4: too few naps: asked by the old rule, "not enough data", no expected time', !!stillAsleep(P) && stillAsleep(P).src === 'rule' && !('exp' in stillAsleep(P))
       && $q('.sleepq.still').textContent.includes('עוד אין מספיק נתונים') && !$q('.sleepq.still').textContent.includes('צפוי'));
     ok('nothing is stored by any of it', state.log.every(e => !('origin' in e) && !('likely' in e)));
