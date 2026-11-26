@@ -93,6 +93,30 @@ Initial thresholds here are starting points for a review, not hard rules.
 13. **Camera / computer vision:** a separate project; to be integrated experimentally later, after connectivity,
     labelling and validation are ready. Not part of v3.
 
+14. **Environmental exposure and stimulation load → sleep and wake windows (Kishmish).** Part of the research in
+    item 10, extended (owner, 26.11: after a long carrier outing she seemed much more tired and slept longer than usual).
+    - **Check, one at a time, each against the current baseline** (median wake window / `sleepOn`), using leave-one-out
+      and time-ordered tests:
+      - duration of recent carrier outings;
+      - time since the last exposure;
+      - cumulative exposure over the preceding 3 / 6 / 12 / 24 h;
+      - observed (marked) sleep during carrier outings;
+      - recent physical activity (play, training) vs. environmental stimulation;
+      - interactions with age, time of day, prior sleep and accumulated wake time — only if a main effect holds first.
+    - **Rules:**
+      - Carrier time is not wakefulness and not exercise (she may nap in it).
+      - No invented fatigue coefficients; only associations learned from her data that beat the baseline.
+      - No new mandatory logging: only the existing carrier start/stop and marked sleep.
+    - **Why not now:** a single carrier outing so far, and one observation ("more tired today") is an anecdote, not a
+      measurement.
+    - **Data needed:**
+      - at least 15 carrier outings of varied length with marked sleep afterwards;
+      - at least 40 clean wake windows (item 10);
+      - ideally some marked sleep inside carrier outings.
+    - **Look again:** together with item 10 (not before 3.12.2026), or when 15 outings are logged.
+    - **Success:** the variable's 95% CI excludes 0 and it beats the baseline by at least 20% in both tests over two
+      separate weeks. Until then it is shown nowhere and changes no prediction or plan.
+
 ## Kept from earlier sessions
 
 - Re-run the planning backtest after more days in the mesh crate.
