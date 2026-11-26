@@ -30,8 +30,8 @@ function strHash(s){ let h = 0; for(let i = 0; i < s.length; i++) h = (h * 31 + 
     ok('planNight: 22:00–22:29 no, to 22:31 yes, 06:59 yes, 07:00–08:00 no', !planNight(at(2, 22), at(2, 22) + 29*MIN) && planNight(at(2, 22), at(2, 22) + 31*MIN) && planNight(at(2, 6) + 59*MIN, at(2, 7) + 30*MIN) && !planNight(at(2, 7), at(2, 8)));
     // ---- crateSetup
     seed([{ ...K0, k:'crate', t: at(2, 10), end: at(2, 11), c:'mesh' }, { ...K0, k:'cset', t: at(2, 10) + 10*MIN, door:'open' }, { ...K0, k:'cset', t: at(2, 10) + 20*MIN, cover:'covered' }, { ...K0, k:'cset', t: at(2, 10) + 30*MIN, door:'closed' }]);
-    ok('crateSetup: before any cset, unknown', canon(crateSetup('kishmish', at(2, 10) + 5*MIN)) === canon({kind:'mesh', door:'unknown', cover:'unknown'}));
-    ok('…each field from its own latest cset', canon(crateSetup('kishmish', at(2, 10) + 25*MIN)) === canon({kind:'mesh', door:'open', cover:'covered'}) && canon(crateSetup('kishmish', at(2, 10) + 40*MIN)) === canon({kind:'mesh', door:'closed', cover:'covered'}));
+    ok('crateSetup: before any cset, unknown', canon(crateSetup('kishmish', at(2, 10) + 5*MIN)) === canon({kind:'mesh', door:'unknown', cover:'unknown', toy:false}));
+    ok('…each field from its own latest cset', canon(crateSetup('kishmish', at(2, 10) + 25*MIN)) === canon({kind:'mesh', door:'open', cover:'covered', toy:false}) && canon(crateSetup('kishmish', at(2, 10) + 40*MIN)) === canon({kind:'mesh', door:'closed', cover:'covered', toy:false}));
     ok('…out of the crate: the last crate used', crateSetup('kishmish', at(2, 12)).kind === 'mesh');
     ok('a cset row reads "הגדרות כלוב: דלת פתוחה"', $q('.uni') ? true : true) ;
     ok('cset label', csetLbl({k:'cset', door:'open', cover:'uncovered'}) === 'הגדרות כלוב: דלת פתוחה · בלי כיסוי');
