@@ -692,7 +692,8 @@
   @media (min-width:760px){ .pl-big{font-size:38px} .pl-lane.me .pl-b{height:44px} }
   .pl-s.lv-uns{background:repeating-linear-gradient(135deg,var(--pl-home) 0 5px,transparent 5px 9px);color:var(--pl-home-ink);opacity:.6}   /* maybe free: when the next care starts is uncertain */
   .pl-lg .lv-uns{background:var(--pl-home);opacity:.45}
-  .pl-badge.short{background:var(--pl-off);color:var(--ink)}
+  .pl-badge.short{background:var(--pl-off);color:var(--ink)} .pl-badge.uns{background:color-mix(in srgb,var(--pl-home) 45%,var(--card));color:var(--pl-home-ink)}
+  .pl-pre{margin-inline-start:auto;align-self:center;font-size:11.5px;color:var(--muted)} .pl-stats small{font-size:11px;color:var(--muted)}
   .pl-away{display:flex;flex-direction:column;gap:8px;margin-bottom:12px;padding:10px 14px} .pl-away.on{flex-direction:row;align-items:center;justify-content:space-between}
   .pl-awt{font-size:13.5px;font-variant-numeric:tabular-nums} .pl-awq{display:flex;flex-direction:column;gap:4px} .pl-awq small{color:var(--muted);font-size:12px}
   .v2 .pl-away{border-radius:16px}
@@ -4109,7 +4110,8 @@ function planCareDur(now){
     for(const x of sup) s -= Math.max(0, Math.min(x.end, nx) - Math.max(x.t, c.end));
     if(s > 0) d.push(s);
   }
-  return d.length >= PLAN.care.min ? {ms: median(d), n: d.length, src: 'learned'} : {ms: PLAN.care.fb, n: d.length, src: 'estimate'};
+  d.sort((a,b) => a-b);   // half: half its interquartile range — how uncertain the end of an outing is (planKish's lead band)
+  return d.length >= PLAN.care.min ? {ms: median(d), half: (quantile(d, .75) - quantile(d, .25)) / 2, n: d.length, src: 'learned'} : {ms: PLAN.care.fb, half: PLAN.care.fb / 2, n: d.length, src: 'estimate'};
 }
 // ADAPTER planNaps — how long a sleep that has NOT begun yet lasts: no contract offers that (wakeExpect covers the
 // current sleep). Quartiles of her MARKED day episodes (`learnEpisodes`, src 'marked' only — like `sleepOn`, an estimate
@@ -4157,6 +4159,19 @@ function planKochik(now){
 // res 'calm' proves it; each weighs its length (up to PLAN.outWin) × recency (halves every PLAN.away.half days).
 // Enough = total weight ≥ PLAN.away.enough. Cap = the longest length that a full unit of weight reached, × stretch;
 // a 'much' (lots of crying) at home lowers it to that length. No res / 'unknown' says nothing; no cry entry ≠ calm.
+// awayEvidence(ctx, now?) → {ctx, n, calm, some, much, unknown, longestCalm, recency (ms since the last calm one, or null),
+// w}: one context only, never pooled (owner, 26.11) — 'room' alone in a room while someone is home, 'home' alone at home,
+// 'other' the owner away but someone else with her (independence from the owner, NOT staying alone). The last
+// PLAN.away.days; w = Σ length (up to PLAN.outWin) × recency over the calm ones. No answer / 'unknown' is not calm.
+function awayEvidence(ctx, now){
+  now = now != null ? now : Date.now();
+  const L = state.log.filter(e => e.k==='away' && e.ctx === ctx && e.end != null && e.end <= now && e.end >= now - PLAN.away.days*86400000);
+  const calm = L.filter(e => e.res === 'calm'), by = r => L.filter(e => e.res === r).length;
+  const w = calm.reduce((n, e) => n + Math.pow(.5, (now - e.end) / (PLAN.away.half*86400000)) * Math.min(1, (e.end - e.t) / PLAN.outWin), 0);
+  return {ctx, n: L.length, calm: calm.length, some: by('some'), much: by('much'), unknown: L.length - calm.length - by('some') - by('much'),
+    longestCalm: calm.reduce((m, e) => Math.max(m, e.end - e.t), 0), recency: calm.length ? now - Math.max(...calm.map(e => e.end)) : null, w};
+}
+// "Can go out" reads ONLY ctx 'home' (alone at home).
 function planAway(now){
   const L = state.log.filter(e => e.k==='away' && e.end != null && e.end <= now && e.end >= now - PLAN.away.days*86400000);
   const calm = L.filter(e => e.ctx === 'home' && e.res === 'calm').map(e => ({d: e.end - e.t, w: Math.pow(.5, (now - e.end) / (PLAN.away.half*86400000)) * Math.min(1, (e.end - e.t) / PLAN.outWin)})).sort((x,y) => y.d - x.d);
@@ -4164,7 +4179,7 @@ function planAway(now){
   let acc = 0, cap = 0; for(const x of calm){ acc += x.w; if(acc >= 1){ cap = x.d * PLAN.away.stretch; break; } }
   const much = L.filter(e => e.ctx === 'home' && e.res === 'much' && e.end >= now - PLAN.away.half*86400000).map(e => e.end - e.t);
   if(cap && much.length) cap = Math.min(cap, Math.min(...much));
-  return {enough: W >= PLAN.away.enough && cap > 0, cap, w: W, n: calm.length, much: much.length, all: L.length, room: L.filter(e => e.ctx === 'room' && e.res === 'calm').length};
+  return {enough: W >= PLAN.away.enough && cap > 0, cap, w: W, n: calm.length, much: much.length, all: L.length, by: {room: awayEvidence('room', now), home: awayEvidence('home', now), other: awayEvidence('other', now)}};
 }
 // Kishmish rolled forward from `from` to `to`: phases (out = care, crate = awake in the crate, carrier / pen, sleep,
 // night), her care blocks, every sleep (with its wake range) and the uncertainty bands before each projected care.
@@ -4192,16 +4207,21 @@ function planKish(from, to, fresh, X, groom){
     care.push({dog: p, kind: 'out', at: a, a, b, est, spread, title: `קישמיש: ${what}`, why, bath, spray});
     return b;
   };
-  // in the crate from c: awake until she falls asleep (sleepDelay), then a sleep of her usual range
-  const cratePhase = (c, spread, est, onset0) => {
+  // in the crate from c: awake until she falls asleep (sleepDelay), then a sleep of her usual range. CALIBRATION (owner,
+  // 26.11): the likely-uninterrupted part of a projected sleep is only [onset + s, onset + lo − s], s = how uncertain the
+  // onset is (the spread carried so far, and — after a projected outing — its own length's spread). The rest of the sleep
+  // is "available, may be interrupted" (bands): no fixed margin, the margin is the uncertainty itself.
+  const cratePhase = (c, spread, est, onset0, afterOut) => {
     const L = X.lat(c), onset = onset0 != null ? onset0 : c + L.ms;
     if(onset > c) ph.push({k: 'crate', a: c, b: onset, est});
     const nr = X.naps, wake = {from: onset + nr.lo, to: onset + nr.hi, mid: onset + nr.mid};
-    const sp = Math.sqrt(spread*spread + Math.pow((nr.hi - nr.lo) / 2, 2));
+    const sOn = Math.sqrt(spread*spread + (afterOut ? Math.pow(X.care.half || 0, 2) : 0));
+    if(sOn >= PL_M) bands.push({a: onset, b: Math.min(onset + sOn, wake.mid), lead: true});
+    const sp = Math.sqrt(sOn*sOn + Math.pow((nr.hi - nr.lo) / 2, 2));
     sleeps.push({a: onset, onset, c, wake, safe: true, seen: false, cur: false, est: true, open: L.open, peeTo: lastPee && X.pee.span ? lastPee + X.pee.span : null, alone: c + alone, prep: {c}});
     ph.push({k: 'sleep', a: onset, b: wake.mid, est: true, open: L.open});
     if(estFrom === Infinity) estFrom = onset;
-    return {t: wake.mid, spread: sp, own: nr.mid - nr.lo, onset};
+    return {t: wake.mid, spread: sp, own: nr.mid - nr.lo + sOn, onset};
   };
   const band = (a, spread, floor) => { const s = Math.max(a - spread, floor); if(a - s >= PL_M) bands.push({a: s, b: a}); };
   let cur;   // {t: next care start, spread, onset}
@@ -4210,11 +4230,11 @@ function planKish(from, to, fresh, X, groom){
     if(w > from) ph.push({k: 'night', a: from, b: w, night: true});
     const b = outPhase(w, w + D, PLAN.fb.spread, true);
     band(w, PLAN.fb.spread, from);
-    cur = cratePhase(b, PLAN.fb.spread, true);
+    cur = cratePhase(b, PLAN.fb.spread, true, null, true);
   } else if((S.carrier && S.carrier.start) || (S.pen && S.pen.start)){
     const k = S.carrier && S.carrier.start ? 'carrier' : 'pen', st = S[k].start, b = Math.max(from + 5*PL_M, st + D);
     ph.push({k, a: from, b});
-    cur = cratePhase(b, 0, false);
+    cur = cratePhase(b, 0, false, null, true);
   } else if(S.crate && S.crate.start){
     const c = S.crate.start, safe = planSafeStay(c, from), seen = !!(S.sleep && S.sleep.start), L = state.log.filter(e => e.p===p && e.t <= from);
     if(seen){
@@ -4244,14 +4264,14 @@ function planKish(from, to, fresh, X, groom){
   } else {
     const since = awakeSince(p) || from, peed = state.log.some(e => e.p===p && e.k==='pee' && e.t >= since && e.t <= from && (e.w === 'gravel' || e.w === 'out'));
     const b = outPhase(from, Math.max(from + 5*PL_M, since + D), 0, false, {peed, now: true});
-    cur = cratePhase(b, 0, false);
+    cur = cratePhase(b, 0, false, null, true);
   }
   for(let guard = 0; cur.t < to && guard < 40; guard++){
     const sl = sleeps[sleeps.length-1];
     band(cur.t, cur.own, sl ? Math.max(sl.a, from) : from);   // the faded stretch: this sleep's own wake range; the grown spread only fades / rounds later times
     const b = outPhase(cur.t, cur.t + D, cur.spread, true);
     if(b >= to) break;
-    cur = cratePhase(b, cur.spread, true);
+    cur = cratePhase(b, cur.spread, true, null, true);
   }
   for(const x of ph){ x.b = Math.min(x.b, to); if(x.a >= estFrom) x.est = true; }
   return {ph: ph.filter(x => x.b > x.a && x.a < to), care: care.filter(n => n.a < to).map(n => ({...n, b: Math.min(n.b, to)})), sleeps: sleeps.filter(s => s.a < to),
@@ -4353,7 +4373,8 @@ function planClass(M, t){
     const f = M.free.find(x => x.a <= t && t < x.b);
     if(f) return {k: 'free', what: 'שתיהן מסודרות', why: `קישמיש ישנה בכלוב אחרי פיפי בחצץ, קוצ׳יק לא צריכה כלום, והיא כבר נשארה לבד רגועה · נגמר כי ${f.endWhy}`, f};
     const bd = M.ks.bands.find(x => x.a <= t && t < x.b);
-    if(bd) return {k: 'uns', what: 'אולי פנוי', why: `${ph.wsrc === 'estimate' ? PL_EST + ' · ' : ''}קישמיש עשויה להתעורר כבר מ־${clock(bd.a)} (צפוי בסביבות ${clock(bd.b)})`};
+    if(bd && bd.lead) return {k: 'uns', what: 'פנוי, ייתכן שיפריעו', why: `ייתכן שעוד לא נרדמה או עוד בחוץ — הזמנים של הסבב הקודם לא בטוחים`};
+    if(bd) return {k: 'uns', what: 'פנוי, ייתכן שיפריעו', why: `${ph.wsrc === 'estimate' ? PL_EST + ' · ' : ''}קישמיש עשויה להתעורר כבר מ־${clock(bd.a)} (צפוי בסביבות ${clock(bd.b)})`};
     if(sl && sl.cur && !sl.seen) return {k: 'sup', what: 'קישמיש בכלוב ונרדמת', why: 'עוד לא ידוע שנרדמה'};
     return {k: 'home', what: 'קישמיש ישנה בכלוב', why: `${ph.wsrc === 'estimate' ? PL_EST + ' · ' : ''}קוצ׳יק לא צריכה כלום · קישמיש צפויה להתעורר בסביבות ${clock(ph.b)}`};
   }
@@ -4427,7 +4448,8 @@ function planWantHTML(Ms){
 // MY DAY in levels (owner 25.11, v3 26.11): טיפול (active care), אפשר לצאת, פנוי בבית, אולי (when the next care starts
 // is uncertain — faded, counted apart), בהשגחה, לילה. Certainty is separate: `est` = a projection of her usual rhythm;
 // `far` = more than PLAN.far ahead (or tomorrow), shown without minute-precise times.
-const PL_LV = {care: 'טיפול', free: 'אפשר לצאת', home: 'פנוי בבית', uns: 'אולי פנוי', sup: 'בהשגחה', off: 'לילה'};
+const PL_LV = {care: 'טיפול', free: 'אפשר לצאת', home: 'פנוי בבית', uns: 'פנוי, ייתכן שיפריעו', sup: 'בהשגחה', off: 'לילה'};
+const PL_PRE = 'מקדים / הערכה ראשונית';   // every planning estimate, until validated on more days (owner, 26.11)
 function planLevels(M){
   if(!M.ks) return [];
   const from = M.from, to = M.to, cuts = new Set([from, to]);
@@ -4451,7 +4473,7 @@ function planLevels(M){
 }
 const plDur = ms => { const m = Math.round(ms / PL_M); return m < 60 ? `${m} דק׳` : `${Math.floor(m/60)}:${pad(m % 60)} ש׳`; };
 const plIn = ms => ms <= 60000 ? 'עכשיו' : `בעוד ${words(ms)}`;
-const plCert = x => x.k === 'free' && x.conf ? (x.conf === 'high' ? 'ודאות גבוהה' : 'ודאות בינונית') : x.why && x.why.includes(PL_EST) ? PL_EST : x.far ? 'הערכה גסה (רחוק בזמן)' : x.est ? 'הערכה לפי הימים האחרונים' : 'לפי מה שקורה עכשיו';
+const plCert = x => PL_PRE + ' · ' + (x.k === 'free' && x.conf ? (x.conf === 'high' ? 'ודאות גבוהה' : 'ודאות בינונית') : x.why && x.why.includes(PL_EST) ? PL_EST : x.far ? 'הערכה גסה (רחוק בזמן)' : x.est ? 'הערכה לפי הימים האחרונים' : 'לפי מה שקורה עכשיו');
 const plRound = t => Math.round(t / PLAN.round) * PLAN.round;
 const plSpanX = (x, a, b) => x && x.far ? `<bdi dir="ltr">~${clock(plRound(a))}–${clock(plRound(b))}</bdi>` : plSpan(a, b);   // far: no minute-precise times
 function planTimelineHTML(M, lv, ln){
@@ -4472,6 +4494,7 @@ function planTimelineHTML(M, lv, ln){
 // "יצאתי / חזרתי" (owner, v3): optional, one tap, inside this tab only. Context room / home / someone else with her; on
 // return an optional one-tap outcome. No reminder, nothing required; not answering leaves it unknown.
 const PL_AWAY = {room: 'יצאתי מהחדר', home: 'יצאתי מהבית', other: 'נשארה עם מישהו'};
+const PL_AWAY_EV = {room: 'לבד בחדר (מישהו בבית)', home: 'לבד בבית', other: 'עם מישהו אחר'};
 const PL_RES = {calm: 'רגועה', some: 'קצת בכי', much: 'הרבה בכי', unknown: 'לא יודעת'};
 function planAwayHTML(){
   const now = Date.now(), run = state.log.filter(e => e.p==='kishmish' && e.k==='away' && e.end == null && e.t <= now).sort((x,y) => x.t-y.t)[0];
@@ -4488,12 +4511,12 @@ function planHTML(){
   if(M.from >= M.to) return `<div class="card pl-hero none"><div class="pl-top"><small class="pl-eye">תכנון</small>${dayChips}</div><div class="pl-empty">לילה. התכנון של היום נגמר ב־22:30. אפשר לראות את מחר.</div></div>${planAwayHTML()}`;
   const lv = planLevels(M), ln = planLanes(M), fut = x => x.b > (M.day ? M.from : now);
   const left = x => x.b - Math.max(x.a, M.day ? x.a : now), span = (x, a, b) => plSpanX(x, a, b);
-  const outs = lv.filter(x => x.k === 'free' && fut(x)), homes = lv.filter(x => x.k === 'home' && fut(x)), sups = lv.filter(x => x.k === 'sup' && fut(x) && left(x) >= 10*PL_M);
+  const outs = lv.filter(x => x.k === 'free' && fut(x)), homes = lv.filter(x => x.k === 'home' && fut(x)), unss = lv.filter(x => x.k === 'uns' && fut(x) && left(x) >= PLAN.minWin), sups = lv.filter(x => x.k === 'sup' && fut(x) && left(x) >= 10*PL_M);
   const sum = ks => lv.filter(x => ks.includes(x.k) && fut(x)).reduce((n, x) => n + left(x), 0);
   const runs = []; for(const x of lv.filter(fut)){ const l = runs[runs.length-1], q = x.k === 'home' || x.k === 'free'; if(q && l && l.b === x.a){ l.b = x.b; l.parts.push(x); } else if(q) runs.push({a: x.a, b: x.b, parts: [x]}); }
   const longest = runs.sort((x, y) => left(y) - left(x))[0] || null;
   const isNow = x => x && !M.day && x.a <= now + 60000;
-  const o0 = outs[0], h0 = homes[0], s0 = sups[0], first = [o0, h0].filter(Boolean).sort((x, y) => x.a - y.a)[0];
+  const o0 = outs[0], h0 = homes[0], s0 = sups[0], u0 = unss[0], first = [o0, h0].filter(Boolean).sort((x, y) => x.a - y.a)[0];
   const outLine = `<div class="pl-outl"><span class="pl-badge free">אפשר לצאת</span> ${o0 ? `${isNow(o0) ? 'עכשיו, ' : ''}${span(o0, Math.max(o0.a, M.day ? o0.a : now), o0.b)} · ${plDur(left(o0))}${!isNow(o0) && !M.day ? ' · ' + plIn(o0.a - now) : ''}`
     : !M.away.enough ? `עדיין אין מספיק ניסיון לבד <small>(רק אחרי כמה פעמים שיצאת מהבית והיא נשארה רגועה)</small>` : `אין ${M.day ? 'מחר' : 'היום'} חלון ליציאה מהבית <small>(צריך: פיפי בחצץ לפני, קישמיש ישנה בכלוב, וחלון באורך שכבר הצליח לבד)</small>`}</div>`;
   let hero, cls;
@@ -4504,30 +4527,33 @@ function planHTML(){
   else if(first){ cls = first.k === 'free' ? 'next' : 'homenext'; hero = `<small class="pl-eye">${first.k === 'free' ? 'החלון הבא לצאת' : `הזמן הפנוי הבא${M.day ? ' מחר' : ''} · בבית`}</small><div class="pl-big">${span(first, first.a, first.b)}</div>
       <div class="pl-meta">${plDur(first.b - first.a)}${M.day ? '' : ' · ' + plIn(first.a - now)} · <span class="pl-cert ${first.conf || ''}">${plCert(first)}</span></div>
       <p class="pl-why">${first.k === 'free' ? first.why : 'קישמיש צפויה לישון בכלוב וקוצ׳יק לא צריכה כלום: מתאים למקלחת, לעבודה ברצף או לאימון בבית. הערכה, לא הבטחה.'}</p>${first.k === 'free' ? '' : outLine}`; }
+  else if(u0){ cls = 'homenext'; hero = `<small class="pl-eye">${isNow(u0) ? 'עכשיו' : `הזמן הפנוי הבא${M.day ? ' מחר' : ''}`} · ייתכן שיפריעו</small><div class="pl-big">${span(u0, Math.max(u0.a, M.day ? u0.a : now), u0.b)}</div>
+      <div class="pl-meta">${plDur(left(u0))}${M.day || isNow(u0) ? '' : ' · ' + plIn(u0.a - now)} · <span class="pl-cert">${plCert(u0)}</span></div>
+      <p class="pl-why">זמן שבו את כנראה פנויה, אבל לא בטוח שבלי הפרעה: ${u0.why}. אין כרגע חלון שכנראה לא יופרע.</p>${outLine}`; }
   else { cls = 'none'; hero = `<small class="pl-eye">${M.day ? 'מחר' : 'בהמשך היום'} אין זמן פנוי צפוי</small>
       ${s0 ? `<div class="pl-big sup">${isNow(s0) ? `שקט עכשיו · עוד ${plDur(s0.b - now)}` : span(s0, s0.a, s0.b)}</div>
       <div class="pl-meta">זמן בהשגחה · ${plDur(left(s0))}${!M.day && !isNow(s0) ? ' · ' + plIn(s0.a - now) : ''} · <span class="pl-cert">${plCert(s0)}</span></div>
       <p class="pl-why">${s0.what}: את בבית ויכולה לעשות משהו בקרבת מקום, אבל ייתכן שיקראו לך.</p>` : '<p class="pl-why">אין גם זמן שקט צפוי.</p>'}${outLine}`; }
-  const stats = `<div class="pl-stats"><span><b>${plDur(sum(['home', 'free']))}</b>פנוי בבית (צפוי)</span><span><b>${plDur(sum(['sup']))}</b>בהשגחה</span><span><b>${plDur(sum(['care']))}</b>טיפול</span><span><b>${longest ? plDur(left(longest)) : '—'}</b>הרצף הפנוי הארוך</span></div>`;
+  const stats = `<div class="pl-stats"><span><b>${plDur(sum(['home', 'free']))}</b>כנראה בלי הפרעה${sum(['uns']) >= PL_M ? ` <small>+ ${plDur(sum(['uns']))} ייתכן שיפריעו</small>` : ''}</span><span><b>${plDur(sum(['sup']))}</b>בהשגחה</span><span><b>${plDur(sum(['care']))}</b>טיפול</span><span><b>${longest ? plDur(left(longest)) : '—'}</b>הרצף הפנוי הארוך</span></div>`;
   const nextOf = d => M.needs.filter(n => n.dog === d && n.b > (M.day ? M.from : now)).sort((x, y) => x.a - y.a)[0];
   const nk = nextOf('kishmish'), nc = nextOf('kochik'), kmeal = M.marks.find(m => m.t > (M.day ? M.from : now));
   const farOf = n => ({far: !!M.day || n.a >= now + PLAN.far});
   const tsk = (n, d) => n ? `<li><b>${PL_DOG[d]}</b> ${n.a <= now && !M.day ? 'עכשיו' : span(farOf(n), n.a, n.b)} · ${n.title.replace(/^[^:]+:\s*/, '')}${n.late ? ' <em>באיחור</em>' : ''}${n.combo ? ' <small>(אפשר לשלב)</small>' : ''}</li>` : `<li><b>${PL_DOG[d]}</b> אין משימה צפויה ${M.day ? 'מחר' : 'בהמשך היום'}</li>`;
   const nextLine = `<ul class="pl-next"><li class="pl-nh">המשימות הבאות</li>${tsk(nk, 'kishmish')}${tsk(nc, 'kochik')}${kmeal && (!nc || kmeal.t < nc.a + 3*PL_H) ? `<li><b>קוצ׳יק</b> ארוחה בסביבות <bdi dir="ltr">${clock(kmeal.t)}</bdi> <small>(לפי הרגל, מעט נתונים)</small></li>` : ''}</ul>`;
-  const top = `<div class="card pl-hero ${cls}"><div class="pl-top">${dayChips}</div>${hero}${stats}${nextLine}</div>`;
+  const top = `<div class="card pl-hero ${cls}"><div class="pl-top">${dayChips}<small class="pl-pre">${PL_PRE}</small></div>${hero}${stats}${nextLine}</div>`;
   const tl = `<div class="card pl-tl"><div class="pl-tlh"><b>${planDay ? 'מחר' : 'היום'}</b><span class="pl-lg"><span><i class="lv-free"></i>אפשר לצאת</span><span><i class="lv-home"></i>פנוי בבית</span><span><i class="lv-uns"></i>אולי</span><span><i class="lv-sup"></i>בהשגחה</span><span><i class="lv-care"></i>טיפול</span><span><i class="lv-est"></i>הערכה</span></span></div>
     ${planTimelineHTML(M, lv, ln)}<small class="pl-range">${planDay ? 'מחר' : 'היום'} ${plSpan(M.from, M.to)}${planDay ? ' · תחזית ליום שלם, פחות ודאית' : ''}</small></div>`;
   // my windows: outing, home (from PLAN.minWin; "קצר" under PLAN.shortWin — never hidden) and supervised stretches
   const isLong = x => longest && longest.parts.includes(x) && x === longest.parts.reduce((m, y) => left(y) > left(m) ? y : m);
-  const BADGE = {free: 'אפשר לצאת', home: 'פנוי בבית', sup: 'בהשגחה'};
+  const BADGE = {free: 'אפשר לצאת', home: 'פנוי בבית', uns: 'ייתכן שיפריעו', sup: 'בהשגחה'};
   const after = x => { const i = lv.indexOf(x), n = lv[i+1]; return n && n.k === 'uns' ? ` · ואולי עוד עד ${x.far || n.far ? '~' + clock(plRound(n.b)) : clock(n.b)}` : ''; };
   const row = x => { const isF = x.k === 'free', a = M.day ? x.a : Math.max(x.a, now), short = x.k === 'home' && x.run < PLAN.shortWin;
     const desc = isF ? `${x.f.before.join(' · ')}${x.f.notes.length ? ' · ' + x.f.notes.join(' · ') : ''}` : x.why;
     return `<li class="pl-w ${isF ? 'pl-card free' : x.k}${isLong(x) ? ' longest' : ''}"><div class="pl-wt">${span(x, a, x.b)}<span>${plDur(x.b - a)}</span></div>
       <div class="pl-wm"><span class="pl-badge ${x.k}">${BADGE[x.k]}</span>${short ? '<span class="pl-badge short">קצר</span>' : ''}<span class="pl-cert ${x.conf || ''}">${isF ? PL_CONF[x.conf] : plCert(x)}</span>${isLong(x) ? '<span class="pl-long">הרצף הארוך</span>' : ''}</div>
       <small>${isF ? 'נגמר כי ' + x.f.endWhy : x.what + ' · ' + x.why}${x.k === 'home' ? after(x) : ''}</small>${isF ? `<small class="pl-do">${esc(desc)}</small>` : ''}
-      ${ics({kind: x.k, a, b: x.b, title: isF ? 'זמן פנוי: אפשר לצאת' : x.k === 'home' ? 'זמן פנוי בבית' : 'זמן שקט (בהשגחה)', desc: (isF ? planCal({free: [x.f], needs: []})[0].desc : x.why)})}</li>`; };
-  const wins = outs.concat(homes, sups).sort((x, y) => x.a - y.a);
+      ${ics({kind: x.k, a, b: x.b, title: isF ? 'זמן פנוי: אפשר לצאת' : x.k === 'home' ? 'זמן פנוי בבית' : x.k === 'uns' ? 'זמן פנוי, ייתכן שיפריעו' : 'זמן שקט (בהשגחה)', desc: (isF ? planCal({free: [x.f], needs: []})[0].desc : x.why)})}</li>`; };
+  const wins = outs.concat(homes, unss, sups).sort((x, y) => x.a - y.a);
   const list = `<div class="card pl-list"><b class="pl-h">החלונות שלי</b>${wins.length ? `<ul>${wins.map(row).join('')}</ul>` : '<p class="pl-empty">אין חלונות שקטים צפויים.</p>'}</div>`;
   const tasks = M.needs.filter(n => n.b > (M.day ? M.from : now)).map(n => ({a: n.a, b: n.b, dog: n.dog, what: n.title.replace(/^[^:]+:\s*/, ''), why: n.why, kind: n.kind, late: n.late, combo: n.combo, far: !!M.day || n.a >= now + PLAN.far}))
     .concat(M.marks.filter(m => m.t > (M.day ? M.from : now)).map(m => ({a: m.t, b: m.t + 15*PL_M, dog: 'kochik', what: 'ארוחה (לפי הרגל, מעט נתונים)', why: m.tip, kind: 'meal', soft: true}))).sort((x, y) => x.a - y.a);
@@ -4541,7 +4567,9 @@ function planHTML(){
     <small><b>טיפול</b> = רק מה שצריך את הידיים שלך: קישמיש מחוץ לכלוב (חצץ, אוכל, משחק איתה), פיפי של קוצ׳יק, תרופות, מקלחות. ${du.care.src === 'learned' ? `יציאה של קישמיש מהכלוב נמשכת בדרך כלל כ־${words(du.care.ms)} (חציון של ${du.care.n} יציאות, מהיציאה מהכלוב ועד הכניסה הבאה).` : `עוד אין מספיק יציאות מהכלוב (${du.care.n}), אז ההנחה היא כ־${words(du.care.ms)} — הערכה.`} זו הערכה עקיפה של משך הטיפול, לא ספירה של הדקות שלך. כשטיפול של שתיהן חופף הוא נספר פעם אחת; פיפי של קוצ׳יק בזמן היציאה של קישמיש מסומן "אפשר לשלב". קוצ׳יק: כ־${words(PLAN.kochikTask)} לכל יציאה (הערכה), פיפי כל ${words(kg.gap)} בערך${kg.sick ? ' (פחות אחרי שלשול / הקאה)' : ''}.</small>
     <small><b>בהשגחה</b> = את בבית אבל לא עסוקה בה: קישמיש ערה בכלוב (קונג, משטח ליקוק, נרגעת), במנשא, בגדר, או ישנה מחוץ לכלוב סגור. <b>פנוי בבית</b> = קישמיש ישנה בכלוב סגור וקוצ׳יק לא צריכה כלום — מוצג מ־${words(PLAN.minWin)}, ומתחת ל־${words(PLAN.shortWin)} מסומן "קצר".</small>
     <small><b>מתי</b> — זה החלק הלא ודאי. ${du.wake === 'contract' ? 'מתי תתעורר מהשינה הנוכחית: לפי תחזית השינה של האפליקציה.' : du.wake === 'night' ? 'שינת לילה: מתעוררת בסביבות הבוקר הרגיל שלה.' : du.wake === 'estimate' ? `מתי תתעורר מהשינה הנוכחית: ${PL_EST} לתחזית השינה, אז לפי טווח השינות שלה (מסומן חיוור).` : 'מתי תתעורר: לפי טווח השינות שלה.'} שינה רגילה שלה: ${du.naps.src === 'learned' ? `${words(du.naps.lo)}–${words(du.naps.hi)} (רבע עד שלושה רבעים מ־${du.naps.n} שינות מסומנות)` : `עוד מעט נתונים, אז ${words(du.naps.lo)}–${words(du.naps.hi)} כהערכה`}; נרדמת בכלוב אחרי כ־${words(du.lat.ms)}${du.lat.src === 'learned' ? '' : ' (הערכה)'}. הזמן שלפני כל טיפול צפוי, שבו היא עשויה כבר להתעורר, מסומן חיוור ("אולי") ולא נספר כזמן תפוס. כל סבב תלוי בקודם, אז אי-הוודאות גדלה עם השעות, ומעבר ל־${words(PLAN.far)} מעכשיו השעות מעוגלות לרבע שעה.</small>
-    <small><b>אפשר לצאת</b> = יותר מחמיר מפנוי בבית, אף פעם לא רק לפי תחזית שינה: קישמיש ישנה בכלוב אחרי פיפי בחצץ, וגם כבר נשארה לבד בבית רגועה. ${aw.enough ? `עד עכשיו: ${aw.n} פעמים בשבועיים האחרונים, אז חלון עד כ־${words(aw.cap)}.` : `עדיין אין מספיק ניסיון לבד (${aw.n} פעמים רגועה מחוץ לבית בשבועיים).`} נספר רק "יצאתי מהבית" עם "רגועה"; בלי תשובה או "לא יודעת" — לא נספר, וגם היעדר בכי רשום לא נחשב רגועה.</small></details>`;
+    <small><b>אפשר לצאת</b> = יותר מחמיר מפנוי בבית, אף פעם לא רק לפי תחזית שינה: קישמיש ישנה בכלוב אחרי פיפי בחצץ, וגם כבר נשארה לבד בבית רגועה. ${aw.enough ? `עד עכשיו: ${aw.n} פעמים בשבועיים האחרונים, אז חלון עד כ־${words(aw.cap)}.` : `עדיין אין מספיק ניסיון לבד (${aw.n} פעמים רגועה מחוץ לבית בשבועיים).`} נספר רק "יצאתי מהבית" עם "רגועה"; בלי תשובה או "לא יודעת" — לא נספר, וגם היעדר בכי רשום לא נחשב רגועה.</small>
+    <small><b>ניסיון לבד, כל מצב בנפרד</b> (שבועיים): ${['room', 'home', 'other'].map(c => { const e = aw.by[c]; return `${PL_AWAY_EV[c]}: ${e.n ? `${e.n} פעמים, ${e.calm} רגועה${e.calm ? `, הכי ארוך רגועה ${words(e.longestCalm)}, האחרונה לפני ${words(e.recency)}` : ''}` : 'עוד אין'}`; }).join(' · ')}. רק "לבד בבית" נחשב ליציאה מהבית; "עם מישהו אחר" מראה עצמאות ממך, לא יכולת להישאר לבד.</small>
+    <small><b>${PL_PRE}</b>: "כנראה בלי הפרעה" נגמר בתחילת הטווח שבו היא עשויה להתעורר, ובסבבים הבאים מתחיל רק אחרי שאי-הוודאות של הסבב הקודם עברה; השאר "ייתכן שיפריעו". התעוררות שקטה בכלוב, שתייה לבד או בכי שנרגע אינם טיפול. בבדיקה על 23–25.11 רוב החלונות הרחוקים נקטעו, ולכן עוד אין מספיק ימים לכייל — זה יתעדכן עם עוד נתונים.</small></details>`;
   return top + planAwayHTML() + tl + list + careList + want + info;
 }
 function planRender(){
