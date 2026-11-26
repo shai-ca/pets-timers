@@ -179,7 +179,7 @@
     mode = 'ok'; CAM_TIMEOUT_MS = 4000; localStorage.setItem('pets-timers-v1-cam', BASE); pet = 'kishmish'; render(); await poll(); render();
     { const log0 = canon(state.log); camLabelView(); await pause(20); await wait(5);
       const evb = sh.querySelectorAll('.cam-ev [data-ev]');
-      ok('events: a separate section with the research buttons (crate and door), saying it is not the journal', evb.length === 4 && evb[0].textContent === 'כניסה לכלוב' && evb[1].textContent === 'יציאה מהכלוב' && evb[2].textContent === 'הדלת נסגרה' && evb[3].textContent === 'הדלת נפתחה' && sh.querySelector('.cam-ev').textContent.includes('לא נרשם ביומן'));
+      ok('events: a separate section with the two research buttons (no door buttons: the door is painted on the camera page), saying it is not the journal', evb.length === 2 && evb[0].textContent === 'כניסה לכלוב' && evb[1].textContent === 'יציאה מהכלוב' && sh.querySelector('.cam-ev').textContent.includes('לא נרשם ביומן'));
       const t0 = Date.now(); evb[0].click(); await pause(10); await wait(3);
       const ev = calls.filter(c => c.url.endsWith('/api/events')).pop();
       ok('one tap: an entry event at the click time, blind, with an idempotency id and the custom header', !!ev && ev.body.kind === 'crate_entry' && Math.abs(ev.body.event_ts - t0) < 2000 && ev.body.time_source === 'click' && ev.body.method === 'camera' && ev.body.blind === true && ev.body.shown.app_state === false && !!ev.body.client_id && ev.headers['x-pets-camera'] === '1' && /^Bearer /.test(ev.headers.Authorization));
@@ -190,9 +190,9 @@
       sh.querySelector('.cam-evundo').click(); await pause(10); await wait(3);
       const rt = calls.filter(c => c.url.endsWith('/api/events/retract')).pop();
       ok('undo: retract the corrected event', !!rt && JSON.stringify(rt.body.event_ids) === JSON.stringify(['E' + evN]) && sh.querySelector('.cam-evres').textContent.includes('בוטל'));
-      sh.querySelector('.cam-seen [data-seen=direct]').click(); sh.querySelectorAll('.cam-ev [data-ev]')[2].click(); await pause(10); await wait(3);
+      sh.querySelector('.cam-seen [data-seen=direct]').click(); sh.querySelectorAll('.cam-ev [data-ev]')[1].click(); await pause(10); await wait(3);
       const dv = calls.filter(c => c.url.endsWith('/api/events')).pop();
-      ok('door change: a door_closed event, and "saw it with my eyes" sends method direct', dv.body.kind === 'door_closed' && dv.body.method === 'direct' && dv.body.time_source === 'click');
+      ok('"saw it with my eyes" sends method direct', dv.body.kind === 'crate_exit' && dv.body.method === 'direct' && dv.body.time_source === 'click');
       sh.querySelector('.cam-seen [data-seen=camera]').click();
       const fr = sh.querySelectorAll('.cam-f')[2]; fr.querySelector('[data-fev=crate_exit]').click(); await pause(10); await wait(3);
       const fe = calls.filter(c => c.url.endsWith('/api/events')).pop();
@@ -201,8 +201,10 @@
       close(); }
     // ----- the door, from the service's door timeline -----
     { close(); DOOR = null; await poll(); render(); ok('door: "לא סומן" when no door change is known', txt().includes('דלת: לא סומן'));
-      DOOR = { value: 'closed', source: 'change', since: now - 20*MIN }; await poll(); render();
-      ok('door: closed since the change, marked by hand (not a camera detection)', txt().includes('דלת סגורה') && txt().includes('מאז') && txt().includes(clock(now - 20*MIN)) && txt().includes('סומן ידנית')); }
+      DOOR = { value: 'closed', source: 'period', from: now - 20*MIN, to: now + 10*MIN }; await poll(); render();
+      ok('door now: closed, the painted span, marked by hand (not a camera detection)', txt().includes('דלת סגורה') && txt().includes(clock(now - 20*MIN)) && txt().includes('סומן ידנית'));
+      DOOR = null; LS = { ...LS, last_seen: { ...LS.last_seen, door: { value: 'open', source: 'period', from: now - 60*MIN, to: now - 30*MIN } } }; await poll(); render();
+      ok('no span covers now: the door when she was last seen', txt().includes('דלת פתוחה כשנראתה') && txt().includes(clock(now - 60*MIN))); }
     // ----- an image that cannot be shown says so on the card -----
     { const rf = window.fetch; window.fetch = (url, o) => String(url).includes('/img') ? Promise.resolve(new Response(new Blob(['not an image'], { type: 'image/jpeg' }))) : rf(url, o);
       LS.last_seen = { ...LS.last_seen, image_id: 'broken', img: '/img?id=broken' }; CAM.thumb = null; CAM.thumbId = null; await poll(); render();
