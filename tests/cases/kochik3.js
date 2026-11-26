@@ -135,6 +135,37 @@ const J = x => JSON.stringify(x);
     const LW = L45.concat([{...KO0, k:'weight', t: at(2026, 1, 12, 9), kg: 3.4}, {...KO0, k:'medoff', t: at(2026, 1, 14, 9), end: at(2026, 1, 15, 9)}]);
     const bW = kochikBaseline('kochik', N1, {log: LW});
     ok('weight from weight entries; days on a medicine break are not due', bW.short.weight.n === 1 && bW.short.weight.last === 3.4 && bW.short.meds.due === 10);
+    // appetite: more "לא אכלה" with comparable logging
+    const LN = daysLog(S, 45, () => [7]).concat(Array.from({length: 7}, (_, i) => [10, 14].map(hh => ({...KO0, k:'nofood', t: kbAdd(at(2026, 1, 10, 0), i) + hh*HOUR}))).flat());
+    ok('appetite: refusals per logged day are a metric ("יותר פעמים שלא אכלה")', kochikBaseline('kochik', N1, {log: LN}).short.nofood.mean === 2 && kochikBaselineText('kochik', N1, {log: LN}).includes('יותר פעמים שלא אכלה'));
+    // ---- advice('kochik'): one calm line or none (real clock: medicines are marked as given so the hour does not matter)
+    const n0 = Date.now(), meds = [{...KO0, k:'med_am', t: n0}, {...KO0, k:'med_pm', t: n0}];
+    const adv = list => { seed(list); return advice('kochik'); };
+    let a = adv(meds);
+    ok('advice: nothing in the list → "עוד אין מספיק נתונים", and it says a missing record is not a missing pee', a.level === 'info' && a.text === 'עוד אין מספיק נתונים' && a.why.includes('לא אומר'));
+    a = adv(meds.concat([{...KO0, k:'pee', t: n0 - 20*MIN}]));
+    ok('advice: pee 20 min ago → "אין צורך לעשות דבר כרגע" with the next pee time', a.text === 'אין צורך לעשות דבר כרגע' && a.why.includes(clock(n0 - 20*MIN + 2*HOUR)));
+    ok('…drawn on her screen as one plain line', $n('#main .advice') === 1 && !$q('.advice button') && $q('#main .advice').textContent.includes('אין צורך'));
+    FAKE_HOUR = 2; render(); ok('…not on the slim night screen', $n('.advice') === 0); FAKE_HOUR = 12; render();
+    ok('advice: pee window past → none', adv(meds.concat([{...KO0, k:'pee', t: n0 - 150*MIN}])).level === 'none' && $n('.advice') === 0);
+    ok('advice: a drink 40 min ago, after her last pee → none', adv(meds.concat([{...KO0, k:'pee', t: n0 - 50*MIN}, {...KO0, k:'water', t: n0 - 40*MIN}])).level === 'none');
+    a = adv(meds.concat([{...KO0, k:'pee', t: n0 - 20*MIN}, {...KO0, k:'poop', t: n0 - 3*HOUR, q:'dia'}]));
+    ok('advice: after diarrhoea it names the shorter gap, never says she is fine', a.level === 'info' && a.why.includes('שלשול') && a.why.includes(clock(n0 - 20*MIN + 1.5*HOUR)));
+    ok('advice: diarrhoea + pee 100 min ago (past the 1.5 h cap) → none', adv(meds.concat([{...KO0, k:'pee', t: n0 - 100*MIN}, {...KO0, k:'poop', t: n0 - 3*HOUR, q:'dia'}])).level === 'none');
+    a = adv(meds.concat([{...KO0, k:'pee', t: n0 - 20*MIN}, {...KO0, k:'sleep', t: n0 - 10*MIN}]));
+    ok('advice: a marked sleep running → "אפשר לתת לה לנוח"', a.text === 'אפשר לתת לה לנוח');
+    const medDue = n0 >= planAt(n0, PLAN.medBy.am) - PLAN.medLead || n0 >= planAt(n0, PLAN.medBy.pm) - PLAN.medLead;
+    ok('advice: a medicine not marked is none from an hour before 11:00 / 21:00', adv([{...KO0, k:'pee', t: n0 - 20*MIN}]).level === (medDue ? 'none' : 'info'));
+    ok('…but on a medicine break it is not waited for', adv([{...KO0, k:'pee', t: n0 - 20*MIN}, {...KO0, k:'medoff', t: n0 - 2*D}]).level === 'info');
+    const allTexts = Object.values(ADVICE_K).join(' ');
+    ok('advice texts: calm, no health claim', !/בריאה|בסדר|תקין|מרגישה טוב/.test(allTexts));
+    ok('Kishmish\'s advice is not Kochik\'s', !Object.values(ADVICE_K).includes(advice('kishmish').text) || advice('kishmish').level === 'none');
+    // ---- the baseline only behind "איך זה מחושב" in the summary
+    seed(L45.concat(meds)); view = 'now'; render();
+    ok('no baseline on the main screen', $n('.kbase') === 0);
+    view = 'sum'; sumMode = 'day'; sumAnchor = Date.now(); render();
+    ok('summary: the baseline folded behind "איך זה מחושב"', $n('details.kbase') === 1 && !$q('details.kbase').open && $q('details.kbase summary').textContent.includes('איך זה מחושב') && $q('details.kbase').textContent.includes('לא כמות'));
+    view = 'now'; render();
     // the default list (state.log)
     seed(L45);
     ok('reads state.log by default', J(kochikBaseline('kochik', N1).short) === J(b.short));

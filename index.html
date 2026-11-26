@@ -685,6 +685,7 @@
   .pl-fit .pl-do{margin:2px 0 0;padding-inline-start:18px;font-size:13px;line-height:1.5} .pl-fit .pl-note{color:var(--muted)}
   .pl-conf{font-size:12px;border-radius:999px;padding:1px 8px;background:var(--pl-off);color:var(--ink)} .pl-conf.high{background:var(--pl-free);color:var(--pl-free-ink)}
   .pl-none{margin:0;font-size:13.5px}
+  .kbase table{width:100%;border-collapse:collapse;font-size:12.5px} .kbase th,.kbase td{padding:4px 3px;text-align:start;border-top:1px solid var(--line);vertical-align:top} .kbase th{font-weight:600;color:var(--muted)}
   .pl-info{display:flex;flex-direction:column;gap:6px} .pl-info small{display:block;color:var(--muted);font-size:12.5px;line-height:1.55;margin-top:6px}
   .pl-empty{color:var(--muted);margin:0}
   .v2 .pl-hero,.v2 .pl-tl,.v2 .pl-list{border-radius:16px}
@@ -713,6 +714,7 @@
   .card.slim.advice b{font-size:14px;font-weight:500;color:var(--ink);line-height:1.45}
   .card.slim.advice small{font-size:12.5px;color:var(--muted);margin-top:2px}
   .v2 .card.slim.advice{background:none;border:0;box-shadow:none}
+  main.grps.solo > .card.slim.advice{grid-column:1/-1} .card.slim.advice small{display:block}   /* Kochik: one full-width line above her groups */
   .card.slim.xsum svg{color:var(--acc)}
   .cset-door,.cset-cover{margin-bottom:12px}
 </style>
@@ -1387,6 +1389,7 @@ const ADVICE = {
 };
 function advice(p){
   const none = {level: 'none', text: '', why: ''};
+  if(p === 'kochik') return adviceKochik();   // Agent C
   if(!PETS[p] || !PETS[p].cycle || !V || !V[p]) return none;
   const S = V[p], now = Date.now(), asleep = !!(S.sleep && S.sleep.start), inCrate = !!(S.crate && S.crate.start);
   const say = (k, why) => ({level: 'info', text: ADVICE[k], why});
@@ -1419,6 +1422,29 @@ function advice(p){
 }
 // adviceHTML(p): the advice slot in the side column (Agent E draws it). Empty while `advice` says nothing.
 function adviceHTML(p){ const a = advice(p); return a.level === 'none' ? '' : `<div class="card slim advice ${a.level}"><span><b>${esc(a.text)}</b>${a.why ? `<small>${esc(a.why)}</small>` : ''}</span></div>`; }
+// advice('kochik') (Agent C, owner 26.11): one calm line about comfort and rest, or none. None while anything asks for
+// action: a medicine due (from PLAN.medLead before 11:00 / 21:00) or late, unless on a break; her pee window open or past
+// (`kochikExpect`, the sick cap included); a drink's pee window open. Then: a marked sleep running → "let her rest";
+// no pee in the last 12 h of the list → "not enough data yet" (a missing record is not a missing pee); else nothing to do.
+// Never says or implies she is well; after diarrhoea / vomiting it only names the shorter gap the app is using.
+const ADVICE_K = {rest: 'אפשר לתת לה לנוח', idle: 'אין צורך לעשות דבר כרגע', thin: 'עוד אין מספיק נתונים'};
+function adviceKochik(){
+  const p = 'kochik', none = {level: 'none', text: '', why: ''};
+  if(!V || !V[p]) return none;
+  const S = V[p], now = Date.now(), say = (k, why) => ({level: 'info', text: ADVICE_K[k], why});
+  if(PETS[p].meds && !(S.medoff && S.medoff.start)){
+    const m = medsOf(p);
+    for(const s of ['am', 'pm']) if(!m[s] && now >= planAt(now, PLAN.medBy[s]) - PLAN.medLead) return none;   // due soon or late
+  }
+  const asleep = !!(S.sleep && S.sleep.start);
+  if(!S.pee || now - S.pee > 12*3600000) return asleep ? say('rest', 'יש שינה מסומנת שעדיין נמשכת.') : say('thin', 'אין פיפי רשום ב־12 השעות האחרונות, אז אין למה להשוות. זה לא אומר שלא עשתה.');
+  const e = kochikExpect(now);
+  if(e.from != null && now >= e.from) return none;                                   // her pee is due by her rhythm (or the cap)
+  if(e.drinkFrom != null && now >= e.drinkFrom) return none;                         // she drank: a pee may come now
+  const next = e.drinkFrom != null ? Math.min(e.from, e.drinkFrom) : e.from;
+  const why = `הפיפי הבא בסביבות ${clock(next)}${e.sick ? ` · אחרי ${state.log.some(x => x.p===p && x.k==='vomit' && x.t >= now - 24*3600000) ? 'הקאה' : 'שלשול'} ב־24 השעות האחרונות האפליקציה מחשבת עד ${words(e.cap)} בין פיפי לפיפי` : ''}.`;
+  return say(asleep ? 'rest' : 'idle', (asleep ? 'יש שינה מסומנת שעדיין נמשכת. ' : '') + why);
+}
 // KOCHIK'S PERSONAL BASELINE (v3, Agent C). Derived from the list every time, nothing stored. Per metric three views:
 //  short — the last KOCHIK_BASE.short full days (rolling, ends at today's midnight);
 //  long  — KOCHIK_BASE.long days ending at the latest week boundary (KOCHIK_BASE.weekday, 00:00), so it moves once a week;
@@ -1444,6 +1470,7 @@ const KB_METRICS = [
   {key: 'pee', kind: 'perDay', less: 'פחות פיפי', more: 'יותר פיפי'},
   {key: 'drink', kind: 'perDay', less: 'פחות פעמים ששתתה', more: 'יותר פעמים ששתתה'},
   {key: 'meal', kind: 'perDay', less: 'פחות ארוחות', more: 'יותר ארוחות'},
+  {key: 'nofood', kind: 'perDay', less: 'פחות פעמים שלא אכלה', more: 'יותר פעמים שלא אכלה'},
   {key: 'poop', kind: 'perDay', less: 'פחות קקי', more: 'יותר קקי'},
   {key: 'vomit', kind: 'perDay', less: 'פחות הקאות', more: 'יותר הקאות'},
   {key: 'gap', kind: 'gap', less: 'פחות זמן בין פיפי לפיפי', more: 'יותר זמן בין פיפי לפיפי'},
@@ -1478,7 +1505,7 @@ function kbStats(p, from, to, L){
   const sl = E.filter(e => e.k === 'sleep' && e.end != null);
   const hrs = new Set(E.filter(e => { const h = new Date(e.t).getHours(); return h >= B.dayHours[0] && h < B.dayHours[1]; }).map(e => dayKey(e.t) + ' ' + new Date(e.t).getHours()));
   return {from, to, days: days.length,
-    pee: per(e => e.k === 'pee'), drink: per(e => e.k === 'water'), meal: per(e => e.k === 'food'), poop: per(e => e.k === 'poop'), vomit: per(e => e.k === 'vomit'),
+    pee: per(e => e.k === 'pee'), drink: per(e => e.k === 'water'), meal: per(e => e.k === 'food'), nofood: per(e => e.k === 'nofood'), treat: per(e => e.k === 'treat'), play: per(e => e.k === 'play'), poop: per(e => e.k === 'poop'), vomit: per(e => e.k === 'vomit'),
     gap: {n: g.length, med: g.length ? quantile(g, .5) : null, q25: g.length ? quantile(g, .25) : null, q75: g.length ? quantile(g, .75) : null},
     poopKind: {...pk, n: marked, dia: marked ? pk.dia / marked : null},
     weight: {n: W.length, first: W.length ? W[0].kg : null, last: W.length ? W[W.length-1].kg : null, mean: W.length ? W.reduce((a, e) => a + e.kg, 0) / W.length : null},
@@ -1525,6 +1552,29 @@ function kochikBaseline(p, now, opts){
   return {enough: days >= B.minDays, days, asOf: wk, short, long, refs,
     logging: {short: short.logging, long: long.logging, refs: refs.map(r => ({id: r.id, ...r.logging}))},
     cmp: {long: kbCompare(short, long), first: first ? kbCompare(short, first) : null}};
+}
+// kochikBaseHTML(p): the baseline, folded behind "איך זה מחושב" in the summary (owner 26.11: no new main-screen
+// metrics). Counts of what was logged, side by side with how much was logged in that period. Not a diagnosis, no target.
+function kochikBaseHTML(p, now){
+  const b = kochikBaseline(p, now);
+  if(!b.short) return '';
+  const first = b.refs.find(r => r.id === 'first'), cols = [['7 הימים האחרונים', b.short], ['30 יום עד יום א׳', b.long]].concat(first ? [['השבוע הראשון', first]] : []);
+  const n1 = x => x == null ? '–' : (Math.round(x * 10) / 10).toString();
+  const pd = k => s => s[k].n ? n1(s[k].mean) : '–', pc = x => x == null ? '–' : Math.round(x * 100) + '%';
+  const rows = [
+    ['פיפי ביום', pd('pee')], ['זמן בין פיפי לפיפי ביום (חציון)', s => s.gap.n ? words(s.gap.med) : '–'],
+    ['פעמים ששתתה ביום', pd('drink')], ['אכלה ביום', pd('meal')], ['"לא אכלה" ביום', pd('nofood')], ['חטיפים ביום', pd('treat')],
+    ['קקי ביום', pd('poop')], ['שלשול מתוך הקקי שסומן', s => s.poopKind.n ? pc(s.poopKind.dia) : '–'], ['הקאות ביום', pd('vomit')],
+    ['שינה מסומנת (שעות ביום)', s => s.sleep.n ? n1(s.sleep.hoursPerDay) : '–'],
+    ['משקל אחרון', s => s.weight.n ? `${s.weight.last.toFixed(1)} ק״ג` : '–'], ['תרופות שסומנו', s => s.meds && s.meds.due ? `${s.meds.given}/${s.meds.due}` : '–'],
+    ['תיעוד: רישומים ביום', s => n1(s.logging.entriesPerDay)], ['תיעוד: ימים עם פיפי רשום', s => `${s.logging.daysWithPee}/${s.logging.days}`],
+    ['תיעוד: שעות 07–22 עם רישום', s => pc(s.logging.hoursShare)],
+  ];
+  const t = kochikBaselineText(p, now);
+  return `<details class="card pl-info kbase"><summary>איך זה מחושב · השוואה לשבועות קודמים</summary>
+    ${t ? `<b>${esc(t)}</b>` : `<small>${b.enough ? 'אין מספיק רישומים להשוואה.' : `השוואה תופיע אחרי ${KOCHIK_BASE.minDays} ימים של רישומים (עכשיו ${b.days}).`}</small>`}
+    <table><tr><th></th>${cols.map(c => `<th>${c[0]}</th>`).join('')}</tr>${rows.map(r => `<tr><td>${r[0]}</td>${cols.map(c => `<td>${r[1](c[1])}</td>`).join('')}</tr>`).join('')}</table>
+    <small>ממוצע לכל יום שיש בו רישום כלשהו. אלה ספירות של מה שנרשם: מה שלא נרשם לא אומר שלא קרה, ו"שתתה" הוא מספר הפעמים שראו אותה שותה, לא כמות. "שונה" נאמר רק כשההבדל גדול מהפיזור הרגיל שלה וכשהתיעוד דומה. השבוע הראשון וכל חודש שהסתיים נשמרים קבועים, כדי ששינוי איטי לא ייבלע. זו לא אבחנה ולא יעד.</small></details>`;
 }
 // kochikBaselineText(p, now?) → one short line or ''. Agent E decides where it goes; the how-it-is-computed details stay
 // behind "איך זה מחושב". Short (last 7 days) against long (30 days to the week boundary) only.
@@ -3125,7 +3175,7 @@ waterRowHTML(pet) + (P.treats ? treatCardHTML(pet) : ''), 'food');
     sideHTML += `<section class="duo" id="sec-rest">${tileOf('sleep')}${tileOf('cry')}</section>`;
   }
 
-  if(P.cycle) sideHTML = sprayCardHTML(pet) + sideHTML; else h = sprayCardHTML(pet) + h;
+  if(P.cycle) sideHTML = sprayCardHTML(pet) + sideHTML; else h = sprayCardHTML(pet) + adviceHTML(pet) + h;   // Kochik: her calm line (Agent C); never on the slim night screen
   side.innerHTML = sideHTML;
   h += noteCardHTML(pet);
   if(P.cycle){
@@ -3941,6 +3991,7 @@ function renderSummary(){
   }
   if(P.cycle && !F) h += crateCompareHTML(pet, from, to);
   if(P.treats && !F) h += fat30HTML(pet);
+  if(pet === 'kochik' && !F) h += kochikBaseHTML(pet);   // Agent C: the baseline, folded
   if(P.cycle && !F){ const rs = retryStats(pet, from, to); if(rs.n) h += `<div class="card slim rtsum"><span><b>ניסיונות חוזרים: ${rs.n}</b><small>הסתיימו בפיפי בחצץ: ${rs.good}</small></span>${ico('crate','s')}</div>`; h += cryStatsHTML(pet, from, to);
     if(sumMode === 'day'){
       const ks = state.log.filter(e => e.p===pet && e.k==='food' && e.t >= from && e.t < to).map(mealKind), nm = ks.filter(k => k === 'meal').length, nb = ks.filter(k => k === 'bite').length;

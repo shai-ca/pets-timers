@@ -37,7 +37,7 @@
     // awake / Kochik
     seed(hist.concat(fed(now)));
     ok('awake: state awake, no range', wakeExpect(P).state === 'awake' && wakeExpect(P).likely === null);
-    ok('Kochik: never a range', wakeExpect('kochik').likely === null && advice('kochik').level === 'none');
+    ok('Kochik: never a range; her advice is a calm line or none (kochik3.js)', wakeExpect('kochik').likely === null && advice('kochik').level !== 'act');
 
     // ---- short waking and back to sleep: one episode ----
     const a = now - 70*MIN;
