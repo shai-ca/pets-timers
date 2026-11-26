@@ -1,5 +1,10 @@
 // Sleep / readiness / gravel rings (new design): the numbers follow the stated formulas.
 (async function(){
+  // runs on a fake clock at yesterday 13:00 (moving forward in real time), so its "last 24 hours" and "today" never straddle midnight
+  const RealDate = Date, real0 = RealDate.now(), d0 = new RealDate(real0); d0.setDate(d0.getDate() - 1); d0.setHours(13, 0, 0, 0);
+  const T0 = d0.getTime();
+  class FakeDate extends RealDate { constructor(...a){ if(a.length) super(...a); else super(T0 + (RealDate.now() - real0)); } static now(){ return T0 + (RealDate.now() - real0); } }
+  window.Date = FakeDate;
   try {
     reset();
     const now = Date.now(), K0 = {p:'kishmish'};
@@ -28,5 +33,5 @@
     ok('Kochik: no rings (no sleep goal at her age)', !$q('.scores'));
     V2 = false;
     done();
-  } catch(e){ crashed(e); }
+  } catch(e){ crashed(e); } finally { window.Date = RealDate; }
 })();

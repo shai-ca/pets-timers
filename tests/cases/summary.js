@@ -1,5 +1,10 @@
 // Summary, charts, filter, forecast, today's counts, text export — all computed from the list.
 (async function(){
+  // runs on a fake clock at yesterday 13:00 (moving forward in real time), so its "last 24 hours" and "today" never straddle midnight
+  const RealDate = Date, real0 = RealDate.now(), d0 = new RealDate(real0); d0.setDate(d0.getDate() - 1); d0.setHours(13, 0, 0, 0);
+  const T0 = d0.getTime();
+  class FakeDate extends RealDate { constructor(...a){ if(a.length) super(...a); else super(T0 + (RealDate.now() - real0)); } static now(){ return T0 + (RealDate.now() - real0); } }
+  window.Date = FakeDate;
   try {
     reset();
     const now = Date.now(), m0 = midnight(), R = rng(7), W = ['gravel','gravel','pad','floor','crate','gravel', undefined], L = [], P = 'kishmish';
@@ -39,5 +44,5 @@
     ok('a running timer is counted up to now', (now - m0 > 30*MIN && !inSeededStay) ? (st.sleep.ms >= 19*MIN && logText(P, m0, m0 + 24*HOUR).includes('–עכשיו  ישנה')) : true);
     pet = 'kochik'; view = 'sum'; sumMode = 'week'; sumFilter = 'crate'; render(); ok('a filter the pet does not have is ignored', !$q('.tile.on')); sumFilter = null;
     done(hints);
-  } catch(e){ crashed(e); }
+  } catch(e){ crashed(e); } finally { window.Date = RealDate; }
 })();
