@@ -32,7 +32,7 @@
     { const r0 = rounds();
       await send([E('ce_u', 'crate_entry', T - 30*MIN, { source: 'live_model' })]);
       const q = $q('#sec-crate .camjt');
-      ok('door unknown: the card asks "סגרת את הדלת?" (כן / לא / לא נכון), no "שהייה" button', !!q && q.textContent.includes('סגרת את הדלת') && !!q.querySelector('[data-camdoor=door_closed][data-live]') && !q.querySelector('[data-camj=start]'));
+      ok('door unknown: the card asks — "שהייה (דלת סגורה)" / "ביקור מרצון (דלת פתוחה)" / "לא נכון"', !!q && q.textContent.includes('הדלת לא ידועה') && q.querySelector('[data-camdoor=door_closed][data-live]').textContent.includes('דלת סגורה') && q.querySelector('[data-camdoor=door_open][data-live]').textContent.includes('ביקור מרצון') && !q.querySelector('[data-camj=start]'));
       q.querySelector('[data-camdoor=door_open]').click(); await wait(3);
       ok('"לא": a visit — no crate entry, no cycle, decisions to feedback, not asked again', !crates().length && rounds() === r0 && camjDec('ce_u').d === 'visit' && camjDec('door:ce_u').d === 'door_open' && !$q('#sec-crate .camjt')); }
     await fresh(() => [{ ...K0, k:'pee', t: T - 50*MIN, w:'gravel' }]);
