@@ -1235,7 +1235,7 @@ function enforce(log){
 const NAP_JOIN = 10*60000;    // sleep pieces this close, with nothing meaningful between them, are one episode
 const REST_JOIN = 30*60000;   // episodes this close (even with something between them) are one rest period
 const SLEEP_PRIOR_N = 4;      // initial: the Beta prior in `sleepOn` is worth this many observations
-const SLEEP_ON = {step:15*60000, days:14, minEp:5, horizons:[15, 30, 60], judge:30, likely:.7, unlikely:.3};   // initial
+const SLEEP_ON = {near:2*60000, step:15*60000, days:14, minEp:5, horizons:[15, 30, 60], judge:30, likely:.7, unlikely:.3};   // initial
 const NIGHT_LEARN = {days:14, min:7, cover:.5};   // `learnedNight`: last 14 nights, 7 observed needed; observed = ≥50% marked
 // What breaks a sleep episode: something she was seen doing, or being moved (not a change of crate, not a setup change).
 const MEANINGFUL = {water:1, food:1, nofood:1, play:1, cry:1, gravel:1, crate:1, pee:1, poop:1, none:1, carrier:1, pen:1};
@@ -1254,7 +1254,8 @@ function crateSetup(p, t, log){
 }
 // episodes(p, from, to, opts?) -> [{t, end|null, pieces:[{t, end|null, src}], src:'marked'|'estimated'|'mixed',
 //   endCause:'running'|'unknown'|'observed', night}] — sleep pieces (marked + estimated, `V[p].spans`) overlapping
-// [from, to), merged when the gap is ≤ opts.join (NAP_JOIN) AND no MEANINGFUL entry lies in the gap (edges included).
+// [from, to), merged when the gap is ≤ opts.join (NAP_JOIN) AND no MEANINGFUL entry lies in the gap (edges included)
+// AND the earlier piece did not end with a MARKED waking (a sleep entry's end: evidence she woke — v3 validation S1).
 // endCause: 'running' while it goes on; every end is 'unknown' — a crate exit or a gravel start at the same moment
 // does NOT mean someone woke her (never infer an intervention). 'observed' is reserved for an explicit future mark.
 // A piece from "התעוררה" on an estimate (`a:1`: estimated start, seen end) counts as 'mixed'.
@@ -1273,7 +1274,9 @@ function episodes(p, from, to, opts){
   for(const x of sp){
     const src = x.assumed ? 'estimated' : (ent.get(x.id) || {}).a ? 'mixed' : 'marked', piece = {t: x.t, end: x.end, src};
     const l = out[out.length-1], lEnd = l ? (l.end == null ? Infinity : l.end) : 0;
-    if(l && (x.t <= lEnd || (x.t - lEnd <= join && !eventIn(lEnd, x.t)))){ l.pieces.push(piece); l.end = l.end == null || x.end == null ? null : Math.max(l.end, x.end); }
+    // a MARKED waking (the end of a sleep entry, also "התעוררה" on an estimate) is evidence she woke: never merged across
+    const lp = l && l.pieces[l.pieces.length-1], woke = !!(lp && lp.src !== 'estimated' && lp.end != null && lp.end === lEnd);
+    if(l && (x.t <= lEnd || (!woke && x.t - lEnd <= join && !eventIn(lEnd, x.t)))){ l.pieces.push(piece); l.end = l.end == null || x.end == null ? null : Math.max(l.end, x.end); }
     else out.push({t: x.t, end: x.end, pieces: [piece]});
   }
   for(const e of out){
@@ -1330,11 +1333,16 @@ function learnedNight(p, opts){
 // A discrete life table in SLEEP_ON.step steps over the MARKED learnEpisodes of the last 14 days (a running one is
 // right-censored at now); each step's continuation is shrunk toward the pooled constant rate by a Beta prior worth
 // SLEEP_PRIOR_N observations. `words` judges the 30-minute horizon. Under SLEEP_ON.minEp episodes: 'unknown'.
-// opts: {now, endAsCensored (every end censored — sensitivity check), log, spans}.
+// opts: {now, censorNear, endAsCensored, log, spans}. censorNear (sensitivity): an end within SLEEP_ON.near (2 min) of a
+// crate exit, a gravel / carrier / pen start or a pee / poop / "לא עשתה" is censored (someone may have woken her — cause
+// unknown); other ends stay events. endAsCensored: EVERY end censored — an extreme bound only (no events: p = 1).
 function sleepOn(p, elapsedMs, opts){
   const o = opts || {}, now = o.now != null ? o.now : Date.now(), S = SLEEP_ON.step;
   const eps = learnEpisodes(p, now - SLEEP_ON.days*86400000, now, {...o, now}).filter(e => e.src === 'marked');
-  const data = eps.map(e => ({d: Math.max(0, (e.end == null ? now : e.end) - e.t), ev: e.end != null && !o.endAsCensored}));
+  const near = !o.censorNear ? [] : (o.log || state.log).filter(e => e.p===p).flatMap(e => e.k === 'crate' ? (e.end != null ? [e.end] : [])
+    : (e.k === 'gravel' || e.k === 'carrier' || e.k === 'pen' || e.k === 'pee' || e.k === 'poop' || e.k === 'none') ? [e.t] : []);
+  const cut = t => near.some(x => Math.abs(x - t) <= SLEEP_ON.near);
+  const data = eps.map(e => ({d: Math.max(0, (e.end == null ? now : e.end) - e.t), ev: e.end != null && !o.endAsCensored && !cut(e.end)}));
   const censored = data.filter(x => !x.ev).length;
   const maxK = data.reduce((m, x) => Math.max(m, Math.floor(x.d / S)), 0) + 1, rows = [];
   let E = 0, R = 0;
@@ -1773,7 +1781,7 @@ let stale = false;
 function outdated(){
   if(stale) return; stale = true; setSync('מתעדכן…','err');
   try { if(Date.now() - (+sessionStorage.getItem(LS_KEY+'-reloaded') || 0) < 120000) return; sessionStorage.setItem(LS_KEY+'-reloaded', String(Date.now())); } catch(e){}
-  location.replace(location.pathname + '?v=' + Date.now());
+  location.replace(location.pathname + (MODE === 'sandbox' ? '?sandbox&v=' : '?v=') + Date.now());   // a sandbox stays a sandbox
 }
 // Once per device, on its first contact with the server: entries this person logged here in the last
 // two days that the server does not have (the phone was signed out or not allowed, or an old version
@@ -2495,11 +2503,11 @@ function stillAsleep(p){
   const w = wakeExpect(p, now);
   if(w.sleepOn && w.words !== 'unknown') return w.likely && napSurv(p, now - w.since, now) < STILL_ASK ? {since: w.since, likely: w.likely, src: 'learned'} : null;
   const exp = st + kishStats(now).nap;
-  return now >= exp ? {exp, since: st, src: 'rule'} : null;
+  return now >= exp ? {since: st, src: 'rule'} : null;   // asked by the old rule, but no wake time: `wakeExpect` has none
 }
 function stillAsleepHTML(p){
   const a = stillAsleep(p); if(!a) return '';
-  const when = a.src === 'learned' ? `לפי השינות שלה, ייתכן שהיא כבר מתעוררת (בערך <bdi dir="ltr">${clock(a.likely.from)}–${clock(a.likely.to)}</bdi>)` : `בדרך כלל מתעוררת בערך עכשיו (צפוי ${clock(a.exp)})`;
+  const when = a.src === 'learned' ? `לפי השינות שלה, ייתכן שהיא כבר מתעוררת (בערך <bdi dir="ltr">${clock(a.likely.from)}–${clock(a.likely.to)}</bdi>)` : `עוד אין מספיק נתונים להעריך מתי תתעורר`;
   return `<div class="card slim sleepq still"><span><b>היא עדיין ישנה?</b><small>ישנה מ־<bdi dir="ltr">${clock(a.since)}</bdi> · ${when}</small></span>
     <span class="rt-a"><button class="go" data-act="wokeup">התעוררה</button><button class="btn" data-act="stillasleep">עדיין ישנה</button></span></div>`;
 }
@@ -2843,14 +2851,14 @@ function tryNowHTML(p){
   return `<small class="trynow">${head} · ${ago} ${h.why}${h.nap ? ` (ישנה ${words(h.nap)})` : ''}</small>`;
 }
 // INDEPENDENCE (owner, 25.11): she moves between steps on her own — the door open, she comes out, plays, goes back in.
-// selfExit(p, t, log?) -> 'door' | 'carrier' | 'pen' | null: a crate stay ended at t with the door OPEN (`crateSetup`),
+// selfExit(p, t, log?) -> 'door' | 'carrier' | 'pen' | 'water' | null: a crate stay ended at t with the door OPEN (`crateSetup`),
 // or ended by a carrier / pen start at t. Such an exit is not "taken out": no take-out reminder (`pottyDue`), no step
 // "טיול וצרכים" by itself (`routine` shows free time), no retry trigger (`retryScan`). Derived, nothing stored.
 function selfExit(p, t, log){
   const L = (log || state.log).filter(e => e.p===p);
   if(!t || !L.some(e => e.k==='crate' && e.end === t)) return null;
-  const mv = L.find(e => (e.k==='carrier' || e.k==='pen') && e.t === t);
-  if(mv) return mv.k;
+  const mv = L.find(e => (e.k==='carrier' || e.k==='pen' || e.k==='water') && e.t === t);
+  if(mv) return mv.k;   // 'water': a drink ends the stay (owner, v3) but alone starts no cycle and no potty advice
   return crateSetup(p, t, log).door === 'open' ? 'door' : null;
 }
 function pottyDue(p){
@@ -3100,7 +3108,7 @@ function render(){
           <span class="rt-a"><button class="go" data-act="pt" data-k="pee">פיפי</button><button class="go" data-act="pt" data-k="poop">קקי</button><button class="btn" data-act="pt" data-k="none">לא עשתה</button><button class="btn gend" data-act="dur" data-k="gravel">סיום</button></span></div>`
       : `<div class="card slim gravel ${tap.includes('none') ? 'nowt' : ''}"><span><b>יוצאים לחצץ?</b>${slim ? '' : tryNowHTML(pet)}<small>${uw && uw.n >= 3 ? `בדרך כלל עושה פיפי תוך ${words(uw.ms)}` : 'השעון מודד כמה זמן לקח ומה יצא'}${ln ? ` · לא עשתה לאחרונה: ${dayLabel(ln)} <bdi dir="ltr">${clock(ln)}</bdi>` : ''}</small></span>
           <span class="rt-a"><button class="go" data-act="dur" data-k="gravel">${ITEMS.gravel.start}</button><button class="btn" data-act="pt" data-k="none">לא עשתה</button></span></div>`;
-    if(slim){ side.innerHTML = alertsHTML(pet) + adviceHTML(pet) + sleepAskHTML(pet); document.getElementById('main').innerHTML = nightCardsHTML(pet, tileOf, gravelRow); return; }
+    if(slim){ side.innerHTML = alertsHTML(pet) + sleepAskHTML(pet); /* v3 validation S5: no advice line on the slim night screen */ document.getElementById('main').innerHTML = nightCardsHTML(pet, tileOf, gravelRow); return; }
     h += sec('1', 'כלוב', tap.includes('crate'), tileOf('crate'), 'crate');
     const pottySec = sec('2 · 5', 'צרכים', tap.includes('pee') || !!rt, gravelRow + gravelRatesHTML(pet) + tileOf('pee') + tileOf('poop'), 'potty');
     // Just woken up or out of the crate: on a phone the potty tiles come to the top of the page, above the wheel.
@@ -3200,7 +3208,7 @@ function weightSheet(p){
       commit(`${name} · משקל ${kg.toFixed(1)} ק״ג`, () => state.log.push({p, k:'weight', t, kg}));
     });
 }
-const FREE_LBL = {door:'זמן עצמאי', pen:'בגדר', carrier:'במנשא'};   // the wheel's centre in free time (`routine().free`)
+const FREE_LBL = {door:'זמן עצמאי', pen:'בגדר', carrier:'במנשא', water:'שתתה'};   // the wheel's centre in free time (`routine().free`)
 function cycleHTML(p){
   const S = V[p], now = Date.now(), rn = roundStarts(p).pop(), r = routine(p);
   const inCrate = !!(S.crate && S.crate.start), over = crateOver(p), asleep = !!(S.sleep && S.sleep.start), due = pottyDue(p);
@@ -3242,6 +3250,7 @@ function cycleHTML(p){
     : r.free === 'door' ? `${nm} יצאה בעצמה מהכלוב הפתוח. לא צריך להוציא אותה עכשיו; מה שהיא עושה מסמנים למטה.`
     : r.free === 'pen' ? `${nm} בגדר, זמן עצמאי. מה שהיא עושה מסמנים למטה.`
     : r.free === 'carrier' ? `טיול במנשא לא משנה את השגרה. מה שהיא עושה מסמנים למטה.`
+    : r.free === 'water' ? `${nm} שתתה ויצאה מהכלוב. שתייה לבד לא משנה את השגרה; מה שהיא עושה מסמנים למטה.`
     : r.done ? `הסבב הושלם. כש${nm} חוזרת לכלוב, לוחצים <b>״נכנסה לכלוב״</b>.`
     : ci === 0 ? (crateSetup(p, now).door === 'open' ? `${nm} בכלוב, הדלת פתוחה: היא יכולה לצאת ולחזור בעצמה. כשהיא יוצאת, לוחצים <b>״יצאה מהכלוב״</b>.` : `${nm} בכלוב. כשמוציאים אותה, לוחצים <b>״יצאה מהכלוב״</b> בכרטיס הכלוב.`)
     : ci === 1 ? `מוציאים את ${nm} לצרכים, ואז לוחצים למטה מה קרה: <b>פיפי</b>, <b>קקי</b> או <b>״לא עשתה״</b>.`
@@ -3608,6 +3617,7 @@ function napWake(p){
   const end = sp[sp.length-1].end; let start = sp[sp.length-1].t;
   for(let i = sp.length - 2; i >= 0 && sp[i].end >= start - 60000; i--) start = Math.min(start, sp[i].t);
   const done = Math.max(S.pee || 0, S.poop || 0, S.none || 0);
+  if(state.log.some(e => e.p===p && e.k==='water' && e.t === end)) return null;   // v3: woke at a drink — a drink alone gives no potty advice
   return end - start >= POTTY_CUE.nap && now - end <= POTTY_CUE.napFor && done < end ? {t: end, len: end - start} : null;
 }
 // "מה עושים עכשיו?" (`cycleHTML`) starts with this after such a nap.
@@ -5000,7 +5010,7 @@ if(!me) openUserSheet();
   function reload(){
     if(busy()){ setTimeout(reload, 4000); return; }
     try { sessionStorage.setItem(KEY, String(Date.now())); } catch(e){}
-    location.replace(location.pathname + '?v=' + Date.now());
+    location.replace(location.pathname + (MODE === 'sandbox' ? '?sandbox&v=' : '?v=') + Date.now());
   }
   async function check(){
     if(pending || document.hidden || Date.now() - last < 60000) return;

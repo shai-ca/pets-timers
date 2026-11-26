@@ -39,15 +39,18 @@ function strHash(s){ let h = 0; for(let i = 0; i < s.length; i++) h = (h * 31 + 
     const sl = (a, b, x) => ({ ...K0, k:'sleep', t: a, end: b, ...(x || {}) });
     seed([sl(at(3, 10), at(3, 11)), sl(at(3, 11) + 5*MIN, at(3, 12))]);
     let ep = episodes('kishmish', day(3), day(2));
-    ok('two marked pieces 5 min apart, nothing between: one episode', ep.length === 1 && ep[0].t === at(3, 10) && ep[0].end === at(3, 12) && ep[0].pieces.length === 2 && ep[0].src === 'marked' && ep[0].endCause === 'unknown' && ep[0].night === false);
+    // v3 validation S1: the end of a marked sleep is a MARKED waking — never merged across (estimated pieces still join: kishmish3.js)
+    ok('two marked pieces 5 min apart: a marked waking between them, two episodes', ep.length === 2 && ep[0].t === at(3, 10) && ep[0].end === at(3, 11) && ep[0].src === 'marked' && ep[0].endCause === 'unknown' && ep[0].night === false);
+    seed([sl(at(3, 10), at(3, 11)), sl(at(3, 11), at(3, 12))]);
+    ok('…touching pieces: one episode of two pieces', episodes('kishmish', day(3), day(2)).length === 1 && episodes('kishmish', day(3), day(2))[0].pieces.length === 2 && episodes('kishmish', day(3), day(2))[0].end === at(3, 12));
     seed([sl(at(3, 10), at(3, 11)), { ...K0, k:'water', t: at(3, 11) + 2*MIN }, sl(at(3, 11) + 5*MIN, at(3, 12))]);
     ok('…a drink between them: two', episodes('kishmish', day(3), day(2)).length === 2);
     seed([sl(at(3, 10), at(3, 11)), { ...K0, k:'swap', t: at(3, 11) + 2*MIN, c:'box' }, { ...K0, k:'cset', t: at(3, 11) + 3*MIN, cover:'covered' }, sl(at(3, 11) + 5*MIN, at(3, 12))]);
-    ok('…a change of crate or of its setup is not meaningful: one', episodes('kishmish', day(3), day(2)).length === 1);
+    ok('…a change of crate or of its setup is not meaningful, but the marked waking is: two', episodes('kishmish', day(3), day(2)).length === 2);
     seed([sl(at(3, 10), at(3, 11)), { ...K0, k:'crate', t: at(3, 9), end: at(3, 11) }, { ...K0, k:'crate', t: at(3, 11) + 4*MIN, end: at(3, 13) }, sl(at(3, 11) + 5*MIN, at(3, 12))]);
     ok('…a crate exit / entry between them: two, and the end is "unknown", not "woken"', episodes('kishmish', day(3), day(2)).length === 2 && episodes('kishmish', day(3), day(2))[0].endCause === 'unknown');
     seed([sl(at(3, 10), at(3, 11)), sl(at(3, 11) + 12*MIN, at(3, 12))]);
-    ok('…12 min apart: two; with join = 15 min: one', episodes('kishmish', day(3), day(2)).length === 2 && episodes('kishmish', day(3), day(2), {join: 15*MIN}).length === 1);
+    ok('…12 min apart: two; with join = 15 min still two (a marked waking)', episodes('kishmish', day(3), day(2)).length === 2 && episodes('kishmish', day(3), day(2), {join: 15*MIN}).length === 2);
     seed([sl(at(3, 10), at(3, 11), { a:1 })]);
     ok('"התעוררה" on an estimate (a:1) is mixed', episodes('kishmish', day(3), day(2))[0].src === 'mixed');
     seed([sl(at(3, 23) + 30*MIN, at(2, 1))]);

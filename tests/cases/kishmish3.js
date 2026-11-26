@@ -42,7 +42,10 @@
     // ---- short waking and back to sleep: one episode ----
     const a = now - 70*MIN;
     seed(hist.concat(fed(a), [{...K0, k:'sleep', t: a, end: a + 40*MIN}, {...K0, k:'sleep', t: a + 45*MIN}]));
-    ok('a 5-minute waking with nothing logged: the same sleep, counted from its first start', wakeExpect(P).since === a);
+    ok('a MARKED waking 5 minutes before (validation S1): a new sleep, not merged across it', wakeExpect(P).since === a + 45*MIN && episodes(P, a - MIN, now).length === 2);
+    // estimated pieces split by something that is not meaningful (a setup change) still join
+    seed([{...K0, k:'crate', t: now - 60*MIN}, {...K0, k:'cset', t: now - 30*MIN, cover:'uncovered'}]);
+    ok('…estimated pieces with only a crate-setup change between them: one episode', K().spans.filter(x => x.assumed).length >= 2 && episodes(P, now - 2*HOUR, now).length === 1);
     seed(hist.concat(fed(a), [{...K0, k:'sleep', t: a, end: a + 40*MIN}, {...K0, k:'pee', t: a + 42*MIN, w:'gravel'}, {...K0, k:'sleep', t: a + 45*MIN}]));
     ok('…a pee in between: a new sleep', wakeExpect(P).since === a + 45*MIN);
 
@@ -161,6 +164,30 @@
     ok('an estimated sleep: placed, inferred', !!sp && sleepOrigin(P, sp).origin === 'placed' && sleepOrigin(P, sp).basis === 'inferred');
     const ep = episodes(P, now - 2*HOUR, now)[0];
     ok('…an episode works too', !!ep && sleepOrigin(P, ep).basis === 'inferred');
+    // ---- validation fixes ----
+    // B1: a drink ends the crate and the sleep but starts no cycle and no potty advice
+    seed(hist.concat(fed(now - 80*MIN), [{...K0, k:'crate', t: now - 75*MIN}, {...K0, k:'sleep', t: now - 65*MIN}]));
+    tapPoint(P, 'water'); render();
+    ok('B1: a drink ends the stay and the sleep', !K().crate.start && !K().sleep.start);
+    r = routine(P);
+    ok('B1: …the wheel does not go to "טיול וצרכים", no potty tiles tagged', r && r.free === 'water' && routineTap(P).length === 0 && !$q('.cyc-n').textContent.includes('מוציאים את'));
+    ok('B1: …no "ישר לחצץ", no take-out reminder', !napWake(P) && !$q('.cyc-n').textContent.includes('ישר לחצץ') && !pottyDue(P));
+    FAKE_HOUR = 2; nightFull = false; render();
+    ok('B1: …at night either', routineTap(P).length === 0);
+    // S5: the slim night screen draws no advice line
+    seed(calm.concat([{...K0, k:'crate', t: now - 20*MIN}]));
+    ok('S5: slim night screen, no advice line', !!$q('.nightc') && !$q('.card.advice'));
+    FAKE_HOUR = 12; render();
+    ok('S5: …by day it is there', !!$q('.card.advice'));
+    // S3: censorNear censors only ends next to a possible intervention
+    seed(hist.map(e => ({...e})).concat([{...K0, k:'pee', t: hist[1].end + MIN, w:'gravel'}]));
+    const s0 = sleepOn(P, 15*MIN), s1 = sleepOn(P, 15*MIN, {censorNear: true}), s2 = sleepOn(P, 15*MIN, {endAsCensored: true});
+    ok('S3: censorNear censors the one end next to a pee, keeps the others as events', s0.censored === 0 && s1.censored === 1 && s1.pAtLeast[0].p > 0 && s1.pAtLeast[0].p < 1);
+    ok('S3: endAsCensored is the extreme bound (no events)', s2.censored === 8 && s2.pAtLeast[0].p === 1);
+    // S4: the old-rule question shows no wake time
+    seed(fed(now - 90*MIN).concat([{...K0, k:'sleep', t: now - 70*MIN}]));
+    ok('S4: too few naps: asked by the old rule, "not enough data", no expected time', !!stillAsleep(P) && stillAsleep(P).src === 'rule' && !('exp' in stillAsleep(P))
+      && $q('.sleepq.still').textContent.includes('עוד אין מספיק נתונים') && !$q('.sleepq.still').textContent.includes('צפוי'));
     ok('nothing is stored by any of it', state.log.every(e => !('origin' in e) && !('likely' in e)));
     done();
   } catch(e){ crashed(e); }
