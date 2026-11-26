@@ -204,12 +204,21 @@
       DOOR = { value: 'closed', source: 'period', from: now - 20*MIN, to: now + 10*MIN }; await poll(); render();
       ok('door now: closed, the painted span, marked by hand (not a camera detection)', txt().includes('דלת סגורה') && txt().includes(clock(now - 20*MIN)) && txt().includes('סומן ידנית'));
       DOOR = null; LS = { ...LS, last_seen: { ...LS.last_seen, door: { value: 'open', source: 'period', from: now - 60*MIN, to: now - 30*MIN } } }; await poll(); render();
+      DOOR = { value: 'open', status: 'inferred', from: now - 40*MIN, to: now }; await poll(); render();
+      ok('inferred door: shown weaker, "משוער מהסימון הקודם", never as marked', txt().includes('דלת פתוחה') && txt().includes('משוער מהסימון הקודם') && !!card().querySelector('.cam-t.cam-dim') && !txt().includes('סומן ידנית'));
+      DOOR = null;
       ok('no span covers now: the door when she was last seen', txt().includes('דלת פתוחה כשנראתה') && txt().includes(clock(now - 60*MIN))); }
     // ----- an image that cannot be shown says so on the card -----
     { const rf = window.fetch; window.fetch = (url, o) => String(url).includes('/img') ? Promise.resolve(new Response(new Blob(['not an image'], { type: 'image/jpeg' }))) : rf(url, o);
       LS.last_seen = { ...LS.last_seen, image_id: 'broken', img: '/img?id=broken' }; CAM.thumb = null; CAM.thumbId = null; await poll(); render();
       ok('a broken image: a short reason on the card instead of a silent blank', txt().includes('התמונה לא נטענה') && !card().querySelector('.cam-th img'));
       window.fetch = rf; }
+    // ----- "בדיקת חיבור": the real chain, one line per step -----
+    { mode = 'ok'; LS = { ...LS, last_seen: { ...LS.last_seen, image_id: 'c:9', img: '/img?id=c%3A9' } }; camSetSheet(); sh.querySelector('#camTest').click(); await pause(30); await wait(5);
+      const tx = sh.querySelector('.cam-test').textContent;
+      ok('connection check: account, status, image download and decode, each with ✓', (tx.match(/✓/g) || []).length === 4 && tx.includes('מחובר לחשבון') && tx.includes('התמונה הורדה') && tx.includes('התמונה מוצגת') && !!sh.querySelector('.cam-test img'));
+      mode = '403'; sh.querySelector('#camTest').click(); await pause(20); await wait(3);
+      ok('…and says where it stops', sh.querySelector('.cam-test').textContent.includes('✗ מצב המצלמה: קוד 403')); mode = 'ok'; close(); }
     window.fetch = realFetch; fb = null;
     // ----- research events: crate entry / exit (owner, 26.11) — never the journal -----
     done();

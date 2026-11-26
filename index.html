@@ -3226,7 +3226,9 @@ const CAM_DOOR = { open: '🔓 דלת פתוחה', closed: '🔒 דלת סגור
 const camSpan = d => d.from && d.to ? ` · <bdi dir="ltr">${clock(d.from)}–${clock(d.to)}</bdi>` : d.since ? ` · מאז <bdi dir="ltr">${clock(d.since)}</bdi>` : '';
 const camDoorHTML = (d, at) => {
   if(d === undefined){ d = CAM.door; if(!d && CAM.doorAt){ d = CAM.doorAt; at = 'כשנראתה'; } }
-  return d ? `<span class="cam-t">${CAM_DOOR[d.value]}${at ? ' ' + at : ''}${camSpan(d)} <small class="cam-dim">סומן ידנית</small></span>` : `<span class="cam-t cam-dim">דלת: לא סומן</span>`;
+  if(d && d.status === 'unknown') d = null;
+  // confirmed = a frame she marked; inferred = her last mark carried forward (shown weaker, never as verified)
+  return d ? `<span class="cam-t ${d.status === 'inferred' ? 'cam-dim' : ''}">${CAM_DOOR[d.value]}${at ? ' ' + at : ''}${camSpan(d)} <small class="cam-dim">${d.status === 'inferred' ? 'משוער מהסימון הקודם' : 'סומן ידנית'}</small></span>` : `<span class="cam-t cam-dim">דלת: לא סומן</span>`;
 };
 const camMin = t => Math.max(1, Math.round((Date.now() - t) / 60000));
 // An image: fetched with the token, typed as an image, decoded BEFORE it is shown (so a bad or empty body is caught here
@@ -3398,8 +3400,10 @@ function camSetSheet(){
     ${b && CAM.st === 'forbidden' ? '<div class="sub"><b>החשבון הזה לא מורשה למצלמה.</b> הכרטיס לא מוצג עד שהחשבון יאושר במק.</div>' : ''}
     <div class="sub">כרטיס "נראתה לאחרונה" במסך של קישמיש, רק במכשיר הזה. התמונות נשארות במק; שום דבר מהמצלמה לא נשמר ביומן ולא משנה עצות או חישובים.</div>
     <label class="field">כתובת <input type="text" id="camIn" dir="ltr" value="${esc(b || CAM_DEFAULT)}" autocomplete="off"></label>
+    ${b ? '<div class="sub"><button class="lnk" id="camTest">בדיקת חיבור</button> — בודקת את כל הדרך: חשבון, מצלמה, תמונה</div><div class="cam-test sub"></div>' : ''}
     <div class="foot">${b ? '<button class="btn" id="camOff">כיבוי</button>' : cancelBtn}<button class="btn primary" id="camOn">${b ? 'שמירה' : 'הפעלה'}</button></div>`;
-  const off = sh.querySelector('#camOff'), c = sh.querySelector('#cancel');
+  const off = sh.querySelector('#camOff'), c = sh.querySelector('#cancel'), tb = sh.querySelector('#camTest');
+  if(tb) tb.onclick = camSelfTest;
   if(c) c.onclick = close;
   if(off) off.onclick = () => { try { localStorage.removeItem(CAM_KEY); } catch(e){} if(CAM.thumb) URL.revokeObjectURL(CAM.thumb); Object.assign(CAM, { st: 'off', data: null, thumb: null, thumbId: null }); close(); render(); };
   sh.querySelector('#camOn').onclick = () => {
@@ -3409,6 +3413,22 @@ function camSetSheet(){
     Object.assign(CAM, { st: 'wait', data: null }); close(); render(); camPoll();
   };
   bg.classList.add('show');
+}
+// "בדיקת חיבור": the real chain in this browser, one line per step, so a failure says exactly where (owner, 26.11).
+async function camSelfTest(){
+  const out = sh.querySelector('.cam-test'); if(!out) return;
+  const L = []; const say = (ok, t) => { L.push(`${ok ? '✓' : '✗'} ${t}`); out.innerHTML = L.join('<br>'); };
+  const tok = await camToken(); say(!!tok, tok ? 'מחובר לחשבון' : 'לא מחובר לחשבון'); if(!tok) return;
+  const t0 = performance.now(), r = await camReq('/api/last_seen');
+  if(!r.ok){ say(false, 'מצב המצלמה: ' + (r.status ? 'קוד ' + r.status : r.err)); return; }
+  const ls = r.json && r.json.last_seen; say(true, `מצב המצלמה התקבל (${Math.round(performance.now() - t0)} מ״ש)`);
+  if(!ls){ say(false, 'אין זיהוי ב־36 השעות האחרונות — אין תמונה להציג'); return; }
+  const t1 = performance.now(), im = await camReq(ls.img || ('/img?id=' + encodeURIComponent(ls.image_id)), { blob: true });
+  if(!im.ok){ say(false, 'הורדת התמונה: ' + (im.status ? 'קוד ' + im.status : im.err)); return; }
+  say(!!im.bytes, `התמונה הורדה: ${Math.round(im.bytes / 1024)} KB, ${im.blob.type} (${Math.round(performance.now() - t1)} מ״ש)`);
+  const u = URL.createObjectURL(im.blob), img = new Image();
+  try { img.src = u; await img.decode(); say(true, `התמונה מוצגת: ${img.naturalWidth}×${img.naturalHeight}`); out.insertAdjacentHTML('beforeend', `<img class="cam-big" src="${u}" alt="" style="margin-top:8px">`); }
+  catch(e){ URL.revokeObjectURL(u); say(false, 'פענוח התמונה נכשל: ' + (e && e.message || e)); }
 }
 document.addEventListener('click', e => {
   const t = e.target.closest && e.target.closest('[data-cam]'); if(!t) return;
