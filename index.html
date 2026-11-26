@@ -2941,6 +2941,7 @@ function freeTime(p){
   const pe = state.log.filter(e => e.p===p && e.k==='pee' && !isTU(e)).pop(), now = Date.now();
   if(!pe || !(pe.w === 'gravel' || pe.w === 'out')) return null;
   if(state.log.some(e => e.p===p && e.k==='crate' && e.t > pe.t)) return null;   // back in the crate: free time is over
+  if(nightPotty(p)) return null;   // at night there is no free time: after the potty, back to the crate
   const el = now - pe.t; if(el > (FREE.max + 20)*60000) return null;
   return {t:pe.t, phase: el < FREE.min*60000 ? 'run' : el < FREE.max*60000 ? 'end' : 'over'};
 }
@@ -2993,12 +2994,33 @@ function freeCardHTML(p){
 function routineTap(p){
   const r = routine(p);
   if(!r || r.done) return ['crate'];
-  if(r.brk || r.retry || r.free) return [];   // during a retry the card at the top says what to do; free time: nothing to press
+  if(r.brk || r.retry || r.free) return [];
+  if(r.night) return ['crate'];   // night: after the potty, back to the crate (no play / meal step)   // during a retry the card at the top says what to do; free time: nothing to press
   return r.i === 0 ? ['crate'] : r.i === 2 ? ['play','food'] : ['pee','poop','none'];
 }
 // Put the routine on hold (vet, a trip…): just an entry in the log. Whatever is logged next resumes it.
 function goBreak(p){
   commit(`${PETS[p].name} · הפסקה בשגרה`, () => { const now = Date.now(); stopDur(p, 'sleep', now); state.log.push({p, k:'brk', t:now}); });
+}
+// NIGHT ROUTINE (owner, 27.11): at night the round is sleep → potty outing → back to the crate → sleep. No play or meal
+// step, no free time, no daytime wake window. The hours are `NIGHTS.screen` (`isNight`, 23–06): the same switch as the
+// slim night screen and the silent food alert, so the full screen ("להציג הכול") agrees with the night screen, and it
+// is the only row that is about what the screen says now (`learn` / `plan` / `score` are for learning, planning and
+// the score). The night potty = the latest pee / poop since she last left the crate (also across midnight, at most
+// one night's length ago, `NIGHT_SPAN` from the same row), with no meal, "לא אכלה" or break after it, while the list
+// does not have her in the crate. Whether she is back in the crate, or asleep, is then UNKNOWN unless someone logs it
+// (at night the owner logs mostly the potty): nothing is assumed either way and nothing is written. A meal after it
+// falls back to the day's reading (a meal calls for a potty after it). Derived only; `routine` reads it.
+const NIGHT_SPAN = ((NIGHT.to - NIGHT.from + 24) % 24) * 3600000;
+function nightPotty(p){
+  if(!PETS[p] || !PETS[p].cycle || !isNight() || !V || !V[p]) return null;
+  const S = V[p], now = Date.now(); if(S.crate && S.crate.start) return null;   // in the crate by the list: the ordinary crate step
+  const L = state.log.filter(e => e.p===p && e.t <= now);
+  const out = Math.max(0, ...L.filter(e => e.k==='crate' && e.end != null && e.end <= now).map(e => e.end));
+  const ev = L.filter(e => e.t >= out && now - e.t <= NIGHT_SPAN && ITEMS[e.k] && !ITEMS[e.k].dur && !ITEMS[e.k].hid && !ITEMS[e.k].aux && !isTU(e)).sort((x, y) => x.t - y.t);
+  let i = ev.length - 1; while(i >= 0 && ev[i].k !== 'pee' && ev[i].k !== 'poop') i--;
+  if(i < 0 || ev.slice(i + 1).some(e => e.k==='brk' || e.k==='nofood' || mealKind(e) === 'meal')) return null;
+  return {i:1, t:ev[i].t, next:0, night:true};
 }
 // Where she is in the trainer's routine. This is worked out from what was logged on the tiles — it is
 // never stored and cannot be tapped — so the wheel and the tiles are one thing:
@@ -3018,6 +3040,7 @@ function routine(p){
   const went = e => e.k==='pee' || e.k==='poop', isM = e => e.k==='nofood' || mealKind(e) === 'meal';   // a bite is not the round's meal: the wheel and the food timer agree
   const last = ev[ev.length-1];
   if(last && last.k === 'brk') return {brk:true, t:last.t, next:0};
+  const nt = nightPotty(p); if(nt) return nt;   // at night: after the potty, back to the crate (no play / meal step)
   const meal = ev.filter(isM).pop();
   // "After the meal" is judged by position in the log, which is kept in time order.
   if(meal){ const mi = ev.indexOf(meal), after = ev.find((e, j) => went(e) && j > mi); return after ? {i:4, t:after.t, done:true, next:0} : {i:4, t:meal.t, next:0, retry:!!rt}; }
@@ -3187,7 +3210,7 @@ function pottyDue(p){
   if(S.crate && S.crate.lastEnd && !byMove(S.crate.lastEnd)) c.push([S.crate.lastEnd, 'אחרי יציאה מהכלוב']);
   if(typeof S.food === 'number') c.push([S.food, 'אחרי אוכל']);
   const fc = peeForecast(p);
-  if(fc && fc.state !== 'soon') c.push([fc.from, 'לפי הקצב הרגיל שלה']);
+  if(fc && fc.state !== 'soon' && !nightPotty(p)) c.push([fc.from, 'לפי הקצב הרגיל שלה']);   // the day's rhythm, not after a night potty
   c.sort((a,b) => b[0]-a[0]);
   if(!c.length) return null;
   const done = Math.max(S.pee || 0, S.poop || 0, S.none || 0, S.out || 0);
@@ -4856,7 +4879,7 @@ function render(){
       const over = k==='crate' && crateOver(pet);
       if(over) sub += ` · יותר מ${words(CRATE_MAX)}`;
       if(k === 'crate' && live && P.cycle) sub += crateAwakeNote(pet);   // a quiet line after a while awake in the crate
-      const warn = k === 'sleep' && !live && aw && Date.now() - aw >= AWAKE.warn && Date.now() - aw < 6*3600000;
+      const warn = k === 'sleep' && !live && aw && Date.now() - aw >= AWAKE.warn && Date.now() - aw < 6*3600000 && !isNight();   // the daytime wake window: not at night
       h += `<div class="card item ${nowt} ${live?'live':''} ${k==='cry' || over?'cry':''} ${warn?'warn':''}">
         <div class="ic">${ico(k)}</div>
         <div><div class="lbl">${lbl}</div>${big}<div class="sub">${sub}</div>${V2 && k === 'sleep' && !live && P.cycle ? gaugeHTML(sleepWindow(pet), 'לשינה', 'ערה מ־') : ''}${V2 && k === 'sleep' && P.cycle ? sleepGoalHTML(pet) : ''}</div>
@@ -5018,6 +5041,7 @@ function cycleHTML(p){
   const since = t => `כבר <span data-words="${t}">${words(now-t)}</span>`;
   const centre = (asleep ? ico('sleep','s zzi') : '') + (!r ? `<span>הגלגל מתקדם לבד<br>לפי מה שמסמנים למטה</span>`
     : r.brk ? `<b>הפסקה</b><span>${since(r.t)}</span>`
+    : r.night ? `<b>לילה · חזרה לכלוב</b><span>צרכים לפני <span data-words="${r.t}">${words(now-r.t)}</span></span>`
     : r.free ? `<b>${FREE_LBL[r.free]}</b><span>${since(r.t)}</span>`
     : r.done ? `<b>הסבב הושלם</b><span>${since(r.t)}</span>`
     : `<b>${CYCLE[ci].n}</b><span>${since(r.t)}</span>${inCrate ? `<span>מ־<bdi dir="ltr">${clock(r.t)}</bdi></span>` : ''}`);
@@ -5027,10 +5051,15 @@ function cycleHTML(p){
   const aw = awakeSince(p), ft = freeTime(p);
   const awake = !asleep && !S.crate.start;
   // Two more of the trainer's reminders: awake for an hour -> crate to sleep; three hours since a pee -> gravel.
-  const tired = awake && aw >= sod(now).getTime() && now - aw >= AWAKE.max;
-  const long3 = awake && S.pee && now - S.pee >= 3*3600000 && !retry(p);
+  // Not after a night potty (`nightPotty`): whether she is back in the crate or asleep is unknown unless logged.
+  const nightR = !!(r && r.night);
+  const tired = awake && !nightR && aw >= sod(now).getTime() && now - aw >= AWAKE.max;
+  const long3 = awake && !nightR && S.pee && now - S.pee >= 3*3600000 && !retry(p);
   const wb = asleep && wakeBy(p);
   const what = wb && wb.past ? `כדאי להעיר את ${nm} ולצאת לחצץ (${wb.why}).` : r && r.retry ? (asleep ? `נותנים לה לישון. כשהיא מתעוררת, ישר לחצץ.` : `ניסיון חוזר: עושים מה שכתוב בכרטיס שלמעלה, עד ש${nm} עושה פיפי.`)
+    : nightR ? (asleep ? `לילה: ${nm} ישנה. אין מה לסמן עכשיו; כשהיא מתעוררת, ישר לחצץ.`
+      : S.gravel && S.gravel.start ? `לילה: בחצץ. כשמסיימים, לוחצים <b>״סיום״</b> ומחזירים את ${nm} לכלוב לישון, בלי משחק ובלי אוכל.`
+      : `לילה: אחרי הצרכים מחזירים את ${nm} לכלוב לישון, בלי משחק ובלי אוכל. <b>״נכנסה לכלוב״</b> בכרטיס הכלוב אם רוצים, לא חובה: בלי רישום האפליקציה לא יודעת אם היא כבר בכלוב, ולא מניחה שהיא ערה או ישנה.`)
     : !r ? `כש${nm} נכנסת לכלוב, לוחצים <b>״נכנסה לכלוב״</b> בכרטיס הכלוב למטה.`
     : r.brk ? `בהפסקה. כל דבר שמסמנים למטה מחזיר את ${nm} לשגרה.`
     : r.free === 'opened' ? `הדלת פתוחה: ${nm} יכולה לצאת ולחזור בעצמה. מה שהיא עושה מסמנים למטה.`
@@ -5304,7 +5333,7 @@ function mealWindow(p){   // the same reading as `mealLine`: last meal + her usu
 function bathWindow(p){ const t = V[p].bath; if(!t) return null; const due = bathDue(p); return {last: t, from: due.getTime(), to: due.getTime(), end: due.getTime() + 86400000}; }   // one day: the due day, the same date as the line above
 function sleepWindow(p){   // awake out of the crate: an hour awake is the trainer's limit (`AWAKE`)
   const S = V[p], aw = awakeSince(p);
-  if(!aw || (S.sleep && S.sleep.start) || (S.crate && S.crate.start) || aw < Date.now() - 4*3600000) return null;
+  if(!aw || (S.sleep && S.sleep.start) || (S.crate && S.crate.start) || aw < Date.now() - 4*3600000 || isNight()) return null;   // a daytime nap window: none at night (like `mealWindow`)
   const ww = wakeWin(p), hi = ww ? ww.hi : aw;   // §12d: waking known only as a window -> the window carries through
   return {last: aw, from: aw + AWAKE.warn, to: hi + AWAKE.max, end: hi + 1.25*AWAKE.max, ...(ww ? {wake: ww} : {})};
 }
