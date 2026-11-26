@@ -77,6 +77,10 @@
     ok('owner\'s device with the local service: the private card, not the shared one', !card() && !!$q('#side .card.camc'));
     localStorage.removeItem('pets-timers-v1-cam'); render(); await settle();
 
+    // a passing error (network): no tight retry loop; it waits a minute
+    { const o0 = opened; subs.latest.onErr({ code:'unavailable' }); await wait(2); render(); await settle(); render(); await settle();
+      ok('a network error: no resubscribe for a minute, the last image stays', opened === o0 && !!card());
+      CAMS.retryAt = 0; render(); await settle(); ok('…then it listens again', opened > o0 && !!subs.latest); }
     // refused by the rules (not a caregiver): nothing, and no retry
     subs.latest.onErr({ code:'permission-denied' }); await wait(2); const o1 = opened; render(); await settle();
     ok('permission denied: no card, no slot, no new listener', !card() && !$q('#side .cams') && opened === o1);

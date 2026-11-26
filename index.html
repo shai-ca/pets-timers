@@ -2017,7 +2017,7 @@ let fb = null;   // { auth, signIn(), signOut() } once Firebase has loaded
     signInPopup: () => A.signInWithPopup(auth, new A.GoogleAuthProvider()),   // fallback offered on the lock screen
     signOut: () => A.signOut(auth),
     // the shared camera card only (camera/latest, camera/status): its own listener, opened while the card is on screen
-    camDoc: (name, onData, onErr) => F.onSnapshot(F.doc(store, 'camera', name), snap => onData(snap.exists() ? snap.data() : null, snap.metadata.fromCache), onErr),
+    camDoc: (name, onData, onErr) => F.onSnapshot(F.doc(store, 'camera', name), {}, snap => onData(snap.exists() ? snap.data() : null, snap.metadata.fromCache), onErr),
     camGet: name => F.getDocFromServer(F.doc(store, 'camera', name)).then(s => s.exists() ? s.data() : null)
   };
 
@@ -3289,7 +3289,7 @@ function camPaint(){   // repaint just the card and the setting link (never `ren
 // never use up the free quota the journal needs. Experimental, informational only: nothing here touches the log,
 // STATE, advice or planning. Full frames, history and labeling stay on the owner's private local service.
 let CAMS_DAY_BYTES = 12e6, CAMS_HARD_BYTES = 20e6, CAMS_IDLE_MS = 60000; const CAMS_KEY = 'pets-timers-v1-camb', CAMS_FRESH_MS = 15*60000;
-const CAMS = { doc: null, status: null, denied: false, unsub: null, unsubS: null, idle: null, io: null, stopped: false };
+const CAMS = { retryAt: 0, doc: null, status: null, denied: false, unsub: null, unsubS: null, idle: null, io: null, stopped: false };
 const camsDay = () => new Date().toDateString();
 function camsUsed(){ try { const u = JSON.parse(localStorage.getItem(CAMS_KEY) || 'null'); return u && u.day === camsDay() ? u.bytes : 0; } catch(e){ return 0; } }
 function camsUse(n){ const b = camsUsed() + n; try { localStorage.setItem(CAMS_KEY, JSON.stringify({ day: camsDay(), bytes: b })); } catch(e){} return b; }
@@ -3301,9 +3301,9 @@ function camsValid(d){   // only a well-formed positive crate crop is ever shown
 const camsSize = d => { const im = d && d.image; return im && typeof im.toUint8Array === 'function' ? im.toUint8Array().length : typeof im === 'string' ? im.length : 0; };
 function camsSub(){
   if(CAMS.unsub || CAMS.denied || !fb || !fb.camDoc || !fb.auth || !fb.auth.currentUser) return;
-  if(CAMS.stopped) return;
+  if(CAMS.stopped || Date.now() < CAMS.retryAt) return;   // after an error: wait a minute (never a tight retry loop that burns reads)
   if(camsUsed() >= CAMS_DAY_BYTES){ CAMS.stopped = true; camsPaint(); return; }
-  const fail = e => { if(e && e.code === 'permission-denied'){ CAMS.denied = true; } camsUnsub(); camsPaint(); };
+  const fail = e => { if(e && e.code === 'permission-denied') CAMS.denied = true; else CAMS.retryAt = Date.now() + 60000; camsUnsub(); camsPaint(); };
   CAMS.unsub = fb.camDoc('latest', (d, cache) => {
     if(!cache && camsUse(camsSize(d) + 600) >= CAMS_DAY_BYTES){ CAMS.stopped = true; camsUnsub(); }
     CAMS.doc = camsValid(d); camsPaint();
@@ -3353,7 +3353,7 @@ function camsSheet(){
   sh.innerHTML = `<div class="cam-sheet"><h3>נראתה לאחרונה בכלוב <small class="cam-x">ניסיוני · מצב צל</small></h3>
     <img class="cam-big" src="data:image/jpeg;base64,${d.b64}" alt="קישמיש בכלוב">
     <div class="cam-meta">${dayLabel(d.capture_ts)} <bdi dir="ltr">${new Date(d.capture_ts).toLocaleTimeString('he-IL', {hour:'2-digit', minute:'2-digit', second:'2-digit'})}</bdi> · לפני ${words(Date.now() - d.capture_ts)}</div>
-    <details class="cam-how"><summary>איך זה מחושב</summary><div>התמונה האחרונה שבה מודל זיהוי (${esc(String(d.model_version || ''))}) זיהה אותה בכלוב, חתוכה לאזור הכלוב. ניסיוני ולא מאומת. כשהיא יוצאת, נשארת התמונה האחרונה שבה זוהתה. המצלמה רק מציגה: שום דבר ממנה לא נכנס ליומן, לעצות או לחישובים.</div></details>
+    <details class="cam-how"><summary>איך זה מחושב</summary><div>התמונה האחרונה שבה מודל זיהוי (${esc(String(d.model_version || ''))}) זיהה אותה בכלוב${d.view === 'full' ? ' — כל שדה הראייה של המצלמה, מוקטן' : ', חתוכה לאזור הכלוב'}. ניסיוני ולא מאומת. כשהיא יוצאת, נשארת התמונה האחרונה שבה זוהתה. המצלמה רק מציגה: שום דבר ממנה לא נכנס ליומן, לעצות או לחישובים.</div></details>
     <div class="foot"><button class="btn" id="camX">סגירה</button></div></div>`;
   sh.querySelector('#camX').onclick = close;
   bg.classList.add('show');

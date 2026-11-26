@@ -26,11 +26,14 @@ service cloud.firestore {
         && request.resource.data.published_at > request.time.toMillis() - 300000
         && request.resource.data.published_at < request.time.toMillis() + 300000
         && ((d == 'latest'
-              && request.resource.data.keys().hasOnly(['image','image_type','bytes','capture_ts','published_at','detection','model_version','validated','experimental','sha256_16','note'])
+              && request.resource.data.keys().hasOnly(['image','image_type','bytes','capture_ts','published_at','detection','model_version','validated','experimental','sha256_16','note','view','w','h'])
               && request.resource.data.image is bytes && request.resource.data.image.size() <= 61440
               && request.resource.data.image_type == 'image/jpeg'
               && request.resource.data.capture_ts is int
-              && request.resource.data.detection.status == 'positive')
+              && request.resource.data.detection.status == 'positive'
+              && (!('view' in request.resource.data) || request.resource.data.view in ['full', 'crop'])
+              && (!('w' in request.resource.data) || (request.resource.data.w is int && request.resource.data.w <= 1920))
+              && (!('h' in request.resource.data) || (request.resource.data.h is int && request.resource.data.h <= 1080)))
           || (d == 'status'
               && request.resource.data.keys().hasOnly(['checked_at','service','model_version','experimental','crate_now','budget','published_at'])
               && request.resource.data.checked_at is int));
