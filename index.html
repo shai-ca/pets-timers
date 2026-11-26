@@ -744,6 +744,9 @@
   .crcam .cam-th{display:block;width:100%;aspect-ratio:auto;max-height:none;height:auto;border-radius:12px;overflow:hidden} .crcam .cam-th img{width:100%;height:auto;display:block}
   .crcam-ov{position:absolute;inset-inline-end:8px;bottom:8px;display:flex;align-items:center;gap:6px;padding:3px 6px 3px 10px;border-radius:999px;background:rgba(20,16,12,.58);color:#fff;font-size:12.5px;line-height:1}
   .crcam-ov .icob{color:#fff;font-size:15px;padding:2px 4px;line-height:1}
+  .crcam-ov{max-width:calc(100% - 16px);flex-wrap:wrap} .crcam-ov>span{min-width:0;overflow-wrap:anywhere;line-height:1.35}
+  .cam-ir{display:inline-block;padding:1px 7px;border-radius:999px;background:#33415c;color:#fff;font-size:11.5px;line-height:1.5;white-space:nowrap}
+  .camrq-l{display:flex;align-items:center;flex-wrap:wrap;gap:4px 10px} .camrq{font:inherit;font-size:13.5px;color:var(--acc);padding:2px 0;white-space:nowrap} .camrq:disabled{opacity:.5;cursor:default}
   .big .rng{font-size:.6em;color:var(--muted);margin:0 4px;vertical-align:middle}
   .camjt .rt-a{flex-wrap:wrap;justify-content:flex-end} .camjt .rt-a button{white-space:nowrap}   /* answers wrap as whole buttons, never mid-label */
   .crcam-l{font-size:12.5px;color:var(--muted)} .crcam .camjt{margin-top:0;padding:10px 12px;border-radius:12px} .crcam .camjt small{font-size:12.5px}
@@ -2108,7 +2111,9 @@ let fb = null;   // { auth, signIn(), signOut() } once Firebase has loaded
     // the shared camera card only (camera/latest, camera/status): its own listener, opened while the card is on screen
     camDoc: (name, onData, onErr) => F.onSnapshot(F.doc(store, 'camera', name), {}, snap => onData(snap.exists() ? snap.data() : null, snap.metadata.fromCache), onErr),
     camGet: name => F.getDocFromServer(F.doc(store, 'camera', name)).then(s => s.exists() ? s.data() : null),
-    camMerge: (name, data) => F.setDoc(F.doc(store, 'camera', name), data, { merge: true })   // camera/feedback only (decisions)
+    camMerge: (name, data) => F.setDoc(F.doc(store, 'camera', name), data, { merge: true }),   // camera/feedback only (decisions)
+    // camera/snapshot_request only ({requested_at, by}, CAMERA-API §16): a production write, refused outside live mode
+    camReq: data => MODE !== 'live' ? Promise.reject({ code: 'preview' }) : F.setDoc(F.doc(store, 'camera', 'snapshot_request'), data)
   };
 
   if(SAME_SITE_AUTH) A.getRedirectResult(auth).catch(e => gateError(`ההתחברות לא הצליחה${e && e.code ? ' ('+e.code.replace('auth/','')+')' : ''}. לוחצים שוב.`));
@@ -3415,7 +3420,7 @@ function camStatusHTML(){
 function camCardHTML(p){
   if(p !== 'kishmish') return '';
   const priv = camBase() && (CAM.st === 'ok' || CAM.st === 'stale');
-  if(!priv && CAMS.doc && fb && fb.camDoc && !CAMS.denied) return camsCardHTML();
+  if(!priv && camsShown() && fb && fb.camDoc && !CAMS.denied) return camsCardHTML();
   if(!camBase()) return camsCardHTML();   // nothing published yet: just the watched slot
   return camPrivHTML(p);
 }
@@ -4309,12 +4314,14 @@ function crateCamRowHTML(p){
   const card = camCardHTML(p); if(!card) return '';
   if(!/<img/.test(card)){ const act = camjActHTML() || camjDoorAskHTML(p); return /cams-slot|camc" hidden/.test(card) ? `<div class="crcam${act ? '' : ' slot'}">${card}${act}</div>` : `<div class="crcam">${card}${act}</div>`; }   // the approval shows even with no image yet
   const st = CAMS.status, cn = st && st.crate_now, now = Date.now(), priv = camBase() && (CAM.st === 'ok' || CAM.st === 'stale');
-  const shot = priv ? CAM.data && CAM.data.ls && CAM.data.ls.capture_ts : CAMS.doc && CAMS.doc.capture_ts;
+  const sn = !priv && camsShown(), snap = sn && sn.snap ? sn : null;   // a snapshot on the card: its own line, no occupancy words
+  const shot = snap ? null : priv ? CAM.data && CAM.data.ls && CAM.data.ls.capture_ts : CAMS.doc && CAMS.doc.capture_ts;
   const fresh = cn && typeof cn.capture_ts === 'number' && now - cn.capture_ts <= 5*60000;
   const pe = camjPlan(state.log, now).rv.live[0], older = pe && shot && shot < pe.ev.ts - 60000;
   const line = st && !camjCamOk() ? `המצלמה לא מעדכנת מאז <bdi dir="ltr">${clock(st.checked_at)}</bdi>` : older ? `התמונה מ־<bdi dir="ltr">${clock(shot)}</bdi>, לפני הזיהוי ב־<bdi dir="ltr">${clock(pe.ev.ts)}</bdi>`
     : fresh && cn.status === 'negative' && camjOccNow(p) ? 'המודל לא מזהה אותה, לפי התיוג שלך היא בכלוב' : '';
-  return `<div class="crcam"><div class="crcam-img">${card}<div class="crcam-ov">${shot ? `<span>נראתה <bdi dir="ltr">${clock(shot)}</bdi></span>` : ''}<button class="icob" data-act="camrefresh" aria-label="רענון">↻</button></div></div>${line ? `<div class="crcam-l">${line}</div>` : ''}${camjActHTML() || camjDoorAskHTML(p)}</div>`;
+  const rq = priv ? '' : camsReqHTML();   // "תמונה חדשה" replaces the plain re-read icon while the listener is live
+  return `<div class="crcam"><div class="crcam-img">${card}<div class="crcam-ov">${snap ? `<span>${camsSnapWhen(snap, now)}</span>` : shot ? `<span>נראתה <bdi dir="ltr">${clock(shot)}</bdi></span>` : ''}${rq ? '' : '<button class="icob" data-act="camrefresh" aria-label="רענון">↻</button>'}</div></div>${line ? `<div class="crcam-l">${line}</div>` : ''}${rq}${camjActHTML() || camjDoorAskHTML(p)}</div>`;
 }
 function camBlockHTML(p){
   if(p !== CAMJ_P) return '';
@@ -4356,7 +4363,8 @@ function groomRowHTML(p, tiles){
 // never use up the free quota the journal needs. Experimental, informational only: nothing here touches the log,
 // STATE, advice or planning. Full frames, history and labeling stay on the owner's private local service.
 let CAMS_DAY_BYTES = 12e6, CAMS_HARD_BYTES = 20e6, CAMS_IDLE_MS = 60000; const CAMS_KEY = 'pets-timers-v1-camb', CAMS_FRESH_MS = 15*60000;
-const CAMS = { retryAt: 0, doc: null, status: null, denied: false, unsub: null, unsubS: null, idle: null, io: null, stopped: false };
+const CAMS = { retryAt: 0, doc: null, status: null, denied: false, unsub: null, unsubS: null, idle: null, io: null, stopped: false,
+  snap: null, unsubN: null, snapDenied: false, snapRetry: 0, req: { at: 0, st: '' }, reqT: null };   // camera/snapshot (§16), below
 const camsDay = () => new Date().toDateString();
 function camsUsed(){ try { const u = JSON.parse(localStorage.getItem(CAMS_KEY) || 'null'); return u && u.day === camsDay() ? u.bytes : 0; } catch(e){ return 0; } }
 function camsUse(n){ const b = camsUsed() + n; try { localStorage.setItem(CAMS_KEY, JSON.stringify({ day: camsDay(), bytes: b })); } catch(e){} return b; }
@@ -4367,17 +4375,92 @@ function camsValid(d){   // only a well-formed positive crate crop is ever shown
 }
 const camsSize = d => { const im = d && d.image; return im && typeof im.toUint8Array === 'function' ? im.toUint8Array().length : typeof im === 'string' ? im.length : 0; };
 function camsSub(){
-  if(CAMS.unsub || CAMS.denied || !fb || !fb.camDoc || !fb.auth || !fb.auth.currentUser) return;
+  if(CAMS.denied || !fb || !fb.camDoc || !fb.auth || !fb.auth.currentUser) return;
   if(CAMS.stopped || Date.now() < CAMS.retryAt) return;   // after an error: wait a minute (never a tight retry loop that burns reads)
   if(camsUsed() >= CAMS_DAY_BYTES){ CAMS.stopped = true; camsPaint(); return; }
-  const fail = e => { if(e && e.code === 'permission-denied') CAMS.denied = true; else CAMS.retryAt = Date.now() + 60000; camsUnsub(); camsPaint(); };
-  CAMS.unsub = fb.camDoc('latest', (d, cache) => {
-    if(!cache && camsUse(camsSize(d) + 600) >= CAMS_DAY_BYTES){ CAMS.stopped = true; camsUnsub(); }
-    CAMS.doc = camsValid(d); camsPaint();
-  }, fail);
-  CAMS.unsubS = fb.camDoc('status', (d, cache) => { if(!cache) camsUse(400); CAMS.status = d && typeof d.checked_at === 'number' ? d : null; camsPaint(); camjPaint(); }, fail);
+  if(!CAMS.unsub){
+    const fail = e => { if(e && e.code === 'permission-denied') CAMS.denied = true; else CAMS.retryAt = Date.now() + 60000; camsUnsub(); camsPaint(); };
+    CAMS.unsub = fb.camDoc('latest', (d, cache) => {
+      if(!cache && camsUse(camsSize(d) + 600) >= CAMS_DAY_BYTES){ CAMS.stopped = true; camsUnsub(); }
+      CAMS.doc = camsValid(d); camsPaint();
+    }, fail);
+    CAMS.unsubS = fb.camDoc('status', (d, cache) => { if(!cache) camsUse(400); CAMS.status = d && typeof d.checked_at === 'number' ? d : null; camsPaint(); camjPaint(); }, fail);
+  }
+  if(CAMS.unsub) camsSnapSub();
 }
-function camsUnsub(){ clearTimeout(CAMS.idle); CAMS.idle = null; if(CAMS.unsub){ CAMS.unsub(); CAMS.unsub = null; } if(CAMS.unsubS){ CAMS.unsubS(); CAMS.unsubS = null; } }
+function camsUnsub(){ clearTimeout(CAMS.idle); CAMS.idle = null; if(CAMS.unsub){ CAMS.unsub(); CAMS.unsub = null; } if(CAMS.unsubS){ CAMS.unsubS(); CAMS.unsubS = null; } if(CAMS.unsubN){ CAMS.unsubN(); CAMS.unsubN = null; } }
+// ---- camera/snapshot (CAMERA-API §16 + its agreed amendments): a fresh full frame, periodic or on request. NEVER
+// behavioural evidence: no occupancy wording, nothing derived (no state, V, journal, routine, sleep, advice, alerts,
+// camera journal) — it only competes with camera/latest for the picture on this card (the newer capture_ts wins).
+// Same listener lifecycle and the same per-device byte cap as latest; not opened while the owner's private service
+// answers on this device (her card wins there). Refused by the rules (not live yet) -> silently no snapshot.
+const CAMS_SNAP_STALE_MS = 20*60000, CAMS_REQ_KEY = 'pets-timers-v1-camr'; let CAMS_REQ_MS = 60000;   // let: tests shorten the wait
+const CAMS_SNAP_KEYS = ['schema', 'image', 'image_type', 'view', 'w', 'h', 'bytes', 'capture_ts', 'published_at', 'ir', 'trigger', 'request_ts', 'sha256_16'];
+const camsInt = (v, lo, hi) => Number.isInteger(v) && v >= lo && v <= hi;
+const camsPriv = () => !!camBase() && (CAM.st === 'ok' || CAM.st === 'stale');
+function camsSnapValid(d){   // exactly the camera side's shape; anything else is ignored
+  if(!d || typeof d !== 'object') return null;
+  const ks = Object.keys(d); if(ks.length !== CAMS_SNAP_KEYS.length || !ks.every(k => CAMS_SNAP_KEYS.includes(k))) return null;
+  if(d.schema !== 'cam-snapshot/1' || d.image_type !== 'image/jpeg' || d.view !== 'full' || !camsInt(d.w, 1, 1920) || !camsInt(d.h, 1, 1080) || !camsInt(d.bytes, 1, 61440)
+    || !camsInt(d.capture_ts, 1, Date.now() + 5*60000) || !camsInt(d.published_at, 1, Infinity) || typeof d.ir !== 'boolean' || !['periodic', 'on_demand'].includes(d.trigger)
+    || !camsInt(d.request_ts, 0, d.published_at) || typeof d.sha256_16 !== 'string' || d.sha256_16.length !== 16) return null;
+  const im = d.image, real = im && typeof im.toUint8Array === 'function', b64 = real && typeof im.toBase64 === 'function' ? im.toBase64() : '';   // Firestore Bytes only
+  if(!b64 || camsSize(d) !== d.bytes || b64.length > 81920 || b64.length % 4 || !/^[A-Za-z0-9+/]+={0,2}$/.test(b64) || !b64.startsWith('/9j/')) return null;   // a base64 JPEG (FF D8 FF), ≤ 61440 bytes
+  return { ...d, b64, snap: true };
+}
+function camsSnapSub(){
+  if(CAMS.unsubN || CAMS.snapDenied || CAMS.stopped || !fb || !fb.camDoc || Date.now() < CAMS.snapRetry || camsPriv()) return;
+  CAMS.unsubN = fb.camDoc('snapshot', (d, cache) => {
+    if(!cache && camsUse(camsSize(d) + 600) >= CAMS_DAY_BYTES){ CAMS.stopped = true; camsUnsub(); }
+    CAMS.snap = camsSnapValid(d); camsReqSeen(); camsPaint();   // never camjPaint / render: nothing else reads it
+  }, e => {
+    if(e && e.code === 'permission-denied') CAMS.snapDenied = true; else CAMS.snapRetry = Date.now() + 60000;
+    if(CAMS.unsubN){ CAMS.unsubN(); CAMS.unsubN = null; } camsPaint();
+  });
+}
+// The picture on the card: the newer of latest (evidence) and snapshot (a plain frame); a tie stays the evidence.
+function camsShown(){
+  const a = CAMS.doc, s = CAMS.snapDenied ? null : CAMS.snap;
+  return s && (!a || s.capture_ts > a.capture_ts) ? s : a;
+}
+// "תמונה עדכנית מהמצלמה · HH:MM · לפני N" (+ night vision); after 20 min calmly "התמונה לא עדכנית (לפני N)".
+function camsSnapWhen(d, now){
+  const ago = `<span data-words="${d.capture_ts}">${words(now - d.capture_ts)}</span>`, day = dayLabel(d.capture_ts) === 'היום' ? '' : ' · ' + dayLabel(d.capture_ts);
+  const ir = d.ir ? ' <span class="cam-ir" title="IR">ראיית לילה</span>' : '';
+  return now - d.capture_ts > CAMS_SNAP_STALE_MS ? `<span class="cam-old">התמונה לא עדכנית (לפני ${ago})</span> · <bdi dir="ltr">${clock(d.capture_ts)}</bdi>${day}${ir}`
+    : `תמונה עדכנית מהמצלמה · <bdi dir="ltr">${clock(d.capture_ts)}</bdi>${day} · לפני ${ago}${ir}`;
+}
+// "תמונה חדשה": writes camera/snapshot_request {requested_at, by} (fb.camReq). One per minute per device; never
+// outside live mode (a production write, like every other writer under applyMode); a quiet line for each outcome.
+function camsReqLast(){ try { return +localStorage.getItem(CAMS_REQ_KEY) || 0; } catch(e){ return 0; } }
+function camsReqWait(){ const l = camsReqLast(), n = Date.now(); return l && l <= n && n - l < CAMS_REQ_MS ? CAMS_REQ_MS - (n - l) : 0; }
+function camsReqSeen(){   // the camera answered: a snapshot made for this request (or a later one)
+  const r = CAMS.req; if(CAMS.snap && (r.st === 'pending' || r.st === 'late') && CAMS.snap.request_ts >= r.at){ r.st = ''; }
+}
+function camsRequest(){
+  if(CAMS.req.st === 'pending' || camsReqWait()) return;
+  const at = Date.now();
+  if(MODE !== 'live'){ CAMS.req = { at, st: 'preview' }; camsPaint(); return; }
+  const u = fb && fb.auth && fb.auth.currentUser; if(!u || !u.uid || !fb.camReq) return;
+  try { localStorage.setItem(CAMS_REQ_KEY, String(at)); } catch(e){}
+  CAMS.req = { at, st: 'pending' };
+  clearTimeout(CAMS.reqT); CAMS.reqT = setTimeout(() => { if(CAMS.req.at === at && CAMS.req.st === 'pending') CAMS.req.st = 'late'; camsPaint(); }, CAMS_REQ_MS + 50);
+  let w; try { w = Promise.resolve(fb.camReq({ requested_at: at, by: u.uid })); } catch(e){ w = Promise.reject(e); }
+  w.catch(e => {
+    if(CAMS.req.at !== at) return;
+    const denied = e && e.code === 'permission-denied'; CAMS.req.st = denied ? 'noperm' : 'err';
+    if(!denied) try { localStorage.removeItem(CAMS_REQ_KEY); } catch(x){}   // not sent: may try again at once
+    camsPaint();
+  });
+  camsPaint();
+}
+const CAMS_REQ_TXT = { pending: 'מבקשת תמונה…', late: 'המצלמה לא ענתה, אפשר לנסות שוב', noperm: 'אין הרשאה לבקש תמונה', err: 'הבקשה לא נשלחה, אפשר לנסות שוב', preview: 'בתצוגה מקדימה לא נשלחת בקשה' };
+function camsReqHTML(){   // only once the camera publishes snapshots, on the shared card, while it updates automatically
+  if(!CAMS.snap || CAMS.snapDenied || CAMS.denied || CAMS.stopped || camsPriv() || !fb || !fb.camReq) return '';
+  const r = CAMS.req, dis = r.st === 'pending' || (MODE === 'live' && camsReqWait() > 0), t = CAMS_REQ_TXT[r.st] || '';
+  return `<div class="crcam-l camrq-l"><button class="icob camrq" data-act="camreq"${dis ? ' disabled' : ''}>↻ תמונה חדשה</button>${t ? `<span class="camrq-t">${t}</span>` : ''}</div>`;
+}
+document.addEventListener('click', e => { const b = e.target.closest && e.target.closest('[data-act=camreq]'); if(b){ e.stopPropagation(); if(!b.disabled) camsRequest(); } });
 function camsSeen(on){   // on screen and visible -> listen; otherwise stop after a minute (no re-download when scrolling past)
   if(on && !document.hidden){ clearTimeout(CAMS.idle); CAMS.idle = null; camsSub(); }
   else if(CAMS.unsub && !CAMS.idle) CAMS.idle = setTimeout(camsUnsub, document.hidden ? 0 : CAMS_IDLE_MS);
@@ -4393,30 +4476,52 @@ document.addEventListener('visibilitychange', () => { if(document.hidden) camsSe
 async function camsRefresh(){   // after the daily cap: one manual read, still counted, never past the hard cap
   if(!fb || !fb.camGet || camsUsed() >= CAMS_HARD_BYTES) return;
   try { const d = await fb.camGet('latest'); camsUse(camsSize(d) + 600); CAMS.doc = camsValid(d); } catch(e){}
+  if(CAMS.snap && !CAMS.snapDenied && camsUsed() < CAMS_HARD_BYTES) try { const d = await fb.camGet('snapshot'); camsUse(camsSize(d) + 600); CAMS.snap = camsSnapValid(d); } catch(e){}   // the snapshot too, once it exists
   camsPaint();
 }
 function camsCardHTML(){
   if(!fb || !fb.camDoc || CAMS.denied) return '';
-  const d = CAMS.doc;
+  const d = camsShown(), sn = !!(d && d.snap);
   if(!d) return '<div class="camc cams cams-slot" aria-hidden="true"></div>';   // nothing yet: no card, just the slot that is watched
   const st = CAMS.status, now = Date.now(), fresh = st && typeof st.checked_at === 'number' && now - st.checked_at < CAMS_FRESH_MS;
   const look = !st ? '' : fresh ? `<span class="cam-t">המצלמה פעילה · בדקה לפני <span data-words="${st.checked_at}">${words(now - st.checked_at)}</span></span>`
     : `<span class="cam-t cam-err">אין עדכון מהמצלמה מאז <bdi dir="ltr">${typeof st.checked_at === 'number' ? clock(st.checked_at) : '—'}</bdi></span>`;
   const cap = CAMS.stopped ? `<span class="cam-t cam-dim">עדכון אוטומטי נעצר להיום, כדי לשמור על המכסה החינמית${camsUsed() < CAMS_HARD_BYTES ? ' · <button class="lnk" data-cams="refresh">רענון</button>' : ''}</span>` : '';
-  return `<div class="card camc cams" role="button" tabindex="0" data-cams="open">
-    <span class="cam-th"${Number.isInteger(d.w) && Number.isInteger(d.h) && d.w > 0 && d.h > 0 ? ` style="aspect-ratio:${d.w}/${d.h}"` : ''}><img src="data:image/jpeg;base64,${d.b64}" alt="קישמיש בכלוב"></span>
-    <span class="cam-b"><span class="cam-h"><b>נראתה לאחרונה בכלוב</b><small>ניסיוני · לא מאומת</small></span>
-      <span class="cam-t"><bdi dir="ltr">${clock(d.capture_ts)}</bdi>${dayLabel(d.capture_ts) === 'היום' ? '' : ' · ' + dayLabel(d.capture_ts)} · לפני <span data-words="${d.capture_ts}">${words(now - d.capture_ts)}</span></span>
+  return `<div class="card camc cams${sn ? ' cams-snap' : ''}" role="button" tabindex="0" data-cams="open">
+    <span class="cam-th"${Number.isInteger(d.w) && Number.isInteger(d.h) && d.w > 0 && d.h > 0 ? ` style="aspect-ratio:${d.w}/${d.h}"` : ''}><img src="data:image/jpeg;base64,${d.b64}" alt="${sn ? 'תמונה מהמצלמה' : 'קישמיש בכלוב'}"></span>
+    <span class="cam-b">${sn ? `<span class="cam-h"><b>תמונה עדכנית מהמצלמה</b><small>ניסיוני</small></span>
+      <span class="cam-t">${camsSnapWhen(d, now)}</span>` : `<span class="cam-h"><b>נראתה לאחרונה בכלוב</b><small>ניסיוני · לא מאומת</small></span>
+      <span class="cam-t"><bdi dir="ltr">${clock(d.capture_ts)}</bdi>${dayLabel(d.capture_ts) === 'היום' ? '' : ' · ' + dayLabel(d.capture_ts)} · לפני <span data-words="${d.capture_ts}">${words(now - d.capture_ts)}</span></span>`}
       ${look}${cap}</span></div>`;
 }
 function camsPaint(){
   const el = document.querySelector('.camc'); if(!el) return;
   const t = document.createElement('div'); t.innerHTML = camCardHTML(pet); const n = t.firstElementChild;
-  if(n) el.replaceWith(n); else el.remove();
+  if(n){ if(n.outerHTML !== el.outerHTML) el.replaceWith(n); } else el.remove();
+  camsRowPatch();
   camsWatch();
 }
+// Inside the crate card's image row: patch only the line on the image and the request line (a whole-row swap made
+// the page jump: scroll anchoring lost its node).
+function camsRowPatch(){
+  const c = document.querySelector('.crcam .camc'), row = c && c.closest('.crcam'), img = row && row.querySelector(':scope > .crcam-img'); if(!img || pet !== CAMJ_P) return;
+  const t = document.createElement('div'); t.innerHTML = crateCamRowHTML(pet); const n = t.querySelector('.crcam'); if(!n) return;
+  const sw = (sel, after) => { const a = row.querySelector(':scope ' + sel), b = n.querySelector(':scope ' + sel);
+    if(a && b){ if(a.outerHTML !== b.outerHTML) a.replaceWith(b); } else if(a) a.remove(); else if(b) after.after(b); };
+  sw('> .crcam-img > .crcam-ov', img.querySelector('.camc'));
+  sw('> .camrq-l', row.querySelector(':scope > .crcam-l:not(.camrq-l)') || img);
+}
 function camsSheet(){
-  const d = CAMS.doc; if(!d) return;
+  const d = camsShown(); if(!d) return;
+  if(d.snap){   // a plain frame: its own words, never occupancy
+    sh.innerHTML = `<div class="cam-sheet"><h3>תמונה עדכנית מהמצלמה <small class="cam-x">ניסיוני</small></h3>
+    <img class="cam-big" src="data:image/jpeg;base64,${d.b64}" alt="תמונה מהמצלמה">
+    <div class="cam-meta">${dayLabel(d.capture_ts)} <bdi dir="ltr">${new Date(d.capture_ts).toLocaleTimeString('he-IL', {hour:'2-digit', minute:'2-digit', second:'2-digit'})}</bdi> · לפני ${words(Date.now() - d.capture_ts)}${d.ir ? ' · <span class="cam-ir" title="IR">ראיית לילה</span>' : ''}</div>
+    ${Date.now() - d.capture_ts > CAMS_SNAP_STALE_MS ? '<div class="cam-meta">התמונה לא עדכנית</div>' : ''}
+    <details class="cam-how"><summary>מה זו התמונה</summary><div>כל שדה הראייה של המצלמה, מוקטן — ${d.trigger === 'on_demand' ? 'צולמה לפי בקשה' : 'נשלחת כל כמה דקות'}. זו רק תמונה: לא זיהוי ולא קביעה איפה היא. שום דבר ממנה לא נכנס ליומן, לעצות או לחישובים.</div></details>
+    <div class="foot">${CAMJ.ready ? '<button class="lnk" data-camj="review">מה המצלמה ראתה</button>' : ''}<button class="btn" id="camX">סגירה</button></div></div>`;
+    sh.querySelector('#camX').onclick = close; bg.classList.add('show'); return;
+  }
   sh.innerHTML = `<div class="cam-sheet"><h3>נראתה לאחרונה בכלוב <small class="cam-x">ניסיוני · מצב צל</small></h3>
     <img class="cam-big" src="data:image/jpeg;base64,${d.b64}" alt="קישמיש בכלוב">
     <div class="cam-meta">${dayLabel(d.capture_ts)} <bdi dir="ltr">${new Date(d.capture_ts).toLocaleTimeString('he-IL', {hour:'2-digit', minute:'2-digit', second:'2-digit'})}</bdi> · לפני ${words(Date.now() - d.capture_ts)}</div>

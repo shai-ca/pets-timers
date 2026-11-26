@@ -25,7 +25,7 @@
     pet = 'kishmish'; render(); await settle();
     ok('no setting needed: Kishmish\'s screen watches the shared slot and listens while it is on screen', !!$q('.cams-slot') && !!subs.latest && !!subs.status);
     ok('nothing published yet: no card at all', !card());
-    ok('its own listeners: only camera documents (latest, status, and the events for the journal) — never the journal\'s', names.every(n => ['latest', 'status', 'events', 'feedback', 'suggestions'].includes(n)));
+    ok('its own listeners: only camera documents (latest, status, snapshot, and the events for the journal) — never the journal\'s', names.every(n => ['latest', 'status', 'snapshot', 'events', 'feedback', 'suggestions'].includes(n)));
 
     subs.latest.onData(DOC(), false); subs.status.onData({ checked_at: now - 2*MIN, service:'ok' }, false); await wait(2);
     ok('the image, automatically: a data URL of the full frame, large, in its own 16:9 shape', !!card() && /^data:image\/jpeg;base64,/.test(card().querySelector('.cam-th img').src) && /800\s*\/\s*450/.test(card().querySelector('.cam-th').style.aspectRatio));
