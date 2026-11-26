@@ -1483,7 +1483,8 @@ function advice(p){
   return say('idle', pf ? `הפיפי הבא צפוי ${clock(pf.from)}–${clock(pf.to)}; אין עכשיו שום דבר שצריך לעשות.` : 'אין עכשיו שום דבר שצריך לעשות.');
 }
 // adviceHTML(p): the advice slot in the side column (Agent E draws it). Empty while `advice` says nothing.
-function adviceHTML(p){ const a = advice(p); return a.level === 'none' ? '' : `<div class="card slim advice ${a.level}"><span><b>${esc(a.text)}</b>${a.why ? `<small>${esc(a.why)}</small>` : ''}</span></div>`; }
+function adviceHTML(p){ const a = advice(p), cf = p === CAMJ_P && typeof camjConflict === 'function' ? camjConflict() : '';
+  return a.level === 'none' && !cf ? '' : `<div class="card slim advice ${a.level === 'none' ? 'info' : a.level}"><span><b>${esc(a.level === 'none' ? 'כדאי לבדוק' : a.text)}</b>${a.why ? `<small>${esc(a.why)}</small>` : ''}${cf ? `<small class="cam-err">${cf}</small>` : ''}</span></div>`; }
 // advice('kochik') (Agent C, owner 26.11): one calm line about comfort and rest, or none. None while anything asks for
 // action: a medicine due (from PLAN.medLead before 11:00 / 21:00) or late, unless on a break; her pee window open or past
 // (`kochikExpect`, the sick cap included); a drink's pee window open. Then: a marked sleep running → "let her rest";
@@ -3409,6 +3410,8 @@ function camjPlan(log, now){
     if(camjDec(c.id)){ if(camjDec(c.id).d === 'dismissed') rv.visits.push({ s: c.s, door: 'closed', dismissed: true }); continue; }
     if(c.unc || c.ounc){ rv.resolve.push({ c, why: 'wide' }); continue; }
     if(sess.some(e => ov(iv(e.t, e.end), iv(c.t, c.end)) > 0)){ rv.resolve.push({ c, why: 'overlap' }); continue; }
+    const cEnd = c.end == null ? now : c.end, clash = L.find(e => (OUT_KINDS[e.k] && e.t > c.t && e.t < cEnd) || ((e.k === 'gravel' || e.k === 'carrier' || e.k === 'pen') && e.t < cEnd && (e.end == null ? now : e.end) > c.t));
+    if(clash){ rv.resolve.push({ c, why: 'journal', clash }); continue; }   // the journal says she was out: never a session (no cycle, no sleep) on its own
     acts.push({ do: 'create', c }); rv.imported.push({ c });
   }
   // the camera took it back (an explicit retraction, or her door marks no longer make it a session)
@@ -3423,7 +3426,7 @@ function camjPlan(log, now){
   if(open){
     const x = CAMJ.ev.filter(e => e.status === 'active' && e.kind === 'crate_exit' && e.source === 'owner_label' && e.ts > open.t && !camjDec(e.event_id)).sort(byTs)[0];
     if(x && !x.wide) acts.push({ do: 'end', id: open.id, ev: x });
-    else if(x) rv.resolve.push({ x, stay: open.id, why: 'wide-exit' });
+    else if(x && !(open.end != null && open.end >= x.lo && open.end <= x.hi)) rv.resolve.push({ x, stay: open.id, why: 'wide-exit' });
   }
   // visits: verified stays with no closed-door part (door open or unknown) — observations, never stored
   for(const s of camjStays(now)) if(s.verified && !camjClosed(s.from, s.to == null ? now : s.to, now).length){
@@ -3458,7 +3461,9 @@ function camjDo(a, who){   // inside a commit's mutate
     // her own label is the better clock — over a manual entry, even one corrected by hand before (owner). The start she
     // meant is her entry or the door closing, whichever is nearer her manual time; uncertain ends / starts are left alone.
     const st = Math.abs(o.t - c.from) <= Math.abs(o.t - c.closeT) ? c.from : c.closeT;
-    const nt = c.unc ? o.t : st, ne = c.end != null && !c.ounc ? Math.max(c.end, nt + 1) : o.end;
+    const inWin = (x, lo, hi) => x != null && lo != null && hi != null && x >= lo - 1000 && x <= hi + 1000;   // her time is inside the camera's window: keep hers
+    const nt = c.unc || (st === c.from && inWin(o.t, c.ilo, c.ihi)) ? o.t : st;
+    const ne = c.end != null && !c.ounc && !inWin(o.end, c.olo, c.ohi) ? Math.max(c.end, nt + 1) : o.end;
     if(nt !== o.t || ne !== o.end){ o.cam.was = was; o.t = nt; if(ne != null) o.end = ne; }
     delete o.cam.h;   // from here on, only a NEW hand correction protects it from later camera changes
   } else if(a.do === 'unlink'){
@@ -3551,6 +3556,19 @@ function camjTileHTML(p, inSession){
   const lines = [camjNowLine(), camjDoorLine()].filter(Boolean).join('');
   return `<div class="camjb">${camCardHTML(p)}${lines ? `<div class="camj-lines">${lines}</div>` : ''}${act}${sum}</div>`;
 }
+// The journal says she is in the crate (or asleep) but fresh camera evidence says otherwise: one line under the advice.
+// Unverified: it changes nothing, it only says the advice may rest on something the camera does not see.
+function camjConflict(){
+  if(!V || !V[CAMJ_P]) return '';
+  const S = V[CAMJ_P], now = Date.now(), inCrate = !!(S.crate && S.crate.start), asleep = !!(S.sleep && S.sleep.start);
+  if(!inCrate && !asleep) return '';
+  const since = Math.max(inCrate ? S.crate.start : 0, asleep ? S.sleep.start : 0);
+  const x = CAMJ.ready ? CAMJ.ev.filter(e => e.status === 'active' && e.kind === 'crate_exit' && e.ts > since && now - e.ts <= CAMJ_TTL && !(camjDec(e.event_id) && camjDec(e.event_id).d === 'rejected')).sort(byTs).pop() : null;
+  if(x) return `אבל המצלמה זיהתה יציאה מהכלוב ב־<bdi dir="ltr">${clock(x.ts)}</bdi> (${x.source === 'owner_label' ? 'מהתיוג שלך' : 'לא מאומת'}) · כדאי לבדוק`;
+  const cn = CAMS.status && CAMS.status.crate_now;
+  if(inCrate && cn && cn.status === 'negative' && typeof cn.capture_ts === 'number' && now - cn.capture_ts <= 5*60000) return `אבל המצלמה לא רואה אותה בכלוב (<bdi dir="ltr">${clock(cn.capture_ts)}</bdi>, לא מאומת) · כדאי לבדוק`;
+  return '';
+}
 // ----- the review view: what was imported, matched, left as a visit, needs her, was rejected; and the saving -----
 function camjReview(){
   const now = Date.now(), { rv } = camjPlan(state.log, now), when = (a, b) => `<bdi dir="ltr">${clock(a)}${b ? '–' + clock(b) : ''}</bdi>${dayLabel(a) === 'היום' ? '' : ' · ' + dayLabel(a)}`;
@@ -3559,7 +3577,7 @@ function camjReview(){
   const wk = state.log.filter(e => e.p === CAMJ_P && e.k === 'crate' && now - e.t < 7*DAY);
   const fromCam = wk.filter(e => (e.id || '').startsWith('cam:')).length, fixed = wk.filter(e => !(e.id || '').startsWith('cam:') && e.cam && e.cam.was).length, manual = wk.length - fromCam;
   const resolveRows = rv.resolve.map((r, i) => r.c
-    ? row(`${r.why === 'overlap' ? 'חופף לשהייה שכבר רשומה' : 'שעה לא ודאית'}: ${when(r.c.t, r.c.end)}${camjWin(r.c.ilo, r.c.ihi)}<small>${r.why === 'overlap' ? 'לא נרשם, כדי לא ליצור כפילות' : 'החלון רחב מ־15 דק׳, לכן לא נרשם כשעה מדויקת. אפשר לבחור שעה בתוכו'}</small>`,
+    ? row(`${r.why === 'overlap' ? 'חופף לשהייה שכבר רשומה' : r.why === 'journal' ? 'סותר את היומן' : 'שעה לא ודאית'}: ${when(r.c.t, r.c.end)}${camjWin(r.c.ilo, r.c.ihi)}<small>${r.why === 'overlap' ? 'לא נרשם, כדי לא ליצור כפילות' : r.why === 'journal' ? `ביומן: ${ITEMS[r.clash.k].log} ב־<bdi dir="ltr">${clock(r.clash.t)}</bdi>, בתוך השהייה הזו. לא נרשם, כדי לא להתחיל סבב או שינה בטעות` : 'החלון רחב מ־15 דק׳, לכן לא נרשם כשעה מדויקת. אפשר לבחור שעה בתוכו'}</small>`,
         r.why === 'wide' ? `<span class="rt-a"><input type="time" class="cj-t" data-i="${i}" min="${clock(r.c.ilo)}" max="${clock(r.c.ihi)}"><button class="btn" data-cjr="pick" data-i="${i}">לרשום</button><button class="lnk" data-cjr="dismiss" data-i="${i}">להשאיר כתצפית</button></span>` : `<span class="rt-a"><button class="lnk" data-cjr="dismiss" data-i="${i}">להשאיר כתצפית</button></span>`)
     : row(`יציאה בשעה לא ודאית${camjWin(r.x.lo, r.x.hi)}<small>השהייה נשארת פתוחה עד שתסיימי אותה</small>`));
   sh.innerHTML = `<div class="cam-sheet"><h3>מהמצלמה · כלוב <small class="cam-x">ניסיוני</small></h3>

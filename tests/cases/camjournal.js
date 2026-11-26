@@ -63,6 +63,19 @@
       camjApply(); await wait(2);
       ok('a NEW hand correction after the camera: protected from later camera changes', byId(M.id).end === now - 11*HOUR + 8*MIN && byId(M.id).cam.h === 1); }
 
+    // 3b. real-data cases (26.11): a session the journal contradicts; a manual time inside the camera's window
+    { DOORS = [...DOORS, { from: now - 8*HOUR, to: now - 7*HOUR, value: 'closed' }];
+      commit('', () => { state.log.push({ p:'kishmish', k:'gravel', t: now - 8*HOUR - 2*MIN, end: now - 8*HOUR + MIN }); state.log.push({ p:'kishmish', k:'none', t: now - 8*HOUR + MIN }); }, { quiet: true });
+      await send([...DOC.events, E('ce_g', 'crate_entry', now - 8*HOUR - MIN, { pair_id: 'ce_gx' }), E('ce_gx', 'crate_exit', now - 7*HOUR - 30*MIN)]); camjApply(); await wait(2);
+      const r = camjPlan(state.log, Date.now()).rv.resolve.find(r => r.c && r.c.id === 'cam:ce_g');
+      ok('"לא עשתה" logged inside the camera stay: no session, no cycle, no sleep — to resolve, with the reason', !byId('cam:ce_g') && r && r.why === 'journal' && ['none', 'gravel'].includes(r.clash.k)); }
+    { commit('', () => state.log.push(newStay('kishmish', 'crate', now - 6*HOUR, now - 5*HOUR + 8*MIN)), { quiet: true });
+      const M2 = stays().find(e => e.t === now - 6*HOUR);
+      DOORS = [...DOORS, { from: now - 6*HOUR - MIN, to: now - 5*HOUR + 9*MIN, value: 'closed' }];
+      await send([...DOC.events, E('ce_p', 'crate_entry', now - 6*HOUR + MIN, { pair_id: 'ce_px' }), E('ce_px', 'crate_exit', now - 5*HOUR + 7*MIN, { lo: now - 5*HOUR, hi: now - 5*HOUR + 15*MIN, wide: false })]); camjApply(); await wait(2);
+      ok('a manual exit inside the camera\'s window (like 08:38 in 08:30–08:45): kept, not replaced or questioned', byId(M2.id).end === now - 5*HOUR + 8*MIN && byId(M2.id).t === now - 6*HOUR + MIN);
+      // the start outside the window takes the camera's; the end inside it stays hers
+    }
     // 4. wide windows: not applied as exact; resolvable
     DOORS = [...DOORS, { from: now - 10*HOUR - 30*MIN, to: now - 9*HOUR, value: 'closed' }];
     await send([...DOC.events, E('ce_w', 'crate_entry', now - 10*HOUR, { lo: now - 10*HOUR - 10*MIN, hi: now - 10*HOUR + 10*MIN, wide: true, pair_id: 'ce_wx' }), E('ce_wx', 'crate_exit', now - 9*HOUR - 20*MIN)]); camjApply(); await wait(2);
@@ -94,6 +107,11 @@
     $q('.card .camjt [data-camj=end]').click(); await wait(2);
     ok('…"אישור" ends it at the camera time', Math.abs(byId('cam:ce_L0').end - (Date.now() - 5*MIN)) < 60000 && camjDec('ce_LX').d === 'approved');
 
+    // 6b. the advice says when the camera disagrees with the journal (and changes nothing)
+    { const id = 'zz_s'; commit('', () => state.log.push({ id, p:'kishmish', k:'sleep', t: Date.now() - 4*MIN }), { quiet: true });
+      await send([...DOC.events, E('ce_Q', 'crate_exit', Date.now() - 2*MIN, { source:'live_model' })]); render(); await wait(2);
+      ok('asleep in the journal + a live camera exit after it: the advice line says to check, the journal unchanged', !!$q('.advice') && $q('.advice').textContent.includes('המצלמה זיהתה יציאה') && byId(id).end == null);
+      commit('', () => { state.log = state.log.filter(e => e.id !== id); }, { quiet: true }); }
     // 7. a deleted camera session never comes back
     commit('', () => { state.log = state.log.filter(e => e.id !== 'cam:ce_L0'); }, { quiet: true }); camjApply(); await wait(2);
     ok('deleted by a caregiver: remembered (feedback), not re-added', !byId('cam:ce_L0') && camjDec('cam:ce_L0') && camjDec('cam:ce_L0').d === 'deleted');
