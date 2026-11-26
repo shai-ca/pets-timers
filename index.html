@@ -2205,48 +2205,60 @@ function sleepGoalHTML(p){
   return `<div class="gauge goal ${short <= 0 ? 'met' : short > 3*3600000 ? 'low' : ''}"><div class="gg" dir="ltr" data-tip="${tg}" title="${tg}"><span class="gf" style="width:${pc.toFixed(1)}%" data-tip="${tf}" title="${tf}"></span></div>
     <small>ב־24 השעות האחרונות ישנה <b dir="ltr">${hmm(got)}</b> מתוך ${g}–${sleepGoalTop(p)} שעות${short > 0 ? ` · חסרות ${words(short)}` : got > sleepGoalTop(p)*3600000 ? sleepMuchNote() : ' · בטווח'}</small><div class="ptip"></div></div>`;
 }
-// SCORES, like a sleep ring (the owner, 25.11, after Oura's sleep / readiness scores). All from the list, last 24 hours:
-// SLEEP 0–100 = total against her goal (50) + how long her stretches are, 60 min = full (25) + last night, 22:00–06:00,
-// 7 hours = full (25). READY (מוכנות) = 100 − minutes awake (up to 60) − 10 per missing hour of sleep (up to 40);
-// none while she sleeps. GRAVEL = pees and poops on the gravel or outside out of all of them with a place (3 needed).
+// THE RINGS (owner, 25.11; redone 26.11: nothing may reward keeping her in the crate or penalise healthy wakefulness).
+// All from the list, last 24 hours; no 0–100 score for sleep or readiness any more:
+//  SLEEP — how much she slept, split into OBSERVED (marked by hand, `sleep` entries without `a:1`) and ESTIMATED (the
+//          app's estimate in the crate, and "התעוררה" on an estimate). Quiet crate time is not sleep unless estimated
+//          as such, and the estimate is never shown as equally certain. The ring is neutral (no colour verdict): its arc
+//          is the share of the 24 hours she was asleep, and the age range (`sleepGoal`–`sleepGoalTop`) is information
+//          ("בטווח / מתחת / מעל"), not a target. Last night (NIGHTS.score) is described, not scored.
+//  READINESS — the list holds no measurable sign of how rested she is (awake time is healthy, play / training / the
+//          carrier / the pen are good for her), so there is no number: the ring reads "אין מספיק נתונים" and the
+//          sheet says only what she is doing now.
+//  GRAVEL — pees and poops on the gravel or outside out of all of them with a place (3 needed). Unchanged.
 function scores(p){
   const g = sleepGoal(p); if(!g) return null;
-  const now = Date.now(), a = now - 24*3600000, H = 3600000;
-  const iv = V[p].spans.filter(x => x.t <= now).map(x => [Math.max(x.t, a), Math.min(x.end == null ? now : x.end, now)]).filter(([x, y]) => y > x).sort((x, y) => x[0] - y[0]), st = [];
-  for(const [x, y] of iv){ const l = st[st.length-1]; if(l && x - l[1] < 3*60000) l[1] = Math.max(l[1], y); else st.push([x, y]); }
-  const total = st.reduce((n, [x, y]) => n + y - x, 0), avg = st.length ? total / st.length : 0;
-  const NS = NIGHTS.score, nLen = (24 - NS.from + NS.to)*H;   // last night: 22:00 – 06:00
+  const now = Date.now(), a = now - 24*3600000, H = 3600000, ents = new Map(state.log.filter(e => e.p===p && e.k==='sleep').map(e => [e.id, e]));
+  const union = L => { const iv = L.map(x => [Math.max(x.t, a), Math.min(x.end == null ? now : x.end, now)]).filter(([x, y]) => y > x).sort((x, y) => x[0] - y[0]), st = [];
+    for(const [x, y] of iv){ const l = st[st.length-1]; if(l && x <= l[1]) l[1] = Math.max(l[1], y); else st.push([x, y]); } return st; };
+  const len = st => st.reduce((n, [x, y]) => n + y - x, 0);
+  const sp = V[p].spans.filter(x => x.t <= now), seen = x => !x.assumed && !(ents.get(x.id) || {}).a;
+  const all = union(sp), total = len(all), marked = len(union(sp.filter(seen))), est = Math.max(0, total - marked);
+  const NS = NIGHTS.score, nLen = (24 - NS.from + NS.to)*H;
   const n0 = sod(now); n0.setHours(NS.from - 24); if(now < n0.getTime() + nLen) n0.setDate(n0.getDate() - 1);
-  const n1 = n0.getTime() + nLen, night = st.reduce((n, [x, y]) => n + Math.max(0, Math.min(y, n1) - Math.max(x, n0.getTime())), 0);
-  const parts = {total: Math.min(1, total / (g*H)) * 50, cont: Math.min(1, avg / H) * 25, night: Math.min(1, night / (7*H)) * 25};
-  const sleep = Math.round(parts.total + parts.cont + parts.night);
-  const asleep = !!(V[p].sleep && V[p].sleep.start), aw = awakeSince(p), awMin = aw ? Math.max(0, (now - aw) / 60000) : 0;
-  const debt = Math.max(0, g*H - total), ready = asleep ? null : Math.max(0, Math.round(100 - Math.min(60, awMin) - Math.min(40, debt / H * 10)));
+  const n1 = n0.getTime() + nLen, inN = st => st.reduce((n, [x, y]) => n + Math.max(0, Math.min(y, n1) - Math.max(x, n0.getTime())), 0);
+  const night = inN(all), nightMarked = inN(union(sp.filter(seen)));
+  const top = sleepGoalTop(p), range = total < g*H ? 'below' : total > top*H ? 'above' : 'in';
+  const asleep = !!(V[p].sleep && V[p].sleep.start), aw = awakeSince(p);
   const pts = state.log.filter(e => e.p===p && (e.k==='pee' || e.k==='poop') && e.t >= a && e.t <= now && WHERE[e.w]);
   const good = pts.filter(e => e.w === 'gravel' || e.w === 'out').length;
-  return {sleep, parts, total, avg, night, stretches: st.length, g, ready, awMin, debt, asleep, gravel: pts.length >= 3 ? Math.round(good / pts.length * 100) : null, good, all: pts.length};
+  return {total, marked, est, share: total / (24*H), g, top, range, night, nightMarked, nightFrom: NS.from, nightTo: NS.to,
+    ready: null, asleep, awakeFrom: asleep ? null : aw || null, gravel: pts.length >= 3 ? Math.round(good / pts.length * 100) : null, good, all: pts.length};
 }
-function ringHTML(v, label, sub){
-  const C = 2 * Math.PI * 26, f = v == null ? 0 : v / 100, cls = v == null ? 'na' : v >= 85 ? 'hi' : v >= 70 ? 'mid' : 'lo';
-  return `<span class="scr ${cls}"><svg viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="26" class="rt"/><circle cx="32" cy="32" r="26" class="rv" stroke-dasharray="${(f*C).toFixed(1)} ${C.toFixed(1)}" transform="rotate(-90 32 32)"/></svg><b>${v == null ? '–' : v}</b><span>${label}</span><small>${sub}</small></span>`;
+// v: 0–100 (fills the arc), cls: '' for a neutral ring (no verdict) or null to colour by v; txt: the number in the middle.
+function ringHTML(v, label, sub, cls, txt){
+  const C = 2 * Math.PI * 26, f = v == null ? 0 : Math.min(1, v / 100), c = cls != null ? cls : v == null ? 'na' : v >= 85 ? 'hi' : v >= 70 ? 'mid' : 'lo';
+  return `<span class="scr ${c}"><svg viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="26" class="rt"/><circle cx="32" cy="32" r="26" class="rv" stroke-dasharray="${(f*C).toFixed(1)} ${C.toFixed(1)}" transform="rotate(-90 32 32)"/></svg><b>${txt != null ? txt : v == null ? '–' : v}</b><span>${label}</span><small>${sub}</small></span>`;
 }
+const SLEEP_RANGE = {below: 'מתחת לטווח הגיל', in: 'בטווח הגיל', above: 'מעל טווח הגיל'};
 function scoresHTML(p){
   const s = scores(p); if(!s) return '';
   return `<button class="card scores" data-act="scores" aria-label="המדדים של ${PETS[p].name}: לחיצה להסבר"><span class="scg">
-    ${ringHTML(s.sleep, 'שינה', `${hmm(s.total)} ב־24 שעות`)}${ringHTML(s.ready, 'מוכנות', s.asleep ? 'ישנה עכשיו' : `ערה ${words(s.awMin*60000)}`)}${ringHTML(s.gravel, 'חצץ', s.gravel == null ? 'מעט נתונים' : `${s.good} מתוך ${s.all}`)}</span></button>`;
+    ${ringHTML(s.share * 100, 'שינה', `נצפה ${hmm(s.marked)} · משוער ${hmm(s.est)}`, '', `<bdi dir="ltr">${hmm(s.total)}</bdi>`)}${ringHTML(null, 'מוכנות', 'אין מספיק נתונים', 'na')}${ringHTML(s.gravel, 'חצץ', s.gravel == null ? 'מעט נתונים' : `${s.good} מתוך ${s.all}`)}</span></button>`;
 }
 function openScores(p){
   const s = scores(p); if(!s) return;
-  const r = n => Math.round(n);
+  const S = V[p], now = Date.now(), nf = `${pad(s.nightFrom)}:00`, nt = `${pad(s.nightTo)}:00`;
+  const doing = s.asleep ? 'ישנה עכשיו' : S.crate && S.crate.start ? 'ערה בכלוב' : S.pen && S.pen.start ? 'בגדר' : S.carrier && S.carrier.start ? 'במנשא' : 'ערה, מחוץ לכלוב';
   sh.innerHTML = `<h3>${PETS[p].name} · איך מחושבים המדדים</h3>
     <div class="help">
-      <p><b>שינה ${s.sleep}/100</b> · מה־24 השעות האחרונות:<br>
-        כמות: ישנה ${hmm(s.total)} מתוך ${s.g} שעות לגילה → ${r(s.parts.total)}/50<br>
-        רציפות: ${s.stretches} רצפים, בממוצע ${words(s.avg)} (שעה ומעלה = מלא) → ${r(s.parts.cont)}/25<br>
-        לילה: ${hmm(s.night)} בין 22:00 ל־06:00 (7 שעות = מלא) → ${r(s.parts.night)}/25</p>
-      <p><b>מוכנות ${s.ready == null ? '– (ישנה)' : s.ready + '/100'}</b> · כמה היא רעננה עכשיו: מתחילים מ־100, יורדת נקודה לכל דקה ערה (עד 60) ו־10 לכל שעת שינה שחסרה ליעד (עד 40). עכשיו: ערה ${words(s.awMin*60000)}, חסרות ${words(s.debt)}.</p>
-      <p><b>חצץ ${s.gravel == null ? '–' : s.gravel + '%'}</b> · מכל הפיפי והקקי ב־24 השעות האחרונות שסומן איפה: ${s.good} מתוך ${s.all} בחצץ או בחוץ. צריך לפחות 3.</p>
-      <p class="sub">ירוק 85 ומעלה · כתום 70–84 · אדום מתחת ל־70. אלה הערכות פשוטות, לא מדע.</p>
+      <p><b>שינה ${hmm(s.total)}</b> ב־24 השעות האחרונות: <b>נצפה ${hmm(s.marked)}</b> (סומן ביד) · <b>משוער ${hmm(s.est)}</b> (הערכה של האפליקציה בכלוב — פחות בטוחה).<br>
+        טווח לגילה: ${s.g}–${s.top} שעות — ${SLEEP_RANGE[s.range]}. זה מידע, לא יעד: לא צריך להשאיר אותה בכלוב או להעיר אותה בשביל המספר. זמן שקט בכלוב לא נספר כשינה אלא אם הוערך כשינה.<br>
+        לילה (${nf}–${nt}): ${hmm(s.night)}, מתוכם נצפה ${hmm(s.nightMarked)}.<br>
+        הקשת: החלק מ־24 השעות שבו ישנה.</p>
+      <p><b>מוכנות: אין מספיק נתונים</b> · ברשימה אין שום דבר שמודד כמה היא רעננה. זמן ערות, משחק, אילוף, מנשא וגדר טובים לה ולא מורידים כלום. עכשיו: ${doing}${s.awakeFrom ? ` מ־<bdi dir="ltr">${clock(s.awakeFrom)}</bdi>` : ''}.</p>
+      <p><b>חצץ ${s.gravel == null ? '–' : s.gravel + '%'}</b> · מכל הפיפי והקקי ב־24 השעות האחרונות שסומן איפה: ${s.good} מתוך ${s.all} בחצץ או בחוץ. צריך לפחות 3. ירוק 85 ומעלה · כתום 70–84 · אדום מתחת ל־70.</p>
+      <p class="sub">אלה הערכות פשוטות מהרשימה, לא מדע.</p>
     </div><div class="foot"><span></span><button class="btn primary" id="cancel">סגירה</button></div>`;
   sh.querySelector('#cancel').onclick = close; bg.classList.add('show');
 }
@@ -2488,28 +2500,43 @@ function wakeBy(p){
   c.sort((x, y) => x[0] - y[0]);
   return {t: c[0][0], why: c[0][1], past: now >= c[0][0]};
 }
-// "היא עדיין ישנה?" (owner, 25.11; v3 timing): while she is still recorded asleep (marked or estimated), by day, and the
-// wake-by time has NOT passed (then "כדאי להעיר אותה" stays instead), once she has PROBABLY woken or is about to: with
-// her own marked sleeps, once this sleep is longer than STILL_ASK of her naps (the life table of `sleepOn` from the
-// start, `napSurv`; on 23–25.11 her continuation never fell under one half, so a conditional test would never ask);
-// with too few of them (`sleepOn` 'unknown'), as before — the sleep's start + the planning tab's nap
-// (`kishStats(now).nap`). The card shows `wakeExpect`'s forward range. A question only: it never says "wake her". "עדיין ישנה" hides it for
-// WAKE.askAgain on this phone (nothing saved); "התעוררה" ends the sleep now or at a chosen time (the usual "when?").
-const STILL_ASK = .5;
-let stillUntil = 0;
+// "היא עדיין ישנה?" (owner, 25.11; v3 timing; owner 26.11: fewer prompts). A predicted waking alone never asks. It asks
+// AT MOST ONCE PER SLEEP EPISODE (`stillDone`, this phone, nothing saved), by day only (not touching NIGHTS.learn or
+// NIGHTS.plan), before wake-by (past it "כדאי להעיר אותה" stays — unchanged), and only when BOTH:
+//  (a) the sleep is past her likely wake — longer than STILL_ASK of her marked naps (`napSurv`), or with too few of
+//      them the planning tab's nap (`kishStats(now).nap`, no time shown);
+//  (b) something practical depends on it (`stillNeed`): wake-by within STILL_NEED.wakeBy, her pee window open
+//      (`peeGapWin`), or a meal due within STILL_NEED.meal (`mealGap`).
+// Otherwise the wheel's passive line says "ישנה … · כנראה תתעורר בין …" (`cycleHTML`) and nothing asks. Backtest on the
+// frozen 23–25.11 list (always answering "עדיין ישנה"): 12 / 13 / 17 prompts a day before — `napSurv` falls under one
+// half about 30 min into most naps (many of her marked sleeps are short) and the 20-minute snooze asked again.
+const STILL_ASK = .5, STILL_NEED = {wakeBy: 30*60000, meal: 15*60000};
+let stillUntil = 0, stillDone = new Set();
+function stillNeed(p, now, wb){
+  const S = V[p];
+  if(wb && wb.t - now <= STILL_NEED.wakeBy) return 'wakeBy';
+  const g = peeGapWin(p, now); if(g && g.from <= now) return 'pee';
+  const mg = mealGap(p); if(mg && S.food && S.food + mg - now <= STILL_NEED.meal) return 'meal';
+  return null;
+}
 function stillAsleep(p){
   const S = V[p], st = S.sleep && S.sleep.start, now = Date.now();
-  if(!PETS[p].cycle || !st || touchesNight(st, now) || stillUntil > now) return null;
+  if(!PETS[p].cycle || !st || touchesNight(st, now) || planNight(st, now) || stillUntil > now) return null;
   const wb = wakeBy(p); if(wb && wb.past) return null;
   const w = wakeExpect(p, now);
-  if(w.sleepOn && w.words !== 'unknown') return w.likely && napSurv(p, now - w.since, now) < STILL_ASK ? {since: w.since, likely: w.likely, src: 'learned'} : null;
-  const exp = st + kishStats(now).nap;
-  return now >= exp ? {since: st, src: 'rule'} : null;   // asked by the old rule, but no wake time: `wakeExpect` has none
+  if(stillDone.has(p + '|' + w.since)) return null;
+  const learned = w.sleepOn && w.words !== 'unknown';
+  if(learned ? !(w.likely && napSurv(p, now - w.since, now) < STILL_ASK) : now < st + kishStats(now).nap) return null;
+  const why = stillNeed(p, now, wb); if(!why) return null;
+  return learned ? {since: w.since, likely: w.likely, src: 'learned', why} : {since: w.since, src: 'rule', why};   // rule: no wake time (`wakeExpect` has none)
 }
+// "עדיין ישנה": this sleep is not asked about again (and the old 20-minute hold stays, for the tests and the eye).
+function stillSnooze(p){ const a = stillAsleep(p); if(a) stillDone.add(p + '|' + a.since); stillUntil = Date.now() + WAKE.askAgain; }
 function stillAsleepHTML(p){
   const a = stillAsleep(p); if(!a) return '';
   const when = a.src === 'learned' ? `לפי השינות שלה, ייתכן שהיא כבר מתעוררת (בערך <bdi dir="ltr">${clock(a.likely.from)}–${clock(a.likely.to)}</bdi>)` : `עוד אין מספיק נתונים להעריך מתי תתעורר`;
-  return `<div class="card slim sleepq still"><span><b>היא עדיין ישנה?</b><small>ישנה מ־<bdi dir="ltr">${clock(a.since)}</bdi> · ${when}</small></span>
+  const need = {wakeBy: 'מתקרבת שעת ההערה', pee: 'חלון הפיפי פתוח', meal: 'מתקרבת ארוחה'}[a.why];
+  return `<div class="card slim sleepq still"><span><b>היא עדיין ישנה?</b><small>ישנה מ־<bdi dir="ltr">${clock(a.since)}</bdi> · ${when} · ${need}</small></span>
     <span class="rt-a"><button class="go" data-act="wokeup">התעוררה</button><button class="btn" data-act="stillasleep">עדיין ישנה</button></span></div>`;
 }
 function sleepPeeNote(p){   // asleep by day, past the age limit from the pee but not yet WAKE.sleepNoPee: information only
@@ -3268,7 +3295,7 @@ function cycleHTML(p){
     ${ft && ft.phase !== 'run' && !inCrate ? `<div class="frm">${ico('paw','s')}<span>זמן החופש נגמר (${FREE.min} דקות מהפיפי) · חזרה לשגרה</span></div>` : ''}
     ${over ? `<div class="duemsg">${ico('crate','s')}<span>ערה בכלוב יותר מ${words(CRATE_MAX)} · מ־<bdi dir="ltr">${clock(S.crate.start)}</bdi></span></div>` : ''}
     ${due && !long3 ? `<div class="duemsg">${ico('pee','s')}<span>זמן להוציא לצרכים · ${due.why}, לפני <span data-words="${due.t}">${words(now-due.t)}</span></span></div>` : ''}
-    ${asleep ? `<div class="zz">${ico('sleep','s')}<span>ישנה ${S.sleep.assumed ? 'כנראה ' : ''}מ־<bdi dir="ltr">${clock(S.sleep.start)}</bdi> · ${wb && wb.past ? 'כדאי להעיר אותה' : wb ? `נותנים לה לישון עד <bdi dir="ltr">${clock(wb.t)}</bdi>` : 'נותנים לה לישון'}${S.sleep.assumed ? ' <small>(הנחה: נרדמת בכלוב תוך כמה דקות)</small>' : ''}</span><button class="lnk" data-act="notasleep">לא נרדמה</button></div>` : ''}
+    ${asleep ? `<div class="zz">${ico('sleep','s')}<span>ישנה ${S.sleep.assumed ? 'כנראה ' : ''}מ־<bdi dir="ltr">${clock(S.sleep.start)}</bdi> · ${wb && wb.past ? 'כדאי להעיר אותה' : wb ? `נותנים לה לישון עד <bdi dir="ltr">${clock(wb.t)}</bdi>` : 'נותנים לה לישון'}${(() => { const we = !(wb && wb.past) && wakeExpect(p, now); return we && we.likely ? ` · כנראה תתעורר בין <bdi dir="ltr">${clock(we.likely.from)}–${clock(we.likely.to)}</bdi>` : ''; })()}${S.sleep.assumed ? ' <small>(הנחה: נרדמת בכלוב תוך כמה דקות)</small>' : ''}</span><button class="lnk" data-act="notasleep">לא נרדמה</button></div>` : ''}
     <div class="cyc-n"><span class="nx"><b>מה עושים עכשיו?</b>${wakeGravelWhat(p)}${what}${routineTap(p).length ? ` החלק המתאים למטה מסומן <span class="tagk">עכשיו בשגרה</span>.` : ''}</span>
       ${r && !r.brk && !inCrate ? `<button class="ghost" data-act="brk">${ico('none','s')}הפסקה בשגרה</button>` : ''}</div></div>`;
 }
@@ -4638,7 +4665,7 @@ document.getElementById('shell').addEventListener('click', e => {
   else if(a==='swap') askSwap(pet);
   else if(a==='fcwhy') forecastWhy(pet);
   else if(a==='stillawake'){ awakeUntil = Date.now() + SLEEP_ASK; render(); }
-  else if(a==='stillasleep'){ stillUntil = Date.now() + WAKE.askAgain; render(); }
+  else if(a==='stillasleep'){ stillSnooze(pet); render(); }
   else if(a==='wokeup') askWhen(`${PETS[pet].name} · ${ITEMS.sleep.stop} — מתי?`, ts => ts ? endDurAt(pet, 'sleep', ts) : tapDur(pet, 'sleep'));
   else if(a==='notasleep') notAsleep(pet);
   else if(a==='crfood'){   // the bowl inside the crate: the button says "ארוחה", so it is written as a meal (`m`), not left to the two-hour rule
