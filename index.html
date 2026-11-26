@@ -4100,30 +4100,36 @@ function planCareDur(now){
   return d.length >= PLAN.care.min ? {ms: median(d), n: d.length, src: 'learned'} : {ms: PLAN.care.fb, n: d.length, src: 'estimate'};
 }
 // ADAPTER planNaps — how long a sleep that has NOT begun yet lasts: no contract offers that (wakeExpect covers the
-// current sleep). Quartiles of her marked day episodes (`learnEpisodes`, the last PLAN.days days, ≥ WAKE.minNap);
+// current sleep). Quartiles of her MARKED day episodes (`learnEpisodes`, src 'marked' only — like `sleepOn`, an estimate
+// never validates itself; the last PLAN.days days, ≥ WAKE.minNap);
 // with too few, PLAN.nap.fb (an estimate). Replace with a contract when Agent B offers one.
 function planNaps(now){
-  const d = learnEpisodes('kishmish', now - PLAN.days*86400000, now, {now}).filter(e => e.end != null && e.end - e.t >= WAKE.minNap).map(e => e.end - e.t).sort((a,b) => a-b);
+  const d = learnEpisodes('kishmish', now - PLAN.days*86400000, now, {now}).filter(e => e.src === 'marked' && e.end != null && e.end - e.t >= WAKE.minNap).map(e => e.end - e.t).sort((a,b) => a-b);
   if(d.length < PLAN.nap.min){ const [lo, mid, hi] = PLAN.nap.fb; return {lo, mid, hi, n: d.length, src: 'estimate'}; }
   return {lo: quantile(d, .25), mid: median(d), hi: quantile(d, .75), n: d.length, src: 'learned'};
 }
-// The current sleep's wake: wakeExpect(...).likely (a range) and .wakeBy (the safety rule). ADAPTER while it says
-// nothing: her usual nap range (planNaps) from the sleep's start, never before now, and the app's own `wakeBy`.
-function planWakeNow(now){
+// The current sleep's wake: wakeExpect(...).likely (a range) and .wakeBy (the safety rule). When it gives no range:
+//  a night sleep → the night rule: she wakes at her usual morning (`morning`, a clock hour), never a day-nap range;
+//  a day sleep → ADAPTER: her usual nap range (planNaps) from the sleep's start, never before now — src 'estimate',
+//  always drawn faded and labelled "הערכה — עוד אין מספיק נתונים", never shown as the contract's range nor high confidence.
+const PL_EST = 'הערכה — עוד אין מספיק נתונים';
+function planWakeNow(now, morning){
   const w = wakeExpect('kishmish', now) || {}, st = V.kishmish.sleep && V.kishmish.sleep.start;
   const wb = w.wakeBy != null ? w.wakeBy : (w.src === 'stub' || !w.src) ? ((wakeBy('kishmish') || {}).t || null) : null;
   if(w.likely && w.likely.from != null && w.likely.to != null) return {from: w.likely.from, to: Math.max(w.likely.from, w.likely.to), wakeBy: wb, src: 'contract', n: w.n || 0};
   if(!st) return null;
+  if(touchesNight(st, now)){ const m = Math.max(now, planAt(now, morning != null ? morning : PLAN.fb.morning)); return {from: m, to: m + PLAN.fb.spread, wakeBy: null, src: 'night', n: 0}; }
   const nr = planNaps(now), from = Math.max(now, st + nr.lo), to = Math.max(from + (nr.hi - nr.lo) / 2, st + nr.hi);
-  return {from, to, wakeBy: wb, src: 'adapter', n: nr.n};
+  return {from, to, wakeBy: wb, src: 'estimate', n: nr.n};
 }
-// Her pee window: pottyExpect(...).pee. ADAPTER while it is null: the tracking tab's own window (`peeForecast`).
-// `span` = how long after a pee the window ends, used for the pees the plan expects later.
+// Her pee window: the CURRENT one from pottyExpect(...).pee (ADAPTER while it is null: `peeForecast`). `span` = how
+// long after a pee a window ends, for the pees the plan expects later — from her usual gap / by age (`peeGapWin`), never
+// from the current window, which while she sleeps is stretched to her wake range.
 function planPee(now){
-  const pe = (pottyExpect('kishmish', now) || {}).pee, last = V.kishmish.pee;
-  if(pe && pe.to != null) return {to: pe.to, span: last && pe.to > last ? pe.to - last : null, src: 'contract'};
+  const pe = (pottyExpect('kishmish', now) || {}).pee, g = peeGapWin('kishmish', now), span = g ? g.to - g.last : null;
+  if(pe && pe.to != null) return {to: pe.to, span, src: 'contract'};
   const f = peeForecast('kishmish');
-  return f ? {to: f.to, span: f.to - f.last, src: 'adapter'} : {to: null, span: null, src: 'none'};
+  return f ? {to: f.to, span: span != null ? span : f.to - f.last, src: 'adapter'} : {to: null, span, src: 'none'};
 }
 // Kochik: kochikExpect(now) → {gap, from, to, cap, sick, n, src, drinkFrom?, drinkTo?}. ADAPTER while it is a stub:
 // the app's `kochikGap` rules from her last pee, and a drink since then (PLAN.drink).
@@ -4200,15 +4206,15 @@ function planKish(from, to, fresh, X, groom){
   } else if(S.crate && S.crate.start){
     const c = S.crate.start, safe = planSafeStay(c, from), seen = !!(S.sleep && S.sleep.start), L = state.log.filter(e => e.p===p && e.t <= from);
     if(seen){
-      const w = planWakeNow(now) || {from: from + 5*PL_M, to: from + 20*PL_M, src: 'none'};
+      const w = planWakeNow(now, X.morning) || {from: from + 5*PL_M, to: from + 20*PL_M, src: 'estimate'};
       let wf = Math.max(w.from, from + PL_M), wt = Math.max(w.to, wf);
       if(w.wakeBy && w.wakeBy < wt){ wt = Math.max(w.wakeBy, from + PL_M); wf = Math.min(wf, wt); }
       const mid = (wf + wt) / 2, open = X.lat(from).open;
-      ph.push({k: 'sleep', a: from, b: mid, open, cur: true});
+      ph.push({k: 'sleep', a: from, b: mid, open, cur: true, wsrc: w.src});
       sleeps.push({a: from, onset: S.sleep.start, c, wake: {from: wf, to: wt, mid, src: w.src, wakeBy: w.wakeBy}, safe, seen: true, cur: true, est: false, open,
         peeTo: X.pee.to, alone: c + alone, prep: {now: true, asleep: true, c}, unsafe: 'קישמיש נכנסה לכלוב בלי פיפי בחצץ'});
       cur = {t: mid, spread: (wt - wf) / 2, own: (wt - wf) / 2};
-      estFrom = mid;
+      estFrom = w.src === 'estimate' ? from : mid;   // a wake without the contract's range is an estimate from now on
     } else {
       // not asleep yet: quiet since going in / the last cry / the last thing seen (a kong, food…); asleep after her delay
       const crying = L.some(e => e.k==='cry' && e.end == null && e.t >= c);
@@ -4218,11 +4224,11 @@ function planKish(from, to, fresh, X, groom){
       const sl = sleeps[sleeps.length-1]; Object.assign(sl, {c, cur: true, safe, peeTo: X.pee.to, alone: c + alone, prep: {now: true, asleep: false, c}, unsafe: safe ? 'קישמיש בכלוב ועוד לא נרדמה' : 'קישמיש נכנסה לכלוב בלי פיפי בחצץ'});
     }
   } else if(S.sleep && S.sleep.start){
-    const w = planWakeNow(now) || {from: from + 5*PL_M, to: from + 20*PL_M, src: 'none'};
+    const w = planWakeNow(now, X.morning) || {from: from + 5*PL_M, to: from + 20*PL_M, src: 'estimate'};
     const wf = Math.max(w.from, from + PL_M), wt = Math.max(w.to, wf), mid = (wf + wt) / 2;
     ph.push({k: 'sleep', a: from, b: mid, outside: true, cur: true});
     sleeps.push({a: from, onset: S.sleep.start, c: null, wake: {from: wf, to: wt, mid, src: w.src}, safe: false, seen: true, cur: true, est: false, outside: true, unsafe: 'קישמיש ישנה מחוץ לכלוב'});
-    cur = {t: mid, spread: (wt - wf) / 2, own: (wt - wf) / 2}; estFrom = mid;
+    cur = {t: mid, spread: (wt - wf) / 2, own: (wt - wf) / 2}; estFrom = w.src === 'estimate' ? from : mid;
   } else {
     const since = awakeSince(p) || from, peed = state.log.some(e => e.p===p && e.k==='pee' && e.t >= since && e.t <= from && (e.w === 'gravel' || e.w === 'out'));
     const b = outPhase(from, Math.max(from + 5*PL_M, since + D), 0, false, {peed, now: true});
@@ -4318,6 +4324,7 @@ function planBuild(day, minOut){
     f.notes = [`נשארה לבד רגועה ${away.n} ${away.n === 1 ? 'פעם' : 'פעמים'} בשבועיים האחרונים`];
     if(kg.sick) f.notes.push(`קוצ׳יק: שלשול או הקאה ב־24 השעות האחרונות — מרווח קצר יותר בין פיפי לפיפי`);
     if(!pr.now) f.notes.push('רק אחרי פיפי בחצץ ורק אם נרדמה');
+    if(sl.cur && sl.wake.src === 'estimate') f.notes.push(`מתי תתעורר: ${PL_EST}`);
     sl.free = f; sl.why = endWhy; M.free.push(f);
   }
   return M;
@@ -4334,9 +4341,9 @@ function planClass(M, t){
     const f = M.free.find(x => x.a <= t && t < x.b);
     if(f) return {k: 'free', what: 'שתיהן מסודרות', why: `קישמיש ישנה בכלוב אחרי פיפי בחצץ, קוצ׳יק לא צריכה כלום, והיא כבר נשארה לבד רגועה · נגמר כי ${f.endWhy}`, f};
     const bd = M.ks.bands.find(x => x.a <= t && t < x.b);
-    if(bd) return {k: 'uns', what: 'אולי פנוי', why: `קישמיש עשויה להתעורר כבר מ־${clock(bd.a)} (צפוי בסביבות ${clock(bd.b)})`};
+    if(bd) return {k: 'uns', what: 'אולי פנוי', why: `${ph.wsrc === 'estimate' ? PL_EST + ' · ' : ''}קישמיש עשויה להתעורר כבר מ־${clock(bd.a)} (צפוי בסביבות ${clock(bd.b)})`};
     if(sl && sl.cur && !sl.seen) return {k: 'sup', what: 'קישמיש בכלוב ונרדמת', why: 'עוד לא ידוע שנרדמה'};
-    return {k: 'home', what: 'קישמיש ישנה בכלוב', why: `קוצ׳יק לא צריכה כלום · קישמיש צפויה להתעורר בסביבות ${clock(ph.b)}`};
+    return {k: 'home', what: 'קישמיש ישנה בכלוב', why: `${ph.wsrc === 'estimate' ? PL_EST + ' · ' : ''}קוצ׳יק לא צריכה כלום · קישמיש צפויה להתעורר בסביבות ${clock(ph.b)}`};
   }
   if(ph.k === 'sleep') return {k: 'sup', what: ph.open ? 'קישמיש ישנה, דלת הכלוב פתוחה' : 'קישמיש ישנה מחוץ לכלוב', why: 'את בבית; לא זמן פנוי'};
   if(ph.k === 'carrier') return {k: 'sup', what: 'קישמיש במנשא', why: 'טיול במנשא: השגחה, לא טיפול'};
@@ -4432,7 +4439,7 @@ function planLevels(M){
 }
 const plDur = ms => { const m = Math.round(ms / PL_M); return m < 60 ? `${m} דק׳` : `${Math.floor(m/60)}:${pad(m % 60)} ש׳`; };
 const plIn = ms => ms <= 60000 ? 'עכשיו' : `בעוד ${words(ms)}`;
-const plCert = x => x.k === 'free' && x.conf ? (x.conf === 'high' ? 'ודאות גבוהה' : 'ודאות בינונית') : x.far ? 'הערכה גסה (רחוק בזמן)' : x.est ? 'הערכה לפי הימים האחרונים' : 'לפי מה שקורה עכשיו';
+const plCert = x => x.k === 'free' && x.conf ? (x.conf === 'high' ? 'ודאות גבוהה' : 'ודאות בינונית') : x.why && x.why.includes(PL_EST) ? PL_EST : x.far ? 'הערכה גסה (רחוק בזמן)' : x.est ? 'הערכה לפי הימים האחרונים' : 'לפי מה שקורה עכשיו';
 const plRound = t => Math.round(t / PLAN.round) * PLAN.round;
 const plSpanX = (x, a, b) => x && x.far ? `<bdi dir="ltr">~${clock(plRound(a))}–${clock(plRound(b))}</bdi>` : plSpan(a, b);   // far: no minute-precise times
 function planTimelineHTML(M, lv, ln){
@@ -4521,7 +4528,7 @@ function planHTML(){
   const info = `<details class="card pl-info"><summary>איך זה מחושב</summary>
     <small><b>טיפול</b> = רק מה שצריך את הידיים שלך: קישמיש מחוץ לכלוב (חצץ, אוכל, משחק איתה), פיפי של קוצ׳יק, תרופות, מקלחות. ${du.care.src === 'learned' ? `יציאה של קישמיש מהכלוב נמשכת בדרך כלל כ־${words(du.care.ms)} (חציון של ${du.care.n} יציאות, מהיציאה מהכלוב ועד הכניסה הבאה).` : `עוד אין מספיק יציאות מהכלוב (${du.care.n}), אז ההנחה היא כ־${words(du.care.ms)} — הערכה.`} זו הערכה עקיפה של משך הטיפול, לא ספירה של הדקות שלך. כשטיפול של שתיהן חופף הוא נספר פעם אחת; פיפי של קוצ׳יק בזמן היציאה של קישמיש מסומן "אפשר לשלב". קוצ׳יק: כ־${words(PLAN.kochikTask)} לכל יציאה (הערכה), פיפי כל ${words(kg.gap)} בערך${kg.sick ? ' (פחות אחרי שלשול / הקאה)' : ''}.</small>
     <small><b>בהשגחה</b> = את בבית אבל לא עסוקה בה: קישמיש ערה בכלוב (קונג, משטח ליקוק, נרגעת), במנשא, בגדר, או ישנה מחוץ לכלוב סגור. <b>פנוי בבית</b> = קישמיש ישנה בכלוב סגור וקוצ׳יק לא צריכה כלום — מוצג מ־${words(PLAN.minWin)}, ומתחת ל־${words(PLAN.shortWin)} מסומן "קצר".</small>
-    <small><b>מתי</b> — זה החלק הלא ודאי. ${du.wake === 'contract' ? 'מתי תתעורר מהשינה הנוכחית: לפי תחזית השינה של האפליקציה.' : 'מתי תתעורר: לפי טווח השינות שלה.'} שינה רגילה שלה: ${du.naps.src === 'learned' ? `${words(du.naps.lo)}–${words(du.naps.hi)} (רבע עד שלושה רבעים מ־${du.naps.n} שינות מסומנות)` : `עוד מעט נתונים, אז ${words(du.naps.lo)}–${words(du.naps.hi)} כהערכה`}; נרדמת בכלוב אחרי כ־${words(du.lat.ms)}${du.lat.src === 'learned' ? '' : ' (הערכה)'}. הזמן שלפני כל טיפול צפוי, שבו היא עשויה כבר להתעורר, מסומן חיוור ("אולי") ולא נספר כזמן תפוס. כל סבב תלוי בקודם, אז אי-הוודאות גדלה עם השעות, ומעבר ל־${words(PLAN.far)} מעכשיו השעות מעוגלות לרבע שעה.</small>
+    <small><b>מתי</b> — זה החלק הלא ודאי. ${du.wake === 'contract' ? 'מתי תתעורר מהשינה הנוכחית: לפי תחזית השינה של האפליקציה.' : du.wake === 'night' ? 'שינת לילה: מתעוררת בסביבות הבוקר הרגיל שלה.' : du.wake === 'estimate' ? `מתי תתעורר מהשינה הנוכחית: ${PL_EST} לתחזית השינה, אז לפי טווח השינות שלה (מסומן חיוור).` : 'מתי תתעורר: לפי טווח השינות שלה.'} שינה רגילה שלה: ${du.naps.src === 'learned' ? `${words(du.naps.lo)}–${words(du.naps.hi)} (רבע עד שלושה רבעים מ־${du.naps.n} שינות מסומנות)` : `עוד מעט נתונים, אז ${words(du.naps.lo)}–${words(du.naps.hi)} כהערכה`}; נרדמת בכלוב אחרי כ־${words(du.lat.ms)}${du.lat.src === 'learned' ? '' : ' (הערכה)'}. הזמן שלפני כל טיפול צפוי, שבו היא עשויה כבר להתעורר, מסומן חיוור ("אולי") ולא נספר כזמן תפוס. כל סבב תלוי בקודם, אז אי-הוודאות גדלה עם השעות, ומעבר ל־${words(PLAN.far)} מעכשיו השעות מעוגלות לרבע שעה.</small>
     <small><b>אפשר לצאת</b> = יותר מחמיר מפנוי בבית, אף פעם לא רק לפי תחזית שינה: קישמיש ישנה בכלוב אחרי פיפי בחצץ, וגם כבר נשארה לבד בבית רגועה. ${aw.enough ? `עד עכשיו: ${aw.n} פעמים בשבועיים האחרונים, אז חלון עד כ־${words(aw.cap)}.` : `עדיין אין מספיק ניסיון לבד (${aw.n} פעמים רגועה מחוץ לבית בשבועיים).`} נספר רק "יצאתי מהבית" עם "רגועה"; בלי תשובה או "לא יודעת" — לא נספר, וגם היעדר בכי רשום לא נחשב רגועה.</small></details>`;
   return top + planAwayHTML() + tl + list + careList + want + info;
 }
