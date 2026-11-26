@@ -1221,7 +1221,12 @@ function sleepSpans(p, log, now){
     const delay = (su, asOf) => { samples = samples || sleepSamples(p, log, now); return sleepDelay(su, asOf, samples).delay; };   // per setup, pooled (v3)
     for(const c of L){
       if(c.k !== 'crate' || c.ns) continue;
-      const cEnd = c.end == null ? now : c.end, no = Array.isArray(c.nsx) ? c.nsx : [];
+      // "פתחתי את הדלת" ended this session (a `cset` door:'open' at its end): that is not "she left", so an estimate
+      // already running goes on until something else happens (owner, next-review); no NEW estimate starts with the door open
+      const opened = c.end != null && L.some(x => x.k === 'cset' && x.door === 'open' && x.t === c.end);
+      const nextAfter = opened ? Math.min(...pts.filter(t => t > c.end), ...cries.filter(x => x.t > c.end).map(x => x.t), ...L.filter(x => (x.k === 'crate' || x.k === 'sleep') && x.t > c.end).map(x => x.t), Infinity) : Infinity;
+      const cEnd = c.end == null ? now : opened ? Math.min(nextAfter, now) : c.end, no = Array.isArray(c.nsx) ? c.nsx : [];
+      const runOn = c.end == null || (opened && nextAfter > now);
       // Crying — and, from SLEEP2_FROM on, anything else she was seen doing (eating, a kong, drinking), and a
       // change of crate at any time — splits the stay into quiet stretches, and EACH STRETCH IS JUDGED ON ITS OWN: nothing said
       // about it -> asleep from the usual delay after it begins (stays before SLEEP2_FROM: the fixed
@@ -1231,10 +1236,10 @@ function sleepSpans(p, log, now){
       // The rule must NOT depend on what kind of stay this later turns out to be (a retry wait, say): on 24.11 such a
       // dependence made a sleep that had been shown all morning disappear.
       const cr = cries.filter(x => x.t <= cEnd && (x.end == null ? now : x.end) >= c.t).map(x => [x.t, x.end == null ? Infinity : x.end])
-        .concat(pts.filter(t => t >= c.t && t <= cEnd).map(t => [t, t])).sort((a,b) => a[0]-b[0]);
+        .concat(pts.filter(t => t >= c.t && t <= cEnd && !(opened && t === c.end)).map(t => [t, t])).sort((a,b) => a[0]-b[0]);
       const stretches = []; let cur = c.t;
       for(const [a, b] of cr){ if(a > cur) stretches.push([cur, Math.min(a, cEnd), false]); cur = Math.max(cur, b); if(cur >= cEnd) break; }
-      if(cur < cEnd) stretches.push([cur, cEnd, c.end == null]);   // only the last stretch of a running stay is still going
+      if(cur < cEnd) stretches.push([cur, cEnd, runOn]);   // only the last stretch of a running stay is still going
       for(const [s, e, open] of stretches){
         if(sleeps.some(x => (x.t < e || (open && x.t <= e && x.end == null)) && (x.end == null ? now : x.end) > s)) continue;   // a sleep marked at this very moment counts for the stretch still running
         if(no.some(t => t >= s && t <= e)) continue;
@@ -1313,7 +1318,7 @@ function pushNone(p, t){
 function enforce(log){
   for(const p of Object.keys(PETS)){
     if(!PETS[p].cycle) continue;
-    const moved = new Set(log.filter(e => e.p===p && (e.k==='carrier' || e.k==='pen')).map(e => e.t));   // a stay that ended by moving her into the carrier / pen does not end her sleep (v3)
+    const moved = new Set(log.filter(e => e.p===p && (e.k==='carrier' || e.k==='pen' || (e.k==='cset' && e.door==='open'))).map(e => e.t));   // + a session ended by opening the door (she may still be inside)   // a stay that ended by moving her into the carrier / pen does not end her sleep (v3)
     const stays = log.filter(e => e.p===p && e.k==='crate' && e.end != null && !moved.has(e.end));
     for(const sl of log){
       if(sl.p !== p || sl.k !== 'sleep') continue;
@@ -3127,6 +3132,7 @@ function selfExit(p, t, log){
   if(!t || !L.some(e => e.k==='crate' && e.end === t)) return null;
   const mv = L.find(e => (e.k==='carrier' || e.k==='pen' || e.k==='water') && e.t === t);
   if(mv) return mv.k;   // 'water': a drink ends the stay (owner, v3) but alone starts no cycle and no potty advice
+  if(L.some(e => e.k==='cset' && e.door==='open' && e.t === t)) return 'opened';   // "פתחתי את הדלת": the session ended, she did not come out
   return crateSetup(p, t, log).door === 'open' ? 'door' : null;
 }
 function pottyDue(p){
@@ -3201,6 +3207,36 @@ function todayTotal(p, k){
   return tot;
 }
 
+// ---------- the door, directly (owner, next-review) ----------
+// "סגרתי את הדלת": she is already inside the open crate and the door is closed — ONE commit: `cset` door closed at t AND
+// a crate session from t (a session = inside AND door closed). An earlier voluntary visit stays a visit; nothing is
+// backdated; no sleep is implied. "פתחתי את הדלת": `cset` door open at t and the session ends at t — NOT "she left":
+// no leaveCrate (a sleep goes on), no take-out reminder, no retry, no "out" step (`selfExit` → 'opened').
+function doorBtnHTML(p, live){
+  if(live) return `<button class="ghost" data-door="open">${ico('crate','s')}פתחתי את הדלת</button>`;
+  const now = Date.now(), visit = CAMJ.ev && CAMJ.ev.some(e => e.kind === 'crate_entry' && now - e.ts < CAMJ_TTL && camjDec(e.event_id) && camjDec(e.event_id).d === 'visit' && camjEntryEnd(e, now) >= now);
+  return crateSetup(p, now).door === 'open' || camjOccNow(p) || visit ? `<button class="ghost" data-door="close">${ico('crate','s')}סגרתי את הדלת</button>` : '';
+}
+function doorClose(p, t){
+  t = Math.min(t || Date.now(), Date.now());
+  commit(`${PETS[p].name} · סגרתי את הדלת`, () => {
+    state.log.push({ p, k: 'cset', t, door: 'closed' });
+    if(!state.log.some(e => e.p === p && e.k === 'crate' && e.end == null)){ endGravel(p, t); state.log.push(newStay(p, 'crate', t)); }
+  });
+}
+function doorOpen(p, t){
+  t = Math.min(t || Date.now(), Date.now());
+  commit(`${PETS[p].name} · פתחתי את הדלת`, () => {
+    state.log.push({ p, k: 'cset', t, door: 'open' });
+    const o = state.log.filter(e => e.p === p && e.k === 'crate' && e.end == null).sort((x, y) => x.t - y.t)[0];
+    if(o && o.t < t) o.end = t;   // the session ends; nothing else does (not leaveCrate)
+  });
+}
+document.addEventListener('click', e => {
+  const b = e.target.closest && e.target.closest('[data-door]'); if(!b) return;
+  e.stopPropagation(); const p = pet, close_ = b.dataset.door === 'close';
+  askWhen(`${PETS[p].name} · ${close_ ? 'סגרתי את הדלת' : 'פתחתי את הדלת'} — מתי?`, ts => close_ ? doorClose(p, ts) : doorOpen(p, ts));
+}, true);
 // ---------- v3 UI (agent E): carrier, pen, crate setup ----------
 // Occasional things live inside the crate card, under its main button, as small secondary actions — the main screen
 // gets no new row. "טיול במנשא" / "בגדר" are ordinary timers (`data-act="dur"`: one tap, the usual "when?", one tap to
@@ -3467,6 +3503,11 @@ function camjDoorAt(t, now){ const s = camjDoorSpans(now).filter(s => s.from <= 
 // and started routine cycle 6). 'closed' = marked / answered closed at her entry, or closed while she was still inside
 // (up to the next exit the camera saw, or now); 'open' = marked open and never closed meanwhile; 'unknown' otherwise.
 // Only 'closed' may become a session; 'open' is a visit (never stored); 'unknown' asks "סגרת את הדלת?" first.
+// When the occupancy that began with live entry x ends: the next exit the camera saw, or her being taken out, or now.
+function camjEntryEnd(x, now){
+  const nx = CAMJ.ev.filter(e => e.status === 'active' && e.kind === 'crate_exit' && e.ts > x.ts && !(camjDec(e.event_id) && camjDec(e.event_id).d === 'rejected')).sort(byTs)[0];
+  const o = camjOutAfter(x.ts); return Math.min(nx ? nx.ts : now, o ? o.t : now, now);
+}
 function camjLiveDoor(x, now){
   const nx = CAMJ.ev.filter(e => e.status === 'active' && e.kind === 'crate_exit' && e.ts > x.ts && !(camjDec(e.event_id) && camjDec(e.event_id).d === 'rejected')).sort(byTs)[0];
   const o = camjOutAfter(x.ts), end = Math.min(nx ? nx.ts : now, o ? o.t : now, now);
@@ -3689,13 +3730,14 @@ function camjPlan(log, now){
   const op = sess.filter(e => e.end == null).pop();
   if(op){ const x = undecided.filter(e => e.kind === 'crate_exit' && e.ts > op.t).sort(byTs).pop(); if(x) rv.live.push({ ev: x, stay: op.id, kind: 'end' }); }
   else { const cand = undecided.filter(e => e.kind === 'crate_entry' && now - e.ts <= CAMJ_TTL && !sess.some(s => Math.abs(s.t - e.ts) <= CAMJ_MATCH || (s.t <= e.ts && (s.end == null || s.end >= e.ts))));
-    for(const e of cand) if(camjLiveDoor(e, now) === 'open') rv.visits.push({ s: { e, from: e.ts, to: null }, door: 'open', live: true });   // a visit: shown, never a session
-    const x = cand.filter(e => camjLiveDoor(e, now) !== 'open').sort(byTs).pop();
+    const inSess = e => sess.some(s => s.t >= e.ts && s.t <= camjEntryEnd(e, now));   // she closed the door during this occupancy: that session IS it
+    for(const e of cand.filter(e => !inSess(e))) if(camjLiveDoor(e, now) === 'open') rv.visits.push({ s: { e, from: e.ts, to: null }, door: 'open', live: true });   // a visit: shown, never a session
+    const x = cand.filter(e => camjLiveDoor(e, now) !== 'open' && !inSess(e)).sort(byTs).pop();
     if(x) rv.live.push({ ev: x, kind: 'start', door: camjLiveDoor(x, now) }); }
   rv.liveMore = Math.max(0, undecided.length - rv.live.length);
   camjFeedPlan(L, now, rv, acts);
   rv.pending = CAMJ.ev.filter(e => e.status === 'active' && e.source === 'live_model' && e.kind === 'crate_entry' && !camjCtx(e) && !sup.has(e.event_id) && !e.disputed_by_labels && !camjDec(e.event_id)
-    && !sess.some(s => Math.abs(s.t - e.ts) <= CAMJ_MATCH || (s.t <= e.ts && (s.end == null || s.end >= e.ts))) && camjLiveDoor(e, now) !== 'open').sort((a, b) => b.ts - a.ts);
+    && !sess.some(s => Math.abs(s.t - e.ts) <= CAMJ_MATCH || (s.t <= e.ts && (s.end == null || s.end >= e.ts)) || (s.t >= e.ts && s.t <= camjEntryEnd(e, now))) && camjLiveDoor(e, now) !== 'open').sort((a, b) => b.ts - a.ts);
   camjWakePlan(L, now, acts);
   return { acts, rv };
 }
@@ -4612,7 +4654,7 @@ function render(){
         <div class="ic">${ico(k)}</div>
         <div><div class="lbl">${lbl}</div>${big}<div class="sub">${sub}</div>${V2 && k === 'sleep' && !live && P.cycle ? gaugeHTML(sleepWindow(pet), 'לשינה', 'ערה מ־') : ''}${V2 && k === 'sleep' && P.cycle ? sleepGoalHTML(pet) : ''}</div>
         <div class="acts">${k === 'crate' && P.cycle && pet === CAMJ_P && camjCamOk() && !camjPendingEntry() ? `<details class="cr-more"><summary>עוד · רישום ידני</summary><div class="acts">` : ''}<button class="go" data-act="dur" data-k="${k}">${live?it.stop:it.start}</button>
-          <button class="ghost" data-act="edit" data-k="${k}">${ico(live?'clock':'plus','s')}${live?'שעת התחלה':'הוספה'}</button>${k === 'crate' && P.cycle && pet === CAMJ_P && camjCamOk() && !camjPendingEntry() ? '</div></details>' : ''}${k === 'sleep' && live && P.cycle ? `<button class="ghost" data-act="notasleep">${ico('none','s')}לא נרדמה</button>` : ''}${k === 'crate' && live && P.cycle ? `<button class="ghost" data-act="swap">${ico('crate','s')}החלפת כלוב</button>` : ''}</div>
+          <button class="ghost" data-act="edit" data-k="${k}">${ico(live?'clock':'plus','s')}${live?'שעת התחלה':'הוספה'}</button>${k === 'crate' && P.cycle && pet === CAMJ_P && camjCamOk() && !camjPendingEntry() ? '</div></details>' : ''}${k === 'crate' && P.cycle && !slim ? doorBtnHTML(pet, live) : ''}${k === 'sleep' && live && P.cycle ? `<button class="ghost" data-act="notasleep">${ico('none','s')}לא נרדמה</button>` : ''}${k === 'crate' && live && P.cycle ? `<button class="ghost" data-act="swap">${ico('crate','s')}החלפת כלוב</button>` : ''}</div>
         ${k === 'crate' && P.cycle && !slim ? crateCamRowHTML(pet) : ''}
         ${k === 'crate' && live && P.cycle && !slim ? `<div class="incr"><span>קיבלה בכלוב:</span><button class="btn" data-act="play" data-k="kong">${PLAY.kong}</button><button class="btn" data-act="play" data-k="lick">${PLAY.lick}</button><button class="btn" data-act="crfood">ארוחה</button></div>` : ''}
         ${k === 'crate' && P.cycle ? crateExtrasHTML(pet, slim) : ''}
@@ -4784,6 +4826,7 @@ function cycleHTML(p){
   const what = wb && wb.past ? `כדאי להעיר את ${nm} ולצאת לחצץ (${wb.why}).` : r && r.retry ? (asleep ? `נותנים לה לישון. כשהיא מתעוררת, ישר לחצץ.` : `ניסיון חוזר: עושים מה שכתוב בכרטיס שלמעלה, עד ש${nm} עושה פיפי.`)
     : !r ? `כש${nm} נכנסת לכלוב, לוחצים <b>״נכנסה לכלוב״</b> בכרטיס הכלוב למטה.`
     : r.brk ? `בהפסקה. כל דבר שמסמנים למטה מחזיר את ${nm} לשגרה.`
+    : r.free === 'opened' ? `הדלת פתוחה: ${nm} יכולה לצאת ולחזור בעצמה. מה שהיא עושה מסמנים למטה.`
     : r.free === 'door' ? `${nm} יצאה בעצמה מהכלוב הפתוח. לא צריך להוציא אותה עכשיו; מה שהיא עושה מסמנים למטה.`
     : r.free === 'pen' ? `${nm} בגדר, זמן עצמאי. מה שהיא עושה מסמנים למטה.`
     : r.free === 'carrier' ? `טיול במנשא לא משנה את השגרה. מה שהיא עושה מסמנים למטה.`
