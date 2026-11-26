@@ -102,7 +102,7 @@
     // the sheet
     card().click();
     ok('tap the card: the image large, time with seconds, place', bg.classList.contains('show') && /^blob:/.test(sh.querySelector('.cam-big').src) && sh.textContent.includes('בכלוב'));
-    ok('…the model behind "איך זה מחושב", the unidentified dog only as a neutral line', !!sh.querySelector('details.cam-how') && sh.textContent.includes('לפי תיוג ידני') && sh.textContent.includes('כלב בתמונה (לא מזוהה)'));
+    ok('…the model behind "איך זה מחושב"; the unreliable "dog in the frame" is not shown (owner, 26.11)', !!sh.querySelector('details.cam-how') && sh.textContent.includes('לפי תיוג ידני') && !sh.textContent.includes('כלב בתמונה'));
     // labeling
     sh.querySelector('#camLbl').click(); await pause(20); await wait(5);
     const sc = calls.filter(c => c.url.includes('/api/v1/samples'));

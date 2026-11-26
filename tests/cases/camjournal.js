@@ -151,6 +151,16 @@
       // before the sleep mark: in the crate by her label, the state is uncertain — never a confident awake timer
       await send(DOC.events.filter(e => e.event_id !== 'ce_r_on')); commit('', () => { state.log = state.log.filter(e => e.id !== 'cams:ce_r_on'); }, { quiet: true, cam: true }); render(); await wait(2);
       ok('…with only her entry label: "in the crate, asleep or awake?", and the useful tap is "נרדמה"', nowState('kishmish').w.includes('ישנה או ערה') && nowWhat('kishmish').b.includes('data-k="sleep"')); }
+    // a sleep she logged by hand is never shortened by her camera marks (owner, 26.11): linked, both kept
+    { reset(); const T = Date.now(); seed([{ ...K0, k:'sleep', t: T - 3*HOUR, end: T - HOUR }]); serverSeen = true; pet = 'kishmish';
+      fb = { auth:{ currentUser:{} }, camDoc: (n, on) => { subs[n] = on; return () => {}; }, camGet: async () => null, camMerge: async () => {} }; render(); await wait(2);
+      await send([E('ce_s1', 'sleep_onset', T - 150*MIN, { lo: T - 155*MIN, hi: T - 150*MIN, pair_id: 'ce_s1w' }), E('ce_s1w', 'sleep_wake', T - 120*MIN, { lo: T - 120*MIN, hi: T - 115*MIN }),
+        E('ce_s2', 'sleep_onset', T - 100*MIN, { lo: T - 115*MIN, hi: T - 100*MIN, pair_id: 'ce_s2w' }), E('ce_s2w', 'sleep_wake', T - 70*MIN, { lo: T - 70*MIN, hi: T - 64*MIN })]);
+      camjApply(); await wait(2);
+      const s = state.log.filter(e => e.k === 'sleep');
+      ok('a manual 3h–1h sleep with two labeled episodes and a waking inside: unchanged, linked, no extra sleeps, no review', s.length === 1 && s[0].t === T - 3*HOUR && s[0].end === T - HOUR && s[0].cam && s[0].cam.src === 'owner_label' && !s[0].cam.was && !(camjPlan(state.log, Date.now()).rv.optional || []).length);
+      await send(DOC.events.map(e => e.event_id === 'ce_s2w' ? { ...e, ts: T - 45*MIN, lo: T - 45*MIN, hi: T - 40*MIN } : e)); camjApply(); await wait(2);   // her last asleep mark of that nap is 15 min after the waking she logged
+      ok('her marks show her still asleep after the waking she logged: unchanged, one optional note (not "לבירור")', state.log.filter(e => e.k === 'sleep').length === 1 && state.log.find(e => e.k === 'sleep').end === T - HOUR && (camjPlan(state.log, Date.now()).rv.optional || []).some(o => o.sleepDiff && o.sleepDiff.after) && !camjPlan(state.log, Date.now()).rv.resolve.some(r => r.c && r.c.k === 'sleep')); }
     ok('the live app reads camera/events, the preview its test copy', camjDoc() === 'events' && (MODE = 'preview', camjDoc()) === 'events_preview');
     MODE = 'live';
     ok('the only camera write path is camera/feedback (never the journal)', merged.length > 0 && merged.every(([n]) => n === 'feedback'));

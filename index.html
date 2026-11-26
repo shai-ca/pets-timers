@@ -3430,6 +3430,8 @@ function camjSleepPlan(L, now, acts, rv){
   }
   for(const [id, cs] of byEntry){
     const e = L.find(x => x.id === id), first = cs[0], last = cs[cs.length - 1];
+    const before = !first.on.no_prior_awake_mark && first.ihi < e.t, after = e.end != null && last.end != null && last.end > e.end;   // her marks show her asleep outside the times she logged
+    if(before || after) (rv.optional = rv.optional || []).push({ ...first, sleepDiff: { id, before, after } });
     if(e.cam && e.cam.cid === first.id && e.cam.lastWake === (last.wk ? last.wk.event_id : null)) continue;   // already linked to these
     acts.push({ do: 'slink', id, first, last });
   }
@@ -3539,15 +3541,9 @@ function camjDo(a, who){   // inside a commit's mutate
     const e = { id: c.id, p: CAMJ_P, k: 'sleep', t: c.t, ...(c.end != null ? { end: Math.max(c.end, c.t + 1) } : {}),
       cam: { cid: c.id, in: c.on.event_id, it: c.t, ilo: c.ilo, ihi: c.ihi, src: 'owner_label', ...(c.wk ? { out: c.wk.event_id, ot: c.end, olo: c.olo, ohi: c.ohi } : {}), ...(c.unc ? { unc: 1 } : {}), ...(c.single ? { single: 1 } : {}), ...ok } };
     state.log.push(e);
-  } else if(a.do === 'slink'){   // her labels bound a sleep she logged: move a boundary only where her own marks contradict it
+  } else if(a.do === 'slink'){   // a sleep she logged by hand: linked to her camera marks, NEVER shortened or moved (owner, 26.11)
     const o = find(a.id), f = a.first, l = a.last; if(!o) return;
-    const was = { t: o.t, ...(o.end != null ? { end: o.end } : {}) }, clamp = (x, lo, hi) => Math.min(Math.max(x, lo), hi);
     o.cam = { ...(o.cam || {}), cid: f.id, in: f.on.event_id, it: f.t, ilo: f.ilo, ihi: f.ihi, src: 'owner_label', lastWake: l.wk ? l.wk.event_id : null, ...(l.wk ? { out: l.wk.event_id, ot: l.end, olo: l.olo, ohi: l.ohi } : {}) };
-    // start: only with a real awake mark before it (not "no prior awake mark"); end: only with an explicit wake window
-    const nt = f.on.no_prior_awake_mark || f.unc ? o.t : clamp(o.t, f.ilo, f.ihi);
-    const ne = o.end != null && l.wk && !l.ounc ? clamp(o.end, l.olo, l.ohi) : o.end;
-    if(nt !== o.t || ne !== o.end){ o.cam.was = was; o.t = nt; if(ne != null) o.end = Math.max(ne, nt + 1); }
-    delete o.cam.h;
   } else if(a.do === 'resolve'){   // she picked a time inside a wide window: a session (or sleep), still marked uncertain
     const c = a.c, e = c.k === 'sleep' ? { p: CAMJ_P, k: 'sleep', t: a.t, ...(c.end != null ? { end: Math.max(c.end, a.t + 1) } : {}) } : newStay(CAMJ_P, 'crate', a.t, c.end != null ? Math.max(c.end, a.t + 1) : undefined);
     e.id = c.id; e.cam = c.k === 'sleep' ? { cid: c.id, in: c.on.event_id, it: c.t, ilo: c.ilo, ihi: c.ihi, src: 'owner_label', ...(c.wk ? { out: c.wk.event_id, ot: c.end, olo: c.olo, ohi: c.ohi } : {}), unc: 1, ...ok } : { ...camjIn(c, 'owner_label'), ...camjOutF(c), unc: 1, ...ok }; state.log.push(e);
@@ -3658,7 +3654,7 @@ function camjReview(){
     ${sec('לבירור', resolveRows)}
     ${sec('ביקורים (לא נרשמים ביומן)', rv.visits.map(r => row(`${when(r.s.from, r.s.to)}<small>${r.door === 'open' ? 'דלת פתוחה' : r.dismissed ? 'הושאר כתצפית' : 'מצב הדלת לא ידוע'} · לא משפיע על השגרה או השינה</small>`)))}
     ${rv.liveMore ? `<div class="sub" style="margin-top:14px">${rv.liveMore} זיהויים אוטומטיים נוספים לא נבדקו. הם לא משנים כלום ביומן.</div>` : ''}
-    ${sec('שינה מסימון אחד (לבדיקה, לא חובה)', (rv.optional || []).map(c => row(`נראתה ישנה ב־${when(c.t)}${camjWin(c.ilo, c.ohi != null ? c.ohi : c.ihi)}<small>נרשם כשינה לא ודאית · לא נכנס לחישובי זמנים</small>`, `<span class="rt-a"><button class="lnk" data-cjo="${c.id}">זו לא הייתה שינה</button></span>`)))}
+    ${sec('לבדיקה, לא חובה', (rv.optional || []).map(c => c.sleepDiff ? row(`שינה שרשמת: ${when(state.log.find(e => e.id === c.sleepDiff.id).t, state.log.find(e => e.id === c.sleepDiff.id).end)}<small>לפי התיוג שלך ישנה גם ${c.sleepDiff.before ? 'לפני השעה שרשמת' : ''}${c.sleepDiff.before && c.sleepDiff.after ? ' ו' : ''}${c.sleepDiff.after ? 'אחרי השעה שרשמת' : ''} · שני הרישומים נשמרים</small>`) : row(`נראתה ישנה ב־${when(c.t)}${camjWin(c.ilo, c.ohi != null ? c.ohi : c.ihi)}<small>נרשם כשינה לא ודאית · לא נכנס לחישובי זמנים</small>`, `<span class="rt-a"><button class="lnk" data-cjo="${c.id}">זו לא הייתה שינה</button></span>`)))}
     ${sec('זיהויים במחלוקת', (rv.disputed || []).map(e => row(`${e.kind === 'crate_entry' ? 'כניסה' : 'יציאה'} ${when(e.ts)}<small>התיוג שלך לפני ואחרי סותר אותו · לא נרשם</small>`)))}
     ${sec('זיהויים שסומנו "לא נכון"', rv.rejected.map(e => row(`${e.kind === 'crate_entry' ? 'כניסה' : 'יציאה'} ${when(e.ts)}<small>נשמר כדוגמה שגויה לבדיקת המודל</small>`)))}
     <div class="foot"><button class="btn" id="camX">סגירה</button></div></div>`;
@@ -3884,7 +3880,6 @@ function camSheet(repaint){
     <div class="cam-meta">${ls ? `<b>${CAM_WHERE[ls.where] || CAM_WHERE.unknown}</b> · ${dayLabel(ls.capture_ts)} <bdi dir="ltr">${new Date(ls.capture_ts).toLocaleTimeString('he-IL', {hour:'2-digit', minute:'2-digit', second:'2-digit'})}</bdi> · לפני <span data-words="${ls.capture_ts}">${words(Date.now() - ls.capture_ts)}</span>` : (dt ? 'לא זוהתה ב־36 השעות האחרונות' : 'זיהוי עוד לא זמין')}</div>
     <div class="cam-meta">${camStatusHTML()}</div>
     ${ls ? `<div class="cam-meta">בזמן התמונה: ${camDoorHTML(ls.door && (ls.door.value === 'open' || ls.door.value === 'closed') ? ls.door : null).replace(/<\/?span[^>]*>/g, '')}</div>` : ''}
-    ${dog && dog.capture_ts ? `<div class="cam-meta cam-dim">כלב בתמונה (לא מזוהה) · לפני ${words(Date.now() - dog.capture_ts)}</div>` : ''}
     <details class="cam-how"><summary>איך זה מחושב</summary><div>${how} המצלמה רק מציגה: שום דבר ממנה לא נכנס ליומן, לעצות או לחישובים.</div></details>
     <div class="foot"><button class="lnk" id="camLbl">תיוג</button><button class="btn" id="camX">סגירה</button></div></div>`;
   sh.querySelector('#camX').onclick = close;
