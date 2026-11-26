@@ -1,0 +1,71 @@
+# Backlog — things deliberately not done yet
+
+Each item: what to check · why not now · data needed · when to look again · what success looks like.
+Initial thresholds here are starting points for a review, not hard rules.
+
+## Waiting for data
+
+1. **Kong / lick-mat awake time in the crate (`CRATE_TREAT_AWAKE`, 25 min).**
+   - **Check:** whether 25 min of assumed waking after a treat in the crate still fits.
+   - **Why not now:** it rests on 2 marked cases.
+   - **Data needed:** about 10 treats in the crate followed by a marked "נרדמה".
+   - **Look again:** after about a week in the current crate setup.
+   - **Success:** the median delay to sleep lands within ±5 min of the value used.
+2. **Validation in the mesh crate (and each later setup: no cover, open door).**
+   - **Check:** sleep onset, nap length and crying per setup.
+   - **Why not now:** 1–2 days per setup.
+   - **Data needed:** at least 7 days per setup with marked sleeps.
+   - **Look again:** 2 weeks after each change.
+   - **Success:** the estimates are stable from week to week, within their ranges.
+3. **Time of day.**
+   - **Check:** whether hour-of-day (circular smoothing, partial pooling) improves pee and nap predictions beyond waking.
+   - **Why not now:** 3 days of data, 0–7 observations per hour.
+   - **Data needed:** at least 14 days, and at least 8 observations in each of 3–4 time slots.
+   - **Look again:** after 14 days.
+   - **Success:** at least 15% lower error in a time-split backtest, stable across two windows, with no rise in prompts.
+4. **Gravel success.**
+   - **Check:** a separate model of the chance an outing ends in a pee, given context and how long she was on the gravel.
+   - **Why not now:** about 20 pees and 35 "לא עשתה".
+   - **Data needed:** at least 60 outings with the gravel clock.
+   - **Look again:** in 3 weeks.
+   - **Success:** fewer "לא עשתה" per pee with no rise in accidents.
+5. **Care-time estimates (planning).**
+   - **Check:** the learned care length against what actually happened.
+   - **Why not now:** the only proxy is crate exit to crate entry, about 15 min; no real care timers exist.
+   - **Data needed:** 2 more weeks.
+   - **Look again:** then.
+   - **Success:** predicted care within ±25% of the proxy, and fewer than 20% of "free at home" windows interrupted by logged care.
+6. **Sleep continuation model.**
+   - **Check:** a richer model, for example by time of day or by how long she was awake before.
+   - **Why not now:** 29 marked naps. The result also swings a lot depending on how ends near a possible intervention are counted (`censorNear`).
+   - **Data needed:** at least 60 marked naps.
+   - **Look again:** in 3 weeks.
+   - **Success:** the 25–75% wake range contains about half of real wakes, with both censoring choices giving similar ranges.
+7. **Kochik's long-term baseline.**
+   - **Check:** the 30-day comparison and the fixed reference weeks.
+   - **Why not now:** 3.5 days of sparse logging.
+   - **Data needed:** at least 21 days with pee and drink logged on most days.
+   - **Look again:** then. The app stays silent until that point.
+   - **Success:** "דומה" / "שונה" agrees with what the vet and owner see. Changes in logging are never read as changes in behaviour.
+8. **Proven ability to stay alone.**
+   - **Check:** "can go out" windows based on calm absences.
+   - **Why not now:** no absences have been recorded yet.
+   - **Data needed:** at least 5 calm absences at home of increasing length.
+   - **Look again:** after they are recorded.
+   - **Success:** offered windows are never longer than about 1.2× what she has managed calmly, and no "much distress" outcome follows an offered window.
+9. **Calibration of free time.**
+   - **Check:** the share of predicted free windows that turned out free.
+   - **Why not now:** 3 days, and the windows are optimistic: in the backtest many had logged care inside.
+   - **Data needed:** 2 weeks.
+   - **Look again:** then.
+   - **Success:** fewer than 20% interrupted.
+
+## Kept from earlier sessions
+
+- Re-run the planning backtest after more days in the mesh crate.
+- Order of two entries logged with the same minute via "when?" (typed times have no seconds).
+- Keep the screen on while the gravel clock runs (Wake Lock), tested in the iPhone home-screen app.
+- Kochik's medicines: evening doses on a full stomach, morning doses before food; check against the medicine windows and planning, and show any contradictions before changing.
+- Push notifications for wake-by, "היא עדיין ישנה?" and the pee window, with the app closed (service worker + Web Push; iOS only from the home screen).
+- Reward treats after a gravel success are not food. If they are ever logged, keep them out of every food calculation.
+- Scores: the review findings (estimated sleep counts toward the sleep ring; "readiness" penalises awake time; the pen pad is counted as a miss; the night hours are fixed text in "איך זה מחושב") await the owner's decision.
