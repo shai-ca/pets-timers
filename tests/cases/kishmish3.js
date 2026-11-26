@@ -97,7 +97,7 @@
     ok('awake, out, nothing due: "אין צורך לעשות דבר כרגע"', advice(P).text === 'אין צורך לעשות דבר כרגע' && !!advice(P).why);
     seed([{...K0, k:'pee', t: now - 50*MIN, w:'gravel'}]);
     ok('no meal in the list: "עוד אין מספיק נתונים להעריך"', advice(P).text === 'עוד אין מספיק נתונים להעריך');
-    seed(calm.concat([{...K0, k:'crate', t: now - 20*MIN}, {...K0, k:'sleep', t: now - 20*MIN, end: now - 5*MIN}]));
+    seed(calm.concat([{...K0, k:'crate', t: now - 20*MIN}, {...K0, k:'sleep', t: now - 20*MIN, end: now - 3*MIN}]));   // woke 3 min ago: before the "נרדמה?" card would ask
     ok('awake in the crate, quiet: "היא יכולה להעסיק את עצמה"', advice(P).text === 'היא יכולה להעסיק את עצמה');
     CRATE_TREAT_FROM = -Infinity;   // a kong keeps her awake a while (no estimate right after it)
     seed(calm.concat([{...K0, k:'crate', t: now - 20*MIN}, {...K0, k:'play', t: now - 15*MIN, y:'kong'}]));

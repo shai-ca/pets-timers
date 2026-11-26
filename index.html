@@ -1400,6 +1400,9 @@ function advice(p){
   if(wb && wb.past) return none;
   // (2) an instruction already on screen
   if(retry(p) || (S.gravel && S.gravel.start) || (S.cry && S.cry.start) || pottyDue(p) || napWake(p) || crateOver(p)) return none;
+  // a card that is asking her something right now ("נרדמה?", "היא עדיין ישנה?") wins: no calm line next to a question
+  const ask = typeof sleepAsk === 'function' && sleepAsk(p);
+  if((ask && !ask.snooze) || (typeof stillAsleep === 'function' && stillAsleep(p))) return none;
   const ft = freeTime(p); if(ft && ft.phase !== 'run' && !inCrate) return none;
   const pen = !!(S.pen && S.pen.start), carrier = !!(S.carrier && S.carrier.start), awake = !asleep && !inCrate;
   if(awake && S.pee && now - S.pee >= 3*3600000) return none;                                  // the wheel: "להוציא לחצץ"
@@ -2401,6 +2404,9 @@ function sleepAsk(p){
   if(!PETS[p].cycle || !st || S.sleep.start || S.cry.start) return null;
   const quiet = Math.max(st, ...state.log.filter(e => e.p===p && e.t >= st && e.t <= now && (AWAKE_PT[e.k] || ((e.k==='cry' || e.k==='sleep') && e.end != null))).map(e => e.end != null ? e.end : e.t));
   if(now - quiet < SLEEP_ASK) return null;
+  // after a kong / lick mat / food in the crate she is expected awake for CRATE_TREAT_AWAKE: no "נרדמה?" before then
+  const stay = state.log.filter(e => e.p===p && e.k==='crate' && e.end == null).sort((x,y) => x.t-y.t)[0];
+  if(stay && treatAwakeUntil(state.log.filter(e => e.p===p), stay, now) > now) return null;
   return {since: quiet, snooze: awakeUntil > now ? awakeUntil : 0};   // snooze: she said "still awake" — a countdown to the next ask
 }
 function sleepAskHTML(p){
