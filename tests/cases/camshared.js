@@ -9,8 +9,9 @@
     const now = Date.now(), K0 = { p:'kishmish' };
     seed([{ ...K0, k:'food', t: now - 2*HOUR }, { ...K0, k:'crate', t: now - 40*MIN }]);
     const IMG = '/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAAMCAgICAgMCAgIDAwMDBAYEBAQEBAgGBgUGCQgKCgkICQkKDA8MCgsOCwkJDRENDg8QEBEQCgwSExIQEw8QEBD/yQALCAABAAEBAREA/8wABgAQEAX/2gAIAQEAAD8A0s8g/9k=';
-    const DOC = (o = {}) => ({ schema:'cam-shared/1', image: IMG, mime:'image/jpeg', w: 320, h: 240, sha256_16:'abc', capture_ts: now - 6*MIN,
-      published_at: now - 6*MIN, detection:{ where:'crate', status:'detected', validated:false }, model:{ name:'occ', version:'t7' }, ...o });
+    const BYTES = s => ({ toBase64: () => s, toUint8Array: () => ({ length: Math.floor(s.length * 3 / 4) }) });   // like Firestore Bytes
+    const DOC = (o = {}) => ({ image: BYTES(IMG), image_type:'image/jpeg', bytes: 120, capture_ts: now - 6*MIN, published_at: now - 6*MIN,
+      detection:{ status:'positive', confidence: 0.9 }, model_version:'t7', validated:false, experimental:true, sha256_16:'abc', ...o });
     const subs = {}, names = []; let opened = 0, closed = 0, gets = 0;
     fb = { auth:{ currentUser:{ getIdToken: async () => 'T' } },
       camDoc: (name, onData, onErr) => { opened++; names.push(name); subs[name] = { onData, onErr }; return () => { closed++; delete subs[name]; }; },
@@ -26,24 +27,24 @@
     ok('nothing published yet: no card at all', !card());
     ok('its own listener: only camera/latest and camera/status are opened', names.every(n => n === 'latest' || n === 'status'));
 
-    subs.latest.onData(DOC(), false); subs.status.onData({ schema:'cam-shared/1', checked_at: now - 2*MIN, service:'ok' }, false); await wait(2);
+    subs.latest.onData(DOC(), false); subs.status.onData({ checked_at: now - 2*MIN, service:'ok' }, false); await wait(2);
     ok('the image, automatically: a data URL of the crop, large', !!card() && /^data:image\/jpeg;base64,/.test(card().querySelector('.cam-th img').src));
     ok('capture time, "לפני", experimental and unverified', txt().includes(clock(now - 6*MIN)) && txt().includes('לפני') && txt().includes('ניסיוני · לא מאומת') && txt().includes('נראתה לאחרונה בכלוב'));
     ok('freshness: the camera is looking', txt().includes('המצלמה פעילה'));
     const used = JSON.parse(localStorage.getItem('pets-timers-v1-camb'));
-    ok('bytes from the server are counted per device per day', used && used.bytes >= IMG.length && used.day === new Date().toDateString());
+    ok('bytes from the server are counted per device per day', used && used.bytes >= Math.floor(IMG.length*3/4) && used.day === new Date().toDateString());
 
     subs.latest.onData(DOC({ capture_ts: now - 3*MIN }), true); await wait(2);
     ok('a cached copy (offline) shows but is not counted again', JSON.parse(localStorage.getItem('pets-timers-v1-camb')).bytes === used.bytes && txt().includes(clock(now - 3*MIN)));
 
-    subs.status.onData({ schema:'cam-shared/1', checked_at: now - 50*MIN, service:'ok' }, false); await wait(2);
+    subs.status.onData({ checked_at: now - 50*MIN, service:'ok' }, false); await wait(2);
     ok('stale camera: says since when, the last image stays', txt().includes('אין עדכון מהמצלמה מאז') && !!card().querySelector('img'));
 
-    subs.latest.onData(DOC({ detection:{ where:'elsewhere' } }), false); await wait(2);
-    ok('not a crate detection: nothing shown', !card());
-    subs.latest.onData(DOC({ image: 'not base64 <script>' }), false); await wait(2);
+    subs.latest.onData(DOC({ detection:{ status:'uncertain' } }), false); await wait(2);
+    ok('not a positive detection: nothing shown', !card());
+    subs.latest.onData(DOC({ image: BYTES('not base64 <script>') }), false); await wait(2);
     ok('a malformed image: nothing shown', !card());
-    subs.latest.onData(DOC({ mime: 'text/html' }), false); await wait(2);
+    subs.latest.onData(DOC({ image_type: 'text/html' }), false); await wait(2);
     ok('a wrong type: nothing shown', !card());
     subs.latest.onData(DOC(), false); await wait(2);
 
@@ -60,7 +61,7 @@
     ok('back on Kishmish: it listens again, and the last image is there at once', !!subs.latest && !!card());
 
     // the daily cap
-    CAMS_DAY_BYTES = JSON.parse(localStorage.getItem('pets-timers-v1-camb')).bytes + IMG.length + 100;
+    CAMS_DAY_BYTES = JSON.parse(localStorage.getItem('pets-timers-v1-camb')).bytes + IMG.length;
     subs.latest.onData(DOC({ capture_ts: now - 2*MIN }), false); await wait(2);
     ok('daily cap reached: automatic updates stop, said calmly, with a manual refresh', !subs.latest && txt().includes('עדכון אוטומטי נעצר להיום') && !!card().querySelector('[data-cams=refresh]'));
     card().querySelector('[data-cams=refresh]').click(); await pause(10); await wait(3);
