@@ -30,7 +30,7 @@
     seed([{...K0, k:'pee', t: now - 30*MIN, w:'gravel'}, {...K0, k:'crate', t: now - 150*MIN}, {...K0, k:'cry', t: now - 145*MIN}]);
     ok('2:30 awake in the crate: the warning says "awake"', crateOver('kishmish') && $q('.card.cyc').textContent.includes('ערה בכלוב יותר'));
     // sleep goal as a range
-    ok('sleep goal: a range of 18–20 hours', sleepGoalHTML('kishmish').includes('מתוך 18–20 שעות'));
+    ok('sleep goal: a range of 18–20 hours', sleepGoalHTML('kishmish').includes('טווח מקובל לגילה 18–20 שעות, לא יעד') && !sleepGoalHTML('kishmish').includes('חסרות'));
     FAKE_TODAY = null;
     done();
   } catch(e){ crashed(e); }

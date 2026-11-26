@@ -23,13 +23,13 @@
     ok('meal: a bar to the next meal', !!card('food').querySelector('.gauge') && card('food').querySelector('.gauge small').textContent.includes('לארוחה'));
     ok('bath: a bar to the tenth day', !!card('bath').querySelector('.gauge') && card('bath').querySelector('.gauge small').textContent.includes('למקלחת'));
     ok('awake: a bar to the hour awake', !!$q('#sec-rest .gauge') && $q('#sec-rest .gauge small').textContent.includes('לשינה'));
-    ok('sleep goal: slept in the last 24 hours out of 18 (a two-month-old)', sleepGoal('kishmish') === 18 && $q('#sec-rest .gauge.goal small').textContent.includes('מתוך 18–20 שעות') && $q('#sec-rest .gauge.goal small').textContent.includes(hmm(dayParts('kishmish', now - 24*HOUR, Date.now()).tot.sleep)) && !!$q('.ribbon .gauge.goal'));
+    ok('sleep in the last 24 hours, with the age range as information (a two-month-old)', sleepGoal('kishmish') === 18 && $q('#sec-rest .gauge.goal small').textContent.includes('טווח מקובל לגילה 18–20 שעות, לא יעד') && $q('#sec-rest .gauge.goal small').textContent.includes(hmm(scores('kishmish').total)) && !$q('#sec-rest .gauge.goal small').textContent.includes('חסרות') && !!$q('.ribbon .gauge.goal'));
     card('pee').querySelector('.gauge .gw').dispatchEvent(new MouseEvent('pointerover', {bubbles:true}));
     ok('hovering the window shows its times', card('pee').querySelector('.gauge .ptip').textContent.includes(clock(f.from)));
     card('pee').querySelector('.gauge .gf').dispatchEvent(new MouseEvent('click', {bubbles:true}));
     ok('tapping the filled part shows the last pee and how long ago', card('pee').querySelector('.gauge .ptip').textContent.includes('הפיפי האחרון ב־' + clock(f.last)) && card('pee').querySelector('.gauge .ptip').textContent.includes('עברו'));
     $q('#sec-rest .gauge.goal .gf').dispatchEvent(new MouseEvent('click', {bubbles:true}));
-    ok('the sleep goal bar too', $q('#sec-rest .gauge.goal .ptip').textContent.includes('ישנה '));
+    ok('the sleep goal bar too', $q('#sec-rest .gauge.goal .ptip').textContent.includes('נצפה '));
     ok('the times are written on the bar: the last pee at the start, the window over the shaded part', card('pee').querySelector('.gl').textContent.includes(clock(f.last)) && card('pee').querySelector('.gl .glw').textContent.includes(clock(f.from)));
     const bt = new Date(now - 4*24*HOUR), due = new Date(bt); due.setHours(0, 0, 0, 0); due.setDate(due.getDate() + 10);
     ok('bath: one count, to the tenth day (the same date as the line above it), dates on the bar', card('bath').querySelector('.gauge small').textContent.includes('עוד 6 ימים') && card('bath').querySelector('.gl .glw').textContent === `${due.getDate()}.${due.getMonth()+1}` && card('bath').textContent.includes('(עוד 6 ימים)'));

@@ -27,7 +27,7 @@
     seed([{ ...K0, k:'sleep', t: now - 23*HOUR, end: now - 2*HOUR }]);
     ok('21 hours in the last 24: neutral words about her waking hours, no "wake her"', sleepGoalHTML('kishmish').includes('ישנה הרבה היום — כדאי לשים לב איך היא בזמן הערות: אנרגיה ותיאבון') && !sleepGoalHTML('kishmish').includes('להעיר'));
     seed([{ ...K0, k:'sleep', t: now - 23*HOUR, end: now - 4*HOUR }]);
-    ok('19 hours: in the range, no note', sleepGoalHTML('kishmish').includes('בטווח') && !sleepGoalHTML('kishmish').includes('ישנה הרבה'));
+    ok('19 hours: in the range, no note', !sleepGoalHTML('kishmish').includes('חסרות') && !sleepGoalHTML('kishmish').includes('ישנה הרבה'));
     FAKE_TODAY = null;
     // 3. a treat in the crate
     const past = lats => lats.flatMap((m, i) => [{ ...K0, k:'crate', t: now - 2*D - i*3*HOUR, end: now - 2*D - i*3*HOUR + 100*MIN, c:'mesh' }, { ...K0, k:'sleep', t: now - 2*D - i*3*HOUR + m*MIN, end: now - 2*D - i*3*HOUR + 90*MIN }]);

@@ -738,6 +738,7 @@
   .cam-how{font-size:12px;color:var(--muted);margin-top:8px} .cam-how summary{cursor:pointer} .cam-how div{margin-top:4px;line-height:1.5}
   .cam-f{border:1px solid var(--line);border-radius:16px;padding:10px;margin-bottom:10px}
   .cam-fh{display:flex;gap:10px;align-items:center;margin-bottom:8px;font-size:13.5px}
+  .cam-ev{border-bottom:1px solid var(--line);padding-bottom:10px;margin-bottom:10px} .cam-ev .chips{margin:6px 0 4px} .cam-fe{display:flex;flex-wrap:wrap;gap:4px 10px;align-items:center;margin-top:6px;font-size:13px} .cam-fe small{color:var(--muted)} .cam-evt{font:inherit;padding:4px 6px} .cam-err{color:var(--muted)}
   .cam-fi{flex:none;width:120px;height:80px;border-radius:10px;overflow:hidden;background:var(--seg)} .cam-fi img{width:100%;height:100%;object-fit:cover}
   .chips.cam-c{margin-bottom:6px;gap:6px;align-items:center} .chips.cam-c span{font-size:12px;color:var(--muted);min-width:42px}
   .chips.cam-c button{padding:6px 10px;font-size:13px}
@@ -2306,12 +2307,12 @@ function holdHours(p){ const a = ageOf(p); return !a || a.y ? 0 : Math.min(8, a.
 // 24 hours (since midnight cannot be compared with a daily amount at noon), from `dayParts`.
 function sleepGoal(p){ const a = ageOf(p); return !a || a.y ? 0 : a.m < 4 ? 18 : a.m < 6 ? 16 : 14; }   // the bottom of the range
 const sleepGoalTop = p => sleepGoal(p) ? sleepGoal(p) + 2 : 0;   // a guiding range (owner, 25.11: 18–20 h at two months); above it is only noted
-function sleepGoalHTML(p){
+function sleepGoalHTML(p){   // information, not a target (owner, 26.11): no "missing hours", no colour for "too little"
   const g = sleepGoal(p); if(!g) return '';
-  const now = Date.now(), got = dayParts(p, now - 24*3600000, now).tot.sleep, pc = Math.min(100, got / (g*3600000) * 100), short = g*3600000 - got;
-  const tg = `טווח לגילה: ${g}–${sleepGoalTop(p)} שעות ב־24 שעות`, tf = `ישנה ${hmm(got)} מאז ${when(now - 24*3600000)}`;
-  return `<div class="gauge goal ${short <= 0 ? 'met' : short > 3*3600000 ? 'low' : ''}"><div class="gg" dir="ltr" data-tip="${tg}" title="${tg}"><span class="gf" style="width:${pc.toFixed(1)}%" data-tip="${tf}" title="${tf}"></span></div>
-    <small>ב־24 השעות האחרונות ישנה <b dir="ltr">${hmm(got)}</b> מתוך ${g}–${sleepGoalTop(p)} שעות${short > 0 ? ` · חסרות ${words(short)}` : got > sleepGoalTop(p)*3600000 ? sleepMuchNote() : ' · בטווח'}</small><div class="ptip"></div></div>`;
+  const s = scores(p), now = Date.now(), pc = Math.min(100, s.total / (24*3600000) * 100);
+  const tg = `טווח מקובל לגילה: ${g}–${sleepGoalTop(p)} שעות ב־24 שעות — מידע, לא יעד`, tf = `נצפה ${hmm(s.marked)} · משוער ${hmm(s.est)} מאז ${when(now - 24*3600000)}`;
+  return `<div class="gauge goal"><div class="gg" dir="ltr" data-tip="${tg}" title="${tg}"><span class="gf" style="width:${pc.toFixed(1)}%" data-tip="${tf}" title="${tf}"></span></div>
+    <small>ב־24 השעות האחרונות ישנה <b dir="ltr">${hmm(s.total)}</b> (נצפה ${hmm(s.marked)} · משוער ${hmm(s.est)}) · טווח מקובל לגילה ${g}–${sleepGoalTop(p)} שעות, לא יעד${s.total > sleepGoalTop(p)*3600000 ? sleepMuchNote() : ''}</small><div class="ptip"></div></div>`;
 }
 // THE RINGS (owner, 25.11; redone 26.11: nothing may reward keeping her in the crate or penalise healthy wakefulness).
 // All from the list, last 24 hours; no 0–100 score for sleep or readiness any more:
@@ -3161,7 +3162,7 @@ function csetSheet(p){
 // response or image is ever stored anywhere. Every request has a CAM_TIMEOUT_MS timeout; errors only change the
 // card's status line.
 const CAM_KEY = LS_KEY + '-cam', CAM_DEFAULT = 'http://127.0.0.1:8787', CAM_CLIENT = 'pets-timers/cam-exp-d88f721';
-let CAM_TIMEOUT_MS = 4000, CAM_POLL_MS = 30000, CAM_STALE_S = 180;   // tests shorten the timeout
+let CAM_TIMEOUT_MS = 4000, CAM_IMG_TIMEOUT_MS = 15000, CAM_POLL_MS = 30000, CAM_STALE_S = 180;   // tests shorten the timeout
 let CAM_NOT_CHROME = !/Chrome\//.test(navigator.userAgent) || /Edg\//.test(navigator.userAgent);   // Safari may refuse https → http://127.0.0.1
 const CAM = { st: 'off', hint: false, ts: false, data: null, thumb: null, thumbId: null, at: 0, busy: null, lbl: [] };
 function camTailnet(){ try { return /\.ts\.net$/i.test(new URL(camBase()).hostname); } catch(e){ return false; } }   // phones: Tailscale Serve, https://<mac>.<tailnet>.ts.net
@@ -3178,14 +3179,18 @@ async function camToken(){
 async function camReq(path, opts = {}){
   const url = camUrl(path); if(!url) return { ok: false, err: 'bad' };
   const tok = await camToken(); if(!tok) return { ok: false, err: 'noauth' };
-  const ac = new AbortController(), tm = setTimeout(() => ac.abort(), CAM_TIMEOUT_MS);
+  const ac = new AbortController(), tm = setTimeout(() => ac.abort(), opts.blob ? CAM_IMG_TIMEOUT_MS : CAM_TIMEOUT_MS);
   try {
     const headers = { Authorization: 'Bearer ' + tok };
     if(opts.body){ headers['content-type'] = 'application/json'; headers['x-pets-camera'] = '1'; }
     const r = await fetch(url, { method: opts.body ? 'POST' : 'GET', headers, body: opts.body ? JSON.stringify(opts.body) : undefined,
                                  signal: ac.signal, cache: 'no-store', credentials: 'omit', referrerPolicy: 'no-referrer' });
     if(!r.ok) return { ok: false, status: r.status };
-    return opts.blob ? { ok: true, blob: await r.blob() } : { ok: true, json: await r.json() };
+    if(opts.blob){   // read the bytes ourselves and type them as an image, whatever the header said
+      const buf = await r.arrayBuffer(), ct = r.headers.get('content-type') || '';
+      return { ok: true, blob: new Blob([buf], { type: /^image\//.test(ct) ? ct.split(';')[0] : 'image/jpeg' }), bytes: buf.byteLength };
+    }
+    return { ok: true, json: await r.json() };
   } catch(e){ return { ok: false, err: e && e.name === 'AbortError' ? 'timeout' : 'net' }; }
   finally { clearTimeout(tm); }
 }
@@ -3203,8 +3208,9 @@ function camPoll(){
     const lt = j.latest && j.latest.capture_ts;
     CAM.st = !lt || (Date.now() - lt) / 1000 > CAM_STALE_S ? 'stale' : 'ok';
     if(ls && ls.image_id !== CAM.thumbId){
-      const im = await camReq(ls.img || ('/img?id=' + encodeURIComponent(ls.image_id)), { blob: true });
-      if(im.ok){ if(CAM.thumb) URL.revokeObjectURL(CAM.thumb); CAM.thumb = URL.createObjectURL(im.blob); CAM.thumbId = ls.image_id; }
+      const im = await camImage(ls.img || ('/img?id=' + encodeURIComponent(ls.image_id)));
+      if(im.ok){ if(CAM.thumb) URL.revokeObjectURL(CAM.thumb); CAM.thumb = im.url; CAM.thumbId = ls.image_id; CAM.imgErr = null; }
+      else CAM.imgErr = im.why;   // kept visible on the card; the next poll tries again
     } else if(!ls && CAM.thumb){ URL.revokeObjectURL(CAM.thumb); CAM.thumb = CAM.thumbId = null; }
     camPaint();
   })().catch(() => { CAM.st = 'down'; }).finally(() => { CAM.busy = null; });
@@ -3213,6 +3219,16 @@ function camPoll(){
 const CAM_WHERE = { crate: 'בכלוב', frame: 'בתמונה, מחוץ לכלוב', unknown: 'לא ידוע איפה' };
 const CAM_NOW = { positive: 'נראית בכלוב', uncertain: 'לא בטוח', negative: 'הכלוב נראה ריק', unavailable: 'אין תמונה עדכנית' };
 const camMin = t => Math.max(1, Math.round((Date.now() - t) / 60000));
+// An image: fetched with the token, typed as an image, decoded BEFORE it is shown (so a bad or empty body is caught here
+// and reported, never a silent blank). → {ok, url} or {ok:false, why} — `why` is a short reason shown on the card.
+async function camImage(path){
+  const r = await camReq(path, { blob: true });
+  if(!r.ok){ const why = r.status ? 'קוד ' + r.status : r.err === 'timeout' ? 'לקח יותר מדי זמן' : r.err === 'noauth' ? 'לא מחובר' : 'שגיאת רשת'; console.warn('camera image', path, r); return { ok: false, why }; }
+  if(!r.bytes){ console.warn('camera image: empty body', path); return { ok: false, why: 'התקבלה תמונה ריקה' }; }
+  const url = URL.createObjectURL(r.blob), img = new Image();
+  try { img.src = url; await img.decode(); return { ok: true, url }; }
+  catch(e){ URL.revokeObjectURL(url); console.warn('camera image: cannot decode', path, r.bytes, e); return { ok: false, why: 'התמונה לא מתפענחת (' + Math.round(r.bytes/1024) + ' KB)' }; }
+}
 function camStatusHTML(){
   const lt = CAM.data && CAM.data.latest && CAM.data.latest.capture_ts;
   const [cls, txt] = {
@@ -3239,7 +3255,7 @@ function camCardHTML(p){
   return `<div class="card camc" role="button" tabindex="0" data-cam="open">
     <span class="cam-th">${CAM.thumb && ls && live ? `<img src="${CAM.thumb}" alt="">` : ico('crate')}</span>
     <span class="cam-b"><span class="cam-h"><b>נראתה לאחרונה</b><small>ניסיוני · לא מאומת</small></span>${body}
-      ${now && live ? `<span class="cam-t">עכשיו לפי המודל: ${now}</span>` : ''}${camStatusHTML()}</span></div>`;
+      ${now && live ? `<span class="cam-t">עכשיו לפי המודל: ${now}</span>` : ''}${ls && live && !CAM.thumb && CAM.imgErr ? `<span class="cam-t cam-err">התמונה לא נטענה · ${esc(CAM.imgErr)}</span>` : ''}${camStatusHTML()}</span></div>`;
 }
 function camPaint(){   // repaint just the card and the setting link (never `render`, never the list)
   const sl = document.querySelector('#dsw [data-cam=set]'); if(sl) sl.textContent = camSetText();
@@ -3266,18 +3282,54 @@ function camSheet(repaint){
 const CAM_G = [
   ['occupancy', 'בכלוב', [['occupied', 'קישמיש בכלוב'], ['empty', 'ריק'], ['unknown', 'לא ידוע']]],
   ['visibility', 'רואים', [['visible', 'רואים'], ['partial', 'חלקית'], ['occluded', 'מוסתר']]],
-  ['posture', 'תנוחה', [['lying', 'שוכבת'], ['sitting', 'יושבת'], ['standing', 'עומדת'], ['moving', 'זזה']]],
   ['state', 'מצב', [['awake', 'ערה'], ['awake_resting', 'ערה ונחה'], ['asleep', 'ישנה'], ['playing', 'משחקת']]],
   ['door', 'דלת', [['closed', 'סגורה'], ['open', 'פתוחה']]],
   ['certainty', 'ודאות', [['sure', 'בטוחה'], ['probable', 'כנראה'], ['unsure', 'לא בטוחה']]]];
+// RESEARCH EVENTS (owner, 26.11): "כניסה לכלוב" / "יציאה מהכלוב" as annotations for the camera research only — NOT the
+// app's crate buttons. One tap = an event now (time_source 'click'); on a frame = that frame's time (time_source 'frame',
+// a 30 s window before it); "תיקון שעה" = a new record that supersedes it (time_source 'manual'); "ביטול" = retract.
+// Nothing here touches the journal: these go only to the camera service (POST /api/events).
+const CAM_EV = { crate_entry: 'כניסה לכלוב', crate_exit: 'יציאה מהכלוב' };
+const camUid = () => (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2));
+async function camEvent(kind, at, extra){
+  const body = Object.assign({ kind, event_ts: at, time_source: 'click', method: 'direct', certainty: 'sure', blind: true,
+    shown: { app_state: false, prediction: false }, client_id: camUid(), labeler: String(me || '').slice(0, 40), client: CAM_CLIENT.slice(0, 40) }, extra || {});
+  const r = await camReq('/api/events', { body });
+  return r.ok ? { ok: true, id: (r.json && (r.json.event_id || (r.json.event_ids || [])[0])) || null, ts: body.event_ts } : { ok: false };
+}
+function camEventResult(el, kind, ev){   // "נרשם HH:MM:SS · תיקון שעה · ביטול"
+  const show = () => {
+    el.innerHTML = `${CAM_EV[kind]} נרשם ב־<bdi dir="ltr">${new Date(ev.ts).toLocaleTimeString('he-IL', {hour:'2-digit', minute:'2-digit', second:'2-digit'})}</bdi> · <button class="lnk cam-evfix">תיקון שעה</button> · <button class="lnk cam-evundo">ביטול</button>`;
+    el.querySelector('.cam-evundo').onclick = async () => { const u = await camReq('/api/events/retract', { body: { event_ids: [ev.id] } }); el.textContent = u.ok ? 'בוטל' : 'הביטול לא הצליח'; };
+    el.querySelector('.cam-evfix').onclick = () => {
+      el.innerHTML = `<input type="time" step="1" class="cam-evt" dir="ltr" value="${new Date(ev.ts).toTimeString().slice(0, 8)}"> <button class="btn cam-evok">שמירה</button>`;
+      el.querySelector('.cam-evok').onclick = async () => {
+        const v = el.querySelector('.cam-evt').value; if(!v) return;
+        const [h, m, s] = v.split(':').map(Number), d = new Date(ev.ts); d.setHours(h, m, s || 0, 0);
+        if(d.getTime() > Date.now() + 60000) return;
+        const r = await camEvent(kind, d.getTime(), { time_source: 'manual', supersedes: ev.id });
+        if(r.ok){ ev = r; show(); } else el.textContent = 'התיקון לא נשמר';
+      };
+    };
+  };
+  show();
+}
 function camFreeLbl(){ CAM.lbl.forEach(u => URL.revokeObjectURL(u)); CAM.lbl = []; }
 async function camLabelView(){
   camFreeLbl();
-  sh.innerHTML = `<div class="cam-sheet"><h3>תיוג <small class="cam-x">בלי לראות את האפליקציה</small></h3><div class="cam-list"><div class="sub">טוען…</div></div>
+  sh.innerHTML = `<div class="cam-sheet"><h3>תיוג <small class="cam-x">בלי לראות את האפליקציה</small></h3>
+    <div class="cam-ev"><div class="sub">אירוע עכשיו — למחקר בלבד, לא נרשם ביומן ולא משנה את הכלוב באפליקציה</div>
+      <div class="chips"><button data-ev="crate_entry">${CAM_EV.crate_entry}</button><button data-ev="crate_exit">${CAM_EV.crate_exit}</button></div><div class="cam-evres sub"></div></div>
+    <div class="cam-list"><div class="sub">טוען…</div></div>
     <div class="foot"><button class="lnk" id="camBack">חזרה</button><button class="btn" id="camX">סגירה</button></div></div>`;
   sh.querySelector('#camX').onclick = () => { camFreeLbl(); close(); };
   sh.querySelector('#camBack').onclick = () => { camFreeLbl(); camSheet(); };
   bg.classList.add('show');
+  sh.querySelectorAll('.cam-ev [data-ev]').forEach(b => b.onclick = async () => {
+    const at = Date.now(), res = sh.querySelector('.cam-evres'); res.textContent = 'שומר…';
+    const r = await camEvent(b.dataset.ev, at); if(!sh.contains(res)) return;
+    if(r.ok) camEventResult(res, b.dataset.ev, r); else res.textContent = 'לא נשמר · ' + camStatusHTML().replace(/<[^>]+>/g, '');
+  });
   const to = Date.now(), r = await camReq(`/api/v1/samples?from=${to - 60*60000}&to=${to}&grouped=1&blind=1`);
   const box = sh.querySelector('.cam-list'); if(!box) return;
   if(!r.ok || !Array.isArray(r.json)){ box.innerHTML = `<div class="sub">${camStatusHTML()}</div>`; return; }
@@ -3285,7 +3337,8 @@ async function camLabelView(){
   if(!items.length){ box.innerHTML = '<div class="sub">אין תמונות מהשעה האחרונה</div>'; return; }
   box.innerHTML = items.map((it, i) => `<div class="cam-f" data-i="${i}"><div class="cam-fh"><span class="cam-fi"></span><span><b><bdi dir="ltr">${clock(it.capture_ts)}</bdi></b>${it.group && it.group.n > 1 ? ` · ${it.group.n} תמונות דומות` : ''}${it.label ? ' · <small>תויג כבר</small>' : ''}</span></div>
     ${CAM_G.map(([k, t, vs]) => `<div class="chips cam-c" data-g="${k}"><span>${t}</span>${vs.map(([v, n]) => `<button data-v="${v}">${n}</button>`).join('')}</div>`).join('')}
-    <div class="cam-fa"><button class="btn primary cam-save" disabled>שמירה</button><span class="cam-res"></span></div></div>`).join('');
+    <div class="cam-fa"><button class="btn primary cam-save" disabled>שמירה</button><span class="cam-res"></span></div>
+    <div class="cam-fe"><small>אירוע בתמונה הזו:</small><button class="lnk" data-fev="crate_entry">${CAM_EV.crate_entry}</button><button class="lnk" data-fev="crate_exit">${CAM_EV.crate_exit}</button><span class="cam-fevres"></span></div></div>`).join('');
   box.querySelectorAll('.cam-f').forEach(f => {
     const it = items[+f.dataset.i], pick = {}; let saved = null;
     f.querySelectorAll('.cam-c').forEach(g => g.querySelectorAll('button').forEach(b => b.onclick = () => {
@@ -3294,11 +3347,16 @@ async function camLabelView(){
       f.querySelector('.cam-save').disabled = !pick.occupancy;
     }));
     const res = f.querySelector('.cam-res');
+    f.querySelectorAll('[data-fev]').forEach(b => b.onclick = async () => {   // the event happened around this frame: its time, a 30 s window before it
+      const out = f.querySelector('.cam-fevres'); out.textContent = 'שומר…';
+      const r = await camEvent(b.dataset.fev, it.capture_ts, { time_source: 'frame', method: 'camera', event_window: { from: it.capture_ts - 30000, to: it.capture_ts }, anchor_image_id: it.image_id });
+      if(r.ok) camEventResult(out, b.dataset.fev, r); else out.textContent = 'לא נשמר';
+    });
     f.querySelector('.cam-save').onclick = async () => {
       const empty = pick.occupancy === 'empty';
       const body = { image_id: it.image_id, method: Date.now() - it.capture_ts > 10*60000 ? 'retrospective' : 'camera',   // the camera project's rule: over 10 min old = retrospective
       occupancy: pick.occupancy, visibility: pick.visibility || null,
-        posture: empty ? null : pick.posture || null, state: empty ? null : pick.state || null, door: pick.door || 'unknown',
+        state: empty ? null : pick.state || null, door: pick.door || 'unknown',
         certainty: pick.certainty || 'sure', shown: { app_state: false, prediction: false }, blind: true,
         labeler: String(me || '').slice(0, 40), client: CAM_CLIENT.slice(0, 40), apply_to_group: true };
       const sup = saved ? saved[0] : it.label && it.label.label_id; if(sup) body.supersedes = sup;
@@ -3311,10 +3369,10 @@ async function camLabelView(){
         if(u.ok){ saved = null; res.textContent = 'בוטל'; } else res.textContent = 'הביטול לא הצליח';
       };
     };
-    camReq(it.img || it.image, { blob: true }).then(im => {
-      if(!im.ok || !sh.contains(f)) return;
-      const u = URL.createObjectURL(im.blob); CAM.lbl.push(u);
-      f.querySelector('.cam-fi').innerHTML = `<img src="${u}" alt="">`;
+    camImage(it.img || it.image).then(im => {
+      if(!sh.contains(f)) { if(im.ok) URL.revokeObjectURL(im.url); return; }
+      if(!im.ok){ f.querySelector('.cam-fi').innerHTML = `<small class="cam-err">${esc(im.why)}</small>`; return; }
+      CAM.lbl.push(im.url); f.querySelector('.cam-fi').innerHTML = `<img src="${im.url}" alt="">`;
     });
   });
 }
