@@ -32,21 +32,21 @@
     { const r0 = rounds();
       await send([E('ce_u', 'crate_entry', T - 30*MIN, { source: 'live_model' })]);
       const q = $q('#sec-crate .camjt');
-      ok('door unknown: the card asks "סגרת את הדלת?" (כן / לא / לא נכון), no "שהייה" button', !!q && q.textContent.includes('סגרת את הדלת') && !!q.querySelector('[data-camdoor=door_closed][data-live]') && !q.querySelector('[data-camj=start]'));
-      q.querySelector('[data-camdoor=door_open]').click(); await wait(3);
+      ok('door unknown: the card asks with the four answers', !!q && q.textContent.includes('הדלת לא ידועה') && q.querySelector('[data-camans=closed]').textContent === 'הייתה, דלת סגורה' && q.querySelector('[data-camans=open]').textContent === 'הייתה, דלת פתוחה' && !q.querySelector('[data-camj=start]'));
+      q.querySelector('[data-camans=open]').click(); await wait(3);
       ok('"לא": a visit — no crate entry, no cycle, decisions to feedback, not asked again', !crates().length && rounds() === r0 && camjDec('ce_u').d === 'visit' && camjDec('door:ce_u').d === 'door_open' && !$q('#sec-crate .camjt')); }
     await fresh(() => [{ ...K0, k:'pee', t: T - 50*MIN, w:'gravel' }]);
     await send([E('ce_y', 'crate_entry', T - 30*MIN, { source: 'live_model' })]);
-    $q('#sec-crate .camjt [data-camdoor=door_closed]').click(); await wait(3);
+    $q('#sec-crate .camjt [data-camans=closed]').click(); await wait(3);
     ok('"כן": an intentional session from the camera time', crates().length === 1 && Math.abs(crates()[0].t - (T - 30*MIN)) < 1000 && crates()[0].id === 'cam:ce_y');
     // 1c. retrospective approvals in the review
     await fresh(() => [{ ...K0, k:'pee', t: T - 5*HOUR }]);
     DOORS = [{ from: T - 4*HOUR - 10*MIN, to: T - 3*HOUR, value: 'open' }];
     await send([E('ce_r1', 'crate_entry', T - 4*HOUR, { source: 'live_model' }), E('ce_r1x', 'crate_exit', T - 3*HOUR - 30*MIN, { source: 'live_model' }), E('ce_r2', 'crate_entry', T - 2*HOUR, { source: 'live_model' }), E('ce_r2x', 'crate_exit', T - 90*MIN, { source: 'live_model' })]);
     camjReview(); await wait(2);
-    { const okb = [...sh.querySelectorAll('[data-cjp=ok]')];
-      ok('review: the open-door entry is not approvable; the unknown-door one offers "שהייה, דלת סגורה" or "ביקור"', okb.length === 1 && okb[0].dataset.ev === 'ce_r2' && okb[0].textContent.includes('דלת סגורה') && !!sh.querySelector('[data-cjp=visit][data-ev=ce_r2]'));
-      sh.querySelector('[data-cjp=visit][data-ev=ce_r2]').click(); await wait(3);
+    { const okb = [...sh.querySelectorAll('[data-camans=closed]')];
+      ok('review: the open-door entry is not approvable; the unknown-door one offers "שהייה, דלת סגורה" or "ביקור"', okb.length === 1 && okb[0].dataset.ev === 'ce_r2' && okb[0].textContent.includes('דלת סגורה') && !!sh.querySelector('[data-camans=open][data-ev=ce_r2]'));
+      sh.querySelector('[data-camans=open][data-ev=ce_r2]').click(); await wait(3);
       ok('…"ביקור": nothing stored', !crates().length && camjDec('ce_r2').d === 'visit'); close(); }
     // 1d. her own labels: an open-door stay stays a visit (unchanged), whatever its length
     await fresh(() => [{ ...K0, k:'pee', t: T - 3*HOUR }]);

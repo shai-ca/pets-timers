@@ -98,11 +98,11 @@
     DOORS = [...DOORS, { from: Date.now() - 100*MIN, to: Date.now() + HOUR, value: 'closed' }];   // live approvals below: door marked closed (an open / unknown door is covered in camfix.js)
     await send([...DOC.events, E('ce_L0', 'crate_entry', Date.now() - 90*MIN, { source:'live_model' }), E('ce_L1', 'crate_entry', Date.now() - 20*MIN, { source:'live_model' })]); camjApply(); render(); await wait(2);
     ok('live entries: nothing written, ONE offer in the crate card (the latest), the rest counted', nOpen() === 0 && $n('.card .camjt') === 1 && $q('.card .camjt').textContent.includes(clock(Date.now() - 20*MIN)) && camjPlan(state.log, Date.now()).rv.liveMore === 1);
-    $q('.card .camjt [data-camj=reject]').click(); await wait(2);
+    $q('.card .camjt [data-camans=no]').click(); await wait(2);
     ok('"לא נכון": no entry, kept as a negative example (feedback)', nOpen() === 0 && camjDec('ce_L1').d === 'rejected' && camjPlan(state.log, Date.now()).rv.rejected.some(e => e.event_id === 'ce_L1') && merged.some(([n, d]) => n === 'feedback' && d.decisions.ce_L1));
     render(); await wait(2);
-    $q('.card .camjt [data-camj=start]').click(); await wait(2);
-    ok('the next one: "שהייה מ־HH:MM" starts a session at the camera time, approved', !!byId('cam:ce_L0') && Math.abs(byId('cam:ce_L0').t - (now - 90*MIN)) < 60000);
+    $q('.card .camjt [data-camans=closed]').click(); await wait(2);
+    ok('the next one: "הייתה, דלת סגורה" starts a session at the camera time, approved', !!byId('cam:ce_L0') && Math.abs(byId('cam:ce_L0').t - (now - 90*MIN)) < 60000);
     await send([...DOC.events, E('ce_LX', 'crate_exit', Date.now() - 5*MIN, { source:'live_model' })]); render(); await wait(2);
     ok('a live exit while a session is open: offered in the crate card', !!$q('.card .camjt') && $q('.card .camjt').textContent.includes('יצאה מהכלוב'));
     $q('.card .camjt [data-camj=end]').click(); await wait(2);
@@ -170,7 +170,7 @@
       ok('pending camera entry, she is still out in the journal: the routine / advice point to the crate card; manual buttons visible', !!camjPendingEntry() && camjConflict().includes('לאשר בכרטיס הכלוב') && !!$q('#sec-crate .crcam .camjt') && !$q('details.cr-more') && !!$q('#sec-crate [data-act=dur][data-k=crate]'));
       commit('', () => state.log.push({ p:'kishmish', k:'gravel', t: T - 10*MIN, end: T - 5*MIN }), { quiet: true }); render(); await wait(2);
       ok('…then taken to the gravel: no longer "in the crate now"; offered as a past stay', !camjPendingEntry() && $q('#sec-crate .crcam .camjt').textContent.includes('הייתה בכלוב'));
-      $q('#sec-crate .crcam .camjt [data-camdoor=door_closed]').click(); await wait(3);   // "סגרת את הדלת?" כן
+      $q('#sec-crate .crcam .camjt [data-camans=closed]').click(); await wait(3);   // "סגרת את הדלת?" כן
       const s = state.log.find(e => e.id === 'cam:ce_k');
       ok('…approved: a finished stay, ending when she was taken out (never an open session while she is outside)', !!s && Math.abs(s.t - (T - 40*MIN)) < 1000 && s.end === T - 10*MIN);
       ok('no statistics on the crate card; the review is reachable from the camera sheet', !$q('#sec-crate .camj-rv') && !$q('#sec-crate').textContent.includes('שהיות ב־24'));
@@ -181,13 +181,13 @@
       DOORS = [{ from: T - 5*HOUR, to: T - 3*HOUR, value: 'open' }];   // an old mark that has stopped carrying forward
       await send([E('ce_p1', 'crate_entry', T - 4*HOUR, { pair_id: 'ce_p1x' }), E('ce_p1x', 'crate_exit', T - 4*HOUR + 5*MIN), E('ce_d1', 'crate_entry', T - 30*MIN)]);
       camjApply(); render(); await wait(2);
-      ok('door unknown at her current entry, no session: one question in the crate card; the past visit is not asked about', !!camjDoorAsk('kishmish') && camjDoorAsk('kishmish').event_id === 'ce_d1' && $n('#sec-crate [data-camdoor]') === 2 && !state.log.some(e => e.k === 'crate'));
+      ok('door unknown at her current entry, no session: one question in the crate card; the past visit is not asked about', !!camjDoorAsk('kishmish') && camjDoorAsk('kishmish').event_id === 'ce_d1' && $n('#sec-crate [data-camans]') === 4 && !state.log.some(e => e.k === 'crate'));
       ok('…until answered nothing starts: no session, no routine change', !state.log.some(e => e.k === 'crate') && !(V.kishmish.crate || {}).start);
-      $q('#sec-crate [data-camdoor=door_closed]').click(); await wait(3);
+      $q('#sec-crate [data-camans=closed]').click(); await wait(3);
       const s = state.log.find(e => e.k === 'crate');
       ok('"כן": a session from her entry (her labels), the question gone', !!s && Math.abs(s.t - (T - 30*MIN)) < 1000 && s.end == null && !camjDoorAsk('kishmish'));
       reset(); seed([{ ...K0, k:'pee', t: T - 2*HOUR }]); serverSeen = true; pet = 'kishmish'; CAMJ.fbLocal = {}; await send(DOC.events); camjApply(); render(); await wait(2);
-      $q('#sec-crate [data-camdoor=door_open]').click(); await wait(3);
+      $q('#sec-crate [data-camans=open]').click(); await wait(3);
       ok('"לא": a visit — no session, never asked again', !state.log.some(e => e.k === 'crate') && !camjDoorAsk('kishmish')); CAMJ.fbLocal = {}; DOORS = []; }
     // real case 26.11 18:30: an "asleep" mark at 16:38 with no wake mark, then the gravel at 17:13 in the journal
     { reset(); const T = Date.now(); seed([{ ...K0, k:'gravel', t: T - 75*MIN, end: T - 72*MIN }]); serverSeen = true; pet = 'kishmish';
@@ -216,10 +216,10 @@
       render(); await wait(2);
       ok('the card: one approval (the newest) + "עוד 2 זיהויים לאישור"', $n('#sec-crate .camjt') === 1 && $q('#sec-crate').textContent.includes('עוד 2 זיהויים לאישור'));
       camjReview(); await wait(2);
-      ok('the review lists every pending entry with its own buttons', sh.querySelectorAll('[data-cjp=ok]').length === 3);
-      [...sh.querySelectorAll('[data-cjp=ok]')].find(b => b.dataset.ev === 'ce_a1').click(); await wait(3);
+      ok('the review lists every pending entry with its own buttons', sh.querySelectorAll('[data-camans=closed]').length === 3);
+      [...sh.querySelectorAll('[data-camans=closed]')].find(b => b.dataset.ev === 'ce_a1').click(); await wait(3);
       const s = state.log.find(e => e.id === 'cam:ce_a1');
-      ok('a past entry approved later: a finished stay, ending at the exit the camera saw after it', !!s && s.end === T - 3*HOUR && $q('#sec-crate') && sh.querySelectorAll('[data-cjp=ok]').length === 2);
+      ok('a past entry approved later: a finished stay, ending at the exit the camera saw after it', !!s && s.end === T - 3*HOUR && $q('#sec-crate') && sh.querySelectorAll('[data-camans=closed]').length === 2);
       close(); CAMJ.fbLocal = {}; }
     ok('the live app reads camera/events, the preview its test copy', camjDoc() === 'events' && (MODE = 'preview', camjDoc()) === 'events_preview');
     MODE = 'live';
