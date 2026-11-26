@@ -1,112 +1,126 @@
-// Camera events -> journal (CAMERA-API §11a, owner 26.11). A fake `fb.camDoc` delivers camera/events. Checks:
-// owner_label commits once (idempotent, also across two phones), live_model only by approval (and expires), short
-// visits never become stays, manual entries are linked not duplicated (with a time correction), human edits are
-// protected, deletes / rejections are remembered, retractions undo only untouched camera work, an exit ends the
-// stay and the sleep, coverage vs a missed detection, the uncertainty window, the manual-tap choice, the buttons
-// under "עוד", nothing before the server copy arrived, and data version 3.
+// Camera observations -> the crate (CAMERA-API §11c, owner 26.11 evening). Fake `fb.camDoc` serves camera/events.
+// Checks: a session only when inside AND door closed (starting at the door closing); open / unknown door = a visit,
+// never stored, no routine or sleep effect; her labels imported without approval, once, also across two phones;
+// a late manual entry takes the camera's time (even if hand-corrected before); a later hand correction is protected;
+// wide windows are not applied but offered for resolution; live events only where they matter, one at a time, and
+// rejections go to feedback; retractions undo; exits end an open session; manual buttons fold only while the camera
+// works; the image card sits inside the crate card; stale image never reads as "now"; nothing before the server copy.
 (async function(){
   try {
     const pause = ms => new Promise(r => setTimeout(r, ms));
     reset(); localStorage.removeItem('pets-timers-v1-cam'); localStorage.removeItem('pets-timers-v1-camb');
     const now = Date.now(), K0 = { p:'kishmish' };
-    let DOC = null; const subs = {};
-    fb = { auth:{ currentUser:{} }, camDoc: (n, on) => { subs[n] = on; if(DOC && n !== 'latest' && n !== 'status') setTimeout(() => on(DOC, false), 0); return () => { delete subs[n]; }; }, camGet: async () => null };
+    let DOC = null; const subs = {}, merged = [];
+    fb = { auth:{ currentUser:{} }, camDoc: (n, on) => { subs[n] = on; if(DOC && n === 'events') setTimeout(() => on(DOC, false), 0); return () => { delete subs[n]; }; },
+      camGet: async () => null, camMerge: async (n, d) => { merged.push([n, d]); } };
     const E = (id, kind, ts, o = {}) => ({ event_id: id, kind, ts, lo: ts - 30000, hi: ts + 30000, source: 'owner_label', confidence: null, status: 'active', created_at: now, model_version: 't', ...o });
-    const send = async evs => { DOC = { schema: 'cam-events/1', events: evs, coverage: COV, published_at: now, updated_at: now }; if(subs.events) subs.events(DOC, false); await wait(3); };
-    let COV = [{ from: now - 10*HOUR, to: now - 5*HOUR }, { from: now - 3*HOUR, to: now }];
+    let COV = [{ from: now - 30*HOUR, to: now - 26*HOUR }, { from: now - 20*HOUR, to: now }], DOORS = [];
+    const send = async evs => { DOC = { schema: 'cam-events/1', events: evs, coverage: COV, door_spans: DOORS, published_at: now, updated_at: now }; if(subs.events) subs.events(DOC, false); await wait(3); };
     const stays = () => state.log.filter(e => e.p === 'kishmish' && e.k === 'crate');
     const byId = id => state.log.find(e => e.id === id);
 
-    ok('data version 3: new data is v3, old v2 data still reads', blank().v === 3 && norm({ v: 2, log: [{ ...K0, k:'pee', t: now - HOUR, id:'a' }] }).log.length === 1);
+    ok('data version stays 2 (no new kind)', SCHEMA === 2 && !ITEMS.camx);
+    seed([{ ...K0, k:'food', t: now - 30*HOUR }]); serverSeen = false; pet = 'kishmish'; render(); await pause(20);
 
-    // nothing before the server copy arrived (never match against a stale journal)
-    seed([{ ...K0, k:'food', t: now - 9*HOUR }]); serverSeen = false; pet = 'kishmish'; render(); await pause(20);
-    await send([E('ce_a', 'crate_entry', now - 8*HOUR), E('ce_b', 'crate_exit', now - 7*HOUR)]);
+    // 1. door closed while inside = a session; it starts when the door closed
+    DOORS = [{ from: now - 19*HOUR - MIN, to: now - 19*HOUR + 5*MIN, value: 'open' }, { from: now - 19*HOUR + 5*MIN, to: now - 18*HOUR + 30*MIN, value: 'closed' }];   // she went in with the door open, then it was closed
+    await send([E('ce_a', 'crate_entry', now - 19*HOUR, { pair_id: 'ce_b' }), E('ce_b', 'crate_exit', now - 18*HOUR)]);
     ok('before the server copy: nothing applied', stays().length === 0);
     serverSeen = true; camjApply(); await wait(2);
-    const A = byId('cam:ce_a');
-    ok('owner_label pair: one crate stay from the camera, start and end, source kept', !!A && A.t === now - 8*HOUR && A.end === now - 7*HOUR && A.cam.src === 'owner_label' && A.cam.in === 'ce_a' && A.cam.out === 'ce_b' && A.cam.ilo === now - 8*HOUR - 30000);
+    const A = stays()[0];
+    ok('inside + door closed: one session, from the door closing to her exit; labels never re-approved', stays().length === 1 && A.t === now - 19*HOUR + 5*MIN && A.end === now - 18*HOUR && A.cam.src === 'owner_label' && A.cam.in === 'ce_a' && A.id === 'cam:ce_a');
     camjApply(); camjApply(); await wait(2);
-    ok('idempotent: applying again adds nothing', stays().length === 1);
-    { const s1 = clone(state), s2 = clone(state); s2.log = s2.log.filter(e => e.id !== 'cam:ce_a');   // two phones both wrote it
-      const merged = patch(diff(s2, s1), s1); ok('two phones writing the same event: one entry after the merge', merged.log.filter(e => e.id === 'cam:ce_a').length === 1); }
+    ok('idempotent', stays().length === 1);
+    { const keep = DOORS; CAMJ.doors = [{ from: now - 19*HOUR + 5*MIN, to: now - 18*HOUR + 30*MIN, value: 'closed' }];   // door not marked at her entry
+      ok('door unknown at entry (not marked): the session starts at her entry, not at the first closed mark', camjSessions(Date.now()).find(c => c.id === 'cam:ce_a').t === now - 19*HOUR);
+      CAMJ.doors = [{ from: now - 19*HOUR, to: now - 18*HOUR - 20*MIN, value: 'closed' }, { from: now - 18*HOUR - 20*MIN, to: now - 18*HOUR - 20*MIN, value: 'open' }, { from: now - 18*HOUR - 15*MIN, to: now - 18*HOUR - 5*MIN, value: 'closed' }];
+      ok('a brief open mark mid-stay does not split it: one session', camjSessions(Date.now()).filter(c => c.s.e.event_id === 'ce_a').length === 1);
+      CAMJ.doors = [{ from: now - 19*HOUR, to: now - 18*HOUR - 10*MIN, value: 'closed' }, { from: now - 18*HOUR - 10*MIN, to: now - 17*HOUR, value: 'open' }];
+      ok('door marked open while still inside after its last closed mark: the session ends at the opening', camjSessions(Date.now()).find(c => c.id === 'cam:ce_a').end === now - 18*HOUR - 10*MIN);
+      DOORS = keep; await send(DOC.events); }
+    { const s1 = clone(state), s2 = clone(state); s2.log = s2.log.filter(e => e.id !== A.id);
+      ok('two phones importing the same label: one entry after the merge', patch(diff(s2, s1), s1).log.filter(e => e.id === A.id).length === 1); }
 
-    // a short voluntary visit: never a stay, never a prompt, no change to the routine
-    { const before = JSON.stringify([routine('kishmish'), V.kishmish.spans.length]);
-      await send([...DOC.events, E('ce_v1', 'crate_entry', now - 6*HOUR), E('ce_v2', 'crate_exit', now - 6*HOUR + 4*MIN)]); camjApply(); await wait(2);
-      ok('short visit (4 min): no stay, no card, routine and sleep unchanged', stays().length === 1 && camjCards().length === 0 && JSON.stringify([routine('kishmish'), V.kishmish.spans.length]) === before); }
+    // 2. open door / unknown door: a visit — shown, never stored, no effect on routine or sleep
+    { const before = JSON.stringify([routine('kishmish'), V.kishmish.spans.length, stays().length]);
+      DOORS = [...DOORS, { from: now - 17*HOUR, to: now - 15*HOUR, value: 'open' }];
+      await send([...DOC.events, E('ce_v1', 'crate_entry', now - 16*HOUR - 30*MIN, { pair_id: 'ce_v2' }), E('ce_v2', 'crate_exit', now - 15*HOUR - 10*MIN), E('ce_u1', 'crate_entry', now - 14*HOUR, { pair_id: 'ce_u2' }), E('ce_u2', 'crate_exit', now - 13*HOUR)]);
+      camjApply(); await wait(2);
+      const { rv } = camjPlan(state.log, Date.now());
+      ok('open-door stay (80 min) and unknown-door stay (60 min): visits, nothing stored, routine / sleep unchanged — no duration rule', JSON.stringify([routine('kishmish'), V.kishmish.spans.length, stays().length]) === before && rv.visits.some(v => v.door === 'open') && rv.visits.some(v => v.door === 'unknown')); }
 
-    // a manual stay and the camera's event for it: linked, not duplicated; the time can be corrected
-    commit('', () => state.log.push(newStay('kishmish', 'crate', now - 5*HOUR + 6*MIN, now - 4*HOUR)), { quiet: true });
-    const M = stays().find(e => !e.id.startsWith('cam:') && e.t === now - 5*HOUR + 6*MIN);
-    await send([...DOC.events, E('ce_m', 'crate_entry', now - 5*HOUR), E('ce_mx', 'crate_exit', now - 4*HOUR + 2*MIN)]); camjApply(); await wait(2); render(); await wait(2);
-    ok('manual entry within 10 min: linked, no second stay', stays().length === 2 && byId(M.id).cam.in === 'ce_m' && byId(M.id).cam.out === 'ce_mx' && !byId('cam:ce_m'));
-    ok('a card offers the camera\'s times (entry and exit)', camjCards().filter(c => c.type === 'fix' && c.id === M.id).length === 2 && $q('#side .camj').textContent.includes('המצלמה רשמה כניסה'));
-    $q('#side .camj [data-camj=fix]').click(); await wait(2);
-    ok('"לשעת המצלמה": the entry takes the camera time, the card goes, not marked as a human override', byId(M.id).t === now - 5*HOUR && byId(M.id).cam.fix === 1 && !byId(M.id).cam.h);
-    $q('#side .camj [data-camj=keep]').click(); await wait(2);
-    ok('"להשאיר": the manual end stays, no more cards', byId(M.id).end === now - 4*HOUR && byId(M.id).cam.okeep === 1 && camjCards().length === 0);
-    ok('the camera window and the camera time show in the entry\'s details', camjNote(byId(M.id), true).includes('המצלמה ראתה גם'));
+    // 3. a late manual entry: the camera's time wins (even after a hand correction); old times kept
+    commit('', () => state.log.push(newStay('kishmish', 'crate', now - 12*HOUR + 20*MIN, now - 11*HOUR + 15*MIN)), { quiet: true });
+    { const M = stays().find(e => !e.id.startsWith('cam:'));
+      commit('', () => { const x = byId(M.id); x.t = now - 12*HOUR + 22*MIN; }, { quiet: true });   // she corrected it by hand once
+      DOORS = [...DOORS, { from: now - 12*HOUR - 10*MIN, to: now - 11*HOUR, value: 'closed' }];
+      await send([...DOC.events, E('ce_m', 'crate_entry', now - 12*HOUR, { pair_id: 'ce_mx' }), E('ce_mx', 'crate_exit', now - 11*HOUR + 5*MIN)]); camjApply(); await wait(2);
+      const x = byId(M.id);
+      ok('logged 22 min late: same session, no duplicate, takes the camera times, old ones kept', stays().length === 2 && x.t === now - 12*HOUR && x.end === now - 11*HOUR + 5*MIN && x.cam.was.t === now - 12*HOUR + 22*MIN && !x.cam.h);
+      ok('its details say so', camjNote(x, true).includes('תוקן לפי המצלמה') && camjNote(x, true).includes('נרשם ידנית'));
+      commit('', () => { byId(M.id).end = now - 11*HOUR + 8*MIN; }, { quiet: true });
+      // (and an approved live session is never removed just because no label backs it)
+      camjApply(); await wait(2);
+      ok('a NEW hand correction after the camera: protected from later camera changes', byId(M.id).end === now - 11*HOUR + 8*MIN && byId(M.id).cam.h === 1); }
 
-    // coverage vs a missed detection (manual stays with no camera event)
-    commit('', () => { state.log.push(newStay('kishmish', 'crate', now - 4*HOUR + 20*MIN, now - 4*HOUR + 50*MIN)); state.log.push(newStay('kishmish', 'crate', now - 2*HOUR, now - 90*MIN)); }, { quiet: true });
-    { const out = stays().find(e => e.t === now - 4*HOUR + 20*MIN), inn = stays().find(e => e.t === now - 2*HOUR);
-      ok('outside the camera\'s coverage: said so', camjNote(out, true).includes('מחוץ לכיסוי המצלמה'));
-      ok('inside coverage with no camera event: "the camera did not detect it"', camjNote(inn, true).includes('המצלמה לא זיהתה')); }
+    // 4. wide windows: not applied as exact; resolvable
+    DOORS = [...DOORS, { from: now - 10*HOUR - 30*MIN, to: now - 9*HOUR, value: 'closed' }];
+    await send([...DOC.events, E('ce_w', 'crate_entry', now - 10*HOUR, { lo: now - 10*HOUR - 10*MIN, hi: now - 10*HOUR + 10*MIN, wide: true, pair_id: 'ce_wx' }), E('ce_wx', 'crate_exit', now - 9*HOUR - 20*MIN)]); camjApply(); await wait(2);
+    { const { rv } = camjPlan(state.log, Date.now());
+      ok('a 20-min window: no session written, offered for resolution with the reason', !byId('cam:ce_w') && rv.resolve.some(r => r.c && r.c.id === 'cam:ce_w' && r.why === 'wide')); }
+    CAMS.status = { checked_at: Date.now() - MIN, crate_now: null }; render(); await wait(2);
+    $q('[data-camj=review]').click(); await wait(2);
+    ok('the review view: imported, matched, to resolve, visits, and the weekly saving', bg.classList.contains('show') && ['אומתו מול רישום ידני', 'לבירור', 'ביקורים', 'השבוע:'].every(s => sh.textContent.includes(s)));
+    { const i = sh.querySelector('.cj-t'); i.value = clock(now - 10*HOUR + 5*MIN); sh.querySelector('[data-cjr=pick]').click(); await wait(2);
+      const w = byId('cam:ce_w');
+      ok('resolved by her: a session at her time, still marked uncertain', !!w && Math.abs(w.t - (now - 10*HOUR + 5*MIN)) < 60000 && w.cam.unc === 1 && camjNote(w, true).includes('לא נכנס לחישובי זמנים'));
+      ok('an uncertain session never teaches the sleep-timing model', !sleepSamples('kishmish', state.log.concat([{ p:'kishmish', k:'sleep', t: now - 10*HOUR + 20*MIN, end: now - 9*HOUR - 30*MIN, id:'zz' }]), Date.now()).some(s => s.t === now - 10*HOUR + 20*MIN)); }
 
-    // live_model: only a card; approve / reject; expiry
-    await send([...DOC.events, E('ce_L', 'crate_entry', now - 40*MIN, { source: 'live_model', confidence: 0.9 })]); camjApply(); await wait(2); render(); await wait(2);
-    ok('live event: nothing written, a card "אישור / לא נכון"', !byId('cam:ce_L') && camjCards().some(c => c.type === 'pending') && $q('#side .camj').textContent.includes('נרשם רק אם מאשרים'));
-    $q('#side .camj [data-camj=ok]').click(); await wait(2);
-    ok('approve: the stay is written at the camera time, with who approved', !!byId('cam:ce_L') && byId('cam:ce_L').t === now - 40*MIN && byId('cam:ce_L').cam.ok === me && byId('cam:ce_L').cam.src === 'live_model' && byId('cam:ce_L').end == null);
-    await send([...DOC.events, E('ce_LX', 'crate_exit', now - 20*MIN, { source: 'live_model' })]); camjApply(); await wait(2); render(); await wait(2);
-    $q('#side .camj [data-camj=no]').click(); await wait(2);
-    ok('reject: nothing changes, a hidden record so no phone asks again', byId('cam:ce_L').end == null && byId('camx:ce_LX').cam.why === 'rejected' && camjCards().length === 0);
-    ok('hidden: never listed', !state.log.filter(e => e.p === 'kishmish' && !ITEMS[e.k].hid).some(e => e.k === 'camx'));
-    await send([...DOC.events, E('ce_old', 'crate_entry', now - 7*HOUR - 10*MIN, { source: 'live_model' })]); camjApply();
-    ok('a live event older than 6 h: no card', !camjCards().some(c => c.ev && c.ev.event_id === 'ce_old'));
+    // 5. retraction: the camera-made session goes
+    await send(DOC.events.map(e => e.event_id === 'ce_a' ? { ...e, status: 'retracted' } : e)); camjApply(); await wait(2);
+    ok('retracted label: the camera-made session goes', !byId(A.id));
 
-    // owner_label exit for the open (approved) stay: it ends, and so does a sleep inside it
-    commit('', () => state.log.push({ p:'kishmish', k:'sleep', t: now - 30*MIN }), { quiet: true });
-    await send([...DOC.events, E('ce_X', 'crate_exit', now - 10*MIN)]); camjApply(); await wait(2);
-    ok('owner_label exit: ends the open stay at the camera time and the sleep in it', byId('cam:ce_L').end === now - 10*MIN && byId('cam:ce_L').cam.out === 'ce_X' && state.log.find(e => e.k === 'sleep' && e.t === now - 30*MIN).end === now - 10*MIN);
-
-    // a human edit protects; a retraction undoes only untouched camera work
-    commit('', () => { const x = byId('cam:ce_a'); x.end = now - 7*HOUR + 5*MIN; }, { quiet: true });
-    ok('a human edit marks the camera stay as protected', byId('cam:ce_a').cam.h === 1);
-    await send(DOC.events.map(e => e.event_id === 'ce_a' || e.event_id === 'ce_X' ? { ...e, status: 'retracted' } : e)); camjApply(); await wait(2);
-    ok('retracted: a human-edited camera stay stays', !!byId('cam:ce_a'));
-    ok('retracted exit: the end the camera set is taken back (nothing came after)', byId('cam:ce_L').end == null && !byId('cam:ce_L').cam.out);
-
-    // a human deletes a camera stay: it never comes back
-    commit('', () => { state.log = state.log.filter(e => e.id !== 'cam:ce_L'); }, { quiet: true });
-    camjApply(); await wait(2);
-    ok('deleted by a human: remembered, not re-added', !byId('cam:ce_L') && byId('camx:ce_L').cam.why === 'deleted');
-
-    // a manual tap while the camera has an unapproved entry within 10 min: one entry, her choice of time
-    await send([...DOC.events, E('ce_T', 'crate_entry', Date.now() - 3*MIN, { source: 'live_model' })]); camjApply(); render(); await wait(2);
-    tapDur('kishmish', 'crate'); await wait(2);
-    ok('manual tap near a camera event: asks which time, nothing written yet', bg.classList.contains('show') && !!sh.querySelector('#cjCam') && !byId('cam:ce_T'));
-    sh.querySelector('#cjCam').click(); await wait(2);
-    ok('"לפי המצלמה": one stay at the camera time, approved', !!byId('cam:ce_T') && stays().filter(e => e.end == null).length === 1);
-    commit('', () => { state.log = state.log.filter(e => e.id !== 'cam:ce_T'); }, { quiet: true });
-    await send([...DOC.events, E('ce_T2', 'crate_entry', Date.now() - 2*MIN, { source: 'live_model' })]); camjApply(); render(); await wait(2);
-    tapDur('kishmish', 'crate'); await wait(2); sh.querySelector('#cjNow').click(); await wait(3);
-    { const o = stays().filter(e => e.end == null).pop();
-      ok('"לפי עכשיו": one manual stay now, linked to the event, no card afterwards', !!o && !o.id.startsWith('cam:') && o.cam.in === 'ce_T2' && o.cam.keep === 1 && !camjCards().some(c => c.ev && c.ev.event_id === 'ce_T2')); }
-
-    // the manual crate buttons are under "עוד" (one tap to open), food / potty unchanged
+    // 6. live: nothing written without a tap; only the latest; reject -> feedback
+    const nOpen = () => stays().filter(e => e.end == null).length;
+    await send([...DOC.events, E('ce_L0', 'crate_entry', Date.now() - 90*MIN, { source:'live_model' }), E('ce_L1', 'crate_entry', Date.now() - 20*MIN, { source:'live_model' })]); camjApply(); render(); await wait(2);
+    ok('live entries: nothing written, ONE offer in the crate card (the latest), the rest counted', nOpen() === 0 && $n('.card .camjt') === 1 && $q('.card .camjt').textContent.includes(clock(Date.now() - 20*MIN)) && camjPlan(state.log, Date.now()).rv.liveMore === 1);
+    $q('.card .camjt [data-camj=reject]').click(); await wait(2);
+    ok('"לא נכון": no entry, kept as a negative example (feedback)', nOpen() === 0 && camjDec('ce_L1').d === 'rejected' && camjPlan(state.log, Date.now()).rv.rejected.some(e => e.event_id === 'ce_L1') && merged.some(([n, d]) => n === 'feedback' && d.decisions.ce_L1));
     render(); await wait(2);
-    { const more = $q('.card details.cr-more');
-      ok('crate buttons under "עוד · רישום ידני", still there as a fallback', !!more && !!more.querySelector('[data-act=dur][data-k=crate]') && more.querySelector('summary').textContent.includes('עוד'));
-      ok('food / pee buttons unchanged (not folded)', !!$q('[data-act=pt][data-k=food]') && !$q('details [data-act=pt][data-k=food]') && !$q('details [data-act=pt][data-k=pee]')); }
+    $q('.card .camjt [data-camj=start]').click(); await wait(2);
+    ok('the next one: "שהייה מ־HH:MM" starts a session at the camera time, approved', !!byId('cam:ce_L0') && Math.abs(byId('cam:ce_L0').t - (now - 90*MIN)) < 60000);
+    await send([...DOC.events, E('ce_LX', 'crate_exit', Date.now() - 5*MIN, { source:'live_model' })]); render(); await wait(2);
+    ok('a live exit while a session is open: offered in the crate card', !!$q('.card .camjt') && $q('.card .camjt').textContent.includes('יצאה מהכלוב'));
+    $q('.card .camjt [data-camj=end]').click(); await wait(2);
+    ok('…"אישור" ends it at the camera time', Math.abs(byId('cam:ce_L0').end - (Date.now() - 5*MIN)) < 60000 && camjDec('ce_LX').d === 'approved');
 
-    // an event inside a stay the same pass creates: never a second, overlapping stay; an exit is used once
-    { const n0 = stays().length;
-      await send([...DOC.events, E('ce_o1', 'crate_entry', now - 9*HOUR - 50*MIN, { pair_id: 'ce_o3' }), E('ce_o2', 'crate_entry', now - 9*HOUR - 30*MIN), E('ce_o3', 'crate_exit', now - 9*HOUR - 10*MIN)]); camjApply(); await wait(2);
-      ok('overlapping camera entries: one stay, the inner entry marked, the exit used once', stays().length === n0 + 1 && byId('cam:ce_o1').end === now - 9*HOUR - 10*MIN && byId('camx:ce_o2').cam.why === 'inside'); }
-    ok('the preview / sandbox read the test document, the live app the real one', camjDoc() === 'events' && (MODE = 'preview', camjDoc()) === 'events_preview');
-    MODE = 'live'; fb = null; CAMJ.ready = false;
+    // 7. a deleted camera session never comes back
+    commit('', () => { state.log = state.log.filter(e => e.id !== 'cam:ce_L0'); }, { quiet: true }); camjApply(); await wait(2);
+    ok('deleted by a caregiver: remembered (feedback), not re-added', !byId('cam:ce_L0') && camjDec('cam:ce_L0') && camjDec('cam:ce_L0').d === 'deleted');
+
+    // 8. manual tap near a live event: one entry, camera time recommended
+    await send([...DOC.events, E('ce_T', 'crate_entry', Date.now() - 12*MIN, { source:'live_model' })]); render(); await wait(2);
+    tapDur('kishmish', 'crate'); await wait(2);
+    ok('manual tap 12 min after the camera saw it: asks, camera time first', bg.classList.contains('show') && !!sh.querySelector('#cjCam') && sh.querySelector('#cjCam').classList.contains('sel'));
+    sh.querySelector('#cjCam').click(); await wait(2);
+    ok('…one session at the camera time', !!byId('cam:ce_T') && nOpen() === 1);
+
+    // 9. the crate card: image card inside, "now" only from a fresh frame, outage brings manual buttons back
+    CAMS.doc = { b64: 'AAAA', capture_ts: Date.now() - 3*HOUR, detection: { status: 'positive' }, image_type: 'image/jpeg' };
+    CAMS.status = { checked_at: Date.now() - MIN, crate_now: { status: 'negative', capture_ts: Date.now() - MIN } }; render(); await wait(2);
+    { const cc = $q('.card .camjb');
+      ok('one component: the camera image card sits inside the crate card, not in a separate column card', !!cc && !!cc.querySelector('.camc') && !$q('#side .camc'));
+      ok('an old image is "last seen", never "now"; "now" comes only from a fresh frame', cc.textContent.includes('נראתה לאחרונה') && cc.textContent.includes('עכשיו לפי המצלמה') && cc.textContent.includes('לא בכלוב'));
+      ok('camera working: manual crate buttons folded under "עוד"', !!$q('.card details.cr-more [data-act=dur][data-k=crate]')); }
+    CAMS.status = { checked_at: Date.now() - 40*MIN, crate_now: null }; render(); await wait(2);
+    ok('camera not updating: says since when, and the manual buttons are up front again', $q('.card .camjb').textContent.includes('המצלמה לא מעדכנת') && !$q('details.cr-more') && !!$q('.card [data-act=dur][data-k=crate]'));
+    ok('food / pee buttons never folded', !$q('details [data-act=pt][data-k=food]') && !$q('details [data-act=pt][data-k=pee]'));
+    ok('coverage: outside vs inside', camjCov(now - 22*HOUR) === false && camjCov(now - HOUR) === true);
+
+    ok('the live app reads camera/events, the preview its test copy', camjDoc() === 'events' && (MODE = 'preview', camjDoc()) === 'events_preview');
+    MODE = 'live';
+    ok('the only camera write path is camera/feedback (never the journal)', merged.length > 0 && merged.every(([n]) => n === 'feedback'));
+    CAMS.doc = null; CAMS.status = null; fb = null; CAMJ.ready = false;
     done();
   } catch(e){ crashed(e); }
 })();

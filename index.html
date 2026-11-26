@@ -729,6 +729,9 @@
   .cr-more{width:100%} .cr-more>summary{cursor:pointer;color:var(--muted);font-size:14px;padding:6px 0;list-style:none} .cr-more>summary::-webkit-details-marker{display:none}
   .cr-more>summary::before{content:'▸ '} .cr-more[open]>summary::before{content:'▾ '} .cr-more .acts{margin-top:6px}
   .camj:empty{display:none}
+  .camjb{margin-top:10px;display:flex;flex-direction:column;gap:6px} .camjb .card.camc{box-shadow:none;border:0;background:none;padding:0;margin:0} .camj-lines{display:flex;flex-direction:column;gap:2px} .camj-rv{text-align:start;font-size:13.5px}
+  .cjr{display:flex;flex-wrap:wrap;gap:6px 10px;justify-content:space-between;align-items:center;padding:8px 0;border-top:1px solid var(--line)} .cjr>span:first-child{display:flex;flex-direction:column} .cjr small{color:var(--muted)}
+  .camjt{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;justify-content:space-between;margin-top:10px;padding:10px 12px;border-radius:12px;background:var(--seg)} .camjt span:first-child{display:flex;flex-direction:column;gap:2px} .camjt small{color:var(--muted)} .camjt.dim b{font-weight:500}
   .cam-th img{width:100%;max-width:100%;height:100%;object-fit:contain;background:#000;display:block;min-width:0}
   .cam-b{display:flex;flex-direction:column;gap:1px;min-width:0;flex:1}
   .cam-h{display:flex;align-items:baseline;gap:8px;font-size:13px} .cam-h b{font-weight:600}
@@ -852,9 +855,6 @@ const ITEMS = {
   // ends, so each of them knows how long it took. Not listed as a row of its own (`nolist`).
   gravel:{dur:true,icon:'pee',lbl:'בחצץ',live:'בחצץ',start:'יצאנו לחצץ',stop:'סיום היציאה לחצץ',log:'בחצץ',startQ:'מתי יצאתם לחצץ?',nolist:true},
   born:{icon:'paw',log:'תאריך לידה',hid:true},
-  // A camera crate event that must never be applied (again): rejected by a caregiver, or its entry deleted by one.
-  // `cam: {ev, why: 'rejected'|'deleted'|'inside'}`. Hidden, affects nothing; it only stops every device re-adding it.
-  camx:{icon:'crate',log:'אירוע מצלמה שלא נרשם',hid:true},
   // v3 KINDS (data layer; their buttons come later). All optional: a list without them reads exactly as before.
   //  cset    — the crate's setup changed: `door` 'open'|'closed', `cover` 'covered'|'uncovered' (each optional, each
   //            independent; `crateSetup`). A row in the list, no routine effect (`aux`).
@@ -939,7 +939,7 @@ const STEP_ICON = ['crate','paw','ball','food','pee'];   // one per CYCLE step, 
 const DUE_MAX = 60*60000;   // the "take her out" reminder gives up after an hour
 const iconOf = k => (ITEMS[k] && ITEMS[k].icon) || k;
 const LOG_MAX = 5000, LS_KEY = 'pets-timers-v1', LS_DATA = 'pets-timers-v2';
-const SCHEMA = 3;   // 3 (26.11): the `camx` kind; older pages drop unknown kinds, so they must reload instead of saving   // version of the saved data; see `norm()` and the Firestore rule
+const SCHEMA = 2;   // version of the saved data; see `norm()` and the Firestore rule
 
 const USERS = {yonatan:'יונתן', shai:'שי', liza:'ליזה'};   // who is using this device; stamped on every log entry as `by`
 // A GUEST (25.11: a babysitter, a friend she stays with): "אורח/ת" in the who-am-I sheet asks for a name, and `by`
@@ -1132,7 +1132,7 @@ const POTTY_CUE = {nap:45*60000, napFor:30*60000, mealPoop:30*60000, mealTry:[10
 // "התעוררה" on an estimated sleep are not samples (`a:1`; older ones sit exactly on the old two-minute mark).
 const AWAKE_PT = {food:1, nofood:1, water:1, play:1, swap:1};
 function sleepSamples(p, log, now){
-  const L = log.filter(e => e.p===p && !isTU(e)), stays = L.filter(e => e.k==='crate'), out = [];
+  const L = log.filter(e => e.p===p && !isTU(e)), stays = L.filter(e => e.k==='crate' && !(e.cam && e.cam.unc)), out = [];   // an uncertain camera time never teaches timing
   const setupPts = L.filter(x => SETUP_PT[x.k]).flatMap(x => x.end != null ? [x.t, x.end] : [x.t]);
   for(const s of L.filter(e => e.k==='sleep' && !e.a)){
     const c = stays.filter(x => x.t <= s.t && (x.end == null ? now : x.end) >= s.t).sort((x,y) => x.t-y.t).pop(); if(!c) continue;
@@ -2025,7 +2025,8 @@ let fb = null;   // { auth, signIn(), signOut() } once Firebase has loaded
     signOut: () => A.signOut(auth),
     // the shared camera card only (camera/latest, camera/status): its own listener, opened while the card is on screen
     camDoc: (name, onData, onErr) => F.onSnapshot(F.doc(store, 'camera', name), {}, snap => onData(snap.exists() ? snap.data() : null, snap.metadata.fromCache), onErr),
-    camGet: name => F.getDocFromServer(F.doc(store, 'camera', name)).then(s => s.exists() ? s.data() : null)
+    camGet: name => F.getDocFromServer(F.doc(store, 'camera', name)).then(s => s.exists() ? s.data() : null),
+    camMerge: (name, data) => F.setDoc(F.doc(store, 'camera', name), data, { merge: true })   // camera/feedback only (decisions)
   };
 
   if(SAME_SITE_AUTH) A.getRedirectResult(auth).catch(e => gateError(`ההתחברות לא הצליחה${e && e.code ? ' ('+e.code.replace('auth/','')+')' : ''}. לוחצים שוב.`));
@@ -2181,7 +2182,7 @@ function tapDur(p, k, at, camOk){   // `at`: start a timer that began earlier ("
   if(k === 'crate' && p === CAMJ_P && !at && !camOk){   // the camera saw it within 10 min: one entry, not two
     const pd = camjNearPending(!running);
     if(pd){ camjAsk(pd, x => { tapDur(p, k, undefined, true); const o = state.log.filter(e => e.p === p && e.k === 'crate').sort((a, b) => a.t - b.t).pop();
-      if(o) commit('', () => { const n = state.log.find(e => e.id === o.id); if(n) n.cam = { ...(n.cam || {}), ...(running ? camjOut(x) : camjIn(x)), [running ? 'okeep' : 'keep']: 1 }; }, { quiet: true, cam: true }); }); return; }
+      if(o) commit('', () => { const n = state.log.find(e => e.id === o.id); if(n) n.cam = { ...(n.cam || {}), ...(running ? { out: x.event_id, ot: x.ts, olo: x.lo, ohi: x.hi } : { in: x.event_id, it: x.ts, ilo: x.lo, ihi: x.hi }), src: 'manual' }; }, { quiet: true, cam: true }); }); return; }
   }
   if(running && !at) commit(`${PETS[p].name} · ${ITEMS[k].stop}`, () => {
     // waking from a sleep the app only assumed: now it is known, so it becomes a real entry
@@ -3299,212 +3300,313 @@ function camPrivHTML(p){
 }
 function camPaint(){   // repaint just the card and the setting link (never `render`, never the list)
   const sl = document.querySelector('#dsw [data-cam=set]'); if(sl) sl.textContent = camSetText();
-  const el = document.querySelector('#side .camc'); if(!el) return;
+  const el = document.querySelector('.camc'); if(!el) return;
   const t = document.createElement('div'); t.innerHTML = camCardHTML(pet); if(t.firstElementChild) el.replaceWith(t.firstElementChild); else el.remove();
   camsWatch();
   const s = sh.querySelector('.cam-main'); if(s && bg.classList.contains('show')) camSheet(true);
 }
-// ---------- camera events -> journal (CAMERA-API §11 / §11a; owner, 26.11) ----------
-// The camera service publishes crate entry / exit EVENTS to Firestore `camera/events` (only it writes there; it can
-// never write the journal). A caregiver's own app turns them into ordinary crate entries, under the normal rules:
-//  - owner_label (she labeled it on the camera's page, already human-checked): committed automatically;
-//  - live_model (unvalidated): only a card "אישור / לא נכון" — nothing is written until a caregiver says so.
-// Ids come from the event ('cam:<event_id>'), so two phones writing at once still make one entry. A manual stay of the
-// same kind within ±10 min is never duplicated: it is linked, and a card offers the camera's time. A stay a human
-// edited (`cam.h`) is never touched by the camera again. Rejected events / deleted camera entries leave a hidden
-// `camx` record so no phone re-adds them. Short unmatched visits (< 10 min) never become entries: no round, no sleep,
-// no retry from a quick look into the crate. Everything else from the camera stays shadow (image, sleep, door).
-const CAMJ = { ev: [], cov: [], ready: false, unsub: null, retryAt: 0 };
-const CAMJ_P = 'kishmish', CAMJ_MATCH = 10*60000, CAMJ_VISIT = 10*60000, CAMJ_TTL = 6*3600000, CAMJ_SEC = 60000;
-let serverSeen = false;   // the journal has come from the server at least once here (never match against a stale copy)
+// ---------- camera observations -> the crate (CAMERA-API §11c; owner, 26.11 evening) ----------
+// Kept apart: physical occupancy (camera) · door state · INTENTIONAL SESSION (inside AND door closed — the journal's
+// `crate` entry, the only thing stored) · voluntary visit (inside, door open or unknown: shown, never stored) · sleep
+// (never follows from occupancy, door or a session) · routine (only sessions move it). No duration threshold decides
+// anything. A session starts at the later of her entry and the door closing, and ends at the earlier of her exit and the
+// door opening. owner_label (her own labels) is never re-approved; live_model changes nothing until a caregiver taps,
+// and is offered only where it matters. Decisions go to `camera/feedback` (negative / positive examples for the camera),
+// never into the journal's shape: the data version stays 2. Written as observations -> reconcile -> journal actions,
+// so sleep / food / water can use the same pattern once they have detectors.
+const CAMJ = { ev: [], cov: [], doors: [], ready: false, unsub: null, unsubF: null, retryAt: 0, fb: {}, fbLocal: {} };
+// The camera has the final word on times (owner, 26.11): manual logging is often late, so a manual entry up to
+// CAMJ_LATE after the camera's time (or CAMJ_MATCH before it) is the same event, and takes the camera's time.
+const CAMJ_LATE = 30*60000;
+const CAMJ_P = 'kishmish', CAMJ_MATCH = 10*60000, CAMJ_TTL = 6*3600000, CAMJ_SEC = 60000, CAMJ_WIDE = 15*60000, CAMJ_LIVE = 15*60000;
+let serverSeen = false;   // the journal has come from the server at least once here (never reconcile a stale copy)
 const camjDoc = () => MODE === 'live' ? 'events' : 'events_preview';
+const byTs = (a, b) => a.ts - b.ts, byT = (a, b) => a.t - b.t;
 function camjValid(d){
   const num = x => typeof x === 'number' && isFinite(x);
   const ev = d && Array.isArray(d.events) ? d.events.filter(e => e && typeof e.event_id === 'string' && /^[\w:.\-]{1,100}$/.test(e.event_id)
       && (e.kind === 'crate_entry' || e.kind === 'crate_exit') && num(e.ts) && (e.source === 'owner_label' || e.source === 'live_model')
       && (e.status === 'active' || e.status === 'retracted'))
-    .map(e => ({ ...e, lo: num(e.lo) ? Math.min(e.lo, e.ts) : e.ts, hi: num(e.hi) ? Math.max(e.hi, e.ts) : e.ts })) : [];
+    .map(e => { const lo = num(e.lo) ? Math.min(e.lo, e.ts) : e.ts, hi = num(e.hi) ? Math.max(e.hi, e.ts) : e.ts; return { ...e, lo, hi, wide: !!e.wide || hi - lo > CAMJ_WIDE }; }) : [];
   const cov = d && Array.isArray(d.coverage) ? d.coverage.filter(r => r && num(r.from) && num(r.to) && r.from <= r.to).map(r => [r.from, r.to]) : [];
-  return { ev, cov };
+  const doors = d && Array.isArray(d.door_spans) ? d.door_spans.filter(r => r && num(r.from) && num(r.to) && r.from <= r.to && (r.value === 'open' || r.value === 'closed')).map(r => ({ from: r.from, to: r.to, value: r.value })) : [];
+  return { ev, cov, doors };
 }
-function camjSeen(log){   // every event already applied, linked or refused somewhere in the journal
-  const s = new Set();
-  for(const e of log){ const c = e.cam; if(!c || typeof c !== 'object') continue; for(const k of ['in', 'out', 'ev']) if(c[k]) s.add(c[k]); }
-  return s;
+const camjDec = id => CAMJ.fbLocal[id] || CAMJ.fb[id] || null;
+function camjDecide(ids, d){   // approved / rejected / dismissed / deleted -> camera/feedback (preview / sandbox: this page only)
+  const at = Date.now(), m = {}; for(const id of [].concat(ids)) if(id) m[id] = { d, by: String(me || '').slice(0, 40), at };
+  Object.assign(CAMJ.fbLocal, m);
+  if(MODE === 'live' && fb && fb.camMerge) fb.camMerge('feedback', { decisions: m }).catch(() => {});
 }
-function camjExitFor(x, evs){   // the exit that closes this entry: its pair, else the next exit before the next entry
-  const act = evs.filter(e => e.status === 'active');
-  if(x.pair_id){ const pr = act.find(e => e.event_id === x.pair_id && e.kind === 'crate_exit'); if(pr) return pr; }
-  const nextIn = act.filter(e => e.kind === 'crate_entry' && e.ts > x.ts).sort((a, b) => a.ts - b.ts)[0];
-  return act.filter(e => e.kind === 'crate_exit' && e.ts > x.ts && (!nextIn || e.ts < nextIn.ts)).sort((a, b) => a.ts - b.ts)[0] || null;
+// Door: her painted spans from the camera, plus the app's own "הגדרות כלוב" (`cset`) entries. A gap = unknown.
+function camjDoorSpans(now){
+  const out = CAMJ.doors.slice(), cs = state.log.filter(e => e.p === CAMJ_P && e.k === 'cset' && CSET_DOOR[e.door]).sort(byT);
+  cs.forEach((e, i) => out.push({ from: e.t, to: cs[i+1] ? cs[i+1].t : now, value: e.door }));
+  return out;
 }
-// What to do with the events, as a list of actions (pure: tests call it directly). `pending`: live events for a card.
-function camjPlan(log, evs, now){
-  const L = log.filter(e => e.p === CAMJ_P), stays = L.filter(e => e.k === 'crate').sort((a, b) => a.t - b.t), seen = camjSeen(L);
-  const acts = [], pending = [], used = new Set(), sup = new Set(evs.map(e => e.supersedes).filter(Boolean));
-  for(const x of evs.filter(e => e.status === 'retracted' && seen.has(e.event_id))){   // the camera took it back
-    const made = L.find(e => e.id === 'cam:' + x.event_id);
-    if(made && !(made.cam && made.cam.h)) acts.push({ do: 'remove', id: made.id });
-    const ended = stays.find(e => e.cam && e.cam.out === x.event_id && e.cam.oset && !e.cam.h);
-    if(ended) acts.push({ do: 'unend', id: ended.id });
+function camjClosed(a, b, now){   // the closed-door parts of [a, b]
+  return camjDoorSpans(now).filter(s => s.value === 'closed' && s.to > a && s.from < b).map(s => [Math.max(a, s.from), Math.min(b, s.to), s]).sort((x, y) => x[0] - y[0]);
+}
+function camjDoorAt(t, now){ const s = camjDoorSpans(now).filter(s => s.from <= t && t <= s.to).sort((x, y) => y.from - x.from)[0]; return s || null; }
+// Physical occupancy from the events: [{e, x, from, to, verified, wide}] (rejected live events and superseded ones out).
+function camjStays(now){
+  const act = CAMJ.ev.filter(e => e.status === 'active'), sup = new Set(act.map(e => e.supersedes).filter(Boolean));
+  const ok = act.filter(e => !sup.has(e.event_id) && !(e.source === 'live_model' && camjDec(e.event_id) && camjDec(e.event_id).d === 'rejected'));
+  const ins = ok.filter(e => e.kind === 'crate_entry').sort(byTs), outs = ok.filter(e => e.kind === 'crate_exit').sort(byTs), used = new Set(), res = [];
+  for(const e of ins){
+    const nextIn = ins.find(o => o.ts > e.ts), free = o => o.ts > e.ts && (!nextIn || o.ts < nextIn.ts) && !used.has(o.event_id);
+    let x = e.pair_id ? outs.find(o => o.event_id === e.pair_id && !used.has(o.event_id)) : null;
+    if(!x) x = outs.find(o => free(o) && o.source === e.source) || outs.find(free) || null;
+    if(x) used.add(x.event_id);
+    res.push({ e, x, from: e.ts, to: x ? x.ts : null, verified: e.source === 'owner_label' && (!x || x.source === 'owner_label'), wide: !!(e.wide || (x && x.wide)) });
   }
-  for(const x of evs.filter(e => e.status === 'active' && !seen.has(e.event_id) && !sup.has(e.event_id)).sort((a, b) => a.ts - b.ts)){
-    if(used.has(x.event_id)) continue;
-    if(x.kind === 'crate_entry'){
-      const near = stays.find(s => Math.abs(s.t - x.ts) <= CAMJ_MATCH && !(s.cam && s.cam.in));
-      if(near){ acts.push({ do: 'link-in', id: near.id, ev: x }); continue; }
-      if(stays.some(s => s.t < x.ts && x.ts < (s.end == null ? now : s.end))){ acts.push({ do: 'mark', ev: x, why: 'inside' }); continue; }
-      const out0 = camjExitFor(x, evs), out = out0 && !used.has(out0.event_id) ? out0 : null, end = out ? out.ts : null;
-      if((end == null ? now : end) - x.ts < CAMJ_VISIT) continue;   // a short visit, or too early to tell: nothing at all
-      if(stays.some(s => s.t > x.ts && s.t < (end == null ? now : end))) continue;   // another stay began meanwhile: leave it
-      if(x.source === 'owner_label'){
-        const o = out && out.source === 'owner_label' && !seen.has(out.event_id) ? out : null;
-        if(o) used.add(o.event_id);
-        acts.push({ do: 'create', ev: x, out: o });
-        stays.push({ id: 'cam:' + x.event_id, t: x.ts, end: o ? o.ts : null, cam: { in: x.event_id } }); stays.sort((a, b) => a.t - b.t);   // later events see it
-      } else if(now - x.ts <= CAMJ_TTL) pending.push({ ev: x });
-    } else {
-      const near = stays.find(s => s.end != null && Math.abs(s.end - x.ts) <= CAMJ_MATCH && !(s.cam && s.cam.out));
-      if(near){ acts.push({ do: 'link-out', id: near.id, ev: x }); continue; }
-      const open = stays.filter(s => s.end == null && s.t < x.ts).pop();
-      if(!open) continue;   // nothing open to end (the exit of a short visit, or of a stay never recorded)
-      if(x.source === 'owner_label') acts.push({ do: 'end', id: open.id, ev: x });
-      else if(now - x.ts <= CAMJ_TTL) pending.push({ ev: x, stay: open.id });
-    }
-  }
-  return { acts, pending };
+  return res;
 }
-const camjIn = x => ({ in: x.event_id, it: x.ts, ilo: x.lo, ihi: x.hi }), camjOut = x => ({ out: x.event_id, ot: x.ts, olo: x.lo, ohi: x.hi });
+// Intentional sessions the camera's verified observations imply. One physical stay gives at most ONE session, and only
+// if the door was marked closed at some point while she was inside (otherwise it is a visit). Start: her entry — or,
+// if the door was marked OPEN when she went in, the moment it was closed. End: her exit — or, if the door was marked
+// open while she was still inside after its last closed mark, that opening. Unmarked gaps are unknown, never "open".
+function camjSessions(now){
+  const out = [], spans = camjDoorSpans(now);
+  for(const s of camjStays(now)){
+    if(!s.verified) continue;
+    const b0 = s.to == null ? now : s.to, cl = camjClosed(s.from, b0, now);
+    if(!cl.length) continue;
+    const atIn = camjDoorAt(s.from, now), closeT = cl[0][0];
+    const t = atIn && atIn.value === 'open' && closeT > s.from ? closeT : s.from, byEntry = t === s.from;
+    const lastC = cl[cl.length - 1][1], opened = s.to == null ? null : spans.filter(d => d.value === 'open' && d.from >= lastC - 1000 && d.from < s.to).sort((a, b) => a.from - b.from)[0];
+    const end = s.to == null ? null : opened ? opened.from : s.to, byExit = s.to != null && !opened;
+    out.push({ id: 'cam:' + s.e.event_id, t, end, s, byEntry, byExit, closeT, from: s.from, to: s.to,
+      unc: byEntry ? s.e.wide : false, ounc: byExit ? !!(s.x && s.x.wide) : false,
+      ilo: byEntry ? s.e.lo : t, ihi: byEntry ? s.e.hi : t, olo: byExit ? s.x.lo : end, ohi: byExit ? s.x.hi : end });
+  }
+  return out;
+}
+// Reconcile: journal actions (applied automatically) + what the crate card and the review view show.
+function camjPlan(log, now){
+  const L = log.filter(e => e.p === CAMJ_P), sess = L.filter(e => e.k === 'crate').sort(byT);
+  const acts = [], rv = { imported: [], matched: [], resolve: [], visits: [], live: [], rejected: [] };
+  const cands = camjSessions(now), evIds = new Set(CAMJ.ev.map(e => e.event_id)), retracted = new Set(CAMJ.ev.filter(e => e.status === 'retracted').map(e => e.event_id));
+  // pair journal sessions with camera stays one to one: the most overlap first, else a (late) manual start nearby
+  const iv = (a, b) => [a, b == null ? now : b], ov = (x, y) => Math.max(0, Math.min(x[1], y[1]) - Math.max(x[0], y[0]));
+  const pairs = [];
+  for(const c of cands) for(const e of sess){
+    if(e.id === c.id) continue;
+    if(e.cam && e.cam.cid && e.cam.cid !== c.id) continue;
+    const o = ov(iv(e.t, e.end), iv(c.from, c.to)), near = e.t - c.from <= CAMJ_LATE && c.from - e.t <= CAMJ_MATCH;
+    if(o > 0 || near) pairs.push({ c, e, o, d: Math.abs(e.t - c.from) });
+  }
+  pairs.sort((a, b) => (b.o - a.o) || (a.d - b.d));
+  const pc = new Map(), pe = new Set();
+  for(const p of pairs) if(!pc.has(p.c.id) && !pe.has(p.e.id)){ pc.set(p.c.id, p.e); pe.add(p.e.id); }
+  for(const c of cands){
+    const made = L.find(e => e.id === c.id);
+    if(made){ rv.imported.push({ c, e: made });
+      if(!(made.cam && made.cam.h) && !c.unc && (made.t !== c.t || (c.end != null && made.end !== c.end))) acts.push({ do: 'retime', id: made.id, c });
+      continue; }
+    const m = pc.get(c.id);
+    if(m){ rv.matched.push({ c, e: m }); if(!(m.cam && m.cam.cid === c.id)) acts.push({ do: 'link', id: m.id, c }); continue; }
+    if(camjDec(c.id)){ if(camjDec(c.id).d === 'dismissed') rv.visits.push({ s: c.s, door: 'closed', dismissed: true }); continue; }
+    if(c.unc || c.ounc){ rv.resolve.push({ c, why: 'wide' }); continue; }
+    if(sess.some(e => ov(iv(e.t, e.end), iv(c.t, c.end)) > 0)){ rv.resolve.push({ c, why: 'overlap' }); continue; }
+    acts.push({ do: 'create', c }); rv.imported.push({ c });
+  }
+  // the camera took it back (an explicit retraction, or her door marks no longer make it a session)
+  for(const e of L){
+    if(e.k !== 'crate' || !e.cam || e.cam.h) continue;
+    const eid = e.cam.in, cid = e.cam.cid; if(!eid || !cid || e.cam.src !== 'owner_label') continue;   // only label-derived sessions follow her labels; an approved live one stays
+    const gone = retracted.has(eid) || (evIds.has(eid) && !cands.some(c => c.id === cid));
+    if(gone) acts.push(e.id.startsWith('cam:') ? { do: 'remove', id: e.id } : { do: 'unlink', id: e.id });
+  }
+  // a verified exit ends a session the journal still has open (she is physically out, whatever the door)
+  const open = sess.filter(e => e.end == null && !acts.some(a => a.id === e.id)).pop();
+  if(open){
+    const x = CAMJ.ev.filter(e => e.status === 'active' && e.kind === 'crate_exit' && e.source === 'owner_label' && e.ts > open.t && !camjDec(e.event_id)).sort(byTs)[0];
+    if(x && !x.wide) acts.push({ do: 'end', id: open.id, ev: x });
+    else if(x) rv.resolve.push({ x, stay: open.id, why: 'wide-exit' });
+  }
+  // visits: verified stays with no closed-door part (door open or unknown) — observations, never stored
+  for(const s of camjStays(now)) if(s.verified && !camjClosed(s.from, s.to == null ? now : s.to, now).length){
+    const d = camjDoorAt(s.from, now); rv.visits.push({ s, door: d ? d.value : 'unknown' }); }
+  // live: only where it changes something, and only the latest
+  const sup = new Set(CAMJ.ev.map(e => e.supersedes).filter(Boolean));
+  const lives = CAMJ.ev.filter(e => e.status === 'active' && e.source === 'live_model' && !sup.has(e.event_id) && now - e.ts <= CAMJ_TTL);
+  for(const e of lives) if(camjDec(e.event_id) && camjDec(e.event_id).d === 'rejected') rv.rejected.push(e);
+  const undecided = lives.filter(e => !camjDec(e.event_id));
+  const op = sess.filter(e => e.end == null).pop();
+  if(op){ const x = undecided.filter(e => e.kind === 'crate_exit' && e.ts > op.t).sort(byTs).pop(); if(x) rv.live.push({ ev: x, stay: op.id, kind: 'end' }); }
+  else { const x = undecided.filter(e => e.kind === 'crate_entry' && now - e.ts <= CAMJ_TTL && !sess.some(s => Math.abs(s.t - e.ts) <= CAMJ_MATCH || (s.t <= e.ts && (s.end == null || s.end >= e.ts)))).sort(byTs).pop();
+    if(x) rv.live.push({ ev: x, kind: 'start' }); }
+  rv.liveMore = Math.max(0, undecided.length - rv.live.length);
+  return { acts, rv };
+}
+const camjIn = (c, src) => ({ cid: c.id, in: c.s.e.event_id, it: c.t, ilo: c.ilo, ihi: c.ihi, src, ...(c.unc ? { unc: 1 } : {}) });
+const camjOutF = c => c.end == null ? {} : { out: c.s.x ? c.s.x.event_id : 'door', ot: c.end, olo: c.olo, ohi: c.ohi };
 function camjDo(a, who){   // inside a commit's mutate
-  const find = id => state.log.find(e => e.id === id), x = a.ev, ok = who ? { ok: who } : {};
+  const find = id => state.log.find(e => e.id === id), ok = who ? { ok: who } : {};
   if(a.do === 'create'){
-    if(state.log.some(e => e.id === 'cam:' + x.event_id)) return;
-    endGravel(CAMJ_P, x.ts);
-    const e = newStay(CAMJ_P, 'crate', x.ts, a.out ? Math.max(a.out.ts, x.ts + 1) : undefined);
-    e.id = 'cam:' + x.event_id; e.cam = { ...camjIn(x), src: x.source, ...ok, ...(a.out ? { ...camjOut(a.out), oset: 1 } : {}) };
-    state.log.push(e);
-  } else if(a.do === 'end'){
-    const o = find(a.id); if(!o || o.end != null) return;
-    leaveCrate(CAMJ_P, x.ts);
-    const n = find(a.id); if(n) n.cam = { ...(n.cam || {}), ...camjOut(x), oset: 1, osrc: x.source, ...ok };
-  } else if(a.do === 'link-in'){ const o = find(a.id); if(o) o.cam = { ...(o.cam || {}), ...camjIn(x) }; }
-  else if(a.do === 'link-out'){ const o = find(a.id); if(o) o.cam = { ...(o.cam || {}), ...camjOut(x) }; }
-  else if(a.do === 'mark' || a.do === 'reject'){
-    if(!state.log.some(e => e.id === 'camx:' + x.event_id)) state.log.push({ id: 'camx:' + x.event_id, p: CAMJ_P, k: 'camx', t: x.ts, cam: { ev: x.event_id, why: a.why || 'rejected' }, ...(who ? { by: who } : {}) });
+    const c = a.c; if(find(c.id)) return;
+    endGravel(CAMJ_P, c.t);
+    const e = newStay(CAMJ_P, 'crate', c.t, c.end != null ? Math.max(c.end, c.t + 1) : undefined);
+    e.id = c.id; e.cam = { ...camjIn(c, 'owner_label'), ...camjOutF(c), ...ok }; state.log.push(e);
+  } else if(a.do === 'retime'){
+    const o = find(a.id); if(!o) return; o.t = a.c.t; if(a.c.end != null) o.end = Math.max(a.c.end, o.t + 1); o.cam = { ...o.cam, ...camjIn(a.c, o.cam.src || 'owner_label'), ...camjOutF(a.c) };
+  } else if(a.do === 'link'){
+    const o = find(a.id), c = a.c; if(!o) return;
+    const was = { t: o.t, ...(o.end != null ? { end: o.end } : {}) };
+    o.cam = { ...(o.cam || {}), ...camjIn(c, 'owner_label'), ...camjOutF(c) };
+    // her own label is the better clock — over a manual entry, even one corrected by hand before (owner). The start she
+    // meant is her entry or the door closing, whichever is nearer her manual time; uncertain ends / starts are left alone.
+    const st = Math.abs(o.t - c.from) <= Math.abs(o.t - c.closeT) ? c.from : c.closeT;
+    const nt = c.unc ? o.t : st, ne = c.end != null && !c.ounc ? Math.max(c.end, nt + 1) : o.end;
+    if(nt !== o.t || ne !== o.end){ o.cam.was = was; o.t = nt; if(ne != null) o.end = ne; }
+    delete o.cam.h;   // from here on, only a NEW hand correction protects it from later camera changes
+  } else if(a.do === 'unlink'){
+    const o = find(a.id); if(!o) return; const was = o.cam.was;
+    if(was && !o.cam.h){ o.t = was.t; if(was.end != null) o.end = was.end; }
+    const c = { ...o.cam }; ['cid', 'in', 'it', 'ilo', 'ihi', 'out', 'ot', 'olo', 'ohi', 'was', 'src', 'unc'].forEach(k => delete c[k]);
+    if(Object.keys(c).length) o.cam = c; else delete o.cam;
   } else if(a.do === 'remove'){ state.log = state.log.filter(e => e.id !== a.id); }
-  else if(a.do === 'unend'){
-    const o = find(a.id); if(!o) return;
-    const later = state.log.some(e => e.p === o.p && e.k === 'crate' && e.t > o.t && e.id !== o.id);
-    const c = { ...o.cam }; ['out', 'ot', 'olo', 'ohi', 'oset', 'osrc'].forEach(k => delete c[k]); o.cam = c;
-    if(!later) delete o.end;   // the camera no longer says she left (only if nothing came after)
+  else if(a.do === 'end'){
+    const o = find(a.id); if(!o || o.end != null) return; const x = a.ev;
+    leaveCrate(CAMJ_P, x.ts);
+    const n = find(a.id); if(n) n.cam = { ...(n.cam || {}), out: x.event_id, ot: x.ts, olo: x.lo, ohi: x.hi, osrc: x.source, ...ok };
+  } else if(a.do === 'start'){   // a caregiver approved a live entry: the session starts at the camera's time
+    const x = a.ev, id = 'cam:' + x.event_id; if(find(id)) return;
+    endGravel(CAMJ_P, x.ts);
+    const e = newStay(CAMJ_P, 'crate', x.ts); e.id = id; e.cam = { cid: id, in: x.event_id, it: x.ts, ilo: x.lo, ihi: x.hi, src: 'live_model', ...ok }; state.log.push(e);
+  } else if(a.do === 'resolve'){   // she picked a time inside a wide window: a session, still marked uncertain
+    const c = a.c, e = newStay(CAMJ_P, 'crate', a.t, c.end != null ? Math.max(c.end, a.t + 1) : undefined);
+    e.id = c.id; e.cam = { ...camjIn(c, 'owner_label'), ...camjOutF(c), unc: 1, ...ok }; state.log.push(e);
   }
 }
-// A caregiver changed or deleted entries (any commit not made by this module): protect / remember them.
+// A caregiver changed or deleted crate entries (any commit not made here): protect / remember.
 function camjHuman(a, b){
   const B = new Map(b.map(e => [e.id, e]));
   for(const o of a){
-    if(!o.cam || o.k === 'camx') continue;
+    if(o.p !== CAMJ_P || o.k !== 'crate') continue;
     const n = B.get(o.id);
-    if(!n){
-      for(const ev of [o.cam.in, o.cam.out]) if(ev && !b.some(e => e.id === 'camx:' + ev)) b.push({ id: 'camx:' + ev, p: o.p, k: 'camx', t: o.t, cam: { ev, why: 'deleted' }, by: me });
-      continue;
-    }
-    if(n.t !== o.t || n.end !== o.end || n.c !== o.c || n.k !== o.k) n.cam = { ...(n.cam || {}), h: 1 };
+    if(!n){ if(o.cam && o.cam.cid) camjDecide(o.cam.cid, 'deleted'); continue; }
+    if(n.t !== o.t || (o.end != null && n.end !== o.end)) n.cam = { ...(n.cam || {}), h: 1 };   // a correction, not just ending the timer
   }
 }
 function camjApply(){
   if(!CAMJ.ready || !serverSeen || !me || !PETS[CAMJ_P] || stale) return;
-  const { acts } = camjPlan(state.log, CAMJ.ev, Date.now());
+  const { acts } = camjPlan(state.log, Date.now());
   if(acts.length) commit('המצלמה עדכנה את הכלוב', () => acts.forEach(a => camjDo(a)), { quiet: true, cam: true });
 }
 function camjSub(){
-  if(CAMJ.unsub || document.hidden || Date.now() < CAMJ.retryAt || !fb || !fb.camDoc || !fb.auth || !fb.auth.currentUser) return;
-  CAMJ.unsub = fb.camDoc(camjDoc(), (d, cache) => {
+  if(document.hidden || Date.now() < CAMJ.retryAt || !fb || !fb.camDoc || !fb.auth || !fb.auth.currentUser) return;
+  if(!CAMJ.unsub) CAMJ.unsub = fb.camDoc(camjDoc(), (d, cache) => {
     if(!cache) camsUse(JSON.stringify(d || {}).length);
-    const v = camjValid(d); CAMJ.ev = v.ev; CAMJ.cov = v.cov; CAMJ.ready = !!d; camjApply(); camjPaint();
-  }, e => {
-    CAMJ.retryAt = Date.now() + (e && e.code === 'permission-denied' ? 3600000 : 60000);
-    if(CAMJ.unsub){ CAMJ.unsub(); CAMJ.unsub = null; }
-  });
+    const v = camjValid(d); CAMJ.ev = v.ev; CAMJ.cov = v.cov; CAMJ.doors = v.doors; CAMJ.ready = !!d; camjApply(); camjPaint();
+  }, e => { CAMJ.retryAt = Date.now() + (e && e.code === 'permission-denied' ? 3600000 : 60000); if(CAMJ.unsub){ CAMJ.unsub(); CAMJ.unsub = null; } });
+  if(!CAMJ.unsubF && MODE === 'live') CAMJ.unsubF = fb.camDoc('feedback', d => { CAMJ.fb = d && d.decisions && typeof d.decisions === 'object' ? d.decisions : {}; camjPaint(); }, () => { CAMJ.unsubF = () => {}; });   // no access yet: decisions stay on this device
 }
-function camjStop(){ if(CAMJ.unsub){ CAMJ.unsub(); CAMJ.unsub = null; } }
+function camjStop(){ if(CAMJ.unsub){ CAMJ.unsub(); CAMJ.unsub = null; } if(CAMJ.unsubF){ CAMJ.unsubF(); CAMJ.unsubF = null; } }
 document.addEventListener('visibilitychange', () => { if(document.hidden) camjStop(); else camjSub(); });
-setInterval(() => { if(!document.hidden){ camjSub(); camjApply(); } }, CAMJ_SEC);   // "lasted 10 min" depends on the clock
+setInterval(() => { if(!document.hidden){ camjSub(); camjApply(); } }, CAMJ_SEC);
 // Coverage: was the camera really watching the crate at t? null = no data for that time.
 function camjCov(t){
-  if(!CAMJ.ready || !CAMJ.cov.length) return null;
-  if(t < Math.min(...CAMJ.cov.map(r => r[0]))) return null;
+  if(!CAMJ.ready || !CAMJ.cov.length || t < Math.min(...CAMJ.cov.map(r => r[0]))) return null;
   return CAMJ.cov.some(r => r[0] <= t && t <= r[1]);
 }
 const camjWin = (lo, hi) => hi - lo >= 60000 ? ` (בין <bdi dir="ltr">${clock(lo)}</bdi> ל־<bdi dir="ltr">${clock(hi)}</bdi>)` : '';
-// The camera line of a crate entry (list rows and its sheet): source, time window, or why the camera has nothing.
-function camjNote(e, long){
+function camjNote(e, long){   // list rows and the entry's sheet
   if(e.k !== 'crate' || e.p !== CAMJ_P) return '';
   const c = e.cam || {};
-  if(e.id && e.id.startsWith('cam:')) return ` · מצלמה${c.src === 'live_model' ? ' (אושר)' : ''}${long ? camjWin(c.ilo, c.ihi) : ''}`;
-  if(c.in || c.out) return long ? ` · המצלמה ראתה גם${c.in ? ' כניסה ב־' + clock(c.it) : ''}${c.out ? ' יציאה ב־' + clock(c.ot) : ''}` : '';
-  if(!long) return '';
-  const cv = camjCov(e.t); return cv == null ? '' : cv ? ' · המצלמה לא זיהתה את הכניסה הזו' : ' · מחוץ לכיסוי המצלמה';
-}
-// Cards on Kishmish's screen: live events waiting for a caregiver, and camera times that differ from a manual entry.
-function camjCards(){
-  if(!CAMJ.ready || pet !== CAMJ_P) return [];
-  const now = Date.now(), out = [];
-  for(const pd of camjPlan(state.log, CAMJ.ev, now).pending) out.push({ type: 'pending', ...pd });
-  for(const e of state.log){
-    if(e.p !== CAMJ_P || e.k !== 'crate' || !e.cam || (e.id || '').startsWith('cam:')) continue;
-    const c = e.cam;
-    if(c.in && !c.fix && !c.keep && Math.abs(e.t - c.it) >= 60000 && now - c.it <= 24*3600000) out.push({ type: 'fix', id: e.id, side: 'in', at: c.it, was: e.t, lo: c.ilo, hi: c.ihi });
-    if(c.out && !c.ofix && !c.okeep && e.end != null && Math.abs(e.end - c.ot) >= 60000 && now - c.ot <= 24*3600000) out.push({ type: 'fix', id: e.id, side: 'out', at: c.ot, was: e.end, lo: c.olo, hi: c.ohi });
+  if(c.cid || c.in){
+    const src = (e.id || '').startsWith('cam:') ? (c.src === 'live_model' ? 'מצלמה (אושר)' : 'מצלמה') : c.was ? 'תוקן לפי המצלמה' : 'אושר במצלמה';
+    if(!long) return ` · ${src}${c.unc ? ' · שעה לא ודאית' : ''}`;
+    return ` · ${src}${camjWin(c.ilo, c.ihi)}${c.unc ? ' · שעה לא ודאית: לא נכנס לחישובי זמנים' : ''}${c.was ? ` · נרשם ידנית <bdi dir="ltr">${clock(c.was.t)}${c.was.end ? '–' + clock(c.was.end) : ''}</bdi>` : ''}`;
   }
-  return out;
+  if(!long) return '';
+  const cv = camjCov(e.t); return cv == null ? '' : cv ? ' · המצלמה לא זיהתה את השהייה הזו' : ' · מחוץ לכיסוי המצלמה';
 }
-function camjCardsHTML(p){
+// ----- the crate card's camera part (one component: image, now, door, journal, the one relevant action) -----
+function camjCamOk(){ const st = CAMS.status; return !!(st && typeof st.checked_at === 'number' && Date.now() - st.checked_at < CAMS_FRESH_MS); }
+function camjNowLine(){
+  const st = CAMS.status, cn = st && st.crate_now, now = Date.now();
+  if(!st) return '';
+  if(!camjCamOk()) return `<span class="cam-t cam-err">המצלמה לא מעדכנת מאז <bdi dir="ltr">${clock(st.checked_at)}</bdi> · רישום ידני למטה</span>`;
+  if(!cn || typeof cn.capture_ts !== 'number' || now - cn.capture_ts > 5*60000 || cn.status === 'unavailable') return `<span class="cam-t cam-dim">עכשיו: אין תמונה עדכנית</span>`;
+  const w = { positive: 'בכלוב', negative: 'לא בכלוב', uncertain: 'לא ברור' }[cn.status]; if(!w) return '';
+  return `<span class="cam-t">עכשיו לפי המצלמה: <b>${w}</b> <small class="cam-dim">(לא מאומת)</small></span>`;
+}
+function camjDoorLine(){
+  const now = Date.now(), d = camjDoorAt(now, now);
+  if(!CAMJ.ready && !d) return '';
+  return d ? `<span class="cam-t">דלת ${d.value === 'closed' ? 'סגורה' : 'פתוחה'} · מ־<bdi dir="ltr">${clock(d.from)}</bdi> <small class="cam-dim">סומן ידנית</small></span>` : `<span class="cam-t cam-dim">דלת: לא ידוע</span>`;
+}
+function camjTileHTML(p, inSession){
   if(p !== CAMJ_P) return '';
-  const cs = camjCards(); if(!cs.length) return '';
-  return `<div class="camj">${cs.map((c, i) => {
-    if(c.type === 'pending'){ const x = c.ev, entry = x.kind === 'crate_entry';
-      return `<div class="card slim camjc"><span><b>המצלמה: ${entry ? 'נכנסה לכלוב' : 'יצאה מהכלוב'} ב־<bdi dir="ltr">${clock(x.ts)}</bdi>?</b><small>זיהוי אוטומטי, עוד לא נבדק${camjWin(x.lo, x.hi)} · נרשם רק אם מאשרים</small></span>
-        <span class="rt-a"><button class="go" data-camj="ok" data-i="${i}">אישור</button><button class="btn" data-camj="no" data-i="${i}">לא נכון</button></span></div>`; }
-    return `<div class="card slim camjc"><span><b>המצלמה רשמה ${c.side === 'in' ? 'כניסה' : 'יציאה'} ב־<bdi dir="ltr">${clock(c.at)}</bdi></b><small>נרשם ידנית ב־<bdi dir="ltr">${clock(c.was)}</bdi>${camjWin(c.lo, c.hi)} · לתקן את השעה?</small></span>
-      <span class="rt-a"><button class="go" data-camj="fix" data-i="${i}">לשעת המצלמה</button><button class="btn" data-camj="keep" data-i="${i}">להשאיר</button></span></div>`;
-  }).join('')}</div>`;
+  const now = Date.now(), { rv } = CAMJ.ready ? camjPlan(state.log, now) : { rv: null };
+  let act = '';
+  const lv = rv && rv.live[0];
+  if(lv){ const x = lv.ev, end = lv.kind === 'end';
+    act = `<div class="camjt"><span><b>${end ? 'המצלמה: יצאה מהכלוב' : 'המצלמה: נכנסה לכלוב'} ב־<bdi dir="ltr">${clock(x.ts)}</bdi></b><small>זיהוי אוטומטי, לא מאומת${camjWin(x.lo, x.hi)}${end ? ' · אישור מסיים את השהייה' : ' · שהייה מתחילה רק אם סגרת את הדלת'}</small></span>
+      <span class="rt-a"><button class="go" data-camj="${end ? 'end' : 'start'}">${end ? 'אישור' : 'שהייה מ־' + clock(x.ts)}</button><button class="btn" data-camj="reject">לא נכון</button></span></div>`; }
+  const n = rv ? { im: rv.imported.filter(r => !r.e || now - r.c.t < DAY).length, mt: rv.matched.filter(r => now - r.c.t < DAY).length, vi: rv.visits.filter(r => now - r.s.from < DAY).length, rs: rv.resolve.length } : null;
+  const sum = n && (n.im + n.mt + n.vi + n.rs) ? `<button class="lnk camj-rv" data-camj="review">מהמצלמה ב־24 שעות: ${[n.im ? `${n.im} שהיות נרשמו` : '', n.mt ? `${n.mt} אומתו` : '', n.vi ? `${n.vi} ביקורים` : '', n.rs ? `<b>${n.rs} לבירור</b>` : ''].filter(Boolean).join(' · ')}</button>` : '';
+  const lines = [camjNowLine(), camjDoorLine()].filter(Boolean).join('');
+  return `<div class="camjb">${camCardHTML(p)}${lines ? `<div class="camj-lines">${lines}</div>` : ''}${act}${sum}</div>`;
+}
+// ----- the review view: what was imported, matched, left as a visit, needs her, was rejected; and the saving -----
+function camjReview(){
+  const now = Date.now(), { rv } = camjPlan(state.log, now), when = (a, b) => `<bdi dir="ltr">${clock(a)}${b ? '–' + clock(b) : ''}</bdi>${dayLabel(a) === 'היום' ? '' : ' · ' + dayLabel(a)}`;
+  const sec = (title, rows, note) => rows.length ? `<div class="sub" style="margin:14px 0 6px"><b>${title}</b>${note ? ` · ${note}` : ''}</div>${rows.join('')}` : '';
+  const row = (txt, btns) => `<div class="cjr"><span>${txt}</span>${btns || ''}</div>`;
+  const wk = state.log.filter(e => e.p === CAMJ_P && e.k === 'crate' && now - e.t < 7*DAY);
+  const fromCam = wk.filter(e => (e.id || '').startsWith('cam:')).length, fixed = wk.filter(e => !(e.id || '').startsWith('cam:') && e.cam && e.cam.was).length, manual = wk.length - fromCam;
+  const resolveRows = rv.resolve.map((r, i) => r.c
+    ? row(`${r.why === 'overlap' ? 'חופף לשהייה שכבר רשומה' : 'שעה לא ודאית'}: ${when(r.c.t, r.c.end)}${camjWin(r.c.ilo, r.c.ihi)}<small>${r.why === 'overlap' ? 'לא נרשם, כדי לא ליצור כפילות' : 'החלון רחב מ־15 דק׳, לכן לא נרשם כשעה מדויקת. אפשר לבחור שעה בתוכו'}</small>`,
+        r.why === 'wide' ? `<span class="rt-a"><input type="time" class="cj-t" data-i="${i}" min="${clock(r.c.ilo)}" max="${clock(r.c.ihi)}"><button class="btn" data-cjr="pick" data-i="${i}">לרשום</button><button class="lnk" data-cjr="dismiss" data-i="${i}">להשאיר כתצפית</button></span>` : `<span class="rt-a"><button class="lnk" data-cjr="dismiss" data-i="${i}">להשאיר כתצפית</button></span>`)
+    : row(`יציאה בשעה לא ודאית${camjWin(r.x.lo, r.x.hi)}<small>השהייה נשארת פתוחה עד שתסיימי אותה</small>`));
+  sh.innerHTML = `<div class="cam-sheet"><h3>מהמצלמה · כלוב <small class="cam-x">ניסיוני</small></h3>
+    <div class="sub">השבוע: <b>${fromCam}</b> שהיות נרשמו מהמצלמה, <b>${fixed}</b> תוקנו לפי המצלמה, ${manual - fixed} ידנית בלבד.</div>
+    ${sec('נרשמו אוטומטית', rv.imported.map(r => row(`שהייה ${when(r.c.t, r.c.end)}${camjWin(r.c.ilo, r.c.ihi)}<small>מהתיוג שלך, דלת סגורה${r.c.byEntry ? '' : ' (מרגע סגירת הדלת)'}</small>`)))}
+    ${sec('אומתו מול רישום ידני', rv.matched.map(r => row(`שהייה ${when(r.e.t, r.e.end)}${r.e.cam && r.e.cam.was ? `<small>תוקן מ־${when(r.e.cam.was.t, r.e.cam.was.end)}</small>` : '<small>השעה הידנית נשמרה</small>'}`)))}
+    ${sec('לבירור', resolveRows)}
+    ${sec('ביקורים (לא נרשמים ביומן)', rv.visits.map(r => row(`${when(r.s.from, r.s.to)}<small>${r.door === 'open' ? 'דלת פתוחה' : r.dismissed ? 'הושאר כתצפית' : 'מצב הדלת לא ידוע'} · לא משפיע על השגרה או השינה</small>`)))}
+    ${rv.liveMore ? `<div class="sub" style="margin-top:14px">${rv.liveMore} זיהויים אוטומטיים נוספים לא נבדקו. הם לא משנים כלום ביומן.</div>` : ''}
+    ${sec('זיהויים שסומנו "לא נכון"', rv.rejected.map(e => row(`${e.kind === 'crate_entry' ? 'כניסה' : 'יציאה'} ${when(e.ts)}<small>נשמר כדוגמה שגויה לבדיקת המודל</small>`)))}
+    <div class="foot"><button class="btn" id="camX">סגירה</button></div></div>`;
+  sh.querySelector('#camX').onclick = close;
+  sh.querySelectorAll('[data-cjr]').forEach(b => b.onclick = () => {
+    const r = rv.resolve[+b.dataset.i]; if(!r || !r.c) return;
+    if(b.dataset.cjr === 'dismiss'){ camjDecide(r.c.id, 'dismissed'); close(); render(); return; }
+    const v = sh.querySelector(`.cj-t[data-i="${b.dataset.i}"]`).value; if(!v) return;
+    const [hh, mm] = v.split(':').map(Number), d = new Date(r.c.ilo); d.setHours(hh, mm, 0, 0); let t = d.getTime(); if(t < r.c.ilo - 60000) t += DAY;
+    if(t < r.c.ilo - 60000 || t > r.c.ihi + 60000) return;
+    close(); commit(`${PETS[CAMJ_P].name} · שהייה נרשמה (שעה לא ודאית)`, () => camjDo({ do: 'resolve', c: r.c, t }, me), { cam: true });
+  });
+  bg.classList.add('show');
 }
 let camjLast = '';
-function camjPaint(){ const h = camjCardsHTML(pet); if(h === camjLast) return; camjLast = h; if(pet === CAMJ_P && view === 'now') render(); }   // only when the cards really changed
+function camjPaint(){ const h = pet === CAMJ_P ? camjTileHTML(pet) : ''; if(h === camjLast) return; camjLast = h; if(pet === CAMJ_P && view === 'now') render(); }
 document.addEventListener('click', e => {
   const b = e.target.closest && e.target.closest('[data-camj]'); if(!b) return;
-  const c = camjCards()[+b.dataset.i]; if(!c) return;
-  const nm = PETS[CAMJ_P].name, act = b.dataset.camj;
-  if(c.type === 'pending'){
-    const x = c.ev, entry = x.kind === 'crate_entry';
-    if(act === 'ok') commit(`${nm} · ${entry ? ITEMS.crate.start : ITEMS.crate.stop} (מצלמה, אושר)`, () => camjDo(entry ? { do: 'create', ev: x, out: null } : { do: 'end', id: c.stay, ev: x }, me), { cam: true });
-    else commit(`${nm} · זיהוי המצלמה נדחה`, () => camjDo({ do: 'reject', ev: x, why: 'rejected' }, me), { cam: true });
-  } else {
-    commit(`${nm} · ${act === 'fix' ? 'השעה תוקנה לפי המצלמה' : 'השעה נשארה'}`, () => {
-      const o = state.log.find(z => z.id === c.id); if(!o) return;
-      if(act === 'fix'){ if(c.side === 'in') o.t = c.at; else o.end = Math.max(c.at, o.t + 1); }
-      o.cam = { ...o.cam, [c.side === 'in' ? (act === 'fix' ? 'fix' : 'keep') : (act === 'fix' ? 'ofix' : 'okeep')]: 1 };
-    }, { cam: true });
-  }
+  const act = b.dataset.camj, nm = PETS[CAMJ_P].name;
+  if(act === 'review'){ camjReview(); return; }
+  const lv = camjPlan(state.log, Date.now()).rv.live[0]; if(!lv) return;
+  const x = lv.ev;
+  if(act === 'reject'){ camjDecide(x.event_id, 'rejected'); camjLast = ''; render(); showToast(`${nm} · זיהוי המצלמה סומן "לא נכון"`); return; }
+  camjDecide(x.event_id, 'approved');
+  if(act === 'end') commit(`${nm} · ${ITEMS.crate.stop} (מצלמה, אושר)`, () => camjDo({ do: 'end', id: lv.stay, ev: x }, me), { cam: true });
+  else commit(`${nm} · ${ITEMS.crate.start} (מצלמה, אושר)`, () => camjDo({ do: 'start', ev: x }, me), { cam: true });
 });
-// A manual crate tap while the camera has an unapproved event within 10 min: one entry, at the time she chooses.
+// A manual crate tap while the camera saw the same thing within 10 min: one entry, at the time she chooses.
 function camjNearPending(entry){
   if(!CAMJ.ready) return null;
-  const now = Date.now();
-  // here a fresh event counts at once: she is tapping right now, so it is no short visit to wait out
-  const seen = camjSeen(state.log.filter(e => e.p === CAMJ_P)), sup = new Set(CAMJ.ev.map(e => e.supersedes).filter(Boolean));
-  const x = CAMJ.ev.filter(e => e.status === 'active' && !seen.has(e.event_id) && !sup.has(e.event_id) && (e.kind === 'crate_entry') === entry && Math.abs(now - e.ts) <= CAMJ_MATCH).sort((a, b) => b.ts - a.ts)[0];
-  if(!x) return null;
-  const open = state.log.filter(e => e.p === CAMJ_P && e.k === 'crate' && e.end == null && e.t < x.ts).sort((a, b) => a.t - b.t).pop();
-  return entry ? { ev: x } : open ? { ev: x, stay: open.id } : null;
+  const now = Date.now(), lv = camjPlan(state.log, now).rv.live[0];
+  return lv && (lv.kind === 'start') === entry && now - lv.ev.ts <= CAMJ_LATE && lv.ev.ts - now <= CAMJ_MATCH ? lv : null;
 }
-function camjAsk(pd, manual){
-  const x = pd.ev, entry = x.kind === 'crate_entry', nm = PETS[CAMJ_P].name;
+function camjAsk(lv, manual){
+  const x = lv.ev, entry = lv.kind === 'start', nm = PETS[CAMJ_P].name;
   sheet(`${nm} · ${entry ? ITEMS.crate.start : ITEMS.crate.stop}`, `<div class="sub">המצלמה זיהתה ${entry ? 'כניסה' : 'יציאה'} ב־<bdi dir="ltr">${clock(x.ts)}</bdi>${camjWin(x.lo, x.hi)}. לפי איזו שעה לרשום?</div>
-    <div class="chips"><button id="cjCam">לפי המצלמה (<bdi dir="ltr">${clock(x.ts)}</bdi>)</button><button id="cjNow">לפי עכשיו</button></div>`, cancelBtn, null);
-  sh.querySelector('#cjCam').onclick = () => { close(); commit(`${nm} · ${entry ? ITEMS.crate.start : ITEMS.crate.stop} (מצלמה, אושר)`, () => camjDo(entry ? { do: 'create', ev: x, out: null } : { do: 'end', id: pd.stay, ev: x }, me), { cam: true }); };
-  sh.querySelector('#cjNow').onclick = () => { close(); manual(x); };
+    <div class="chips"><button id="cjCam" class="sel">לפי המצלמה (<bdi dir="ltr">${clock(x.ts)}</bdi>) · מומלץ</button><button id="cjNow">לפי עכשיו</button></div>`, cancelBtn, null);
+  sh.querySelector('#cjCam').onclick = () => { close(); camjDecide(x.event_id, 'approved'); commit(`${nm} · ${entry ? ITEMS.crate.start : ITEMS.crate.stop} (מצלמה, אושר)`, () => camjDo(entry ? { do: 'start', ev: x } : { do: 'end', id: lv.stay, ev: x }, me), { cam: true }); };
+  sh.querySelector('#cjNow').onclick = () => { close(); camjDecide(x.event_id, 'approved'); manual(x); };
   const cc = sh.querySelector('#cancel'); if(cc) cc.onclick = close;
   bg.classList.add('show');
 }
@@ -3535,7 +3637,7 @@ function camsSub(){
     if(!cache && camsUse(camsSize(d) + 600) >= CAMS_DAY_BYTES){ CAMS.stopped = true; camsUnsub(); }
     CAMS.doc = camsValid(d); camsPaint();
   }, fail);
-  CAMS.unsubS = fb.camDoc('status', (d, cache) => { if(!cache) camsUse(400); CAMS.status = d && typeof d.checked_at === 'number' ? d : null; camsPaint(); }, fail);
+  CAMS.unsubS = fb.camDoc('status', (d, cache) => { if(!cache) camsUse(400); CAMS.status = d && typeof d.checked_at === 'number' ? d : null; camsPaint(); camjPaint(); }, fail);
 }
 function camsUnsub(){ clearTimeout(CAMS.idle); CAMS.idle = null; if(CAMS.unsub){ CAMS.unsub(); CAMS.unsub = null; } if(CAMS.unsubS){ CAMS.unsubS(); CAMS.unsubS = null; } }
 function camsSeen(on){   // on screen and visible -> listen; otherwise stop after a minute (no re-download when scrolling past)
@@ -3544,7 +3646,7 @@ function camsSeen(on){   // on screen and visible -> listen; otherwise stop afte
 }
 function camsWatch(){   // after every render: watch the card (or its empty slot)
   if(CAMS.io){ CAMS.io.disconnect(); CAMS.io = null; }
-  const el = document.querySelector('#side .camc'); if(!el || !fb || !fb.camDoc){ camsSeen(false); return; }   // either card (or the slot) on screen
+  const el = document.querySelector('.camc'); if(!el || !fb || !fb.camDoc){ camsSeen(false); return; }   // either card (or the slot) on screen
   if(typeof IntersectionObserver === 'undefined'){ camsSeen(true); return; }
   const r = el.getBoundingClientRect(); if(r.bottom > 0 && r.top < innerHeight) camsSeen(true);   // on screen now: do not wait for the observer
   CAMS.io = new IntersectionObserver(es => camsSeen(es.some(e => e.isIntersecting))); CAMS.io.observe(el);
@@ -3570,7 +3672,7 @@ function camsCardHTML(){
       ${look}${cap}</span></div>`;
 }
 function camsPaint(){
-  const el = document.querySelector('#side .camc'); if(!el) return;
+  const el = document.querySelector('.camc'); if(!el) return;
   const t = document.createElement('div'); t.innerHTML = camCardHTML(pet); const n = t.firstElementChild;
   if(n) el.replaceWith(n); else el.remove();
   camsWatch();
@@ -3792,7 +3894,7 @@ function render(){
 
   // Alerts, the retry card and the wheel live in the side column: on a computer it stays in place while
   // the tiles scroll; on a phone it is simply the top of the page.
-  let sideHTML = P.cycle ? alertsHTML(pet) + camjCardsHTML(pet) + adviceHTML(pet) + camCardHTML(pet) + sleepAskHTML(pet) + stillAsleepHTML(pet) + (V2 ? scoresHTML(pet) : '') + cycleHTML(pet) : '';
+  let sideHTML = P.cycle ? alertsHTML(pet) + adviceHTML(pet) + (pet === CAMJ_P ? '' : camCardHTML(pet)) + sleepAskHTML(pet) + stillAsleepHTML(pet) + (V2 ? scoresHTML(pet) : '') + cycleHTML(pet) : '';
 
   const tap = P.cycle ? routineTap(pet) : [];
   // the "טיפוח" group (owner, 25.11): compact tiles side by side, not a tall column, in the order of how often each is
@@ -3848,9 +3950,10 @@ function render(){
       h += `<div class="card item ${nowt} ${live?'live':''} ${k==='cry' || over?'cry':''} ${warn?'warn':''}">
         <div class="ic">${ico(k)}</div>
         <div><div class="lbl">${lbl}</div>${big}<div class="sub">${sub}</div>${V2 && k === 'sleep' && !live && P.cycle ? gaugeHTML(sleepWindow(pet), 'לשינה', 'ערה מ־') : ''}${V2 && k === 'sleep' && P.cycle ? sleepGoalHTML(pet) : ''}</div>
-        <div class="acts">${k === 'crate' && P.cycle ? `<details class="cr-more"><summary>עוד · רישום ידני</summary><div class="acts">` : ''}<button class="go" data-act="dur" data-k="${k}">${live?it.stop:it.start}</button>
-          <button class="ghost" data-act="edit" data-k="${k}">${ico(live?'clock':'plus','s')}${live?'שעת התחלה':'הוספה'}</button>${k === 'crate' && P.cycle ? '</div></details>' : ''}${k === 'sleep' && live && P.cycle ? `<button class="ghost" data-act="notasleep">${ico('none','s')}לא נרדמה</button>` : ''}${k === 'crate' && live && P.cycle ? `<button class="ghost" data-act="swap">${ico('crate','s')}החלפת כלוב</button>` : ''}</div>
+        <div class="acts">${k === 'crate' && P.cycle && pet === CAMJ_P && camjCamOk() ? `<details class="cr-more"><summary>עוד · רישום ידני</summary><div class="acts">` : ''}<button class="go" data-act="dur" data-k="${k}">${live?it.stop:it.start}</button>
+          <button class="ghost" data-act="edit" data-k="${k}">${ico(live?'clock':'plus','s')}${live?'שעת התחלה':'הוספה'}</button>${k === 'crate' && P.cycle && pet === CAMJ_P && camjCamOk() ? '</div></details>' : ''}${k === 'sleep' && live && P.cycle ? `<button class="ghost" data-act="notasleep">${ico('none','s')}לא נרדמה</button>` : ''}${k === 'crate' && live && P.cycle ? `<button class="ghost" data-act="swap">${ico('crate','s')}החלפת כלוב</button>` : ''}</div>
         ${k === 'crate' && live && P.cycle && !slim ? `<div class="incr"><span>קיבלה בכלוב:</span><button class="btn" data-act="play" data-k="kong">${PLAY.kong}</button><button class="btn" data-act="play" data-k="lick">${PLAY.lick}</button><button class="btn" data-act="crfood">ארוחה</button></div>` : ''}
+        ${k === 'crate' && P.cycle && !slim ? camjTileHTML(pet, live) : ''}
         ${k === 'crate' && P.cycle ? crateExtrasHTML(pet, slim) : ''}
         ${k === 'sleep' && !live && P.cycle ? newCrateHint(pet) : ''}</div>`;
     }
@@ -3891,7 +3994,7 @@ function render(){
 waterRowHTML(pet) + (P.treats ? treatCardHTML(pet) : ''), 'food');
     if(P.bath) h += sec('', 'טיפוח', false, groomTiles(), 'bath');
     // Sleep and crying sit right under the wheel, always at hand: in the crate she is either asleep or crying.
-    if(pottyTop) sideHTML = alertsHTML(pet) + camjCardsHTML(pet) + adviceHTML(pet) + camCardHTML(pet) + sleepAskHTML(pet) + stillAsleepHTML(pet) + pottySec + (V2 ? scoresHTML(pet) : '') + cycleHTML(pet);
+    if(pottyTop) sideHTML = alertsHTML(pet) + adviceHTML(pet) + (pet === CAMJ_P ? '' : camCardHTML(pet)) + sleepAskHTML(pet) + stillAsleepHTML(pet) + pottySec + (V2 ? scoresHTML(pet) : '') + cycleHTML(pet);
     sideHTML += `<section class="duo" id="sec-rest">${tileOf('sleep')}${tileOf('cry')}</section>`;
   }
 
