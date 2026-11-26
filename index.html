@@ -744,6 +744,7 @@
   .crcam .cam-th{display:block;width:100%;aspect-ratio:auto;max-height:none;height:auto;border-radius:12px;overflow:hidden} .crcam .cam-th img{width:100%;height:auto;display:block}
   .crcam-ov{position:absolute;inset-inline-end:8px;bottom:8px;display:flex;align-items:center;gap:6px;padding:3px 6px 3px 10px;border-radius:999px;background:rgba(20,16,12,.58);color:#fff;font-size:12.5px;line-height:1}
   .crcam-ov .icob{color:#fff;font-size:15px;padding:2px 4px;line-height:1}
+  .big .rng{font-size:.6em;color:var(--muted);margin:0 4px;vertical-align:middle}
   .crcam-l{font-size:12.5px;color:var(--muted)} .crcam .camjt{margin-top:0;padding:10px 12px;border-radius:12px} .crcam .camjt small{font-size:12.5px}
   .camblk{padding:12px;display:flex;flex-direction:column;gap:10px} .camblk .camj-rv{font-size:13.5px;text-align:start}
   .nowcam .card.camc{box-shadow:none;border:0;background:none;padding:0;margin:0;cursor:pointer} .nowcam .cam-b{display:none} .nowcam .cam-th{aspect-ratio:16/9;max-height:none;border-radius:14px}
@@ -2597,6 +2598,14 @@ function isPhone(){ return FAKE_PHONE != null ? FAKE_PHONE : !(PHONE_MQ && PHONE
 // Time in the crate is not sleep by itself: in a crate where nothing is estimated she can be awake in it for an
 // hour, and the timer must say so (24.11). Only when no sleep is known at all does the end of her last ordinary
 // crate stay stand in. 0 while she is asleep.
+// When she woke is known only as a window (her last "asleep" mark .. the first entry that shows her awake): {lo, hi},
+// else null. Timing logic keeps using `awakeSince` (= lo, the earliest possible waking: never a made-up moment);
+// the screen shows the range.
+function wakeWin(p){
+  const aw = awakeSince(p); if(!aw) return null;
+  const s = state.log.find(e => e.p === p && e.k === 'sleep' && e.end === aw && e.cam && typeof e.cam.ohi === 'number' && e.cam.ohi > aw + 60000);
+  return s ? { lo: aw, hi: Math.min(s.cam.ohi, Date.now()) } : null;
+}
 function awakeSince(p){
   const S = V[p], now = Date.now(); if(S.sleep.start) return 0;
   const rs = new Set(state.log.filter(e => e.p===p && isRetryStay(e)).map(e => e.id));
@@ -3514,6 +3523,8 @@ function camjPlan(log, now){
   else { const x = undecided.filter(e => e.kind === 'crate_entry' && now - e.ts <= CAMJ_TTL && !sess.some(s => Math.abs(s.t - e.ts) <= CAMJ_MATCH || (s.t <= e.ts && (s.end == null || s.end >= e.ts)))).sort(byTs).pop();
     if(x) rv.live.push({ ev: x, kind: 'start' }); }
   rv.liveMore = Math.max(0, undecided.length - rv.live.length);
+  rv.pending = CAMJ.ev.filter(e => e.status === 'active' && e.source === 'live_model' && e.kind === 'crate_entry' && !sup.has(e.event_id) && !e.disputed_by_labels && !camjDec(e.event_id)
+    && !sess.some(s => Math.abs(s.t - e.ts) <= CAMJ_MATCH || (s.t <= e.ts && (s.end == null || s.end >= e.ts)))).sort((a, b) => b.ts - a.ts);
   return { acts, rv };
 }
 const camjIn = (c, src) => ({ cid: c.id, in: c.s.e.event_id, it: c.t, ilo: c.ilo, ihi: c.ihi, src, ...(c.unc ? { unc: 1 } : {}) });
@@ -3552,7 +3563,9 @@ function camjDo(a, who){   // inside a commit's mutate
   } else if(a.do === 'start'){   // a caregiver approved a live entry: the session starts at the camera's time
     const x = a.ev, id = 'cam:' + x.event_id; if(find(id)) return;
     endGravel(CAMJ_P, x.ts);
-    const o = camjOutAfter(x.ts), e = newStay(CAMJ_P, 'crate', x.ts, o ? Math.max(o.t, x.ts + 1) : undefined);   // she was taken out since: the stay ends there
+    const o = camjOutAfter(x.ts), xo = !a.retro ? null : CAMJ.ev.filter(z => z.status === 'active' && z.kind === 'crate_exit' && z.ts > x.ts && !(camjDec(z.event_id) && camjDec(z.event_id).d === 'rejected')).sort(byTs)[0];
+    const endAt = [o && o.t, xo && xo.ts].filter(v => v != null).sort((a, b) => a - b)[0];
+    const e = newStay(CAMJ_P, 'crate', x.ts, endAt != null && endAt < Date.now() - 60000 ? Math.max(endAt, x.ts + 1) : undefined);   // she was taken out since: the stay ends there
     e.id = id; e.cam = { cid: id, in: x.event_id, it: x.ts, ilo: x.lo, ihi: x.hi, src: 'live_model', ...ok }; state.log.push(e);
   } else if(a.do === 'screate'){
     const c = a.c; if(find(c.id)) return;
@@ -3629,11 +3642,12 @@ function camjDoorLine(){
 // The one camera action that matters right now (a live entry / exit to approve), for the Now card.
 function camjActHTML(){
   if(!CAMJ.ready) return '';
-  const lv = camjPlan(state.log, Date.now()).rv.live[0]; if(!lv) return '';
+  const pl = camjPlan(state.log, Date.now()).rv, lv = pl.live[0]; if(!lv) return '';
+  const more = (pl.pending || []).length - 1;
   const x = lv.ev, end = lv.kind === 'end';
   const o = !end ? camjOutAfter(x.ts) : null;
   return `<div class="camjt"><span><b>${end ? `יצאה מהכלוב ב־<bdi dir="ltr">${clock(x.ts)}</bdi>?` : o ? `הייתה בכלוב <bdi dir="ltr">${clock(x.ts)}–${clock(o.t)}</bdi>?` : `נכנסה לכלוב ב־<bdi dir="ltr">${clock(x.ts)}</bdi>?`}</b><small>זיהוי מצלמה</small></span>
-    <span class="rt-a"><button class="go" data-camj="${end ? 'end' : 'start'}">${end ? 'אישור' : o ? 'אישור' : 'שהייה מ־' + clock(x.ts)}</button><button class="btn" data-camj="reject">לא נכון</button></span></div>`;
+    <span class="rt-a"><button class="go" data-camj="${end ? 'end' : 'start'}">${end ? 'אישור' : o ? 'אישור' : 'שהייה מ־' + clock(x.ts)}</button><button class="btn" data-camj="reject">לא נכון</button></span></div>${more > 0 ? `<button class="lnk camj-rv" data-camj="review">עוד ${more} זיהויים לאישור</button>` : ''}`;
 }
 // In the crate card: one quiet link to what the camera did (details on demand).
 function camjTileHTML(p){
@@ -3673,12 +3687,15 @@ function camjReview(){
     ${sec('אומתו מול רישום ידני', rv.matched.map(r => row(`שהייה ${when(r.e.t, r.e.end)}${r.e.cam && r.e.cam.was ? `<small>תוקן מ־${when(r.e.cam.was.t, r.e.cam.was.end)}</small>` : '<small>השעה הידנית נשמרה</small>'}`)))}
     ${sec('לבירור', resolveRows)}
     ${sec('ביקורים (לא נרשמים ביומן)', rv.visits.map(r => row(`${when(r.s.from, r.s.to)}<small>${r.door === 'open' ? 'דלת פתוחה' : r.dismissed ? 'הושאר כתצפית' : 'מצב הדלת לא ידוע'} · לא משפיע על השגרה או השינה</small>`)))}
-    ${rv.liveMore ? `<div class="sub" style="margin-top:14px">${rv.liveMore} זיהויים אוטומטיים נוספים לא נבדקו. הם לא משנים כלום ביומן.</div>` : ''}
+    ${sec('זיהויים לאישור', (rv.pending || []).map(e => row(`נכנסה לכלוב ${when(e.ts)}<small>זיהוי מצלמה · לא נרשם עד שמאשרים</small>`, `<span class="rt-a"><button class="go" data-cjp="ok" data-ev="${e.event_id}">אישור</button><button class="btn" data-cjp="no" data-ev="${e.event_id}">לא נכון</button></span>`)))}
     ${sec('לבדיקה, לא חובה', (rv.optional || []).map(c => c.sleepDiff ? row(`שינה שרשמת: ${when(state.log.find(e => e.id === c.sleepDiff.id).t, state.log.find(e => e.id === c.sleepDiff.id).end)}<small>לפי התיוג שלך ישנה גם ${c.sleepDiff.before ? 'לפני השעה שרשמת' : ''}${c.sleepDiff.before && c.sleepDiff.after ? ' ו' : ''}${c.sleepDiff.after ? 'אחרי השעה שרשמת' : ''} · שני הרישומים נשמרים</small>`) : row(`נראתה ישנה ב־${when(c.t)}${camjWin(c.ilo, c.ohi != null ? c.ohi : c.ihi)}<small>נרשם כשינה לא ודאית · לא נכנס לחישובי זמנים</small>`, `<span class="rt-a"><button class="lnk" data-cjo="${c.id}">זו לא הייתה שינה</button></span>`)))}
     ${sec('זיהויים במחלוקת', (rv.disputed || []).map(e => row(`${e.kind === 'crate_entry' ? 'כניסה' : 'יציאה'} ${when(e.ts)}<small>התיוג שלך לפני ואחרי סותר אותו · לא נרשם</small>`)))}
     ${sec('זיהויים שסומנו "לא נכון"', rv.rejected.map(e => row(`${e.kind === 'crate_entry' ? 'כניסה' : 'יציאה'} ${when(e.ts)}<small>נשמר כדוגמה שגויה לבדיקת המודל</small>`)))}
     <div class="foot"><button class="btn" id="camX">סגירה</button></div></div>`;
   sh.querySelector('#camX').onclick = close;
+  sh.querySelectorAll('[data-cjp]').forEach(b => b.onclick = () => { const x = CAMJ.ev.find(e => e.event_id === b.dataset.ev); if(!x) return;
+    if(b.dataset.cjp === 'no'){ camjDecide(x.event_id, 'rejected'); camjReview(); render(); return; }
+    camjDecide(x.event_id, 'approved'); commit(`${PETS[CAMJ_P].name} · ${ITEMS.crate.start} (מצלמה, אושר)`, () => camjDo({ do: 'start', ev: x, retro: true }, me), { cam: true }); camjReview(); });   // retrospective: it ends at the exit the camera saw after it
   sh.querySelectorAll('[data-cjo]').forEach(b => b.onclick = () => { const id = b.dataset.cjo; camjDecide(id, 'dismissed'); close(); if(state.log.some(e => e.id === id)) commit(`${PETS[CAMJ_P].name} · סימון השינה הוסר`, () => { state.log = state.log.filter(e => e.id !== id); }, { cam: true }); else render(); });
   sh.querySelectorAll('[data-cjr]').forEach(b => b.onclick = () => {
     const r = rv.resolve[+b.dataset.i]; if(!r || !r.c) return;
@@ -3823,7 +3840,8 @@ function crateCamRowHTML(p){
   const st = CAMS.status, cn = st && st.crate_now, now = Date.now(), priv = camBase() && (CAM.st === 'ok' || CAM.st === 'stale');
   const shot = priv ? CAM.data && CAM.data.ls && CAM.data.ls.capture_ts : CAMS.doc && CAMS.doc.capture_ts;
   const fresh = cn && typeof cn.capture_ts === 'number' && now - cn.capture_ts <= 5*60000;
-  const line = st && !camjCamOk() ? `המצלמה לא מעדכנת מאז <bdi dir="ltr">${clock(st.checked_at)}</bdi>`
+  const pe = camjPlan(state.log, now).rv.live[0], older = pe && shot && shot < pe.ev.ts - 60000;
+  const line = st && !camjCamOk() ? `המצלמה לא מעדכנת מאז <bdi dir="ltr">${clock(st.checked_at)}</bdi>` : older ? `התמונה מ־<bdi dir="ltr">${clock(shot)}</bdi>, לפני הזיהוי ב־<bdi dir="ltr">${clock(pe.ev.ts)}</bdi>`
     : fresh && cn.status === 'negative' && camjOccNow(p) ? 'המודל לא מזהה אותה, לפי התיוג שלך היא בכלוב' : '';
   return `<div class="crcam"><div class="crcam-img">${card}<div class="crcam-ov">${shot ? `<span>נראתה <bdi dir="ltr">${clock(shot)}</bdi></span>` : ''}<button class="icob" data-act="camrefresh" aria-label="רענון">↻</button></div></div>${line ? `<div class="crcam-l">${line}</div>` : ''}${camjActHTML() || camjDoorAskHTML(p)}</div>`;
 }
@@ -4173,9 +4191,11 @@ function render(){
         sub = `מ־${clock(d.start)}` + (d.assumed ? ' · לפי הנחה' : '') + (k === 'sleep' && !d.assumed && sinceCrate(pet, d.start) != null ? ` · ${sinceCrate(pet, d.start) < 60000 ? 'מיד' : words(sinceCrate(pet, d.start))} אחרי הכניסה לכלוב` : '');
 
       } else if(k === 'sleep' && aw && Date.now() - aw < 6*3600000){   // awake: how long for — it is what decides when she goes back to sleep
+        const ww = P.cycle ? wakeWin(pet) : null;
         lbl = 'ערה כבר';
-        big = `<div class="big" data-since="${aw}">${dur(Date.now()-aw)}</div>`;
-        sub = `מ־${clock(aw)}` + (d.lastEnd ? ` · ישנה לאחרונה ${words(d.lastEnd-d.lastStart)}` : '');
+        big = ww ? `<div class="big"><span data-since="${ww.hi}">${dur(Date.now()-ww.hi)}</span><small class="rng">–</small><span data-since="${ww.lo}">${dur(Date.now()-ww.lo)}</span></div>`
+          : `<div class="big" data-since="${aw}">${dur(Date.now()-aw)}</div>`;
+        sub = (ww ? `התעוררה בין <bdi dir="ltr">${clock(ww.lo)}</bdi> ל־<bdi dir="ltr">${clock(ww.hi)}</bdi>` : `מ־${clock(aw)}`) + (d.lastEnd ? ` · ישנה לאחרונה ${words(d.lastEnd-d.lastStart)}` : '');
       } else if(d.lastEnd){
         lbl = it.lbl;
         big = `<div class="big txt">${words(d.lastEnd-d.lastStart)}</div>`;
@@ -4384,7 +4404,7 @@ function cycleHTML(p){
     ${V2 ? flowHTML(cls, centre) : `<div class="steps"><svg class="ring" viewBox="0 0 200 200" aria-hidden="true">${segs}</svg>
       <div class="rc">${centre}</div>${labels}</div>`}
     ${long3 ? `<div class="duemsg">${ico('pee','s')}<span>עברו ${words(now - S.pee)} מהפיפי האחרון · להוציא לחצץ</span></div>` : ''}
-    ${tired ? `<div class="zz">${ico('sleep','s')}<span>ערה כבר ${words(now - aw)} · ${p === CAMJ_P && camjPendingEntry() ? 'המצלמה: כנראה בכלוב' : 'לכלוב לישון'}</span></div>` : ''}
+    ${tired ? `<div class="zz">${ico('sleep','s')}<span>ערה כבר ${p === CAMJ_P && wakeWin(p) ? `${words(now - wakeWin(p).hi)}–${words(now - aw)}` : words(now - aw)} · ${p === CAMJ_P && camjPendingEntry() ? 'המצלמה: כנראה בכלוב' : 'לכלוב לישון'}</span></div>` : ''}
     ${ft && ft.phase !== 'run' && !inCrate ? `<div class="frm">${ico('paw','s')}<span>זמן החופש נגמר (${FREE.min} דקות מהפיפי) · חזרה לשגרה</span></div>` : ''}
     ${over ? `<div class="duemsg">${ico('crate','s')}<span>ערה בכלוב יותר מ${words(CRATE_MAX)} · מ־<bdi dir="ltr">${clock(S.crate.start)}</bdi></span></div>` : ''}
     ${due && !long3 ? `<div class="duemsg">${ico('pee','s')}<span>זמן להוציא לצרכים · ${due.why}, לפני <span data-words="${due.t}">${words(now-due.t)}</span></span></div>` : ''}

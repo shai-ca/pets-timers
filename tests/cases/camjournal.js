@@ -201,6 +201,25 @@
       await send([E('ce_z', 'crate_entry', T - 5*MIN, { source: 'live_model' })]); render(); await wait(2);
       const n = (($q('#side').innerText + $q('#main').innerText).match(/לאשר בכרטיס הכלוב/g) || []).length;
       ok('a waiting camera entry: the instruction appears once on the screen (' + n + ')', n === 1); }
+    // waking known only as a window: the screen shows a range, never a made-up moment
+    { reset(); const T = Date.now(); seed([{ ...K0, k:'gravel', t: T - 60*MIN, end: T - 57*MIN }]); serverSeen = true; pet = 'kishmish';
+      fb = { auth:{ currentUser:{} }, camDoc: (n, on) => { subs[n] = on; return () => {}; }, camGet: async () => null, camMerge: async () => {} };
+      await send([E('ce_w1', 'sleep_onset', T - 100*MIN, { lo: T - 110*MIN, hi: T - 100*MIN, single_mark: true })]); camjApply(); render(); await wait(2);
+      const w = wakeWin('kishmish'), tile = $q('#sec-rest .card.item');
+      ok('woke between her last asleep mark and the gravel: a window, the awake time shown as a range', !!w && w.lo === T - 100*MIN + 1 && w.hi === T - 60*MIN && tile.textContent.includes('התעוררה בין') && !!tile.querySelector('.big .rng'));
+      ok('…timing logic uses the earliest possible waking (no invented moment)', awakeSince('kishmish') === w.lo); }
+    // several pending detections: the card shows the newest + a link; every one is approvable in the review
+    { reset(); const T = Date.now(); seed([{ ...K0, k:'pee', t: T - 5*HOUR }]); serverSeen = true; pet = 'kishmish'; CAMJ.fbLocal = {};
+      fb = { auth:{ currentUser:{} }, camDoc: (n, on) => { subs[n] = on; return () => {}; }, camGet: async () => null, camMerge: async () => {} };
+      await send([E('ce_a1', 'crate_entry', T - 4*HOUR, { source:'live_model' }), E('ce_a1x', 'crate_exit', T - 3*HOUR, { source:'live_model' }), E('ce_a2', 'crate_entry', T - 2*HOUR, { source:'live_model' }), E('ce_a2x', 'crate_exit', T - 90*MIN, { source:'live_model' }), E('ce_a3', 'crate_entry', T - 20*MIN, { source:'live_model' })]);
+      render(); await wait(2);
+      ok('the card: one approval (the newest) + "עוד 2 זיהויים לאישור"', $n('#sec-crate .camjt') === 1 && $q('#sec-crate').textContent.includes('עוד 2 זיהויים לאישור'));
+      camjReview(); await wait(2);
+      ok('the review lists every pending entry with its own buttons', sh.querySelectorAll('[data-cjp=ok]').length === 3);
+      [...sh.querySelectorAll('[data-cjp=ok]')].find(b => b.dataset.ev === 'ce_a1').click(); await wait(3);
+      const s = state.log.find(e => e.id === 'cam:ce_a1');
+      ok('a past entry approved later: a finished stay, ending at the exit the camera saw after it', !!s && s.end === T - 3*HOUR && $q('#sec-crate') && sh.querySelectorAll('[data-cjp=ok]').length === 2);
+      close(); CAMJ.fbLocal = {}; }
     ok('the live app reads camera/events, the preview its test copy', camjDoc() === 'events' && (MODE = 'preview', camjDoc()) === 'events_preview');
     MODE = 'live';
     ok('the only camera write path is camera/feedback (never the journal)', merged.length > 0 && merged.every(([n]) => n === 'feedback'));
