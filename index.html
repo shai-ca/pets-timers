@@ -547,7 +547,7 @@
   .note-r > span{display:flex;flex-direction:column;min-width:0} .note-r .nt{white-space:pre-wrap;overflow-wrap:anywhere} .note-r small{font-size:12px;color:var(--muted)}
   .note-r.done .nt{color:var(--muted)}
   .note-f{display:flex;justify-content:space-between;font-size:13px}
-  main.grps > #sec-notes{grid-column:1/-1}
+  main.grps > #sec-notes, main.grps > #sec-hist{grid-column:1/-1}
   /* "טיפוח": compact tiles in a grid — two a row on a phone (the last, weight, a full row), all five in a row on a wide screen */
   .groom{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
   .groom .g-weight{grid-column:1/-1}
@@ -738,7 +738,10 @@
 .card.item .crcam{grid-column:1/-1;display:flex;flex-direction:column;gap:8px;padding-top:12px;margin-top:2px;border-top:1px solid var(--line)}
   .card.item .crcam.slot{padding:0;margin:0;border:0;gap:0}
   .crcam-img{position:relative} .crcam .card.camc{box-shadow:none;border:0;background:none;padding:0;margin:0;cursor:pointer}
-  .crcam-img .cam-b{display:none} .crcam .cam-th{width:100%;aspect-ratio:16/9;max-height:none;border-radius:12px}
+  .crcam-img .cam-b{display:none} .card.item .crcam{min-width:0}
+  /* the image keeps its own proportions (width 100%, height auto): an aspect-ratio box inside the card's grid was sized
+     from a narrower width than its final one, so the image overflowed the card onto the next section (26.11) */
+  .crcam .cam-th{display:block;width:100%;aspect-ratio:auto;max-height:none;height:auto;border-radius:12px;overflow:hidden} .crcam .cam-th img{width:100%;height:auto;display:block}
   .crcam-ov{position:absolute;inset-inline-end:8px;bottom:8px;display:flex;align-items:center;gap:6px;padding:3px 6px 3px 10px;border-radius:999px;background:rgba(20,16,12,.58);color:#fff;font-size:12.5px;line-height:1}
   .crcam-ov .icob{color:#fff;font-size:15px;padding:2px 4px;line-height:1}
   .crcam-l{font-size:12.5px;color:var(--muted)} .crcam .camjt{margin-top:0;padding:10px 12px;border-radius:12px} .crcam .camjt small{font-size:12.5px}
@@ -748,7 +751,7 @@
   .quick{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:12px 0}
   .qb{display:flex;flex-direction:column;align-items:center;gap:2px;padding:12px 4px;border-radius:14px;border:1px solid var(--line);background:var(--card);font:inherit;cursor:pointer;min-height:58px}
   .qb b{font-size:15px;font-weight:600} .qb small{font-size:12.5px;color:var(--muted);font-variant-numeric:tabular-nums} .qb.on{border-color:var(--acc);background:color-mix(in srgb,var(--acc) 10%,var(--card))}
-  details.fold{margin:10px 0} #main.grps > details.fold, #main.grps > .card, #main.grps > section.grp{grid-column:1/-1} details.fold>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:8px;padding:12px 14px;border-radius:14px;background:var(--card);font-weight:600;font-size:15px}
+  details.fold{margin:10px 0} details.fold>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:8px;padding:12px 14px;border-radius:14px;background:var(--card);font-weight:600;font-size:15px}
   details.fold>summary::-webkit-details-marker{display:none} details.fold>summary::after{content:'›';margin-inline-start:auto;color:var(--muted);transition:transform .15s} details.fold[open]>summary::after{transform:rotate(90deg)}
   details.fold .dues{font-weight:500;font-size:13px;color:var(--muted)} details.fold .tagk{margin-inline-start:4px} .fold-b{padding-top:8px} .fold-tools{font-size:13.5px;color:var(--muted);margin:4px 2px 8px}
   .cyc-fold>summary{padding:10px 12px} .strip{display:flex;gap:6px;flex-wrap:wrap} .strip .st{font-size:12.5px;font-weight:500;padding:4px 9px;border-radius:999px;background:var(--seg);color:var(--muted)} .strip .st.done{opacity:.55} .strip .st.cur{background:var(--acc);color:#fff}

@@ -8,8 +8,9 @@ rm -rf out && python3 build.py >/dev/null || exit 2
 fail=0
 for f in out/*${1:-}*.html; do
   name=$(basename "$f" .html)
+  win=$(grep -o '^// @window [0-9]*,[0-9]*' "cases/${name%.v2}.js" 2>/dev/null | cut -d' ' -f3)   # a page may ask for a window size (layout checks)
   for variant in $(grep -o '^// @variants .*' "cases/${name%.v2}.js" 2>/dev/null | cut -d' ' -f3-) ""; do
-    title=$("$CHROME" --headless=new --disable-gpu --virtual-time-budget=${BUDGET:-8000} --dump-dom "file://$PWD/$f$variant" 2>/dev/null | tr '\n' ' ' | grep -o '<title>[^<]*</title>' | sed 's/<[^>]*>//g')
+    title=$("$CHROME" --headless=new --disable-gpu ${win:+--window-size=$win} --virtual-time-budget=${BUDGET:-8000} --dump-dom "file://$PWD/$f$variant" 2>/dev/null | tr '\n' ' ' | grep -o '<title>[^<]*</title>' | sed 's/<[^>]*>//g')
     case "$title" in "ALL PASS"*) printf '  ok    %-22s %s\n' "$name$variant" "$title" ;; *) printf '  FAIL  %-22s %s\n' "$name$variant" "${title:0:600}"; fail=1 ;; esac
   done
 done
