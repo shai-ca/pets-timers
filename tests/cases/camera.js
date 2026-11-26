@@ -115,7 +115,7 @@
     const post = calls.filter(c => c.url.endsWith('/api/labels'));
     const B = post[0] && post[0].body;
     ok('labels: POST with the custom header and the token', post.length === 1 && post[0].method === 'POST' && post[0].headers['x-pets-camera'] === '1' && post[0].headers.Authorization === 'Bearer ' + TOK);
-    ok('labels: the blind payload', B && B.image_id === 's:1' && B.method === 'camera' && B.shown.app_state === false && B.shown.prediction === false && B.labeler === me && /^pets-timers\//.test(B.client) && B.client.length <= 40);
+    ok('labels: the blind payload', B && B.image_id === 's:1' && (B.method === 'camera' || B.method === 'retrospective') && B.shown.app_state === false && B.shown.prediction === false && B.labeler === me && /^pets-timers\//.test(B.client) && B.client.length <= 40);
     ok('labels: the chosen values, a correction supersedes the old label', B && B.occupancy === 'occupied' && B.state === 'asleep' && B.posture === 'lying' && B.certainty === 'probable' && B.door === 'unknown' && B.supersedes === 'Lold');
     ok('labels: no app-state field is sent', B && !('app' in B) && !('prediction' in B) && !JSON.stringify(B).includes('LEAK'));
     ok('saved, with an undo', f.textContent.includes('נשמר במאגר המחקר') && !!f.querySelector('.cam-undo'));

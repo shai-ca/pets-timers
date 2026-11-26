@@ -3296,7 +3296,8 @@ async function camLabelView(){
     const res = f.querySelector('.cam-res');
     f.querySelector('.cam-save').onclick = async () => {
       const empty = pick.occupancy === 'empty';
-      const body = { image_id: it.image_id, method: 'camera', occupancy: pick.occupancy, visibility: pick.visibility || null,
+      const body = { image_id: it.image_id, method: Date.now() - it.capture_ts > 10*60000 ? 'retrospective' : 'camera',   // the camera project's rule: over 10 min old = retrospective
+      occupancy: pick.occupancy, visibility: pick.visibility || null,
         posture: empty ? null : pick.posture || null, state: empty ? null : pick.state || null, door: pick.door || 'unknown',
         certainty: pick.certainty || 'sure', shown: { app_state: false, prediction: false }, blind: true,
         labeler: String(me || '').slice(0, 40), client: CAM_CLIENT.slice(0, 40), apply_to_group: true };
