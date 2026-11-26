@@ -37,7 +37,7 @@
     const lv = planLevels(M), homes = lv.filter(x => x.k === 'home');
     ok('long naps: free at home now and later, each stretch at least 15 min', homes.length >= 3 && homes.every(x => x.run >= PLAN.minWin) && planClass(M, NOW + MIN).k === 'home');
     ok('…listed under "החלונות שלי" as free at home', $n('.pl-list .pl-w.home') >= 2 && $q('.pl-list').textContent.includes('פנוי בבית'));
-    ok('…the summary counts free at home, supervised and care apart', /פנוי בבית/.test($q('.pl-stats').textContent) && !/^0 דק׳/.test($q('.pl-stats b').textContent));
+    ok('…the summary counts free at home, supervised and care apart', /כנראה בלי הפרעה/.test($q('.pl-stats').textContent) && !/^0 דק׳/.test($q('.pl-stats b').textContent));
     // 3. Kochik's pee inside Kishmish's outing: combinable, counted once
     const combo = M.kpee.filter(n => n.combo);
     const careMin = lv.filter(x => x.k === 'care').reduce((n, x) => n + x.b - x.a, 0), sumMin = M.needs.reduce((n, x) => n + Math.min(x.b, M.to) - Math.max(x.a, M.from), 0);
@@ -45,7 +45,9 @@
     ok('…and overlapping care is merged, never summed', Math.abs(careMin - union(M.needs.map(n => ({a: Math.max(n.a, M.from), b: Math.min(n.b, M.to)})))) < 1000 && careMin < sumMin);
     ok('…but not everything overlapping is called combinable (a medicine on its own is not)', M.needs.filter(n => n.kind === 'med' && !n.combo).every(n => !M.ks.care.some(o => o.a <= n.a && n.a < o.b)));
     // 4. Short windows are labelled, never hidden
+    const realW4 = wakeExpect; wakeExpect = () => ({state:'asleep', since: at(0, 11, 45), sleepOn: null, likely: {from: at(0, 12, 5), to: at(0, 12, 5)}, wakeBy: null, words: 'likely', src: 'test', n: 9});   // a sure wake: no spread carried on
     M = plan(hist(20).concat(away(2, 90)));
+    wakeExpect = realW4;
     const lv20 = planLevels(M), short = lv20.filter(x => x.k === 'home' && x.run >= PLAN.minWin && x.run < PLAN.shortWin);
     ok('short naps (20 min): a 15–25 min window is shown and labelled "קצר"', short.length >= 1 && !!$q('.pl-list .pl-badge.short') && $q('.pl-list .pl-badge.short').textContent === 'קצר');
     ok('…and quiet under 15 min is not a window (supervised)', lv20.filter(x => x.k === 'home').every(x => x.run >= PLAN.minWin));
@@ -118,6 +120,22 @@
     seed(hist()); const n9 = planNaps(NOW).n;
     seed(hist().concat([{...K0, k:'crate', t: at(-1, 6, 30), end: at(-1, 6, 59)}, {...K0, k:'sleep', t: at(-1, 6, 31), end: at(-1, 6, 55), a: 1}]));
     ok('planNaps learns from marked sleeps only (a sleep whose start was the app\'s estimate is left out)', n9 > 0 && planNaps(NOW).n === n9 && episodes('kishmish', at(-1, 6), at(-1, 7)).some(e => e.src === 'mixed'));
+    // 10. Owner, 26.11: away contexts kept apart; calibration — likely uninterrupted vs may be interrupted; preliminary.
+    M = plan(hist().concat(away(2, 90, {ctx:'room'}), away(3, 60, {ctx:'other'})));
+    const ev = M.away.by;
+    ok('away evidence per context, never pooled: room 2 calm, other 3 calm, home none — and no outing from them', ev.room.calm === 2 && ev.other.calm === 3 && ev.home.n === 0 && ev.other.longestCalm === 60*MIN && ev.other.recency === NOW - (at(-1, 14) + 60*MIN) && !M.away.enough && M.free.length === 0);
+    ok('…each context shown apart in "איך זה מחושב"', $q('.pl-info').textContent.includes('לבד בחדר (מישהו בבית): 2 פעמים, 2 רגועה') && $q('.pl-info').textContent.includes('עם מישהו אחר: 3 פעמים') && $q('.pl-info').textContent.includes('לבד בבית: עוד אין'));
+    wakeExpect = () => ({state:'asleep', since: at(0, 11, 45), sleepOn: null, likely: {from: at(0, 13, 15), to: at(0, 13, 35)}, wakeBy: null, words: 'unsure', src: 'test', n: 9});
+    M = plan(hist());
+    const nx = M.ks.sleeps.find(x => !x.cur), lead = M.ks.bands.find(b => b.lead && b.a === nx.onset);
+    ok('likely uninterrupted ends where her wake range begins (13:15); the rest of the range may be interrupted', planClass(M, at(0, 13, 10)).k === 'home' && planClass(M, at(0, 13, 20)).k === 'uns');
+    ok('the next sleep is likely uninterrupted only after the carried uncertainty (10 min) has passed', !!lead && lead.b - lead.a === 10*MIN && planClass(M, nx.onset + 5*MIN).k === 'uns' && planClass(M, nx.onset + 15*MIN).k === 'home');
+    ok('…and its likely-uninterrupted part also ends that much earlier', planClass(M, nx.wake.from - 5*MIN).k === 'uns');
+    ok('every estimate is labelled preliminary', $q('.pl-hero .pl-pre').textContent === PL_PRE && [...document.querySelectorAll('.pl-list .pl-cert')].every(c => c.textContent.startsWith(PL_PRE)));
+    wakeExpect = () => ({state:'asleep', since: at(0, 11, 45), sleepOn: null, likely: {from: at(0, 12, 10), to: at(0, 13, 40)}, wakeBy: null, words: 'unsure', src: 'test', n: 9});
+    M = plan(hist());
+    ok('"may be interrupted" stretches (a wide wake range: 12:10–12:55) are listed too, with their own badge', [...document.querySelectorAll('.pl-list .pl-badge.uns')].some(b => b.textContent === 'ייתכן שיפריעו') && /ייתכן שיפריעו/.test($q('.pl-stats').textContent));
+    wakeExpect = real.wakeExpect;
     view = 'now'; window.Date = RealDate;
     done();
   } catch(e){ crashed(e); }
