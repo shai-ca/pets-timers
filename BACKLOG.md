@@ -1,5 +1,22 @@
 # Backlog — things deliberately not done yet
 
+## Design requirement: fewer manual controls as automation is validated (owner, 26.11.2026)
+
+Long-term UX principle. As camera-based automation becomes **independently validated and reliable**, progressively take the
+redundant manual controls off the primary interface:
+- Replace manual buttons with compact, automatically updated **status indicators**.
+- Keep manual corrections and fallback actions reachable through **progressive disclosure** (one tap into a sheet or
+  fold), never removed outright.
+- Scope, eventually: crate door state, occupancy, sleep, eating, drinking.
+- Goal: less manual input AND less visual clutter as automation improves; stop adding controls.
+
+**Gate per area (do not remove a control before all of these hold):**
+- The automation for that area is validated against independent ground truth (not app decisions; see §15b).
+- It is operational in production, including under IR / night where it applies.
+- She approves the specific change.
+
+Until then the existing controls stay as they are. Recorded only; no implementation yet.
+
 ## Documentation completeness (owner, 26.11.2026 — read before any analysis)
 
 The owner has recently been logging mainly Kishmish's **potty events** (pee, poop, "לא עשתה", gravel outings) and much less
