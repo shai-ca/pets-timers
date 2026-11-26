@@ -183,7 +183,7 @@
     seed(hist.map(e => ({...e})).concat([{...K0, k:'pee', t: hist[1].end + MIN, w:'gravel'}]));
     const s0 = sleepOn(P, 15*MIN), s1 = sleepOn(P, 15*MIN, {censorNear: true}), s2 = sleepOn(P, 15*MIN, {endAsCensored: true});
     ok('S3: censorNear censors the one end next to a pee, keeps the others as events', s0.censored === 0 && s1.censored === 1 && s1.pAtLeast[0].p > 0 && s1.pAtLeast[0].p < 1);
-    ok('S3: endAsCensored is the extreme bound (no events)', s2.censored === 8 && s2.pAtLeast[0].p === 1);
+    ok('S3: endAsCensored (every end censored) has no real endings → "unknown", no fake certainty', s2.censored === 8 && s2.pAtLeast[0].p === null && s2.words === 'unknown');
     // S4: the old-rule question shows no wake time
     seed(fed(now - 90*MIN).concat([{...K0, k:'sleep', t: now - 70*MIN}]));
     ok('S4: too few naps: asked by the old rule, "not enough data", no expected time', !!stillAsleep(P) && stillAsleep(P).src === 'rule' && !('exp' in stillAsleep(P))
