@@ -2849,11 +2849,13 @@ function wakeBy(p){
   const S = V[p], st = S.sleep && S.sleep.start, now = Date.now();
   if(!PETS[p].cycle || !st || touchesNight(st, now)) return null;
   const c = [];
-  if(S.pee) c.push([S.pee + WAKE.sleepNoPee, `${words(WAKE.sleepNoPee)} מהפיפי האחרון`]);
-  if(S.food) c.push([S.food + ALERT.food, `${words(ALERT.food)} מהארוחה האחרונה`]);
+  if(S.pee) c.push([S.pee + WAKE.sleepNoPee, `${words(WAKE.sleepNoPee)} מהפיפי האחרון`, !coveredSince(p, S.pee) && 'עשתה פיפי']);
+  if(S.food) c.push([S.food + ALERT.food, `${words(ALERT.food)} מהארוחה האחרונה`, !coveredSince(p, S.food) && 'אכלה']);
   if(!c.length) return null;
   c.sort((x, y) => x[0] - y[0]);
-  return {t: c[0][0], why: c[0][1], past: now >= c[0][0]};
+  // unc (owner, 27.11): the gap since that last RECORDED event was not observed — the threshold is the same, but it is not
+  // known that the event did not happen, so no instruction to wake her ("לפי מה שנרשם … לא תועד אם אכלה מאז")
+  return {t: c[0][0], why: c[0][1], past: now >= c[0][0], unc: c[0][2] || ''};
 }
 // "היא עדיין ישנה?" (owner, 25.11; v3 timing; owner 26.11: fewer prompts). A predicted waking alone never asks. It asks
 // AT MOST ONCE PER SLEEP EPISODE (`stillDone`, this phone, nothing saved), by day only (not touching NIGHTS.learn or
@@ -3295,7 +3297,7 @@ function guidance(p){
   const now = Date.now(), recent = state.log.some(e => e.p === p && !GD_NOSIGN[e.k] && !(ITEMS[e.k] || {}).hid && ((e.t <= now && now - e.t < AWAKE.seen) || (e.end == null && GD_RUN[e.k])));
   g.stale = now - r.t >= ROUTINE_STALE && !recent && !(cs.state === 'out' && cs.basis === 'logged');
   if(cs.state === 'out' && cs.awake && !g.stale) return g;                        // awake out of the crate: the plan fits
-  const wb = cs.state === 'asleep' && wakeBy(p); if(wb && wb.past) return g;     // safety: "כדאי להעיר אותה" speaks
+  const wb = cs.state === 'asleep' && wakeBy(p); if(wb && wb.past && !wb.unc) return g;     // safety: "כדאי להעיר אותה" speaks (not from an unobserved gap)
   const step = CYCLE[r.i].n, at = t => `<bdi dir="ltr">${clock(t)}</bdi>`;
   g.planned = g.stale ? `השלב האחרון שנרשם: ${step}, ${at(r.t)}` : `בשגרה: ${step} מ־${at(r.t)}`; g.actual = `בפועל: ${actualText(cs)}`;
   const cont = g.stale ? 'קודם לחצץ, ואז ממשיכים בשגרה לפי מה שיצא' : `ממשיכים בשגרה מ״${step}״`;
@@ -4069,12 +4071,13 @@ function camjWakePlan(L, now, acts){
 // `camjCtx`) or disputed by her labels, or rejected by her. Any other exit separates two episodes, however short the gap
 // (e.g. 17:35–17:38 and 17:40–17:49 stay two questions): if unsure, keep them separate; one answer is never carried
 // across episodes. Every event keeps its own id, decision and place in the review.
+const CAMJ_EP_GAP = 5*60000;   // re-entries this close with no exit between are one stay flapping (27.11: 18:52 exit / 18:55 entry); initial value
 function camjEpisodes(now){
   const sup = new Set(CAMJ.ev.map(e => e.supersedes).filter(Boolean)), rej = e => camjDec(e.event_id) && camjDec(e.event_id).d === 'rejected';
   const evs = CAMJ.ev.filter(e => e.status === 'active' && e.source === 'live_model' && (e.kind === 'crate_entry' || e.kind === 'crate_exit') && !sup.has(e.event_id) && e.ts <= now).sort(byTs);
   const eps = []; let cur = null;
   for(const e of evs){
-    if(e.kind === 'crate_entry'){ if(rej(e)) continue; if(cur && cur.open) cur.ents.push(e); else { cur = { ents: [e], exits: [], open: true }; eps.push(cur); } }
+    if(e.kind === 'crate_entry'){ if(rej(e)) continue; if(cur && cur.open && e.ts - cur.ents[cur.ents.length - 1].ts <= CAMJ_EP_GAP) cur.ents.push(e); else { cur = { ents: [e], exits: [], open: true }; eps.push(cur); } }   // owner's safeguard: merge only a flapping re-entry (≤ CAMJ_EP_GAP); further apart = a missed exit = another visit, its own question
     else if(cur && cur.open && !camjCtx(e) && !e.disputed_by_labels && !rej(e)){ cur.open = false; cur.exits.push(e); cur.to = e.ts; }
   }
   eps.forEach(x => { x.from = x.ents[0].ts; if(x.open) x.to = null; });
@@ -4371,7 +4374,10 @@ CAMJ.pv = [];
 const pvNum = x => typeof x === 'number' && isFinite(x);
 // STRICT validation of one item (draft §1b). Anything else is ignored, item by item. `test:true` only in a harness.
 function pvItemValid(g, now){
-  if(!g || typeof g !== 'object' || g.kind !== 'potty_visit' || g.source !== 'camera_visit' || g.status !== 'active') return null;
+  if(!g || typeof g !== 'object' || g.kind !== 'potty_visit' || !['camera_visit', 'owner_review'].includes(g.source) || g.status !== 'active') return null;
+  // §18c + §18b: a visit she verified herself (batch approval in the research UI) comes as source 'owner_review' — accepted
+  // ONLY with her explicit research-UI decision (never as an open question), and judged by the review window (≤ 48 h after it)
+  const rvw = g.source === 'owner_review'; if(rvw && !(g.owner_decision && g.owner_decision.src === 'research_ui' && typeof g.owner_decision.at === 'number')) return null;
   if(g.test === true && !CAMJ_TEST_OK) return null;
   const m = typeof g.id === 'string' && (g.test === true ? /^pv_cam3_(\d{10,14})_(kishmish|kochik|unknown)(?:_TEST)?$/ : /^pv_cam3_(\d{10,14})_(kishmish|kochik|unknown)$/).exec(g.id); if(!m) return null;   // "_TEST": the camera's fixtures only
   const dog = g.dog === null || g.dog === undefined ? null : g.dog;
@@ -4387,7 +4393,7 @@ function pvItemValid(g, now){
   const on = pvNum(g.onset_ts) && g.onset_ts >= g.t_start && g.onset_ts <= g.t_end ? g.onset_ts : null;
   return { id: g.id, dog, ask: g.identity_confidence === 'ask', t_start: g.t_start, t_end: g.t_end, duration_s: g.duration_s, onset_ts: on, visit_id: g.visit_id || null,
     clip: { cam: 'cam3', t: Math.round(c.t), before: Math.min(c.before, 600), after: Math.min(c.after, 600) }, ir: g.ir, uncertain: g.uncertain || g.ir, lighting: g.lighting,
-    published_at: null, ...(g.test === true ? { test: true } : {}), ...(g.owner_decision ? { owner_decision: g.owner_decision } : {}) };
+    published_at: null, ...(rvw ? { rvw: true } : {}), ...(g.test === true ? { test: true } : {}), ...(g.owner_decision ? { owner_decision: g.owner_decision } : {}) };
 }
 function pvValid(d){
   if(!d || d.disabled === true || d.enabled === false || !Array.isArray(d.suggestions)) return [];   // the same kill switch as every suggestion
@@ -4413,7 +4419,7 @@ function pvCovered(x, dog, log){
   return L.some(g => g.k === 'gravel' && g.t <= b && (g.end == null ? Date.now() : g.end) >= a
     && L.some(e => OUT_KINDS[e.k] && !isTU(e) && e.t > g.t && (g.end == null || e.t <= g.end)));
 }
-const pvLive = (x, now) => now - x.t_end <= CAMJ_TTL;
+const pvLive = (x, now) => x.rvw ? now - x.t_start <= CAMJ_RVW_MAX && !!x.owner_decision && now - x.owner_decision.at <= CAMJ_RVW_DEC : now - x.t_end <= CAMJ_TTL;   // her reviewed visits: the §18b window
 // The questions for one dog, newest first: not answered, not in the journal, not expired.
 function pvRows(p, now = Date.now()){
   if(!PETS[p]) return [];
@@ -5238,7 +5244,7 @@ function nowAssess(p){
   else if(S.gravel && S.gravel.start) todo = 'בחצץ: לסמן מה יצא, ואז ״סיום״';
   else if(retry(p) && !asleep){ todo = 'ניסיון חוזר: לחצץ'; btn = B('dur', 'gravel', ITEMS.gravel.start); }
   else if(G.mode === 'rest') todo = `${cs.basis === 'logged' || cs.basis === 'camera-confirmed' ? 'לתת לה לישון' : 'אם היא ישנה, לתת לה לישון'}${wb ? ` (עד <bdi dir="ltr">${clock(wb.t)}</bdi> לכל המאוחר)` : ''}`;
-  else if(G.mode === 'crate') todo = `אם היא בכלוב ונרדמה, אפשר להשאיר אותה${cs.src === 'live' ? ' · לענות לשאלה מהמצלמה' : ''}`;
+  else if(G.mode === 'crate') todo = 'אם היא בכלוב ונרדמה, אפשר להשאיר אותה';   // the question itself is in this card — the pointer to it is said once, in the wheel's box
   else if(G.mode === 'stale') todo = 'לבדוק מה היא עושה. אם היא ערה: קודם לחצץ. אם היא ישנה, לא מעירים';
   else if(G.mode === 'unknown'){ const w = nowWhat(p); todo = `לבדוק מה היא עושה${w.t ? `. אם היא ערה ומחוץ לכלוב: ${esc(w.t)}` : ''}`; }
   else { const w = nowWhat(p); if(w.t){ todo = esc(w.t); btn = w.b; } }
@@ -5774,7 +5780,7 @@ function renderView(){
       if(k === 'crate' && live && P.cycle && CRATES[crateAt(pet, Date.now())]) sub += ` · ${CRATES[crateAt(pet, Date.now())]}`;
       if(k === 'crate' && !live && P.cycle) sub += crateMealHint(pet);   // after a meal: gravel before the crate (POTTY_CUE)
       if(k === 'sleep' && live && P.cycle){ const wb = wakeBy(pet);   // after the totals: until when, and what comes next
-        sub += wb ? (wb.past ? `<span class="wake past"><b>כדאי להעיר אותה ולצאת לחצץ</b><small>עבר ${clock(wb.t)} · ${wb.why}</small></span>`
+        sub += wb ? (wb.past ? (wb.unc ? `<span class="wake"><b>לפי מה שנרשם: ${wb.why}</b><small>מאז לא תועד אם ${wb.unc} · אם לא, כדאי להעיר אותה ולצאת לחצץ</small></span>` : `<span class="wake past"><b>כדאי להעיר אותה ולצאת לחצץ</b><small>עבר ${clock(wb.t)} · ${wb.why}</small></span>`)
           : `<span class="wake"><b>נותנים לה לישון עד ${clock(wb.t)} לכל המאוחר</b><small>${wb.why}</small></span>`) : '';
         if(sleepPeeNote(pet)) sub += `<span class="wake then">${sleepPeeNote(pet)}</span>`;
         if(napMedian(pet)) sub += `<span class="wake then">נמנום ארוך רגיל אצלה: כ־${words(napMedian(pet))}</span>`;
@@ -5993,7 +5999,7 @@ function cycleHTML(p){
     ${ft && ft.phase !== 'run' && !inCrate ? `<div class="frm">${ico('paw','s')}<span>זמן החופש נגמר (${FREE.min} דקות מהפיפי) · חזרה לשגרה</span></div>` : ''}
     ${over ? `<div class="duemsg">${ico('crate','s')}<span>${awakeNow(p, S.crate.start) ? 'ערה בכלוב' : 'בכלוב'} יותר מ${words(CRATE_MAX)} · מ־<bdi dir="ltr">${clock(S.crate.start)}</bdi>${awakeNow(p, S.crate.start) ? '' : ' · לא תועד אם ישנה'}</span></div>` : ''}
     ${due && !long3 ? `<div class="duemsg">${ico('pee','s')}<span>${unk ? 'אם היא ערה, ' : ''}זמן להוציא לצרכים · ${due.why}, לפני <span data-words="${due.t}">${words(now-due.t)}</span></span></div>` : ''}
-    ${asleep ? `<div class="zz">${ico('sleep','s')}<span>ישנה ${S.sleep.assumed ? 'כנראה ' : ''}מ־<bdi dir="ltr">${clock(S.sleep.start)}</bdi> · ${wb && wb.past ? 'כדאי להעיר אותה' : wb ? `נותנים לה לישון עד <bdi dir="ltr">${clock(wb.t)}</bdi>` : 'נותנים לה לישון'}${(() => { const we = !(wb && wb.past) && wakeExpect(p, now); return we && we.likely ? ` · כנראה תתעורר בין <bdi dir="ltr">${clock(we.likely.from)}–${clock(we.likely.to)}</bdi>` : ''; })()}${S.sleep.assumed ? ' <small>(הנחה: נרדמת בכלוב תוך כמה דקות)</small>' : ''}</span><button class="lnk" data-act="notasleep">לא נרדמה</button></div>` : ''}
+    ${asleep ? `<div class="zz">${ico('sleep','s')}<span>ישנה ${S.sleep.assumed ? 'כנראה ' : ''}מ־<bdi dir="ltr">${clock(S.sleep.start)}</bdi> · ${wb && wb.past ? (wb.unc ? `לא תועד אם ${wb.unc} מאז מה שנרשם` : 'כדאי להעיר אותה') : wb ? `נותנים לה לישון עד <bdi dir="ltr">${clock(wb.t)}</bdi>` : 'נותנים לה לישון'}${(() => { const we = !(wb && wb.past) && wakeExpect(p, now); return we && we.likely ? ` · כנראה תתעורר בין <bdi dir="ltr">${clock(we.likely.from)}–${clock(we.likely.to)}</bdi>` : ''; })()}${S.sleep.assumed ? ' <small>(הנחה: נרדמת בכלוב תוך כמה דקות)</small>' : ''}</span><button class="lnk" data-act="notasleep">לא נרדמה</button></div>` : ''}
     <div class="cyc-n"><span class="nx"><b>מה עושים עכשיו?</b>${wakeGravelWhat(p)}${say}${pvGuideHTML(p)}${routineTap(p).length ? ` החלק המתאים למטה מסומן <span class="tagk">עכשיו בשגרה</span>.` : ''}</span>
       ${r && !r.brk && !inCrate ? `<button class="ghost" data-act="brk">${ico('none','s')}הפסקה בשגרה</button>` : ''}</div></div>`;
 }

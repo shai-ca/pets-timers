@@ -21,7 +21,7 @@
     for(const [a, d, entry] of [['closed', 'approved', true], ['open', 'visit', false], ['no', 'rejected', false], ['unsure', 'unsure', false]]){
       await fresh(() => [{ ...K0, k:'pee', t: T - 2*HOUR, w:'gravel' }]);
       await send([E('ce_a', 'crate_entry', T - 30*MIN)]);
-      $q(`#sec-crate [data-camans=${a}]`).click(); await wait(3);
+      $q(`[data-camans=${a}]`).click(); await wait(3);
       ok(`"${CAMJ_ANS[a]}": decision ${d}, ${entry ? 'ONE session at the camera time' : 'no crate entry'}, the question gone`, dec('ce_a') === d && crates().length === (entry ? 1 : 0) && (!entry || crates()[0].id === 'cam:ce_a') && !$q('.nowtop .camjt [data-camans]'));
       if(a === 'unsure') ok('"לא זוכרת" is not a negative label: not listed as wrong, not "rejected"', !camjPlan(state.log, Date.now()).rv.rejected.some(e => e.event_id === 'ce_a') && merged.some(([n, x]) => x.decisions.ce_a && x.decisions.ce_a.d === 'unsure'));
     }
@@ -69,8 +69,8 @@
     // her labelled entry (the door question): the same answers through the reconcile
     await fresh(() => [{ ...K0, k:'pee', t: T - 2*HOUR }]);
     await send([E('ce_l', 'crate_entry', T - 30*MIN, { source: 'owner_label', confidence: null })]); camjApply(); await wait(3);
-    ok('her label, door unknown: the four answers', $n('#sec-crate [data-camans]') === 4);
-    $q('#sec-crate [data-camans=closed]').click(); await wait(3);
+    ok('her label, door unknown: the four answers', $n('[data-camans]') === 4);
+    $q('[data-camans=closed]').click(); await wait(3);
     ok('…"דלת סגורה": her session', crates().length === 1 && !!byId('cam:ce_l'));
     camjSetAnswer('ce_l', 'open'); await wait(3);
     ok('…changed to "דלת פתוחה": the session is removed (visit)', !crates().length);

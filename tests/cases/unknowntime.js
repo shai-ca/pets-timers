@@ -94,7 +94,7 @@
       ok('…and the miss is not given to the discovery day', successOf('kishmish', m0, m0 + 24*HOUR).all === 0);
       view = 'sum'; sumMode = 'day'; sumAnchor = m0 + HOUR; render();
       ok('the day summary says it is not counted there', !!$q('.tuunsure') && $q('.tuunsure').textContent.includes('לא ידוע באיזה יום')); view = 'now'; render();
-      ok('the pee clock says a later pee at an unknown time happened', $q('#sec-potty').textContent.includes('מאז הפיפי האחרון שזמנו ידוע') && $q('#sec-potty').textContent.includes('לא אומר שהיא התאפקה'));
+      ok('the pee clock says a later pee at an unknown time happened', ($q('#sec-potty').textContent.includes('מאז הפיפי האחרון שזמנו ידוע') || $q('#sec-potty').textContent.includes('פיפי אחרון שנרשם')) && $q('#sec-potty').textContent.includes('לא אומר שהיא התאפקה'));
     }
     done();
   } catch(e){ crashed(e); }

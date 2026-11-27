@@ -39,7 +39,7 @@
         const cs = currentState(p), A = nowAssess(p), R = camjPlan(state.log, now).rv, top = $q('.nowtop');
         // COHERENT
         const want = actualText(cs).replace(/<[^>]+>/g, ''), a = top ? top.querySelector('.nt-a > span').textContent : '', w = ($q('.card.cyc .gd .gd-a') || {}).textContent || '', cf = camjConflict().replace(/<[^>]+>/g, '');
-        const contra = cs.state === 'in_crate' ? /לא בכלוב|לא רואה אותה/.test(cf) : /רואה אותה בכלוב|נראית בכלוב/.test(cf);
+        const contra = cs.state === 'in_crate' ? /לא בכלוב|לא רואה אותה/.test(cf) : /(?<!לא )רואה אותה בכלוב|נראית בכלוב/.test(cf);
         ok(tag + 'coherent: one state (' + cs.state + '/' + cs.basis + ') on the top card, the wheel and the camera line', !!top && a.startsWith(want) && (!w || w === 'בפועל: ' + want) && !contra);
         ok(tag + 'coherent: the camera now ' + (inNow ? 'in' : 'out') + ' → state agrees', inNow ? cs.state === 'in_crate' || (cs.state === 'unknown' && cs.conflicts.length) : cs.state !== 'in_crate');
         // USEFUL

@@ -267,6 +267,15 @@
       ok('6 h without a pee + an unanswered visit: the red card stays, with one neutral camera line', JSON.stringify(alerts('kishmish')) === a0 && alerts('kishmish').some(a => a.k === 'pee') && [...document.querySelectorAll('.alertc')].some(c => c.textContent.includes(`המצלמה ראתה ביקור בחצץ ב־${clock(t0)}`)));
       ok('…the expired pee window says the visit is unanswered (not "no pee")', (forecastLine('kishmish').includes('לא נרשם פיפי') || forecastLine('kishmish').includes('לא ידוע אם עשתה פיפי')) && forecastLine('kishmish').includes(`המצלמה ראתה ביקור בחצץ ב־<bdi dir="ltr">${clock(t0)}</bdi>, לא נענה`)); }
 
+    // 27.11 real trace: her BATCH-approved visits arrive as source 'owner_review' WITH her research-UI decision (they were
+    // dropped). Accepted only with that decision; a reviewed visit 3 h old is applied (the review window, not the 6 h TTL)
+    { await fresh(() => [{ p:'kishmish', k:'pee', t: Date.now() - 5*HOUR, w:'gravel' }]); const ts = Date.now() - 3*HOUR, te = ts + 47000;
+      const OD = { ans: 'pee', at: Date.now() - 10*MIN, src: 'research_ui', rid: 'rd_t1' };
+      SUG = [PV('kishmish', ts, te, { source: 'owner_review', exclude_from_metrics: true, owner_decision: OD }), PV('kishmish', ts + 3600000, ts + 3600000 + 30000, { source: 'owner_review' })]; await send();
+      const own = state.log.filter(e => String(e.id).startsWith('cam:sug:pv_cam3_' + ts + '_kishmish:kishmish:'));
+      ok('owner_review visit with her research decision: one pee w:gravel + the gravel timer, at the visit\'s time', own.length === 2 && own.some(e => e.k === 'pee' && e.w === 'gravel') && own.some(e => e.k === 'gravel' && e.t === ts && e.end === te) && V.kishmish.pee >= ts);
+      ok('owner_review visit WITHOUT a decision: ignored (never an open question from the review path)', !state.log.some(e => String(e.id).includes('pv_cam3_' + (ts + 3600000))) && !pvRows('kishmish').some(x => x.id.includes(String(ts + 3600000))));
+      const n0 = state.log.length; await send(); ok('…re-sent: nothing added', state.log.length === n0); }
     fb = null; glStop(); CAMJ.pv = []; CAMJ.ready = CAMJ.sready = false; setState(state); render();
     done();
   } catch(e){ crashed(e); }

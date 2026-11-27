@@ -18,7 +18,12 @@
     ok('3:20 after the pee, asleep: an information line, no "wake her"', !!sleepPeeNote('kishmish') && $q('#sec-rest').textContent.includes('לא חייבים להעיר') && !wakeBy('kishmish').past && !$q('#sec-rest').textContent.includes('כדאי להעיר'));
     // 4 h from the pee: wake her
     seed(naps.concat([{...K0, k:'food', t: now - 60*MIN, m:'meal'}, {...K0, k:'pee', t: now - 245*MIN, w:'gravel'}, {...K0, k:'sleep', t: now - 60*MIN}]));
-    ok('4 h after the pee: "wake her and go to the gravel"', wakeBy('kishmish').past && $q('#sec-rest').textContent.includes('כדאי להעיר אותה ולצאת לחצץ') && $q('.cyc-n').textContent.includes('כדאי להעיר'));
+    // owner, 27.11: the 3 h between the pee and the meal were not observed — the threshold holds, but it is not known that
+    // she did not pee, so the card says so and makes the instruction conditional (never a confident "wake her")
+    ok('4 h after the pee, the gap NOT observed: "לפי מה שנרשם … מאז לא תועד אם עשתה פיפי · אם לא, כדאי להעיר"', wakeBy('kishmish').past && wakeBy('kishmish').unc === 'עשתה פיפי' && $q('#sec-rest').textContent.includes('מאז לא תועד אם עשתה פיפי') && $q('#sec-rest').textContent.includes('אם לא, כדאי להעיר אותה') && !$q('.cyc-n').textContent.includes('כדאי להעיר'));
+    // the same 4 h, but OBSERVED (activity logged every 15 min until she slept): the safety rule speaks as before
+    seed(naps.concat([{...K0, k:'pee', t: now - 245*MIN, w:'gravel'}, ...[230, 215, 200, 185, 170, 155, 140, 125, 110, 95, 80, 65].map(m => ({...K0, k:'play', t: now - m*MIN, y:'rope'})), {...K0, k:'food', t: now - 62*MIN, m:'meal'}, {...K0, k:'sleep', t: now - 60*MIN}]));
+    ok('4 h after the pee, observed: "wake her and go to the gravel"', wakeBy('kishmish').past && !wakeBy('kishmish').unc && $q('#sec-rest').textContent.includes('כדאי להעיר אותה ולצאת לחצץ') && $q('.cyc-n').textContent.includes('כדאי להעיר'));
     // food: held while asleep until 3:30 from the meal, then wake her and the banner agree
     seed(naps.concat([{...K0, k:'food', t: now - 200*MIN, m:'meal'}, {...K0, k:'pee', t: now - 60*MIN, w:'gravel'}, {...K0, k:'sleep', t: now - 10*MIN}]));
     ok('asleep, 3:20 after the meal: no food banner', $n('.card.alertc') === 0 && !wakeBy('kishmish').past);
