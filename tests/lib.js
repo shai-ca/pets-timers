@@ -278,3 +278,34 @@ async function camClipSuite(){
   ok('…only GETs were sent (no POST anywhere)', calls.every(c => !c.method || c.method === 'GET'));
   URL.revokeObjectURL = realRevoke; window.fetch = realFetch; commit = rc; push = rp; CAM_FEATURES = FEAT0; fb = null; CAM.st = 'off'; CLIP.fail = {}; window.KEEP_FOLDS = false; FAKE_PHONE = false; render();
 }
+// §18c layout (pvlayout.js at 520, pvlayoutw.js at 1280): the gravel visit question and the provisional live timer fit
+// their cards on Kishmish's and Kochik's screens, both designs; nothing overflows sideways. The case leaves the screen as
+// it is (a screenshot of the page shows it).
+async function pvLayoutSuite(W){
+  const pause = ms => new Promise(r => setTimeout(r, ms)), subs = {};
+  window.KEEP_FOLDS = true; reset(); FAKE_PHONE = null;
+  const T = Date.now(), K0 = { p: 'kishmish' }, t0 = T - 25*MIN, t1 = t0 + 95000;
+  seed([{ ...K0, k: 'pee', t: T - 3*HOUR, w: 'gravel' }, { ...K0, k: 'food', t: T - 90*MIN, m: 'meal' }, { p: 'kochik', k: 'pee', t: T - 3*HOUR, w: 'out' }]); serverSeen = true;
+  fb = { auth: { currentUser: { uid: 'U1' } }, camDoc: (n, on) => { subs[n] = on; return () => {}; }, camGet: async () => null, camMerge: async () => {} };
+  CAMJ.fbLocal = {}; CAMJ.pv = []; glStop(); GL.visits = []; GL.denied = false;
+  pet = 'kishmish'; view = 'now'; render(); await wait(3);
+  const it = (dog, ts, te) => ({ id: `pv_cam3_${ts}_${dog || 'unknown'}`, kind: 'potty_visit', status: 'active', source: 'camera_visit', camera: 'cam3', visit_id: 'v3_' + ts, dog, identity_confidence: dog ? 'reliable' : 'ask',
+    ts, lo: ts, hi: te, t_start: ts, t_end: te, duration_s: (te - ts) / 1000, clip: { cam: 'cam3', t: ts, before: 15, after: 105 }, ir: false, uncertain: false, lighting: 'day' });
+  if(subs[camjSugDoc()]) subs[camjSugDoc()]({ suggestions: [it('kishmish', t0, t1), it(null, t0 - HOUR, t0 - HOUR + 60000)], published_at: T, enabled: true }, false);
+  if(subs[glDoc()]) subs[glDoc()]({ schema: 'cam-gravel-live/1', camera: 'cam3', published_at: T, coverage: { recorder_ok: true, status_age_s: 1 }, visits: [{ visit_id: 'v3_live', kind: 'gravel_live', status: 'open', t_start: T - 70000, last_seen: T - 3000, t_end: null, dog: 'kishmish', identity_confidence: 'reliable', ir: false, uncertain: false }] }, false);
+  await wait(3); render(); await pause(60); await wait(3);
+  const R = e => e.getBoundingClientRect(), inside = (a, b) => R(a).left >= R(b).left - 1 && R(a).right <= R(b).right + 1;
+  const D = (V2 ? 'v2 ' : 'v1 ') + W + ': ';
+  ok(D + 'width as asked', Math.abs(innerWidth - W) < 30 && isPhone() === (W < 760));
+  const q = $q('.pvq'), g = $q('.gravel.glive');
+  ok(D + 'Kishmish: the question and the live timer are on screen', !!q && !!g && R(q).height > 0 && R(g).height > 0);
+  ok(D + '…the live card comes right before the question', !!g && g.nextElementSibling === q);
+  ok(D + '…every answer button inside the question card, none clipped', !!q && [...q.querySelectorAll('[data-pv]')].every(b => inside(b, q) && R(b).width > 20));
+  ok(D + '…the live card\'s buttons inside it', !!g && [...g.querySelectorAll('button')].every(b => inside(b, g)));
+  ok(D + '…no sideways scroll', document.documentElement.scrollWidth <= innerWidth + 1);
+  pet = 'kochik'; render(); await pause(40); await wait(3);
+  const kq = $q('.pvq');
+  ok(D + 'Kochik: her question (unknown identity) in "פיפי וקקי", inside its group', !!kq && !!kq.closest('.grp') && [...kq.querySelectorAll('[data-pv]')].every(b => inside(b, kq)) && document.documentElement.scrollWidth <= innerWidth + 1);
+  pet = 'kishmish'; render(); await wait(3); window.scrollTo(0, ($q('#sec-potty') || q).getBoundingClientRect().top + scrollY - 10);
+  fb = null; window.KEEP_FOLDS = false;
+}

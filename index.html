@@ -54,6 +54,11 @@
   .lnk.fcq{display:inline-block;width:17px;height:17px;line-height:15px;text-align:center;border:1px solid var(--faint);border-radius:50%;font-size:11px;text-decoration:none;color:var(--muted);margin-inline-start:4px}
   .card.slim.gravel{flex-wrap:wrap;gap:8px 12px} .card.slim.gravel .rt-a{flex-wrap:wrap}
   .card.slim.gravel.on{border-color:var(--ok);background:var(--ok-soft)} .card.slim.gravel small b{font-weight:600;color:var(--ink)}
+  /* §18c: Cam 3 gravel visits — the provisional live timer (dashed: not written) and the completed visit's question */
+  .card.slim.gravel.glive{border:1px dashed var(--faint)} .card.slim.gravel.glive b.gl{font-weight:600}
+  .card.slim.pvq{flex-wrap:wrap;gap:8px 12px;border-color:color-mix(in srgb,var(--btn) 45%,transparent)} .card.slim.pvq > span:first-child{display:flex;flex-direction:column;gap:2px;min-width:0;max-width:100%}
+  .card.slim.pvq small{font-size:12.5px;color:var(--muted)} .pv-a{flex-wrap:wrap;justify-content:flex-end} .pv-a button{white-space:nowrap}
+  .pvg{display:block;margin-top:6px;color:var(--muted);font-size:13px} .smp-gl{font-size:13px;color:var(--muted);text-align:center;margin-top:-4px}
   .card.slim.sleepq{border-color:color-mix(in srgb,var(--btn) 45%,transparent);flex-wrap:wrap;gap:8px 12px}
   .card.slim.sleepq.wait{border-color:var(--line)} .card.slim.sleepq small b{font-weight:600;color:var(--ink)}
   .card.slim.cryrow.on{border-color:var(--alert);background:var(--alert-soft)}
@@ -2294,6 +2299,9 @@ function tapPoint(p, k, t, sure, extra){
 }
 function tapDur(p, k, at, camOk){   // `at`: start a timer that began earlier ("she went in 10 minutes ago and is still there")
   const now = Date.now(), running = !!(V[p][k] && V[p][k].start), sl = V[p].sleep;
+  // §18c: "יצאנו לחצץ" while the camera shows an open gravel visit = that visit: the outing starts at its t_start (one outing)
+  const gl = k === 'gravel' && !running && !at && typeof glOpen === 'function' ? glOpen(p, now) : null;
+  if(gl && gl.t_start < now){ at = gl.t_start; }
   if(k === 'crate' && p === CAMJ_P && !at && !camOk){   // the camera saw it within 10 min: one entry, not two
     const pd = camjNearPending(!running);
     if(pd){ camjAsk(pd, x => { tapDur(p, k, undefined, true); const o = state.log.filter(e => e.p === p && e.k === 'crate').sort((a, b) => a.t - b.t).pop();
@@ -2311,7 +2319,8 @@ function tapDur(p, k, at, camOk){   // `at`: start a timer that began earlier ("
     if((k === 'carrier' || k === 'pen') && PETS[p].cycle) stopDur(p, 'crate', at || now);
     // Going out to the gravel means she is out of the crate and awake: both end at that moment.
     if(k === 'gravel' && PETS[p].cycle){ const t = at || now, open = kk => state.log.filter(e => e.p===p && e.k===kk && e.end == null && e.t < t).sort((x,y) => x.t-y.t)[0]; if(open('crate')) leaveCrate(p, t); else if(open('sleep')) stopDur(p, 'sleep', t); }
-    state.log.push(newStay(p, k, at || now));   // no `end`: it is running
+    const ne = newStay(p, k, at || now); if(gl) ne.cam = { src: 'gravel_live', vis: gl.visit_id, it: gl.t_start };   // §18c: linked to the camera's visit
+    state.log.push(ne);   // no `end`: it is running
   });
 }
 // Out of the crate always means awake: however the crate stay ends (its tile, the retry card, "it already
@@ -2352,6 +2361,7 @@ function gravelDone(p, from){   // what this outing has had so far: "נרשם: �
 function waitOf(e){
   if(!(e.k === 'pee' || e.k === 'poop' || e.k === 'none') || isTU(e)) return null;
   if(typeof e.g === 'number' && e.g > 0) return e.g * 60000;
+  if(e.cam && e.cam.src === 'camera_visit' && !e.cam.on) return null;   // §18c: the camera knows the visit, not when inside it she went — not "N minutes on the gravel"
   const g = gravelOf(e);
   return g ? e.t - g.t : null;
 }
@@ -2363,7 +2373,7 @@ function lastOuting(p){
   const g = state.log.filter(e => e.p===p && e.k==='gravel' && e.end != null).sort((x,y) => y.t - x.t)[0]; if(!g) return null;
   const r = state.log.filter(e => e.p===p && (e.k==='pee' || e.k==='poop' || e.k==='none') && !isTU(e) && gravelOf(e) === g).sort((x,y) => x.t - y.t);
   const pee = r.find(e => e.k==='pee'), poop = r.some(e => e.k==='poop'), none = r.some(e => e.k==='none');
-  const out = pee && poop ? 'פיפי וקקי' : pee ? `פיפי${pee.t > g.t ? ` תוך ${words(pee.t - g.t)}` : ''}` : poop ? 'קקי' : none ? 'לא עשתה' : null;
+  const out = pee && poop ? 'פיפי וקקי' : pee ? `פיפי${pee.t > g.t && waitOf(pee) != null ? ` תוך ${words(pee.t - g.t)}` : ''}` : poop ? 'קקי' : none ? 'לא עשתה' : null;
   return out ? {g, out, text: `ניסיון אחרון: ${out} · <bdi dir="ltr">${clock(g.t)}</bdi>${dayLabel(g.t) === 'היום' ? '' : ' ' + dayLabel(g.t)}`} : null;
 }
 const lastOutingText = p => { const o = lastOuting(p); return o ? ` · ${o.text}` : ''; };
@@ -2890,8 +2900,8 @@ function alerts(p){
   return out;
 }
 function alertsHTML(p){
-  const seen = alerts(p).some(a => a.k === 'food') ? camFoodSeen(p) : 0;
-  return alerts(p).map(a => `<div class="card alertc${a.calm ? ' calm' : ''}"><div class="ic">${ico(a.k)}</div><span><b>${a.text}</b><small>${a.hint}</small>${a.k === 'food' && seen ? `<small class="alc-cam">ייתכן שאכלה ב־<bdi dir="ltr">${clock(seen)}</bdi> לפי המצלמה, לא אושר</small>` : ''}${a.offer ? `<button class="ghost" data-act="nofood">${ico('none','s')}הצעתי, לא אכלה</button>` : ''}</span></div>`).join('');
+  const seen = alerts(p).some(a => a.k === 'food') ? camFoodSeen(p) : 0, pvs = alerts(p).some(a => a.k === 'pee' || a.k === 'poop') ? pvSeen(p) : null;   // §18c: display only — thresholds unchanged
+  return alerts(p).map(a => `<div class="card alertc${a.calm ? ' calm' : ''}"><div class="ic">${ico(a.k)}</div><span><b>${a.text}</b><small>${a.hint}</small>${a.k === 'food' && seen ? `<small class="alc-cam">ייתכן שאכלה ב־<bdi dir="ltr">${clock(seen)}</bdi> לפי המצלמה, לא אושר</small>` : ''}${(a.k === 'pee' || a.k === 'poop') && pvs && pvs.t_end > (V[p][a.k] || 0) ? `<small class="alc-cam">המצלמה ראתה ביקור בחצץ ב־<bdi dir="ltr">${clock(pvs.t_start)}</bdi> · לא ידוע מה היה, לא נענה</small>` : ''}${a.offer ? `<button class="ghost" data-act="nofood">${ico('none','s')}הצעתי, לא אכלה</button>` : ''}</span></div>`).join('');
 }
 
 // CAMERA EATING, unapproved (owner, 27.11): the newest food detection / eating suggestion still waiting for her answer
@@ -3757,10 +3767,10 @@ function camjEvImg(e, end){
   return e.image_ts < a ? { ok: false, why: 'older' } : e.image_ts > b ? { ok: false, why: 'newer' } : { ok: true, id: e.image_id, ts: e.image_ts };
 }
 function camjDecide(ids, d, meta){   // approved / rejected / dismissed / deleted -> camera/feedback (preview / sandbox: this page only)
-  const at = Date.now(), m = {}, by = String((meta && meta.by) || me || '').slice(0, 40), rid = meta && meta.rid ? { rid: String(meta.rid).slice(0, 100), ...(typeof meta.rat === 'number' ? { rat: meta.rat } : {}) } : {};   // rat = when she answered in the research UI
+  const at = Date.now(), m = {}, by = String((meta && meta.by) || me || '').slice(0, 40), rid = { ...(meta && meta.rid ? { rid: String(meta.rid).slice(0, 100), ...(typeof meta.rat === 'number' ? { rat: meta.rat } : {}) } : {}), ...(meta && PETS[meta.dog] ? { dog: meta.dog } : {}) };   // dog: §18c, whose answer a gravel visit's decision is   // rat = when she answered in the research UI
   for(const id of [].concat(ids)) if(id){ const old = camjDec(id);   // a changed answer keeps the earlier ones (provenance; a research decision keeps its rid)
-    const keep = old && (old.d !== d || (rid.rid && old.rid !== rid.rid));
-    m[id] = { d, by, at, ...rid, ...(keep ? { prev: [...(Array.isArray(old.prev) ? old.prev : []), { d: old.d, at: old.at, by: old.by, ...(old.rid ? { rid: old.rid } : {}) }].slice(-10) } : old && old.prev ? { prev: old.prev } : {}) }; }   // the same answer again adds no history
+    const keep = old && (old.d !== d || (rid.rid && old.rid !== rid.rid) || (rid.dog && old.dog && rid.dog !== old.dog));
+    m[id] = { d, by, at, ...rid, ...(keep ? { prev: [...(Array.isArray(old.prev) ? old.prev : []), { d: old.d, at: old.at, by: old.by, ...(old.rid ? { rid: old.rid } : {}), ...(old.dog ? { dog: old.dog } : {}) }].slice(-10) } : old && old.prev ? { prev: old.prev } : {}) }; }   // the same answer again adds no history
   Object.assign(CAMJ.fbLocal, m);
   if(MODE === 'live' && fb && fb.camMerge) fb.camMerge('feedback', { decisions: m }).catch(() => {});
 }
@@ -4101,7 +4111,9 @@ function camjHuman(a, b){
   }
 }
 function camjApply(){
-  if(!CAMJ.ready || !serverSeen || !me || !PETS[CAMJ_P] || stale) return;
+  if(!serverSeen || !me || !PETS[CAMJ_P] || stale) return;
+  pvOwnerApply();   // §18c: her research-UI answers to gravel visits (from the suggestions doc, whether or not camera/events exists)
+  if(!CAMJ.ready) return;
   camjOwnerApply();
   const { acts } = camjPlan(state.log, Date.now());
   if(acts.length) commit('המצלמה עדכנה את הכלוב', () => acts.forEach(a => camjDo(a)), { quiet: true, cam: true });
@@ -4180,7 +4192,8 @@ function camjSub(){
   if(!CAMJ.unsubS) CAMJ.unsubS = fb.camDoc(camjSugDoc(), (d, cache) => {
     if(!cache) camsUse(JSON.stringify(d || {}).length);
     CAMJ.sev = camjSugValid(d); CAMJ.sready = !!(d && CAMJ.sev.length); CAMJ.sAt = d && typeof d.published_at === 'number' ? d.published_at : 0;
-    camjMerge(); setState(state); camjOwnerApply(); camjLast = ''; camjPaint();
+    CAMJ.pv = pvValid(d);   // §18c: completed gravel visits (their own path, never CAMJ.ev)
+    camjMerge(); setState(state); camjOwnerApply(); pvOwnerApply(); camjLast = ''; camjPaint();
   }, () => { CAMJ.unsubS = () => {}; });   // no access / no doc: nothing (tonight's state)
   if(!CAMJ.unsub) CAMJ.unsub = fb.camDoc(camjDoc(), (d, cache) => {
     if(!cache) camsUse(JSON.stringify(d || {}).length);
@@ -4196,8 +4209,254 @@ function camjCov(t){
   if(!CAMJ.ready || !CAMJ.cov.length || t < Math.min(...CAMJ.cov.map(r => r[0]))) return null;
   return CAMJ.cov.some(r => r[0] <= t && t <= r[1]);
 }
+// ---------- §18c: Cam 3 gravel visits (CAMERA-API draft §18c + "Revisions after the app-session review") ----------
+// The camera on the balcony gravel publishes (1) a COMPLETED visit as a `potty_visit` item in camera/suggestions(_preview)
+// — the camera does NOT know what happened, so the app asks ONE short question per dog ("מה היה?") — and (2) an OPEN
+// visit in camera/gravel_live(_preview), shown as a PROVISIONAL timer that is never written. Only her answer writes,
+// and it writes exactly the entries a tap would (a gravel outing for Kishmish, the results with w:'gravel'), so the
+// trainer's routine, the forecasts and the alerts read them like any logged entry. An unanswered visit is UNKNOWN: it is
+// never "no pee", never moves the routine, and only adds a conditional line ("המצלמה ראתה ביקור בחצץ ב־… · מה היה?").
+// Not research data: the app writes no labels; these entries are kept out of every camera figure (`camjIsVisit`).
+const PV_DOGS = ['kishmish', 'kochik'];
+const PV_ANS = { pee: 'פיפי', poop: 'קקי', both: 'שניהם', none: 'לא עשתה', not_visit: 'לא היה ביקור', unsure: 'לא בטוחה', dismiss: 'להסתיר' };
+const PV_RES = { pee: ['pee'], poop: ['poop'], both: ['pee', 'poop'], none: ['none'] };   // answers that write results
+const PV_PAD = 5*60000;        // a manual result / outing of that dog within [t_start − 5 min, t_end + 5 min] is the same visit
+const PV_FRESH = CAMJ_MATCH;   // answered within 10 min of the visit's end: applied like a tap then (crate / sleep end, retry); older: only lands at its time
+CAMJ.pv = [];
+const pvNum = x => typeof x === 'number' && isFinite(x);
+// STRICT validation of one item (draft §1b). Anything else is ignored, item by item. `test:true` only in a harness.
+function pvItemValid(g, now){
+  if(!g || typeof g !== 'object' || g.kind !== 'potty_visit' || g.source !== 'camera_visit' || g.status !== 'active') return null;
+  if(g.test === true && !CAMJ_TEST_OK) return null;
+  const m = typeof g.id === 'string' && (g.test === true ? /^pv_cam3_(\d{10,14})_(kishmish|kochik|unknown)(?:_TEST)?$/ : /^pv_cam3_(\d{10,14})_(kishmish|kochik|unknown)$/).exec(g.id); if(!m) return null;   // "_TEST": the camera's fixtures only
+  const dog = g.dog === null || g.dog === undefined ? null : g.dog;
+  if(dog !== null && !PV_DOGS.includes(dog)) return null;
+  if(m[2] !== (dog || 'unknown')) return null;                                    // the id names the dog (or "unknown")
+  if(!['reliable', 'ask'].includes(g.identity_confidence) || (dog === null && g.identity_confidence !== 'ask')) return null;   // no dog = ask (a row per dog); 'ask' with a dog = that dog's row, identity unsure (the camera publishes one item per dog)
+  if(!pvNum(g.t_start) || !pvNum(g.t_end) || +m[1] !== g.t_start || g.t_end < g.t_start || g.t_end - g.t_start > 2*3600000 || g.t_end > now + 60000) return null;
+  if(!pvNum(g.duration_s) || Math.abs(g.duration_s * 1000 - (g.t_end - g.t_start)) > 5000) return null;
+  if(typeof g.ir !== 'boolean' || typeof g.uncertain !== 'boolean' || !['day', 'night_colour', 'ir'].includes(g.lighting)) return null;
+  if(g.ir && g.identity_confidence !== 'ask') return null;      // §4: IR visits only as 'ask' until measured (and read as uncertain below)
+  const c = g.clip; if(!c || c.cam !== 'cam3' || !pvNum(c.t) || !pvNum(c.before) || !pvNum(c.after) || c.before < 0 || c.after < 0) return null;
+  if(g.visit_id != null && (typeof g.visit_id !== 'string' || !/^[\w:.\-]{1,100}$/.test(g.visit_id))) return null;
+  const on = pvNum(g.onset_ts) && g.onset_ts >= g.t_start && g.onset_ts <= g.t_end ? g.onset_ts : null;
+  return { id: g.id, dog, ask: g.identity_confidence === 'ask', t_start: g.t_start, t_end: g.t_end, duration_s: g.duration_s, onset_ts: on, visit_id: g.visit_id || null,
+    clip: { cam: 'cam3', t: Math.round(c.t), before: Math.min(c.before, 600), after: Math.min(c.after, 600) }, ir: g.ir, uncertain: g.uncertain || g.ir, lighting: g.lighting,
+    published_at: null, ...(g.test === true ? { test: true } : {}), ...(g.owner_decision ? { owner_decision: g.owner_decision } : {}) };
+}
+function pvValid(d){
+  if(!d || d.disabled === true || d.enabled === false || !Array.isArray(d.suggestions)) return [];   // the same kill switch as every suggestion
+  const now = Date.now(), seen = new Set(), out = [];
+  for(const g of d.suggestions){ const x = pvItemValid(g, now), vk = x && x.visit_id ? x.visit_id + '|' + (x.dog || '') : null;   // dedup: the id, and (visit_id, dog)
+    if(x && !seen.has(x.id) && !(vk && seen.has(vk))){ seen.add(x.id); if(vk) seen.add(vk); x.published_at = pvNum(d.published_at) ? d.published_at : null; out.push(x); } }
+  return out;
+}
+// The decision key of (visit, dog): the camera reads `camera/feedback.decisions['sug:'+id]`. A visit with a known dog has
+// one row → that key (the decision carries `dog`); a visit of unknown identity has a row per dog → 'sug:'+id+':'+dog.
+const pvKey = (x, dog) => 'sug:' + x.id + (x.dog ? '' : ':' + dog);
+const pvDec = (x, dog) => { const d = camjDec(pvKey(x, dog)); return d && d.d !== 'undone' ? d : null; };
+const pvPre = (x, dog) => `cam:sug:${x.id}:${dog}:`;                   // every journal entry an answer writes
+const pvCrateId = (x, dog) => `pvc:${x.id}:${dog}`;                      // the retry wait of a fresh "לא עשתה" (pushNone); not a camera session
+const pvOwn = (x, dog) => e => (e.id || '').startsWith(pvPre(x, dog)) || e.id === pvCrateId(x, dog);
+const camjIsVisit = e => !!e && !!e.cam && e.cam.src === 'camera_visit';   // never in a camera-performance figure (like camjIsReview)
+// The visit is already in the journal for this dog: a manual (or another) pee / poop / "לא עשתה" within ±5 min of it,
+// or an overlapping outing that already has a result. An overlapping outing WITHOUT a result does not answer it: the
+// answer is then written into that outing (no second one).
+function pvCovered(x, dog, log){
+  const L = (log || state.log).filter(e => e.p === dog && !pvOwn(x, dog)(e)), a = x.t_start - PV_PAD, b = x.t_end + PV_PAD;
+  if(L.some(e => OUT_KINDS[e.k] && !isTU(e) && e.t >= a && e.t <= b)) return true;
+  return L.some(g => g.k === 'gravel' && g.t <= b && (g.end == null ? Date.now() : g.end) >= a
+    && L.some(e => OUT_KINDS[e.k] && !isTU(e) && e.t > g.t && (g.end == null || e.t <= g.end)));
+}
+const pvLive = (x, now) => now - x.t_end <= CAMJ_TTL;
+// The questions for one dog, newest first: not answered, not in the journal, not expired.
+function pvRows(p, now = Date.now()){
+  if(!PETS[p]) return [];
+  return CAMJ.pv.filter(x => (x.dog === p || !x.dog) && pvLive(x, now) && !pvDec(x, p) && !pvCovered(x, p))
+    .sort((a, b) => b.t_start - a.t_start);
+}
+// The newest unanswered visit later than the dog's last result: what guidance and the red cards may mention (never more).
+function pvSeen(p){
+  const S = V && V[p]; if(!S) return null;
+  const last = Math.max(S.pee || 0, S.poop || 0, S.none || 0), r = pvRows(p).find(x => x.t_end > last);
+  return r || null;
+}
+const pvWhen = x => `<bdi dir="ltr">${clock(x.t_start)}–${clock(x.t_end)}</bdi>${dayLabel(x.t_start) === 'היום' ? '' : ' · ' + dayLabel(x.t_start)}`;
+const pvFlags = x => [x.ask ? (x.dog ? 'המצלמה לא בטוחה איזו כלבה' : 'המצלמה לא יודעת איזו כלבה') : '', x.ir ? 'צילום לילה' : x.uncertain ? 'זיהוי לא ודאי' : ''].filter(Boolean).join(' · ');
+const pvClip = x => camjClipHTML({ kind: 'potty_visit', ts: x.clip.t, lo: x.t_start, hi: x.t_end, image_id: null, clip: x.clip });
+const pvBtns = (x, dog) => `<span class="rt-a pv-a">${Object.keys(PV_ANS).map(a => `<button class="${a === 'pee' || a === 'poop' || a === 'both' ? 'go' : a === 'unsure' || a === 'dismiss' ? 'lnk' : 'btn'}" data-pv="${a}" data-id="${esc(x.id)}" data-dog="${dog}">${PV_ANS[a]}</button>`).join('')}</span>`;
+// ONE short question per dog, in the potty section (both designs; Kochik's "פיפי וקקי" group). Not on מסך יונתן: seven
+// answers break its three-button speed — the question waits (6 h) for the full screen, and a result Yonatan logs there
+// answers it by itself (`pvCovered`).
+function pvRowHTML(p){
+  const rows = pvRows(p); if(!rows.length) return '';
+  const x = rows[0], more = rows.length - 1, f = pvFlags(x);
+  return `<div class="card slim pvq" data-pvq="${esc(x.id)}"><span><b>ביקור בחצץ ${pvWhen(x)} (לפי המצלמה) · מה היה?</b><small>${x.ask ? `${PETS[p].name}? ` : ''}${f ? f + ' · ' : ''}לא נרשם עד שעונים</small>${pvClip(x)}</span>
+    ${pvBtns(x, p)}${more > 0 ? `<button class="lnk camj-rv" data-camj="review">עוד ${more} ביקורים לשאלה</button>` : ''}</div>`;
+}
+// "מה עושים עכשיו?" / the red pee or poop card: a CONDITIONAL line only (never a stage that happened, never a timer).
+const pvGuideHTML = p => { const x = pvSeen(p); return x ? ` <span class="pvg">המצלמה ראתה ביקור בחצץ ב־<bdi dir="ltr">${clock(x.t_start)}</bdi> · מה היה? אפשר לענות בכרטיס הצרכים.</span>` : ''; };
+// The journal side of an answer — exactly what the taps would write, at the visit's own time.
+function pvMake(x, dog, ans, who){
+  const kinds = PV_RES[ans]; if(!kinds) return;
+  const now = Date.now(), fresh = now - x.t_end <= PV_FRESH, pre = pvPre(x, dog);
+  const cam = { src: 'camera_visit', in: 'sug:' + x.id, vis: x.visit_id, it: x.t_start, ilo: x.t_start, ihi: x.t_end, ...(x.onset_ts ? { on: x.onset_ts } : {}), ok: who };
+  let rt = x.onset_ts != null ? x.onset_ts : x.t_end;
+  if(PETS[dog].cycle){   // Kishmish: her outing — the manual one that overlaps the visit, else one at the camera's times
+    const g = state.log.filter(e => e.p === dog && e.k === 'gravel' && !pvOwn(x, dog)(e) && e.t <= x.t_end && (e.end == null ? now : e.end) >= x.t_start).sort((a, b) => a.t - b.t)[0];
+    if(g){ rt = Math.max(rt, g.t + 1); if(g.end != null) rt = Math.min(rt, g.end);
+      else if(!fresh && ans === 'none') g.end = Math.max(rt, x.t_end); }   // an old "לא עשתה" in an outing left running: it ended when the camera saw her leave
+    else {
+      rt = Math.max(rt, x.t_start + 1);
+      if(fresh){ const open = kk => state.log.filter(e => e.p === dog && e.k === kk && e.end == null && e.t < x.t_start).sort((a, b) => a.t - b.t)[0];
+        if(open('crate')) leaveCrate(dog, x.t_start); else if(open('sleep')) stopDur(dog, 'sleep', x.t_start); }   // going out to the gravel = out and awake (a tap on "יצאנו לחצץ")
+      state.log.push({ id: pre + 'gravel', p: dog, k: 'gravel', t: x.t_start, end: Math.max(x.t_end, rt), cam });
+    }
+  }
+  for(const k of kinds){
+    if(state.log.some(e => e.id === pre + k)) continue;
+    if(fresh) impliesOut(dog, k, rt);   // an old answer never ends a stay / sleep still running, nor a newer one
+    if(k === 'none'){ const n0 = state.log.length, e = pushNone(dog, rt); Object.assign(e, { id: pre + k, w: 'gravel', cam });   // pushNone: the retry wait only while it could still run
+      const c = state.log.length > n0 + 1 ? state.log[state.log.length - 1] : null; if(c && c.k === 'crate' && !c.id) c.id = pvCrateId(x, dog); }
+    else state.log.push({ id: pre + k, p: dog, k, t: rt, w: 'gravel', cam });
+  }
+}
+// Set or CHANGE her answer for (visit, dog): the decision and the journal entries move together, once per answer;
+// the same answer again (another phone, a repeated rid) changes nothing.
+function pvAnswer(id, dog, ans, meta){
+  const x = CAMJ.pv.find(i => i.id === id); if(!x || !PV_ANS[ans]) return;
+  if(!PV_DOGS.includes(dog) || (x.dog && dog !== x.dog && !(meta && meta.by === 'research_ui'))) return;   // a known dog's row answers for her (the research UI may name the other dog)
+  const who = (meta && meta.by) || me, key = pvKey(x, dog), d = ans === 'dismiss' ? 'dismissed' : ans, old = camjDec(key);
+  const oldDog = old && old.d !== 'undone' ? old.dog || x.dog || dog : null;
+  camjDecide(key, d, { ...(meta || {}), dog });
+  const nm = PETS[dog].name, msg = `${nm} · ביקור בחצץ ${clock(x.t_start)}: ${PV_ANS[ans]}`;
+  if(meta && meta.nojournal){ setState(state); camjLast = ''; render(); return; }
+  const same = old && old.d === d && (old.dog || dog) === dog && state.log.some(pvOwn(x, dog)) === !!PV_RES[ans];
+  if(same){ setState(state); camjLast = ''; render(); }
+  else commit(msg, () => {
+    const drop = oldDog && oldDog !== dog ? [pvOwn(x, oldDog), pvOwn(x, dog)] : [pvOwn(x, dog)];
+    state.log = state.log.filter(e => !drop.some(f => f(e)));   // a change: what the earlier answer wrote goes first
+    pvMake(x, dog, ans, who);
+  }, { cam: true, quiet: !!(meta && meta.quiet) });
+  if(meta && meta.quiet) return;
+  // the toast: undo (the entries AND the answer, so the question comes back) and "שינוי תשובה"
+  if(lastUndo){ const prev = old; lastUndo.cb = () => { if(prev) camjDecide(key, prev.d, { by: prev.by, dog: prev.dog }); else camjDecide(key, 'undone', { dog }); camjLast = ''; }; }
+  else showToast(msg);
+  const tw = document.getElementById('toastWhere'); if(tw) tw.innerHTML = `<button class="btn" data-pvchg="${esc(id)}|${dog}">שינוי תשובה</button>`;
+  const pp = state.log.find(e => e.id === pvPre(x, dog) + 'poop'); if(pp && hasType(dog, 'poop') && !pp.q && !same) typeSheet(pp.id);   // "איך הוא היה?" — optional, skippable
+}
+function pvChangeSheet(id, dog){
+  const x = CAMJ.pv.find(i => i.id === id); if(!x || !PETS[dog]) return;
+  const cur = camjDec(pvKey(x, dog)), ca = cur && cur.d !== 'undone' ? (cur.d === 'dismissed' ? 'dismiss' : cur.d) : null;
+  sheet(`${PETS[dog].name} · שינוי תשובה`, `<div class="sub">ביקור בחצץ ${pvWhen(x)} · עכשיו: <b>${ca ? PV_ANS[ca] : 'בלי תשובה'}</b></div>
+    <div class="chips" style="margin-top:10px">${Object.keys(PV_ANS).map(a => `<button data-pvset="${a}" class="${a === ca ? 'sel' : ''}">${PV_ANS[a]}</button>`).join('')}</div>`, cancelBtn, null);
+  sh.querySelectorAll('[data-pvset]').forEach(b => b.onclick = () => { close(); pvAnswer(id, dog, b.dataset.pvset); });
+  const cc = sh.querySelector('#cancel'); if(cc) cc.onclick = close;
+  bg.classList.add('show');
+}
+document.addEventListener('click', e => {
+  const b = e.target.closest && e.target.closest('[data-pv]'), c = e.target.closest && e.target.closest('[data-pvchg]'); if(!b && !c) return;
+  e.stopPropagation();
+  if(c){ document.getElementById('toast').classList.remove('show'); const [id, dog] = c.dataset.pvchg.split('|'); pvChangeSheet(id, dog); return; }
+  if(!me){ openUserSheet(() => b.click()); return; }
+  const inRv = bg.classList.contains('show') && sh.querySelector('.cam-sheet');
+  pvAnswer(b.dataset.id, b.dataset.dog, b.dataset.pv); if(inRv) camjReview();
+}, true);
+// §18 path for these items: `owner_decision {ans, at, src:'research_ui', rid, dog?}` — applied once per rid; the journal
+// only if the visit is still open in the app (as if unanswered) or her earlier answer's entries exist.
+function pvOD(x){
+  const o = x && x.owner_decision; if(!o || typeof o !== 'object' || o.src !== 'research_ui' || typeof o.rid !== 'string' || !/^[\w:.\-]{1,100}$/.test(o.rid) || !pvNum(o.at)) return null;
+  if(!PV_ANS[o.ans]) return null;
+  const dog = o.dog != null ? o.dog : x.dog; if(!PV_DOGS.includes(dog)) return null;   // a visit of unknown identity needs the dog she named
+  return { ...o, dog };
+}
+function pvOwnerApply(){
+  if(!serverSeen || !me || stale || !CAMJ.pv.length) return;
+  const now = Date.now();
+  for(const x of CAMJ.pv.slice().sort((a, b) => a.t_start - b.t_start)){
+    const o = pvOD(x); if(!o) continue;
+    const key = pvKey(x, o.dog), dec = camjDec(key);
+    if(dec && (dec.rid === o.rid || (Array.isArray(dec.prev) && dec.prev.some(p => p.rid === o.rid)))) continue;   // applied already (here or on another phone)
+    if(dec && dec.d !== 'undone' && (pvNum(dec.rat) ? dec.rat : dec.at) > o.at) continue;   // she answered again afterwards in the app: the newer one stands
+    const journal = state.log.some(pvOwn(x, o.dog)) || (pvLive(x, now) && !pvCovered(x, o.dog));
+    pvAnswer(x.id, o.dog, o.ans, { by: 'research_ui', rid: o.rid, rat: o.at, quiet: true, nojournal: !journal });
+  }
+}
+// ----- §18c (1a): the LIVE gravel visit — a provisional timer, never written -----
+// camera/gravel_live (camera/gravel_live_preview outside live mode). Same lifecycle as the other camera docs: open only
+// while Kishmish's tracking screen is shown and the page is visible, closed after CAMS_IDLE_MS away, permission-denied →
+// silently nothing (the rules do not list it yet). An open visit shows "בחצץ לפי המצלמה, לא אושר" in the gravel card;
+// "יצאנו לחצץ" then starts the ordinary outing at the camera's t_start (`tapDur`): one outing, no second timer. When the
+// visit closes, the completed-visit question takes over.
+let GL_SHOW_UNSURE = false;   // IR / uncertain live visits stay hidden (owner rule) — change after the night measurement
+const GL = { unsub: null, visits: [], denied: false, retryAt: 0, idle: null, pub: 0, sig: '', stale: false }, GL_STALE = 2*60000, GL_SEEN_KEY = 'pets-timers-v1-gl', GL_SEEN_MAX = 100;
+const glDoc = () => MODE === 'live' ? 'gravel_live' : 'gravel_live_preview';
+// The camera's shape (live_timer_rules_REVIEW.md §3 + the owner's decisions, 27.11): {schema:'cam-gravel-live/1', camera:'cam3',
+// published_at, model_version?, coverage?:{recorder_ok, status_age_s, live_file_age_s, reason}, visits:[≤ 3]}. Published on change, with a bounded
+// heartbeat ONLY while a visit is active (no idle heartbeat): an old doc with no open visit is normal, an old doc WITH
+// one — or recorder_ok:false — is STALE = UNKNOWN: no timer, and never a "no visit" claim.
+const GL_KEYS = ['schema', 'camera', 'published_at', 'model_version', 'coverage', 'visits'], GL_VKEYS = ['visit_id', 'kind', 'status', 't_start', 'last_seen', 't_end', 'opened_at', 'closed_at', 'dog', 'identity_confidence', 'ir', 'uncertain', 'camera', 'model_version', 'test'];
+function glValid(d){
+  GL.stale = false;
+  if(!d || typeof d !== 'object' || !Object.keys(d).every(k => GL_KEYS.includes(k)) || d.schema !== 'cam-gravel-live/1' || d.camera !== 'cam3' || !pvNum(d.published_at)
+    || !Array.isArray(d.visits) || d.visits.length > 3 || (d.coverage != null && (typeof d.coverage !== 'object' || !Object.keys(d.coverage).every(k => ['recorder_ok', 'status_age_s', 'live_file_age_s', 'reason'].includes(k)) || typeof d.coverage.recorder_ok !== 'boolean'))) return [];   // ≤ 3 visits: what the rules can check field by field
+  const now = Date.now(), byId = new Map();
+  for(const v of d.visits){
+    if(!(v && typeof v === 'object' && Object.keys(v).every(k => GL_VKEYS.includes(k)) && (v.test !== true || CAMJ_TEST_OK) && v.kind === 'gravel_live' && (v.camera == null || v.camera === 'cam3')
+      && typeof v.visit_id === 'string' && /^[\w:.\-]{1,40}$/.test(v.visit_id) && (v.status === 'open' || v.status === 'closed')
+      && pvNum(v.t_start) && pvNum(v.last_seen) && v.last_seen >= v.t_start && v.t_start <= now + 60000
+      && (v.status === 'open' ? v.t_end == null : pvNum(v.t_end) && v.t_end >= v.t_start)
+      && (v.dog === null || v.dog === undefined || PV_DOGS.includes(v.dog)) && ['reliable', 'ask'].includes(v.identity_confidence)
+      && typeof v.ir === 'boolean' && typeof v.uncertain === 'boolean')) continue;
+    const x = { visit_id: v.visit_id, status: v.status, t_start: v.t_start, last_seen: v.last_seen, t_end: v.t_end == null ? null : v.t_end, dog: v.dog == null ? null : v.dog,
+      ask: v.identity_confidence === 'ask', ir: v.ir, uncertain: v.uncertain, opened_at: pvNum(v.opened_at) ? v.opened_at : null, pub: d.published_at };
+    const o = byId.get(x.visit_id); if(!o || x.last_seen > o.last_seen || (x.status === 'closed' && o.status === 'open')) byId.set(x.visit_id, x);   // a visit listed twice (a restart re-publishing it): one
+  }
+  const vs = [...byId.values()];
+  // stale / unavailable: the recorder says so, or a doc carrying an open visit has not been refreshed by its heartbeat
+  GL.stale = (d.coverage && d.coverage.recorder_ok === false) || (vs.some(v => v.status === 'open') && now - d.published_at > GL_STALE);
+  return vs;
+}
+// The open visit shown for dog p: open, seen within 2 min, under an hour, not IR / uncertain, and no manual outing of
+// that dog running (hers wins). A visit of unknown identity shows on Kishmish's card (she is the one with an outing timer).
+function glOpen(p, now = Date.now()){
+  if(!PETS[p] || !PETS[p].cycle || (V[p].gravel || {}).start || GL.stale || (GL.pub && now - GL.pub > GL_STALE && GL.visits.some(v => v.status === 'open'))) return null;   // stale = unknown: no timer
+  return GL.visits.filter(v => v.status === 'open' && (v.dog === p || v.dog === null) && now - v.last_seen <= GL_STALE && now - v.t_start <= GRAVEL_MAX
+    && (GL_SHOW_UNSURE || (!v.ir && !v.uncertain))).sort((a, b) => b.t_start - a.t_start)[0] || null;
+}
+// ENTRY → DISPLAY: when this phone first saw each visit (local only, capped; shown in the review's technical fold).
+function glSeenLog(){ try { const a = JSON.parse(localStorage.getItem(GL_SEEN_KEY) || '[]'); return Array.isArray(a) ? a : []; } catch(e){ return []; } }
+function glNote(vs){
+  const a = glSeenLog(), have = new Set(a.map(r => r.id)), now = Date.now(); let add = false;
+  for(const v of vs) if(!have.has(v.visit_id)){ a.push({ id: v.visit_id, ts: v.t_start, op: v.opened_at, pub: v.pub, seen: now, ir: v.ir ? 1 : 0, unc: v.uncertain ? 1 : 0, shown: glOpen('kishmish', now) && glOpen('kishmish', now).visit_id === v.visit_id ? 1 : 0 }); add = true; }
+  if(add) try { localStorage.setItem(GL_SEEN_KEY, JSON.stringify(a.slice(-GL_SEEN_MAX))); } catch(e){}
+}
+function glStop(){ clearTimeout(GL.idle); GL.idle = null; if(GL.unsub){ GL.unsub(); GL.unsub = null; } }
+function glWatch(){   // after every render
+  const want = !document.hidden && view === 'now' && pet === CAMJ_P && !!fb && !!fb.camDoc && !!fb.auth && !!fb.auth.currentUser && !GL.denied && Date.now() >= GL.retryAt;
+  if(!want){ if(GL.unsub && !GL.idle) GL.idle = setTimeout(glStop, CAMS_IDLE_MS); return; }
+  clearTimeout(GL.idle); GL.idle = null;
+  if(GL.unsub) return;
+  GL.unsub = fb.camDoc(glDoc(), (d, cache) => {
+    if(!cache) camsUse(JSON.stringify(d || {}).length);
+    GL.visits = glValid(d); GL.pub = d && pvNum(d.published_at) ? d.published_at : 0; glNote(GL.visits);
+    const o = glOpen(CAMJ_P), sig = o ? o.visit_id + ':' + o.t_start : '';   // read only: a repaint, nothing else
+    if(sig !== GL.sig){ GL.sig = sig; if(pet === CAMJ_P && view === 'now') render(); }
+  }, e => {   // refused: silently nothing; any other error: unknown until it reconnects (a minute later, on the next render)
+    if(e && e.code === 'permission-denied') GL.denied = true; else GL.retryAt = Date.now() + 60000;
+    if(GL.unsub){ GL.unsub(); GL.unsub = null; } GL.visits = []; GL.pub = 0;
+    if(GL.sig){ GL.sig = ''; if(pet === CAMJ_P && view === 'now') render(); } });
+}
+document.addEventListener('visibilitychange', () => { if(document.hidden) glStop(); });
+// The head of the gravel card while an open visit is shown (never a journal entry, never a "בחצץ כבר" of hers).
+function glHeadHTML(p){
+  const v = glOpen(p); if(!v) return '';
+  return `<b class="gl">בחצץ לפי המצלמה, לא אושר · <span class="rt-t" data-since="${v.t_start}">${dur(Date.now() - v.t_start)}</span></b><small>מ־<bdi dir="ltr">${clock(v.t_start)}</bdi>${v.dog === null ? ' · לא ברור איזו כלבה' : ''} · ״יצאנו לחצץ״ מתחיל את היציאה מהשעה הזו</small>`;
+}
+// ---------- end §18c ----------
 const camjWin = (lo, hi) => hi - lo >= 60000 ? ` (בין <bdi dir="ltr">${clock(lo)}</bdi> ל־<bdi dir="ltr">${clock(hi)}</bdi>)` : '';
 function camjNote(e, long){   // list rows and the entry's sheet
+  if(camjIsVisit(e) && OUT_KINDS[e.k]) return ` · מביקור שהמצלמה זיהתה${e.cam.ok === 'research_ui' ? ' (אושר במחקר)' : ''}${long ? camjWin(e.cam.ilo, e.cam.ihi) : ''}`;   // §18c, both dogs
   if((e.k !== 'crate' && !((e.k === 'sleep' || e.k === 'food' || e.k === 'water') && e.cam)) || e.p !== CAMJ_P) return '';
   const c = e.cam || {};
   if(e.k === 'food' || e.k === 'water') return ` · ${c.src === 'owner_review' ? 'מסקירה ידנית של צילום' : c.ok === 'research_ui' ? 'מהמצלמה (אושר במחקר)' : /^sug:/.test(c.in || '') ? 'הצעה מהמצלמה (אושרה)' : c.ok ? 'זיהוי מצלמה (אושר)' : 'מהתיוג שלך'}${long ? camjWin(c.ilo, c.ihi) : ''}`;
@@ -4337,7 +4596,7 @@ function camjReview(){
   const span = (c, isSleep) => { const b = c.end, short = b != null && b - c.t < 60000;
     if(isSleep && short && c.ohi != null) return `נרדמה ${when(c.t)} · התעוררה עד <bdi dir="ltr">${clock(c.ohi)}</bdi>`;
     return short ? `${when(c.t)} · פחות מדקה` : when(c.t, b); };
-  const wk = state.log.filter(e => e.p === CAMJ_P && e.k === 'crate' && now - e.t < 7*DAY && !camjIsReview(e));   // §18b: her footage reviews are never counted as camera results
+  const wk = state.log.filter(e => e.p === CAMJ_P && e.k === 'crate' && now - e.t < 7*DAY && !camjIsReview(e) && !camjIsVisit(e));   // §18b: her footage reviews are never counted as camera results
   const fromCam = wk.filter(e => (e.id || '').startsWith('cam:')).length, fixed = wk.filter(e => !(e.id || '').startsWith('cam:') && e.cam && e.cam.was).length, manual = wk.length - fromCam;
   const resolveRows = rv.resolve.map((r, i) => r.c
     ? row(`${r.c.k === 'sleep' ? 'שינה · ' : ''}${r.why === 'single' ? 'סימון שינה בודד' : r.why === 'overlap' ? 'חופף לשהייה שכבר רשומה' : r.why === 'journal' ? 'סותר את היומן' : 'שעה לא ודאית'}: ${span(r.c, r.c.k === 'sleep')}${camjWin(r.c.ilo, r.c.ihi)}<small>${r.why === 'single' ? 'סימון אחד בלבד, לא נרשם כשינה' : r.why === 'overlap' ? 'לא נרשם, כדי לא ליצור כפילות' : r.why === 'journal' ? `ביומן: ${ITEMS[r.clash.k].log} ב־<bdi dir="ltr">${clock(r.clash.t)}</bdi>, בתוך ${r.c.k === 'sleep' ? 'השינה' : 'השהייה'} הזו. לא נרשם, כדי לא להתחיל סבב או שינה בטעות` : 'החלון רחב מ־15 דק׳, לכן לא נרשם כשעה מדויקת. אפשר לבחור שעה בתוכו'}</small>`,
@@ -4348,7 +4607,15 @@ function camjReview(){
     camjAnsBtns(e.event_id, hide('data-cjp', e.event_id))); };
   const feedRows = [...(rv.feed.food || []), ...(CAM_FEATURES.drinkSuggest ? rv.feed.water || [] : [])].sort((a, b) => b.ts - a.ts).map(e => row(`${CAMJ_FEED[e.kind] === 'food' ? 'אכלה' : 'שתתה'} ${when(e.ts)}${camjWin(e.lo, e.hi)}<small>${e.sug ? 'הצעה מהמצלמה, ניסיונית' : 'זיהוי מצלמה'} · לא נרשם עד שמאשרים</small>${camjClipHTML(e)}`, `<span class="rt-a"><button class="go" data-camf="ok" data-ev="${esc(e.event_id)}">אישור</button><button class="btn" data-camf="no" data-ev="${esc(e.event_id)}">לא נכון</button>${e.sug && e.kind === 'food_seen' ? `<button class="btn" data-camf="drink" data-ev="${esc(e.event_id)}">שתתה, לא אכלה</button>` : ''}<button class="lnk" data-camf="unsure" data-ev="${esc(e.event_id)}">לא בטוחה</button>${hide('data-camf', e.event_id)}</span>`));
   const sugSleepRows = camjSugSleeps(now).map(c => row(`ישנה ${span(c, true)}${c.end == null ? ' (עדיין)' : ''}<small>הצעה מהמצלמה, ניסיונית · משוער עד שמאשרים</small>`, `<span class="rt-a"><button class="go" data-camss="ok" data-ev="${esc(c.on.event_id)}">אישור</button><button class="btn" data-camss="no" data-ev="${esc(c.on.event_id)}">לא נכון</button><button class="lnk" data-camss="unsure" data-ev="${esc(c.on.event_id)}">לא בטוחה</button>${hide('data-camss', c.on.event_id)}</span>`));
-  const act = sec('זיהויים לאישור', (rv.pending || []).map(e => entryRow(e))) + sec('אוכל לאישור', feedRows) + sec('שינה לאישור', sugSleepRows) + sec('לבירור', resolveRows);
+  // §18c: gravel visits — the open questions (both dogs), her answers (changeable), and the latency log (technical)
+  const pvQ = PV_DOGS.flatMap(d => pvRows(d, now).map(x => row(`${PETS[d].name} · ביקור בחצץ ${pvWhen(x)} (לפי המצלמה) · מה היה?<small>${pvFlags(x) ? pvFlags(x) + ' · ' : ''}לא נרשם עד שעונים</small>${pvClip(x)}`, pvBtns(x, d))));
+  const pvA = CAMJ.pv.flatMap(x => (x.dog ? [x.dog] : PV_DOGS).map(d => ({ x, d, dec: pvDec(x, d) })).filter(r => r.dec)).sort((a, b) => b.x.t_start - a.x.t_start)
+    .map(({ x, d, dec }) => { const dg = dec.dog || d; return row(`${PETS[dg].name} · ביקור בחצץ ${pvWhen(x)}<small>${PV_ANS[dec.d === 'dismissed' ? 'dismiss' : dec.d] || dec.d}${dec.by === 'research_ui' ? ' · מהמחקר' : ''}${dec.prev ? ' · שונה' : ''}${PV_RES[dec.d] && !state.log.some(pvOwn(x, dg)) ? ' · כבר היה ביומן, לא נוסף' : ''}</small>`, `<span class="rt-a"><button class="lnk" data-pvchg="${esc(x.id)}|${dg}">שינוי תשובה</button></span>`); });
+  const sec2 = t => t ? `<bdi dir="ltr">${clipClock(t)}</bdi>` : '—', lag = (a, b) => a && b ? ` (+${Math.round((b - a) / 1000)} ש׳)` : '';
+  const pvT = [...glSeenLog().slice().reverse().map(r => row(`חי · ${esc(r.id)}<small>כניסה ${sec2(r.ts)} · פורסם ${sec2(r.pub)}${lag(r.ts, r.pub)} · הופיע כאן ${sec2(r.seen)}${lag(r.ts, r.seen)}${r.ir ? ' · IR' : ''}${r.unc ? ' · לא ודאי' : ''}${r.shown ? '' : ' · לא הוצג'}</small>`)),
+    ...CAMJ.pv.slice().sort((a, b) => b.t_start - a.t_start).map(x => { const dec = (x.dog ? [x.dog] : PV_DOGS).map(d => pvDec(x, d)).filter(Boolean)[0];
+      return row(`ביקור · ${esc(x.id)}<small>יציאה ${sec2(x.t_end)} · פורסם ${sec2(x.published_at)}${lag(x.t_end, x.published_at)}${dec ? ` · נענה ${sec2(dec.at)}${lag(x.t_end, dec.at)}` : ''} · ${x.lighting}</small>`); })];
+  const act = sec('זיהויים לאישור', (rv.pending || []).map(e => entryRow(e))) + sec('אוכל לאישור', feedRows) + sec('שינה לאישור', sugSleepRows) + sec('ביקורים בחצץ', pvQ) + sec('לבירור', resolveRows);
   // research / history: folded. Imported and matched rows say what they are (a SLEEP is never shown as a crate stay);
   // one row per journal entry however many camera observations matched it
   const asMade = r => r.e ? { ...r.c, t: r.e.t, end: r.e.end, ohi: r.e.cam && r.e.cam.ohi != null ? r.e.cam.ohi : r.c.ohi } : r.c;   // what the journal holds now
@@ -4375,6 +4642,8 @@ function camjReview(){
       : row(`${kindW(e)} ${when(e.ts)}<small>${e.ir ? 'תאורת לילה (IR)' : 'זיהוי לא ודאי'} · לא לאישור, לא משנה דבר</small>`)), 'המודל לא בטוח מספיק')}
     ${fold('dis', 'זיהויים במחלוקת', (rv.disputed || []).map(e => row(`${e.kind === 'crate_entry' ? 'כניסה' : 'יציאה'} ${when(e.ts)}<small>התיוג שלך לפני ואחרי סותר אותו · לא נרשם</small>${camjClipHTML(e)}`)))}
     ${fold('ans', 'התשובות שלך', ansRows, 'אפשר לשנות')}
+    ${fold('pva', 'ביקורים בחצץ שנענו', pvA, 'אפשר לשנות · לא נספר בנתוני המצלמה')}
+    ${fold('pvt', 'זמני הופעה (טכני)', pvT, 'במכשיר הזה בלבד')}
     ${fold('hid', 'הוסתרו', (rv.dismissed || []).map(e => row(`${kindW(e)} ${when(e.ts)}<small>הוסתר בלי לסמן כשגוי · נשמר במצלמה</small>`, chg(e))))}
     ${fold('rej', 'סומנו "לא נכון"', rv.rejected.filter(e => !changeable(e)).map(e => row(`${kindW(e)} ${when(e.ts)}<small>נשמר כדוגמה שגויה לבדיקת המודל</small>`)))}
     </div>
@@ -4472,9 +4741,12 @@ function clipHevcOk(){
 const CLIP_WHY = { no_footage: ['אין צילום מהרגע הזה', false], expired: ['הסרטון כבר לא נשמר', false], forbidden: ['החשבון הזה לא מורשה לסרטונים', false],
   auth: ['צריך להתחבר מחדש', true], noauth: ['לא מחובר לחשבון', false], busy: ['המצלמה עסוקה כרגע', true], net: ['אין חיבור למצלמה כרגע', true],
   timeout: ['לקח יותר מדי זמן', true], decode: ['הסרטון לא מתנגן במכשיר הזה', false], bad: ['התקבל קובץ לא תקין', false], other: ['שגיאה במצלמה', true] };
+const CLIP_WIN = {};   // §18c: a gravel visit's own window (cam3 visit clips are already H.264)
 function clipFor(x){
-  const cam = x && CLIP_CAM[x.kind];
-  return cam && typeof x.ts === 'number' && Date.now() - x.ts <= CLIP_KEEP_MS && x.ts <= Date.now() + 60000 ? { cam, t: Math.round(x.ts), key: cam + ':' + Math.round(x.ts) } : null;
+  const cam = x && (x.clip ? x.clip.cam : CLIP_CAM[x.kind]);
+  const c = cam && typeof x.ts === 'number' && Date.now() - x.ts <= CLIP_KEEP_MS && x.ts <= Date.now() + 60000 ? { cam, t: Math.round(x.ts), key: cam + ':' + Math.round(x.ts) } : null;
+  if(c && x.clip) CLIP_WIN[c.key] = { before: Math.round(x.clip.before), after: Math.round(x.clip.after) };
+  return c;
 }
 // The evidence block of one event: the image (as before) + the clip affordance / player / its state.
 function camjClipHTML(x, end){
@@ -4504,7 +4776,8 @@ function clipClose(paint){
 }
 // GET /api/clip with the header; → {ok, blob, start, end} | {ok:false, why}
 async function clipFetch(cam, t, h264, ac){
-  const url = camUrl(`/api/clip?cam=${cam}&t=${t}&before=${CLIP_BEFORE}&after=${CLIP_AFTER}${h264 ? '&h264=1' : ''}`); if(!url) return { ok: false, why: 'bad' };
+  const w = CLIP_WIN[cam + ':' + t] || { before: CLIP_BEFORE, after: CLIP_AFTER };
+  const url = camUrl(`/api/clip?cam=${cam}&t=${t}&before=${w.before}&after=${w.after}${h264 ? '&h264=1' : ''}`); if(!url) return { ok: false, why: 'bad' };
   const tok = await camToken(); if(!tok) return { ok: false, why: 'noauth' };
   const tm = setTimeout(() => ac.abort(), CAM_CLIP_TIMEOUT_MS);
   try {
@@ -4520,11 +4793,11 @@ async function clipFetch(cam, t, h264, ac){
   finally { clearTimeout(tm); }
 }
 async function clipOpen(key, inSheet, h264){
-  const [cam, ts] = key.split(':'), t = +ts; if(!(cam === 'cam1' || cam === 'cam2') || !(t > 0)) return;
+  const [cam, ts] = key.split(':'), t = +ts; if(!(cam === 'cam1' || cam === 'cam2' || cam === 'cam3') || !(t > 0)) return;
   clipClose(false);   // one clip at a time: the previous one is stopped and its blob revoked first
   delete CLIP.fail[key];
   const ac = new AbortController();
-  Object.assign(CLIP, { key, st: 'load', inSheet, ac, h264: h264 != null ? h264 : !clipHevcOk() });
+  Object.assign(CLIP, { key, st: 'load', inSheet, ac, h264: h264 != null ? h264 : cam === 'cam3' ? false : !clipHevcOk() });
   clipRepaint();
   const src = clipSource(), r = src ? await src.get(cam, t, CLIP.h264, ac) : { ok: false, why: 'net' };
   if(CLIP.key !== key || CLIP.ac !== ac) return;   // closed or replaced meanwhile
@@ -5138,7 +5411,7 @@ function simpleHTML(p){
     ? `<div class="card smp-out"><div class="smp-oh"><b>בחצץ כבר <span data-since="${gv}">${dur(Date.now() - gv)}</span></b><small>${gravelDone(p, gv) || 'פיפי וקקי נרשמים והשעון ממשיך · "לא עשתה" או "סיום" סוגרים את היציאה'}</small></div>
         <div class="smp-g">${big('pee', 'פיפי')}${big('poop', 'קקי')}${big('both', 'פיפי וקקי')}${big('none', 'לא עשתה', 'sec')}</div>
         <button class="btn smp-end" data-act="spl" data-k="end">סיום</button></div>`
-    : big('gravel', ITEMS.gravel.start, 'smp-main');
+    : big('gravel', ITEMS.gravel.start, 'smp-main') + (glOpen(p) ? `<div class="smp-gl">בחצץ לפי המצלמה מ־<bdi dir="ltr">${clock(glOpen(p).t_start)}</bdi>, לא אושר</div>` : '');   // §18c: provisional, never written
   return alertsHTML(p)
     + `<div class="card slim smp-h"><span><b>מסך יונתן</b><small>${name} · רישום מהיר, עכשיו</small></span><button class="btn" data-act="simple" data-k="0">למסך המלא</button></div>`
     + (rt ? `<div class="card slim withrt smp-rt ${rt.state}">${retryHead(rt)}</div>` : '')
@@ -5187,7 +5460,7 @@ function nightCardsHTML(p, tileOf, gravelRow){
 }
 // §17: after every repaint (each view, each early return) the one playing clip goes back into its slot in the same
 // task, so it keeps playing; a view without its card closes it (blob revoked).
-function render(){ try { return renderView(); } finally { clipMount(); } }
+function render(){ try { return renderView(); } finally { clipMount(); glWatch(); } }
 function renderView(){
   { const ni = document.getElementById('noteIn'); if(ni){ noteDraft[ni.dataset.p] = ni.value; noteFocus = document.activeElement === ni; } }
   V = derive(state);   // also by the clock: an assumed sleep begins a couple of minutes after she goes in, with no tap
@@ -5308,7 +5581,7 @@ function renderView(){
     // By topic, each in its own box (the owner's grouping): food and water · pee and poop · medicines and ear gel · vomiting.
     const has = k => P.items.includes(k), t = k => has(k) ? tileOf(k) : '';
     const groups = [['food', 'אוכל ושתייה', t('food') + (has('food') ? waterRowHTML(pet) : '') + (P.treats ? treatCardHTML(pet) : '')],
-      ['potty', 'פיפי וקקי', t('pee') + t('poop')], ['meds', has('gel') && P.meds ? 'תרופות וג׳ל לאוזן' : P.meds ? 'תרופות' : 'ג׳ל לאוזן', medHTML + t('gel')], ['vomit', 'הקאות', t('vomit')], ['bath', 'טיפוח', P.bath ? groomTiles() : '']];
+      ['potty', 'פיפי וקקי', pvRowHTML(pet) + t('pee') + t('poop')], ['meds', has('gel') && P.meds ? 'תרופות וג׳ל לאוזן' : P.meds ? 'תרופות' : 'ג׳ל לאוזן', medHTML + t('gel')], ['vomit', 'הקאות', t('vomit')], ['bath', 'טיפוח', P.bath ? groomTiles() : '']];
     h += groups.filter(g => g[2]).map(g => sec('', g[1], false, g[2], g[0])).join('');
   }
   else {
@@ -5319,14 +5592,16 @@ function renderView(){
     // One start / stop unit: "יצאנו לחצץ" starts the clock, and what happened there stops it — so every trip has
     // how long it took and how it ended. (Without the clock the three buttons below work as always.)
     const rh = rt && !slim ? retryHead(rt) : '', rc = rt && !slim ? ` retry withrt ${rt.state}` : '';   // at night: the plain card, no retry prompts
-    const gravelRow = rt && !slim && !gv
+    const gravelRow = (rt && !slim && !gv
       ? `<div class="card slim gravel${rc}">${rh}<span><b>יוצאים לחצץ?</b><small>${uw && uw.n >= 3 ? `בדרך כלל עושה פיפי תוך ${words(uw.ms)}` : 'השעון מודד כמה זמן לקח ומה יצא'}</small></span>
           <span class="rt-a"><button class="go" data-act="dur" data-k="gravel">${ITEMS.gravel.start}</button><button class="btn" data-act="pt" data-k="pee">פיפי</button><button class="btn" data-act="pt" data-k="none">לא עשתה</button></span></div>`
       : gv
       ? `<div class="card slim gravel on${rc}">${rh}<span><b>בחצץ כבר <span class="rt-t" data-since="${gv}">${dur(Date.now() - gv)}</span></b><small>${gravelDone(pet, gv) || 'פיפי וקקי נרשמים והשעון ממשיך · "לא עשתה" או "סיום" סוגרים את היציאה'}</small></span>
           <span class="rt-a"><button class="go" data-act="pt" data-k="pee">פיפי</button><button class="go" data-act="pt" data-k="poop">קקי</button><button class="btn" data-act="pt" data-k="none">לא עשתה</button><button class="btn gend" data-act="dur" data-k="gravel">סיום</button></span></div>`
-      : `<div class="card slim gravel ${tap.includes('none') ? 'nowt' : ''}"><span><b>יוצאים לחצץ?</b>${slim ? '' : tryNowHTML(pet)}<small>${uw && uw.n >= 3 ? `בדרך כלל עושה פיפי תוך ${words(uw.ms)}` : 'השעון מודד כמה זמן לקח ומה יצא'}${lastOutingText(pet)}</small></span>
-          <span class="rt-a"><button class="go" data-act="dur" data-k="gravel">${ITEMS.gravel.start}</button><button class="btn" data-act="pt" data-k="none">לא עשתה</button></span></div>`;
+      : `<div class="card slim gravel ${glOpen(pet) ? 'glive ' : ''}${tap.includes('none') ? 'nowt' : ''}"><span>${glOpen(pet) ? glHeadHTML(pet)   // §18c: the camera's open visit, provisional — nothing written until "יצאנו לחצץ"
+            : `<b>יוצאים לחצץ?</b>${slim ? '' : tryNowHTML(pet)}<small>${uw && uw.n >= 3 ? `בדרך כלל עושה פיפי תוך ${words(uw.ms)}` : 'השעון מודד כמה זמן לקח ומה יצא'}${lastOutingText(pet)}</small>`}</span>
+          <span class="rt-a"><button class="go" data-act="dur" data-k="gravel">${ITEMS.gravel.start}</button><button class="btn" data-act="pt" data-k="none">לא עשתה</button></span></div>`)
+      + pvRowHTML(pet);   // §18c: the completed visit's question, right under the gravel card (also on the night screen)
     if(slim){ camsWatch(); side.innerHTML = alertsHTML(pet) + sleepAskHTML(pet); /* v3 validation S5: no advice line on the slim night screen */ document.getElementById('main').innerHTML = nightCardsHTML(pet, tileOf, gravelRow); return; }
     h += sec('1', 'כלוב', tap.includes('crate'), tileOf('crate'), 'crate');
     const pottySec = sec('2 · 5', 'צרכים', tap.includes('pee') || !!rt, gravelRow + gravelRatesHTML(pet) + tileOf('pee') + tileOf('poop'), 'potty');
@@ -5497,7 +5772,7 @@ function cycleHTML(p){
     ${over ? `<div class="duemsg">${ico('crate','s')}<span>${awakeNow(p, S.crate.start) ? 'ערה בכלוב' : 'בכלוב'} יותר מ${words(CRATE_MAX)} · מ־<bdi dir="ltr">${clock(S.crate.start)}</bdi>${awakeNow(p, S.crate.start) ? '' : ' · לא תועד אם ישנה'}</span></div>` : ''}
     ${due && !long3 ? `<div class="duemsg">${ico('pee','s')}<span>${unk ? 'אם היא ערה, ' : ''}זמן להוציא לצרכים · ${due.why}, לפני <span data-words="${due.t}">${words(now-due.t)}</span></span></div>` : ''}
     ${asleep ? `<div class="zz">${ico('sleep','s')}<span>ישנה ${S.sleep.assumed ? 'כנראה ' : ''}מ־<bdi dir="ltr">${clock(S.sleep.start)}</bdi> · ${wb && wb.past ? 'כדאי להעיר אותה' : wb ? `נותנים לה לישון עד <bdi dir="ltr">${clock(wb.t)}</bdi>` : 'נותנים לה לישון'}${(() => { const we = !(wb && wb.past) && wakeExpect(p, now); return we && we.likely ? ` · כנראה תתעורר בין <bdi dir="ltr">${clock(we.likely.from)}–${clock(we.likely.to)}</bdi>` : ''; })()}${S.sleep.assumed ? ' <small>(הנחה: נרדמת בכלוב תוך כמה דקות)</small>' : ''}</span><button class="lnk" data-act="notasleep">לא נרדמה</button></div>` : ''}
-    <div class="cyc-n"><span class="nx"><b>מה עושים עכשיו?</b>${wakeGravelWhat(p)}${say}${routineTap(p).length ? ` החלק המתאים למטה מסומן <span class="tagk">עכשיו בשגרה</span>.` : ''}</span>
+    <div class="cyc-n"><span class="nx"><b>מה עושים עכשיו?</b>${wakeGravelWhat(p)}${say}${pvGuideHTML(p)}${routineTap(p).length ? ` החלק המתאים למטה מסומן <span class="tagk">עכשיו בשגרה</span>.` : ''}</span>
       ${r && !r.brk && !inCrate ? `<button class="ghost" data-act="brk">${ico('none','s')}הפסקה בשגרה</button>` : ''}</div></div>`;
 }
 // New design: the wheel as a row of the five steps with arrows between them and a loop back from the last to the
@@ -5626,7 +5901,7 @@ function poopLine(p){
   const from = m.last + quantile(m.g, .25), to = m.last + quantile(m.g, .75);
   // EXPIRED (owner, 27.11): a window whose end has passed with no poop is not a live prediction. The old design says so
   // in this line; the new design's bar under it says the same (`gaugeHTML` with `miss`), so the line steps aside there.
-  if(now > to) return V2 && !mealPoopCue(p) ? '' : `<div class="sub hint fc past">${winPast(from, to, 'קקי')}</div>`;
+  if(now > to) return V2 && !mealPoopCue(p) ? '' : `<div class="sub hint fc past">${winPast(from, to, 'קקי', p)}</div>`;
   return `<div class="sub hint fc">הקקי הבא צפוי בסביבות <bdi dir="ltr">${clock(from)}–${clock(to)}</bdi></div>`;
 }
 // WHEN SHE EATS NEXT: she eats every two hours or so all day, so times of day say little (the card once read
@@ -5685,7 +5960,7 @@ function forecastLine(p){
   const src = `<div class="sub hint fcsrc">${f.byAge ? 'לפי הגיל · עוד אין מספיק מרווחים שלה' : `לפי ${f.n} מרווחים מ־${PEE_RHYTHM.days} הימים האחרונים`}</div>`;
   if(f.state === 'soon') return `<div class="sub fc">הפיפי הבא צפוי ${span}${why}</div>${src}`;
   if(f.state === 'now') return `<div class="sub fc ${quiet ? '' : 'now'}"><i></i>הפיפי הבא צפוי עכשיו · עד <bdi dir="ltr">${clock(f.to)}</bdi>${why}</div>${src}`;
-  return `<div class="sub fc past ${quiet ? '' : 'late'}"><i></i>${winPast(f.from, f.to, 'פיפי')}${why}</div>${src}`;
+  return `<div class="sub fc past ${quiet ? '' : 'late'}"><i></i>${winPast(f.from, f.to, 'פיפי', p)}${why}</div>${src}`;
 }
 function forecastWhy(p){   // where the window comes from, in plain words
   const f = peeForecast(p); if(!f) return;
@@ -5726,7 +6001,8 @@ function poopWindow(p){
 const when = t => `${dayLabel(t) === 'היום' ? '' : dayLabel(t) + ' '}${clock(t)}`;
 // "החלון עבר (A–B) · לא נרשם קקי": a pee / poop window whose end has passed with nothing logged — the same words on the
 // card line and on the bar, both designs. How windows are computed is unchanged.
-const winPast = (a, b, what) => `החלון עבר (<bdi dir="ltr">${clock(a)}–${clock(b)}</bdi>) · לא נרשם ${what}`;
+const winPast = (a, b, what, p) => { const x = p && typeof pvSeen === 'function' ? pvSeen(p) : null;   // §18c: an unanswered gravel visit in or after the window — unknown, said so
+  return `החלון עבר (<bdi dir="ltr">${clock(a)}–${clock(b)}</bdi>) · לא נרשם ${what}${x && x.t_end >= a ? ` · המצלמה ראתה ביקור בחצץ ב־<bdi dir="ltr">${clock(x.t_start)}</bdi>, לא נענה` : ''}`; };
 function gaugeHTML(w, noun, lastLbl){
   if(!w) return '';
   const now = Date.now(), end = Math.max(w.end, now + 1), W = end - w.last, pc = t => Math.max(0, Math.min(100, (t - w.last) / W * 100));
@@ -6989,7 +7265,9 @@ function typeSheet(id){
 }
 document.getElementById('undo').onclick = () => {
   if(!lastUndo) return;
+  const cb = lastUndo.cb;   // §18c: an answer's undo also takes back the answer itself (the question comes back)
   setState(patch(diff(lastUndo.after, lastUndo.before), state)); lastUndo = null;   // reverse just this change
+  if(cb) cb();
   document.getElementById('toast').classList.remove('show');
   render(); push();
 };
@@ -7191,7 +7469,7 @@ function openEntrySheet(i){
   const canReopen = !!it.dur && !(V[e.p][e.k] || {}).start && !state.log.some(x => x.p===e.p && x.k===e.k && x.end > e.end);
   sheet(`${name} · ${it.log} · ${dayLabel(e.t)} <bdi dir="ltr">${clock(e.t)}</bdi>`,
     pt ? (isTU(e) ? `<div class="sub" style="margin-bottom:8px">${tuText(e)}</div>` : '') + `<label class="field">${isTU(e) ? 'מתי נמצא' : 'תיקון השעה'} ${timeField("tIn", clock(e.t))}</label>` +
-         ((e.k === 'food' || e.k === 'water') && e.cam && camjNote(e, true) ? `<div class="sub" style="margin:4px 0 8px">${camjNote(e, true).replace(/^ · /, '')}</div>` : '') +
+         ((e.k === 'food' || e.k === 'water' || camjIsVisit(e)) && e.cam && camjNote(e, true) ? `<div class="sub" style="margin:4px 0 8px">${camjNote(e, true).replace(/^ · /, '')}</div>` : '') +
          (hasWhere(e.k) ? `<div class="sub" style="margin:14px 0 8px">איפה?</div><div class="chips">${whereKeys(e.p).map(w => `<button data-w="${w}" class="${e.w===w?'sel':''}">${WHERE[w]}</button>`).join('')}</div>` : '') +
          (PETS[e.p].cycle && waitOf({...e, g: 1}) != null ? `<div class="sub" style="margin:14px 0 8px">כמה זמן לקח בחצץ?${typeof e.g !== 'number' && waitOf(e) != null ? ' (נמדד: ' + words(waitOf(e)) + ')' : ''}</div><div class="chips">${GRAVEL_OPTS.map(m => `<button data-g="${m}" class="${e.g===m?'sel':''}">${m} דק׳</button>`).join('')}</div>` : '') +
          (mealKind(e) ? `<div class="sub" style="margin:14px 0 8px">ארוחה או ביס?</div><div class="chips">${Object.keys(MEAL_LBL).map(m => `<button data-m="${m}" class="${mealKind(e)===m?'sel':''}">${MEAL_LBL[m]}</button>`).join('')}</div><div class="sub hint">ארוחה מאפסת את השעון של האוכל; ביס לא.</div>` : '') +
