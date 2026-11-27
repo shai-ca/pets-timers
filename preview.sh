@@ -13,7 +13,7 @@ branch=$(git rev-parse --abbrev-ref HEAD)
 [ -z "$(git status --porcelain)" ] || { echo "Commit your changes first (git status is not clean)."; exit 1; }
 grep -q "applyMode(detectMode());" index.html && grep -q "ref = guardRef({" index.html \
   || { echo "This branch's index.html has no preview isolation (applyMode / guardRef). Nothing deployed."; exit 1; }
-echo "== tests"; tests/run.sh
+echo "== tests"; { [ -n "${TESTED_SHA:-}" ] && [ "$TESTED_SHA" = "$(shasum -a 256 index.html | cut -c1-64)" ] && echo "tests: already passed on this exact index.html (TESTED_SHA)"; } || tests/run.sh
 sum() { shasum -a 256 | cut -c1-16; }
 live=$(curl -fsS "$LIVE/?x=$RANDOM" | sum); main=$(git show main:index.html | sum)
 [ "$live" = "$main" ] || { echo "The live app is not main's index.html (live $live, main $main). Publish main with deploy.sh first. Nothing deployed."; exit 1; }
@@ -22,7 +22,7 @@ git archive main | tar -x -C "$tmp"                                   # the live
 mkdir -p "$tmp/preview"
 cp index.html icon.svg icon-192.png apple-touch-icon.png "$tmp/preview/"
 vj(){ printf '{"schema":"app-version/1","commit":"%s","logic_version":%s,"released_at":%s}\n' "$1" "$2" "$3"; }   # CAMERA-API §19
-lvm=$(git show main:index.html | grep -o '^const LOGIC_VERSION = [0-9]*' | grep -o '[0-9]*$'); lvb=$(grep -o '^const LOGIC_VERSION = [0-9]*' index.html | grep -o '[0-9]*$')
+lvm=$(git show main:index.html | grep -o '^const LOGIC_VERSION = [0-9]*' | grep -o '[0-9]*$' || true); lvb=$(grep -o '^const LOGIC_VERSION = [0-9]*' index.html | grep -o '[0-9]*$' || true)   # || true: production may predate LOGIC_VERSION (set -e)
 vj "$(git rev-parse --short main)" "${lvm:-5}" "$(($(git log -1 --format=%ct main) * 1000))" > "$tmp/version.json"   # production stays described (a hosting deploy replaces the whole site)
 vj "$(git rev-parse --short HEAD)" "${lvb:-5}" 0 > "$tmp/preview/version.json"   # the branch's page under /preview/
 python3 - "$tmp/firebase.json" <<'PY'

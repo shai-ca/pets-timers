@@ -9,7 +9,7 @@ if [ -n "$(git status --porcelain)" ]; then echo "Commit your changes first (git
 echo "== tests"; tests/run.sh
 mark=$(git rev-parse --short HEAD)
 echo "== push ($mark)"; git push -q origin main
-lv=$(grep -o '^const LOGIC_VERSION = [0-9]*' index.html | grep -o '[0-9]*$'); [ -n "$lv" ] || { echo "LOGIC_VERSION missing in index.html"; exit 1; }
+lv=$(grep -o '^const LOGIC_VERSION = [0-9]*' index.html | grep -o '[0-9]*$' || true); [ -n "$lv" ] || { echo "LOGIC_VERSION missing in index.html"; exit 1; }
 printf '{"schema":"app-version/1","commit":"%s","logic_version":%s,"released_at":%s}\n' "$mark" "$lv" "$(($(date +%s) * 1000))" > version.json   # CAMERA-API §19
 trap 'rm -f version.json' EXIT
 echo "== deploy"; npx -y firebase-tools deploy --only hosting --project pets-timers --non-interactive 2>&1 | grep -E "found|Deploy complete|Error" || true
