@@ -71,7 +71,7 @@
     await send([E('ce_g1', 'food_seen', T - 20*MIN, { image_id: 'img_old', image_ts: T - 3*HOUR }), E('ce_g2', 'water_seen', T - 12*MIN, { image_id: 'img_ok', image_ts: T - 12*MIN + 10000 })]); render(); await wait(2);
     ok('camjEvImg: older frame refused, frame inside the window accepted', camjEvImg(CAMJ.ev.find(e => e.event_id === 'ce_g1')).why === 'older' && camjEvImg(CAMJ.ev.find(e => e.event_id === 'ce_g2')).ok);
     ok('an older image is never shown as evidence: the card says so instead', $q('.camjf[data-feed=food]').textContent.includes('התמונה מוקדמת מהזיהוי') && !$q('.camjf[data-feed=food] img'));
-    ok('no private service on this device: a quiet line, no image', $q('.camjf[data-feed=water]').textContent.includes('רק במכשיר עם גישה למצלמה') && !$q('.camjf img'));
+    ok('no private service on this device: a quiet line, no image (§17: one line for image and clip, "…וסרטון · רק בבדיקה במק")', $q('.camjf[data-feed=water]').textContent.includes('וסרטון · רק בבדיקה במק') && !$q('.camjf img'));
     { const keep = camImage, asked = []; camImage = async path => { asked.push(path); return { ok: true, url: 'blob:fake-' + path.split('=')[1] }; };
       localStorage.setItem(CAM_KEY, 'http://127.0.0.1:8787'); CAM.st = 'ok'; camjLast = ''; render(); await wait(4); render(); await wait(2);
       const im = $q('.camjf[data-feed=water] img.camj-img');
