@@ -22,8 +22,8 @@
     const card = $q('#sec-crate .card.item'), img = $q('#sec-crate .crcam .cam-th');
     ok('no camera block in the side column', !$q('.crtop') && !$q('#side .camc'));
     ok('the image is inside the crate card, as before', !!img && R(img).height > 40 && inside(img, card) && over(R(img), R($q('#sec-potty'))) === 0);
-    ok('the question is in the same row as the image, under it', !!$q('#tq') && $q('#tq').closest('.crcam') === img.closest('.crcam') && R($q('#tq')).top >= R(img).bottom - 1);
-    ok('the row is the old markup (no part = the image and the question together)', crateCamRowHTML(pet) === crateCamRowHTML(pet, undefined) && !/crtop/.test(crateCamRowHTML(pet)) && /id="tq"/.test(crateCamRowHTML(pet)));
+    ok('the question is in the top card of the side column (release 6b), not under the image', !!$q('#tq') && !!$q('#tq').closest('#side .nowtop') && !$q('#sec-crate #tq'));
+    ok('the row is the old markup without the live question (no part = the image + the door question)', crateCamRowHTML(pet) === crateCamRowHTML(pet, undefined) && !/crtop/.test(crateCamRowHTML(pet)) && !/id="tq"/.test(crateCamRowHTML(pet)));
     const kids = [...$q('#main').children].filter(x => getComputedStyle(x).display !== 'none' && R(x).height > 0), bad = [];
     for(let i = 0; i < kids.length; i++) for(let j = i + 1; j < kids.length; j++) if(over(R(kids[i]), R(kids[j])) > 4) bad.push((kids[i].id || kids[i].className) + ' × ' + (kids[j].id || kids[j].className));
     ok('no two sections of the main column overlap ' + bad.join(', '), !bad.length);

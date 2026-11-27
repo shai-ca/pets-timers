@@ -30,8 +30,8 @@
     openScores(p); ok('2. the scores sheet: "נראתה ערה מ־06:19", not "מ־01:07"', sh.textContent.includes('נראתה ערה מ־' + clock(at(-10))) && !sh.textContent.includes('מ־' + clock(at(-323)) + '.')); close();
     // 3. sleep totals say how much was not documented — one wording everywhere
     { const s = scores(p), u = unkText(s);
-      ok('3. ' + u + ': hours without documentation, never added to sleep', s.unk > 4*HOUR && u.includes('שעות ללא תיעוד') && Math.abs(s.total + s.unk + dayParts(p, now - 24*HOUR, now).tot.out + dayParts(p, now - 24*HOUR, now).tot.outi + dayParts(p, now - 24*HOUR, now).tot.crate - 24*HOUR) < 2000);
-      ok('3. the sleep tile carries the same line', tileS().textContent.includes('נספרה שינה של') && tileS().textContent.includes(u));
+      ok('3. ' + u + ': hours without documentation, never added to sleep', s.unk > 4*HOUR && u.includes('לא תועדו') && Math.abs(s.total + s.unk + dayParts(p, now - 24*HOUR, now).tot.out + dayParts(p, now - 24*HOUR, now).tot.outi + dayParts(p, now - 24*HOUR, now).tot.crate - 24*HOUR) < 2000);
+      ok('3. the sleep tile carries the same line', tileS().textContent.includes('שינה מוערכת') && tileS().textContent.includes(u));
       if(V2) ok('3. the ring says it too', $q('.card.scores').textContent.includes(u));
       openScores(p); ok('3. …and the sheet', sh.textContent.includes(u) && sh.textContent.includes('לא נספר כשינה ולא כערות')); close(); }
     // 4. the day's breakdown: "לא תועד" is its own part; it all adds up
@@ -73,7 +73,7 @@
     seed([{ p, k:'crate', t: at(-60), end: at(-25) }, { p, k:'sleep', t: at(-55), end: at(-25) }, { p, k:'pee', t: at(-23), w:'gravel' }]);
     ok('day: a waking at 06:05 and a pee at 06:07 — "ערה כבר" from 06:05, as before', awakeFrom(p) === at(-25) && awakeFrom(p) === awakeSince(p) && tileS().textContent.includes('ערה כבר') && !tileS().textContent.includes('נראתה ערה כבר'));
     // the night routine, מסך יונתן and Kochik are untouched
-    seed(L); SIMPLE = true; render(); ok('מסך יונתן: no ribbon, no "לא תועד"', !$q('.ribbon') && !$q('#main').textContent.includes('לא תועד')); SIMPLE = false; render();
+    seed(L); SIMPLE = true; render(); ok('מסך יונתן: no ribbon; each clock runs only where the time since is observed, else "לא תועד מאז" (release 6b)', !$q('.ribbon') && [...document.querySelectorAll('.smp-c')].every(c => !!c.querySelector('[data-since]') !== c.textContent.includes('לא תועד מאז'))); SIMPLE = false; render();
     pet = 'kochik'; render(); ok("Kochik's screen: nothing about undocumented time", !($q('#main').textContent + $q('#side').textContent).includes('לא תועד') && !($q('#main').textContent + $q('#side').textContent).includes('ללא תיעוד')); pet = 'kishmish'; render();
     done();
   } catch(e){ crashed(e); }

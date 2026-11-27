@@ -37,13 +37,13 @@ function camLoad(doc, status, sug){
     // 1. recommendations reconcile with the camera; nothing is written
     let cs = currentState(p);
     ok('1. currentState: in the crate by the camera, unconfirmed, since 17:40, not fresh now', cs.state === 'in_crate' && cs.basis === 'camera-unconfirmed' && clock(cs.since) === '17:40' && cs.src === 'live' && cs.fresh === false && cs.occ === 'in' && !cs.conflicts.length);
-    ok('1. the wheel no longer says "זמן משחק"; it says what the camera saw and where to approve', !what().includes('זמן משחק') && what().includes('המצלמה זיהתה אותה נכנסת לכלוב') && what().includes('לאשר את הכניסה בכרטיס הכלוב') && what().includes('ממשיכים בשגרה מ״משחק״'));
+    ok('1. the wheel no longer says "זמן משחק"; it says what the camera saw and where to approve', !what().includes('זמן משחק') && what().includes('המצלמה זיהתה אותה נכנסת לכלוב') && what().includes('לענות לשאלה מהמצלמה למעלה') && what().includes('ממשיכים בשגרה מ״משחק״'));
     ok('1. planned vs actual: "בשגרה: משחק מ־16:35" · "בפועל: המצלמה זיהתה כניסה לכלוב ב־17:40 · לא אושר"', !!$q('.card.cyc .gd') && $q('.gd .gd-p').textContent === 'בשגרה: משחק מ־16:35' && $q('.gd .gd-a').textContent.startsWith('בפועל: המצלמה זיהתה כניסה לכלוב ב־17:40 · לא אושר'));
-    ok('1. the advice line says it with its freshness ("לא אושר · עכשיו לא ברור"), not "רואה"', $q('.advice').textContent.includes('המצלמה זיהתה כניסה לכלוב ב־17:40 · לא אושר') && !$q('.advice').textContent.includes('רואה אותה'));
+    ok('1. the advice line says it with its freshness ("לא אושר · עכשיו לא ברור"), not "רואה"', $q('.nowtop .nt-a').textContent.includes('המצלמה זיהתה כניסה לכלוב ב־17:40 · לא אושר') && !$q('.nowtop .nt-a').textContent.includes('רואה אותה'));
     ok('1. the trainer\'s wheel is kept: the play step is current, its tiles tagged, no new round', !!$q('.sg.cur[data-go=play]') && routineTap(p).join() === 'play,food' && roundStarts(p).length === rounds0 && JSON.stringify(routine(p)) === JSON.stringify(r));
     // …the same with a FRESH positive reading (camjInferNow): "המצלמה רואה אותה בכלוב מ־17:40 · לאשר בכרטיס הכלוב"
     { const st = { ...X.status, checked_at: Date.now() - 20000, crate_now: { status: 'positive', capture_ts: Date.now() - 20000 } }; camLoad(X.events, st); cs = currentState(p);
-      ok('1. fresh positive: "נראית בכלוב מ־17:40 · לפי המצלמה, לא אושר", advice "המצלמה רואה אותה בכלוב מ־17:40 · לאשר בכרטיס הכלוב"', cs.fresh && camjInferNow() && $q('.gd .gd-a').textContent === 'בפועל: נראית בכלוב מ־17:40 · לפי המצלמה, לא אושר' && $q('.advice').textContent.includes('המצלמה רואה אותה בכלוב מ־17:40 · לאשר בכרטיס הכלוב') && what().includes('המצלמה רואה אותה בכלוב') && !what().includes('זמן משחק'));
+      ok('1. fresh positive: "נראית בכלוב מ־17:40 · לפי המצלמה, לא אושר", advice "המצלמה רואה אותה בכלוב מ־17:40 · לאשר בכרטיס הכלוב"', cs.fresh && camjInferNow() && $q('.gd .gd-a').textContent === 'בפועל: נראית בכלוב מ־17:40 · לפי המצלמה, לא אושר' && camjConflict().replace(/<[^>]+>/g, '').includes('המצלמה רואה אותה בכלוב מ־17:40') && $q('.nowtop .nt-a').textContent.includes('נראית בכלוב מ־17:40') && what().includes('המצלמה רואה אותה בכלוב') && !what().includes('זמן משחק'));
       ok('1. …routine, rounds and the meal clock unmoved; nothing written', routine(p).i === 2 && roundStarts(p).length === rounds0 && clock(V[p].food) === '13:36' && JSON.stringify(state.log) === log0); }
     // 2. no camera at all: the stale "play" step is not a recommendation; the state is unknown
     camLoad(null, null); cs = currentState(p);
@@ -60,9 +60,9 @@ function camLoad(doc, status, sug){
     ok('4. sleep tile: "שינה אחרונה שנרשמה 13:50" · "לא נרשמה שינה מאז", never "ערה מאז / ערה כבר"', tileS().querySelector('.lbl').textContent === 'שינה אחרונה שנרשמה' && tileS().textContent.includes('13:50') && tileS().textContent.includes('לא נרשמה שינה מאז') && !/ערה (מאז|כבר)/.test(tileS().textContent) && !tileS().querySelector('.big[data-since]'));
     ok('4. the wheel never claims her awake since 13:50', !/ערה (מאז|כבר)/.test(cyc()));
     // 5. last recorded meal ≠ food intake; the red alert is preserved
-    ok('5. food card: "מאז הארוחה האחרונה שנרשמה", "היום ב־13:36"; the approved camera bite says so', card('food').querySelector('.lbl').textContent === 'מאז הארוחה האחרונה שנרשמה' && card('food').textContent.includes('היום ב־13:36') && card('food').querySelector('.bite').textContent.includes('14:17 · מהמצלמה, אושר'));
+    ok('5. food card (release 6b: the time since 13:36 is not fully observed): "ארוחה אחרונה שנרשמה", "היום ב־13:36"; the approved camera bite says so', card('food').querySelector('.lbl').textContent === 'ארוחה אחרונה שנרשמה' && /לא תועד מאז|תיעוד חלקי מאז/.test(card('food').textContent) && card('food').textContent.includes('היום ב־13:36') && card('food').querySelector('.bite').textContent.includes('14:17 · מהמצלמה, אושר'));
     const al = alerts(p)[0];
-    ok('5. the red food card: same text and hint as release 5, one card', al.text === 'עברו ' + words(Date.now() - V[p].food) + ' מאז האוכל האחרון' && al.hint === 'הגיע הזמן להציע לה אוכל.' && $n('.alertc') === 1 && !$q('.alertc').classList.contains('calm') && !$q('.alc-cam'));
+    ok('5. the food card (release 6b): same threshold, but calm — the time since the meal is not observed', al.text === 'לא נרשמה ארוחה מאז 13:36' && al.calm && al.unc && al.hint.startsWith('לא תועד מאז, כדאי לבדוק') && $n('.alertc') === 1 && $q('.alertc').classList.contains('calm') && !$q('.alc-cam'));
     { const T = Date.now(), sug = { schema: 'cam-suggestions/1', enabled: true, disabled: false, published_at: T - MIN, suggestions: [{ kind: 'eating_suggestion', id: 's1', ts: T - 80*MIN, lo: T - 80*MIN - 6000, hi: T - 80*MIN + 6000, confidence: 0.9, status: 'active', ir: false, validated: false }] };
       camLoad(X.events, X.status, sug);
       ok('5. unapproved camera eating at 16:22: one neutral line on the red card, "ייתכן שאכלה ב־16:22 לפי המצלמה, לא אושר"', $n('.alertc') === 1 && $q('.alertc .alc-cam').textContent === 'ייתכן שאכלה ב־16:22 לפי המצלמה, לא אושר' && $q('.alertc b').textContent === al.text);
@@ -70,8 +70,8 @@ function camLoad(doc, status, sug){
       camLoad(X.events, X.status); }
     // 6. expired potty windows
     { const pc = card('poop').textContent;
-      ok('6. poop: "החלון עבר (13:59–14:11) · לא נרשם קקי", not a live prediction', pc.includes('החלון עבר (13:59–14:11) · לא נרשם קקי') && !pc.includes('הקקי הבא צפוי בסביבות'));
-      if(V2) ok('6. …the bar says the same, drawn as past', card('poop').querySelector('.gauge.past small').textContent === 'החלון עבר (13:59–14:11) · לא נרשם קקי');
+      ok('6. poop: "החלון עבר (13:59–14:11) · לא נרשם קקי", not a live prediction', pc.includes('החלון עבר (13:59–14:11) · לא תועד מאז, לא ידוע אם עשתה קקי') && !pc.includes('הקקי הבא צפוי בסביבות'));
+      if(V2) ok('6. …the bar says the same, drawn as past', card('poop').querySelector('.gauge.past small').textContent === 'החלון עבר (13:59–14:11) · לא תועד מאז, לא ידוע אם עשתה קקי');
       ok('6. pee: the window is still ahead (18:01–18:32): a live prediction', card('pee').textContent.includes('הפיפי הבא צפוי בין 18:01–18:32') && !card('pee').textContent.includes('החלון עבר')); }
     // nothing written, both designs; מסך יונתן and Kochik untouched
     V2 = !V2; render(); V2 = !V2; render();

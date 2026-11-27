@@ -30,8 +30,9 @@
     camOn(true);
     let cs = currentState(p);
     ok('camera sees her in the crate now: actual state in_crate, unconfirmed, fresh', cs.state === 'in_crate' && cs.basis === 'camera-unconfirmed' && cs.fresh === true);
-    ok('the planned stage stays on the wheel: "בשגרה: צרכים"', cyc().includes('בשגרה: צרכים') && routine(p).i === 4);
-    ok('no bare "take her out" while she may be asleep; "if she is in the crate and asleep, leave her"', !what().includes('אחרי האוכל מוציאים שוב לצרכים') && what().includes('אם היא בכלוב ונרדמה, אפשר להשאיר אותה') && what().includes('ממשיכים בשגרה מ״צרכים״'));
+    // release 6b: 16:38 is 2:34 ago with no sign of hers since 18:16 → the stage is the LAST RECORDED one (stale), still kept
+    ok('the planned stage stays on the wheel, as the last recorded: "השלב האחרון שנרשם: צרכים, 16:38"', cyc().includes('השלב האחרון שנרשם: צרכים, 16:38') && routine(p).i === 4);
+    ok('no bare "take her out" while she may be asleep; "if she is in the crate and asleep, leave her"; then gravel first', !what().includes('אחרי האוכל מוציאים שוב לצרכים') && what().includes('אם היא בכלוב ונרדמה, אפשר להשאיר אותה') && what().includes('קודם לחצץ'));
     ok('sleep tile: the last RECORDED sleep, "maybe asleep unlogged", never "ערה כבר"', tile().includes('שינה אחרונה שנרשמה') && tile().includes('ייתכן שישנה בלי רישום') && !tile().includes('ערה כבר'));
     // the camera reads her OUT of the crate now (awake unknown): the guidance names the last LOGGED sign, not the camera time
     CAMS.status = { checked_at: N - MIN, service: 'pets-camera', crate_now: { status: 'negative', capture_ts: N - MIN, confidence: 0.99 } }; setState(state); render();
@@ -39,7 +40,7 @@
     camOn(false);
     cs = currentState(p);
     ok('no camera: the actual state is unknown (nothing logged since 18:16 supports awake)', cs.state === 'unknown');
-    ok('…the guidance is conditional ("אם היא ערה ומחוץ לכלוב"), the plan unchanged', what().includes('אם היא ערה ומחוץ לכלוב') && cyc().includes('בשגרה: צרכים') && routine(p).i === 4);
+    ok('…the guidance is conditional ("כשרואים אותה ערה"), the plan unchanged and shown as the last recorded stage', what().includes('כשרואים אותה ערה') && what().includes('אם היא ישנה, לא מעירים') && cyc().includes('השלב האחרון שנרשם: צרכים') && routine(p).i === 4);
     ok('nothing written: the list is byte-identical', JSON.stringify(state.log) === log0);
     CAMS.status = null; done();
   } catch(e){ crashed(e); }

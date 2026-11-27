@@ -13,7 +13,7 @@
       ok('the unknown part is visible on the bar (' + Math.round(r.width) + ' px) and the legend is on screen', r.width > 100 && r.height > 8 && rb.querySelector('.rlg2').getBoundingClientRect().width > 0);
       u.dispatchEvent(new MouseEvent('pointerover', {bubbles:true}));
       ok('hovering it writes "לא תועד" and its times', rb.querySelector('.pbar .ptip').textContent.startsWith('לא תועד'));
-    } else ok('old design: the sleep tile names the undocumented hours', $q('#sec-rest .card.item').textContent.includes('שעות ללא תיעוד'));
+    } else ok('old design: the sleep tile names the undocumented hours', $q('#sec-rest .card.item').textContent.includes('לא תועדו'));
     ok('nothing written', JSON.stringify(state.log) === log0);
     done();
   } catch(e){ crashed(e); }

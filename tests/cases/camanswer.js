@@ -16,13 +16,13 @@
     // 1. the four answers, in order, on the card
     await fresh(() => [{ ...K0, k:'pee', t: T - 2*HOUR, w:'gravel' }]);
     await send([E('ce_1', 'crate_entry', T - 30*MIN)]);
-    { const q = $q('#sec-crate .camjt');
+    { const q = $q('.nowtop .camjt');
       ok('card: exactly the four answers, in order', !!q && [...q.querySelectorAll('[data-camans]')].map(b => b.textContent).join('|') === 'הייתה, דלת סגורה|הייתה, דלת פתוחה|לא הייתה בכלוב|לא זוכרת' && !q.querySelector('[data-camj=start], [data-camj=reject]')); }
     for(const [a, d, entry] of [['closed', 'approved', true], ['open', 'visit', false], ['no', 'rejected', false], ['unsure', 'unsure', false]]){
       await fresh(() => [{ ...K0, k:'pee', t: T - 2*HOUR, w:'gravel' }]);
       await send([E('ce_a', 'crate_entry', T - 30*MIN)]);
       $q(`#sec-crate [data-camans=${a}]`).click(); await wait(3);
-      ok(`"${CAMJ_ANS[a]}": decision ${d}, ${entry ? 'ONE session at the camera time' : 'no crate entry'}, the question gone`, dec('ce_a') === d && crates().length === (entry ? 1 : 0) && (!entry || crates()[0].id === 'cam:ce_a') && !$q('#sec-crate .camjt [data-camans]'));
+      ok(`"${CAMJ_ANS[a]}": decision ${d}, ${entry ? 'ONE session at the camera time' : 'no crate entry'}, the question gone`, dec('ce_a') === d && crates().length === (entry ? 1 : 0) && (!entry || crates()[0].id === 'cam:ce_a') && !$q('.nowtop .camjt [data-camans]'));
       if(a === 'unsure') ok('"לא זוכרת" is not a negative label: not listed as wrong, not "rejected"', !camjPlan(state.log, Date.now()).rv.rejected.some(e => e.event_id === 'ce_a') && merged.some(([n, x]) => x.decisions.ce_a && x.decisions.ce_a.d === 'unsure'));
     }
     // 2. changing the answer: both sides together, history kept, idempotent

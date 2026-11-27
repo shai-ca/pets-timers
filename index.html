@@ -277,7 +277,7 @@
   @keyframes nxt{50%{stroke-opacity:.35}}
   .si.nxt{color:var(--btn)}
   .sg.done{color:color-mix(in srgb,var(--btn) 32%,var(--card))}
-  .sg.cur{color:var(--btn)} .sg.cur.over{color:var(--alert)}
+  .sg.cur{color:var(--btn)} .sg.cur.over{color:var(--alert)} .sg.cur.stale{opacity:.45}
   .sg.lock{cursor:default;opacity:.55}
   .si{fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round;color:var(--muted);pointer-events:none}
   .si.done{color:var(--btn)} .si.cur{color:var(--on-btn)} .si.lock{opacity:.55}
@@ -488,6 +488,7 @@
   .flow .fs.done{background:var(--acc-soft);color:var(--ink)}
   .flow .fs.cur{background:var(--btn);color:var(--on-btn);font-weight:600}
   .flow .fs.cur.over{background:var(--alert)}
+  .flow .fs.cur.stale{background:transparent;color:var(--ink);font-weight:500;outline:2px dashed var(--btn);outline-offset:-2px}
   .flow .fs.nxt{border-color:var(--btn);border-style:dashed;color:var(--ink)}
   .flow .ar{flex:none;width:9px;height:9px;border-left:2px solid var(--faint);border-bottom:2px solid var(--faint);transform:rotate(45deg);margin:0 1px}
   .loop{position:relative;height:16px;margin:2px 9% 0;border:2px solid var(--faint);border-top:0;border-radius:0 0 12px 12px;text-align:center}
@@ -529,6 +530,8 @@
   .gauge .gf{position:absolute;left:0;top:0;bottom:0;border-radius:5px;background:var(--acc);opacity:.85}
   .gauge.in .gf{background:var(--warn);opacity:1} .gauge.past .gf{background:var(--alert);opacity:1}
   .gauge.goal .gf{background:var(--c-sleep);opacity:1} .gauge.goal.met .gf{background:var(--ok)}
+  .gauge.goal .gf.est{border-radius:0;opacity:.55} .gauge.goal .gu{position:absolute;top:0;bottom:0;background:repeating-linear-gradient(135deg,var(--c-unk) 0 2px,transparent 2px 5px);box-shadow:inset 0 0 0 1px var(--c-unk);border-radius:0 5px 5px 0}
+  .scr.unkr .rv{stroke-dasharray:3 3}
   .gauge.goal small b{color:var(--ink);font-weight:600}
   .card.scores{display:block;padding:14px 10px 12px;width:100%;font:inherit;color:var(--ink);text-align:center;cursor:pointer}
   .scg{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;align-items:start}
@@ -719,6 +722,15 @@
   .cx-on b{font-weight:600;font-variant-numeric:tabular-nums} .cx-on small{font-size:12px;color:var(--muted)}
   .cx-on .dot{color:var(--acc)} .cx-on .btn{flex:none;padding:7px 12px;font-size:13px}
   .card.slim.advice{background:none;border:0;box-shadow:none;padding:4px 4px 10px;display:block}
+  /* the top card (release 6b): three short rows — now / what to do / the one camera question */
+  .card.nowtop{display:block;padding:12px 14px}
+  .nowtop .nt-r{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;padding:4px 0}
+  .nowtop .nt-r + .nt-r{border-top:1px solid var(--line);margin-top:4px;padding-top:8px}
+  .nowtop .nt-r > i{font-style:normal;font-size:12px;color:var(--muted);min-width:62px}
+  .nowtop .nt-r > span{flex:1 1 200px;font-size:15px;line-height:1.4}
+  .nowtop .nt-b > span{font-weight:600}
+  .nowtop .nt-b .go{margin-inline-start:auto}
+  .nowtop .nt-q{flex:1 1 100%} .nowtop .nt-q .camjt{margin:0;padding:0;border:0;background:none}
   .card.slim.advice b{font-size:14px;font-weight:500;color:var(--ink);line-height:1.45}
   .card.slim.advice small{font-size:12.5px;color:var(--muted);margin-top:2px}
   .v2 .card.slim.advice{background:none;border:0;box-shadow:none}
@@ -1588,8 +1600,7 @@ function advice(p){
 // adviceHTML(p): the advice slot in the side column (Agent E draws it). Empty while `advice` says nothing.
 function adviceHTML(p){ const a = advice(p), occ = p === CAMJ_P && typeof camjOccNow === 'function' && !(V[p].sleep || {}).start && !(V[p].crate || {}).start ? camjOccNow(p) : null;
   // a live camera entry nobody approved: said as the camera has it now (seen / entered, then unclear), from `currentState`
-  const cs = p === CAMJ_P ? currentState(p) : null, live = cs && cs.state === 'in_crate' && cs.src === 'live' ? `${cs.fresh ? `המצלמה רואה אותה בכלוב מ־<bdi dir="ltr">${clock(cs.since)}</bdi>` : `המצלמה זיהתה כניסה לכלוב ב־<bdi dir="ltr">${clock(cs.since)}</bdi> · לא אושר · עכשיו לא ברור`} · לאשר בכרטיס הכלוב` : '';
-  const cf = live || (p === CAMJ_P && typeof camjConflict === 'function' ? camjConflict() : '') || (occ ? `לפי התיוג שלך בכלוב מ־<bdi dir="ltr">${clock(occ)}</bdi> · לא ידוע אם ישנה` : '');
+  const cf = (p === CAMJ_P && typeof camjConflict === 'function' ? camjConflict() : '') || (occ ? `לפי התיוג שלך בכלוב מ־<bdi dir="ltr">${clock(occ)}</bdi> · לא ידוע אם ישנה` : '');
   return a.level === 'none' && !cf ? '' : `<div class="card slim advice ${a.level === 'none' ? 'info' : a.level}"><span><b>${esc(a.level === 'none' ? 'כדאי לבדוק' : a.text)}</b>${a.why ? `<small>${esc(a.why)}</small>` : ''}${cf ? `<small class="cam-err">${cf}</small>` : ''}</span></div>`; }
 // advice('kochik') (Agent C, owner 26.11): one calm line about comfort and rest, or none. None while anything asks for
 // action: a medicine due (from PLAN.medLead before 11:00 / 21:00) or late, unless on a break; her pee window open or past
@@ -2454,14 +2465,19 @@ function holdHours(p){ const a = ageOf(p); return !a || a.y ? 0 : Math.min(8, a.
 function sleepGoal(p){ const a = ageOf(p); return !a || a.y ? 0 : a.m < 4 ? 18 : a.m < 6 ? 16 : 14; }   // the bottom of the range
 const sleepGoalTop = p => sleepGoal(p) ? sleepGoal(p) + 2 : 0;   // a guiding range (owner, 25.11: 18–20 h at two months); above it is only noted
 // "נספרה שינה של 10:58 · 5:12 שעות ללא תיעוד" — one wording for the sleep tile, the ring and its sheet (27.11)
-const unkText = s => s && s.unk >= 60000 ? `${hmm(s.unk)} שעות ללא תיעוד` : '';
-function sleepCountText(s){ return `ב־24 השעות האחרונות נספרה שינה של <b dir="ltr">${hmm(s.total)}</b> (נצפה ${hmm(s.marked)} · משוער ${hmm(s.est)})${unkText(s) ? ` · <b class="unkc">${unkText(s)}</b>` : ''}`; }
+// release 6b (owner): the counted sleep is an ESTIMATE (an estimated piece may be wrong), not a lower bound, and never
+// "she slept only 8 hours": "שינה מוערכת 8:48 (נצפה 3:08 · משוער 5:40) · 7:22 לא תועדו"
+const unkText = s => s && s.unk >= 60000 ? `${hmm(s.unk)} לא תועדו` : '';
+function sleepCountText(s){ return `ב־24 השעות האחרונות: שינה מוערכת <b dir="ltr">${hmm(s.total)}</b> (נצפה ${hmm(s.marked)} · משוער ${hmm(s.est)})${unkText(s) ? ` · <b class="unkc">${unkText(s)}</b>` : ''}`; }
 function sleepGoalHTML(p){   // information, not a target (owner, 26.11): no "missing hours", no colour for "too little"
   const g = sleepGoal(p); if(!g) return '';
-  const s = scores(p), now = Date.now(), pc = Math.min(100, s.total / (24*3600000) * 100);
-  const tg = `טווח מקובל לגילה: ${g}–${sleepGoalTop(p)} שעות ב־24 שעות — מידע, לא יעד`, tf = `נצפה ${hmm(s.marked)} · משוער ${hmm(s.est)} מאז ${when(now - 24*3600000)}`;
-  return `<div class="gauge goal"><div class="gg" dir="ltr" data-tip="${tg}" title="${tg}"><span class="gf" style="width:${pc.toFixed(1)}%" data-tip="${tf}" title="${tf}"></span></div>
-    <small>${sleepCountText(s)} · טווח מקובל לגילה ${g}–${sleepGoalTop(p)} שעות, לא יעד${s.total > sleepGoalTop(p)*3600000 ? sleepMuchNote() : ''}</small><div class="ptip"></div></div>`;
+  const s = scores(p), now = Date.now(), D = 24*3600000, pc = ms => Math.min(100, ms / D * 100);
+  const tg = `טווח מקובל לגילה: ${g}–${sleepGoalTop(p)} שעות ב־24 שעות — מידע, לא יעד`, tf = `נצפה ${hmm(s.marked)} · משוער ${hmm(s.est)} מאז ${when(now - D)}`, tu = `${hmm(s.unk)} לא תועדו: לא ידוע אם ישנה`;
+  // the bar: observed, estimated (lighter), then the unknown share hatched — so a short count with much unknown time
+  // never reads as "under the range"
+  const a = pc(s.marked), b = pc(s.est), c = Math.min(100 - a - b, pc(s.unk));
+  return `<div class="gauge goal${s.range === 'unknown' ? ' unkr' : ''}"><div class="gg" dir="ltr" data-tip="${tg}" title="${tg}"><span class="gf" style="width:${a.toFixed(1)}%" data-tip="${tf}" title="${tf}"></span><span class="gf est" style="left:${a.toFixed(1)}%;width:${b.toFixed(1)}%" data-tip="${tf}" title="${tf}"></span>${c > 0 ? `<span class="gu" style="left:${(a + b).toFixed(1)}%;width:${c.toFixed(1)}%" data-tip="${tu}" title="${tu}"></span>` : ''}</div>
+    <small>${sleepCountText(s)} · טווח מקובל לגילה ${g}–${sleepGoalTop(p)} שעות, לא יעד${s.range === 'unknown' ? ` · ${SLEEP_RANGE.unknown}` : ''}${s.total > sleepGoalTop(p)*3600000 ? sleepMuchNote() : ''}</small><div class="ptip"></div></div>`;
 }
 // THE RINGS (owner, 25.11; redone 26.11: nothing may reward keeping her in the crate or penalise healthy wakefulness).
 // All from the list, last 24 hours; no 0–100 score for sleep or readiness any more:
@@ -2486,9 +2502,10 @@ function scores(p){
   const n0 = sod(now); n0.setHours(NS.from - 24); if(now < n0.getTime() + nLen) n0.setDate(n0.getDate() - 1);
   const n1 = n0.getTime() + nLen, inN = st => st.reduce((n, [x, y]) => n + Math.max(0, Math.min(y, n1) - Math.max(x, n0.getTime())), 0);
   const night = inN(all), nightMarked = inN(union(sp.filter(seen)));
-  const top = sleepGoalTop(p), range = total < g*H ? 'below' : total > top*H ? 'above' : 'in';
   const asleep = !!(V[p].sleep && V[p].sleep.start), aw = awakeSince(p), af = asleep ? 0 : awakeFrom(p);
   const unk = dayParts(p, a, now).tot.unk;   // not documented: never sleep, never awake (reduced logging, 27.11)
+  // below the range only if even the undocumented time could not have filled it (release 6b); else unknown
+  const top = sleepGoalTop(p), range = total > top*H ? 'above' : total >= g*H ? 'in' : total + unk < g*H && unk < SLEEP_UNK_MAX ? 'below' : 'unknown';
   const pts = state.log.filter(e => e.p===p && (e.k==='pee' || e.k==='poop') && !isTU(e) && e.t >= a && e.t <= now && WHERE[e.w]);
   const good = pts.filter(e => e.w === 'gravel' || e.w === 'out').length;
   return {total, marked, est, share: total / (24*H), g, top, range, night, nightMarked, nightFrom: NS.from, nightTo: NS.to,
@@ -2501,11 +2518,12 @@ function ringHTML(v, label, sub, cls, txt){
 }
 // reduced logging (owner, 26.11): the total is what was marked or estimated — a sleep nobody logged (outside the crate,
 // in the carrier, on a lap) is not in it, so "below" is said as a reading of the list, not of her
-const SLEEP_RANGE = {below: 'מתחת לטווח הגיל לפי מה שנרשם (שינה שלא נרשמה לא נספרת)', in: 'בטווח הגיל', above: 'מעל טווח הגיל'};
+const SLEEP_UNK_MAX = 6*3600000;   // a quarter of the 24 hours undocumented: too much to call the count "below" (release 6b)
+const SLEEP_RANGE = {below: 'מתחת לטווח הגיל לפי מה שנרשם (שינה שלא נרשמה לא נספרת)', in: 'בטווח הגיל', above: 'מעל טווח הגיל', unknown: 'לא ידוע אם בטווח הגיל: חלק גדול מהזמן לא תועד'};
 function scoresHTML(p){
   const s = scores(p); if(!s) return '';
   return `<button class="card scores" data-act="scores" aria-label="המדדים של ${PETS[p].name}: לחיצה להסבר"><span class="scg">
-    ${ringHTML(s.share * 100, 'שינה', `נצפה ${hmm(s.marked)} · משוער ${hmm(s.est)}${unkText(s) ? `<br><span class="unkc">${unkText(s)}</span>` : ''}`, '', `<bdi dir="ltr">${hmm(s.total)}</bdi>`)}${ringHTML(null, 'מוכנות', 'אין מספיק נתונים', 'na')}${ringHTML(s.gravel, 'חצץ', s.gravel == null ? 'מעט נתונים' : `${s.good} מתוך ${s.all}`)}</span></button>`;
+    ${ringHTML(s.share * 100, 'שינה מוערכת', `נצפה ${hmm(s.marked)} · משוער ${hmm(s.est)}${unkText(s) ? `<br><span class="unkc">${unkText(s)}</span>` : ''}`, s.range === 'unknown' ? 'unkr' : '', `<bdi dir="ltr">${hmm(s.total)}</bdi>`)}${ringHTML(null, 'מוכנות', 'אין מספיק נתונים', 'na')}${ringHTML(s.gravel, 'חצץ', s.gravel == null ? 'מעט נתונים' : `${s.good} מתוך ${s.all}`)}</span></button>`;
 }
 function openScores(p){
   const s = scores(p); if(!s) return;
@@ -2513,7 +2531,7 @@ function openScores(p){
   const unk = !s.asleep && awakeUnknown(p), doing = s.asleep ? 'ישנה עכשיו' : unk ? 'לא נרשמה שינה' : S.crate && S.crate.start ? 'ערה בכלוב' : S.pen && S.pen.start ? 'בגדר' : S.carrier && S.carrier.start ? 'במנשא' : 'ערה, מחוץ לכלוב';
   sh.innerHTML = `<h3>${PETS[p].name} · איך מחושבים המדדים</h3>
     <div class="help">
-      <p><b>שינה ${hmm(s.total)}</b> ב־24 השעות האחרונות: <b>נצפה ${hmm(s.marked)}</b> (סומן ביד) · <b>משוער ${hmm(s.est)}</b> (הערכה של האפליקציה בכלוב — פחות בטוחה).<br>
+      <p><b>שינה מוערכת ${hmm(s.total)}</b> ב־24 השעות האחרונות: <b>נצפה ${hmm(s.marked)}</b> (סומן ביד) · <b>משוער ${hmm(s.est)}</b> (הערכה של האפליקציה בכלוב — פחות בטוחה).<br>
         ${unkText(s) ? `<b class="unkc">${unkText(s)}</b>: זמן מחוץ לכלוב שאין בו שום רישום קרוב — לא נספר כשינה ולא כערות, כי לא ידוע מה היה בו.<br>` : ''}
         טווח לגילה: ${s.g}–${s.top} שעות — ${SLEEP_RANGE[s.range]}. זה מידע, לא יעד: לא צריך להשאיר אותה בכלוב או להעיר אותה בשביל המספר. זמן שקט בכלוב לא נספר כשינה אלא אם הוערך כשינה.<br>
         לילה (${nf}–${nt}): ${hmm(s.night)}, מתוכם נצפה ${hmm(s.nightMarked)}.<br>
@@ -2674,7 +2692,7 @@ function crateCompareHTML(p, from, to){
 // One row for "I saw her drink" — no amount. The same row for both dogs.
 function waterRowHTML(p){
   const lw = V[p].water, cam = typeof camjFeedHTML === 'function' && CAM_FEATURES.drinkSuggest ? camjFeedHTML(p, 'water') : '';   // §12c: a camera detection to approve, inside the row
-  return `<div class="card slim water${cam ? ' hascam' : ''}"><span><b>שתתה מים?</b><small>${lw ? `פעם אחרונה: ${dayLabel(lw)} <bdi dir="ltr">${clock(lw)}</bdi>${byOf(p,'water',lw)}` : 'עוד לא נרשמה שתייה'}</small></span><button class="btn" data-act="pt" data-k="water">שתתה</button>${cam}</div>`;
+  return `<div class="card slim water${cam ? ' hascam' : ''}"><span><b>שתתה מים?</b><small>${lw ? `${PETS[p].cycle ? 'פעם אחרונה שנרשמה' : 'פעם אחרונה'}: ${dayLabel(lw)} <bdi dir="ltr">${clock(lw)}</bdi>${byOf(p,'water',lw)}${PETS[p].cycle && !coveredSince(p, lw) ? ' · לא תועד מאז' : ''}` : 'עוד לא נרשמה שתייה'}</small></span><button class="btn" data-act="pt" data-k="water">שתתה</button>${cam}</div>`;
 }
 // NIGHT: between 23:00 and 06:00 the page is dark and shows only what is needed half asleep (crate, pee, poop
 // and a cry row); the food alert is silent. `FAKE_HOUR` / `FAKE_PHONE` are for the tests only.
@@ -2883,15 +2901,20 @@ function alerts(p){
     const since = `${ago(now - S.food)} מאז האוכל האחרון`, watch = 'אם היא חלשה מאוד, רועדת או לא יציבה — להתקשר לווטרינר.';
     if(no && now - no < ALERT.again) out.push({k:'food', calm:true, text:`הצעת לה אוכל ב־${clock(no)} והיא לא רצתה`, hint:`זה קורה. לנסות שוב בעוד כחצי שעה · ${since}. ${watch}`});
     else if(no) out.push({k:'food', offer:true, text:`עברו ${since}`, hint:`ניסית ב־${clock(no)} והיא לא רצתה — שווה להציע שוב. ${watch}`});
+    else if(!coveredSince(p, S.food)) out.push({k:'food', offer:true, calm:true, unc:true, text:`לא נרשמה ארוחה מאז ${clock(S.food)}`, hint:'לא תועד מאז, כדאי לבדוק. אם לא אכלה, הגיע הזמן להציע לה אוכל.'});
     else out.push({k:'food', offer:true, text:`עברו ${since}`, hint:'הגיע הזמן להציע לה אוכל.'});
   }
-  if(S.pee && awake && now - S.pee >= ALERT.pee) out.push({k:'pee', text:`${ago(now - S.pee)} בלי פיפי`, hint:'לשקול להתקשר לווטרינר.'});
-  if(S.poop && now - S.poop >= ALERT.poop) out.push({k:'poop', text:`${ago(now - S.poop)} בלי קקי`, hint:'לשקול להתקשר לווטרינר.'});
+  // release 6b (owner's safeguard): the same thresholds, but a red alarm only for a CONFIRMED overdue event — the time
+  // since the last one is observed (`coveredSince`). Missing records alone give a calm, distinct card.
+  if(S.pee && awake && now - S.pee >= ALERT.pee) out.push(coveredSince(p, S.pee) ? {k:'pee', text:`${ago(now - S.pee)} בלי פיפי`, hint:'לשקול להתקשר לווטרינר.'}
+    : {k:'pee', calm:true, unc:true, text:`לא נרשם פיפי מאז ${clock(S.pee)}`, hint:'לא תועד מאז, כדאי לבדוק. אם באמת לא עשתה כבר 6 שעות, לשקול להתקשר לווטרינר.'});
+  if(S.poop && now - S.poop >= ALERT.poop) out.push(coveredSince(p, S.poop) ? {k:'poop', text:`${ago(now - S.poop)} בלי קקי`, hint:'לשקול להתקשר לווטרינר.'}
+    : {k:'poop', calm:true, unc:true, text:`לא נרשם קקי מאז ${dayLabel(S.poop) === 'היום' ? '' : dayLabel(S.poop) + ' '}${clock(S.poop)}`, hint:'לא תועד מאז, כדאי לבדוק. אם באמת לא עשתה כבר יומיים, לשקול להתקשר לווטרינר.'});
   return out;
 }
 function alertsHTML(p){
   const seen = alerts(p).some(a => a.k === 'food') ? camFoodSeen(p) : 0;
-  return alerts(p).map(a => `<div class="card alertc${a.calm ? ' calm' : ''}"><div class="ic">${ico(a.k)}</div><span><b>${a.text}</b><small>${a.hint}</small>${a.k === 'food' && seen ? `<small class="alc-cam">ייתכן שאכלה ב־<bdi dir="ltr">${clock(seen)}</bdi> לפי המצלמה, לא אושר</small>` : ''}${a.offer ? `<button class="ghost" data-act="nofood">${ico('none','s')}הצעתי, לא אכלה</button>` : ''}</span></div>`).join('');
+  return alerts(p).map(a => `<div class="card alertc${a.calm ? ' calm' : ''}${a.unc ? ' unc' : ''}"><div class="ic">${ico(a.k)}</div><span><b>${a.text}</b><small>${a.hint}</small>${a.k === 'food' && seen ? `<small class="alc-cam">ייתכן שאכלה ב־<bdi dir="ltr">${clock(seen)}</bdi> לפי המצלמה, לא אושר</small>` : ''}${a.offer ? `<button class="ghost" data-act="nofood">${ico('none','s')}הצעתי, לא אכלה</button>` : ''}</span></div>`).join('');
 }
 
 // CAMERA EATING, unapproved (owner, 27.11): the newest food detection / eating suggestion still waiting for her answer
@@ -3170,7 +3193,7 @@ function routine(p){
 //     advice. Safety (wake-by, the three red alerts, the retry, the night routine) is not touched: guidance steps aside.
 function camNowReading(){   // the camera's CURRENT occupancy reading, only when it can infer now (fresh positive / negative)
   if(typeof camjInferNow !== 'function' || !camjInferNow()) return null;
-  const cn = CAMS.status.crate_now; return {occ: cn.status === 'positive' ? 'in' : 'out', t: cn.capture_ts};
+  const cn = camCN(); return {occ: cn.status === 'positive' ? 'in' : 'out', t: cn.capture_ts};
 }
 function camExitAfter(since){   // an unrejected camera exit after `since` (as `camjConflict` reads it)
   if(typeof CAMJ === 'undefined' || !CAMJ.ready) return null; const now = Date.now();
@@ -3202,11 +3225,16 @@ function currentState(p){
   const run = ['gravel', 'pen', 'carrier'].map(k => S[k] && S[k].start ? {k, t:S[k].start} : null).filter(Boolean).sort((a, b) => b.t - a.t)[0];
   // the camera's occupancy: her own labels (an open verified stay), else a live entry not yet answered, else the fresh reading
   const lab = cam && typeof camjOccNow === 'function' ? camjOccNow(p) : null, pe = cam && !lab && typeof camjPendingEntry === 'function' ? camjPendingEntry() : null;
+  // a live entry nobody answered, and the camera's own fresh reading AFTER it says she is not there (release 6b: the
+  // preview said "the camera sees her in the crate since 18:55" next to "not in the crate according to the camera"): the
+  // camera contradicts itself — neither wins, the state is UNKNOWN with both readings (no exit event came yet)
+  const peT = pe ? (pe.epFrom || pe.ts) : 0, peNeg = !!(pe && rd && rd.occ === 'out' && rd.t > pe.ts);
   const camIn = lab ? {t: lab, basis:'camera-confirmed', src:'label', fresh: !!(rd && rd.occ === 'in')}
-    : pe && !(rd && rd.occ === 'out' && rd.t > pe.ts) ? {t: pe.ts, basis:'camera-unconfirmed', src:'live', fresh: !!(rd && rd.occ === 'in')}
+    : pe && !peNeg ? {t: peT, basis:'camera-unconfirmed', src:'live', fresh: !!(rd && rd.occ === 'in'), n: pe.epN || 1}
     : rd && rd.occ === 'in' ? {t: 0, basis:'camera-unconfirmed', src:'now', fresh: true} : null;
   if(run && camIn) return mk('unknown', 'logged', Math.max(run.t, camIn.t), {occ: camIn.fresh ? 'in' : null, conflicts: [{src:'journal', state:'out', what: run.k, t: run.t}, {src:'camera', state:'in_crate', t: camIn.t, conf: camIn.basis === 'camera-confirmed'}]});
-  if(camIn) return mk('in_crate', camIn.basis, camIn.t, {occ:'in', src: camIn.src, fresh: camIn.fresh});
+  if(camIn) return mk('in_crate', camIn.basis, camIn.t, {occ:'in', src: camIn.src, fresh: camIn.fresh, ...(camIn.n > 1 ? {n: camIn.n} : {})});
+  if(peNeg && !run) return mk('unknown', 'camera-unconfirmed', peT, {occ: null, conflicts: [{src:'camera', state:'in_crate', t: peT, what:'entry'}, {src:'camera', state:'out', t: rd.t, what:'now'}]});
   if(run) return mk('out', 'logged', run.t, {occ:'out', awake:true, what: run.k});
   const af = awakeFrom(p), aw = awakeSince(p);
   if(af){ const seen = awakeIvs(p, af, now).some(x => x.k === 'seen' && x.b >= now - 1000); return mk('out', seen ? 'logged' : 'inferred', af, {occ: rd ? rd.occ : 'out', awake:true}); }
@@ -3219,7 +3247,9 @@ function actualText(cs){
   if(cs.state === 'unknown'){
     if(!cs.conflicts.length) return cs.since ? `לא ידוע · לא נרשם כלום מאז ${at(cs.since)}` : 'לא ידוע';
     const J = cs.conflicts.find(c => c.src === 'journal'), C = cs.conflicts.find(c => c.src === 'camera');
-    const j = J.state === 'in_crate' ? `בכלוב מ־${at(J.t)}` : `${J.what === 'gravel' ? 'בחצץ' : J.what === 'pen' ? 'בגדר' : 'במנשא'} מ־${at(J.t)}`;
+    if(!J){ const E = cs.conflicts.find(c => c.what === 'entry'), N = cs.conflicts.find(c => c.what === 'now');   // the camera against itself
+      return `לא ברור · המצלמה זיהתה כניסה לכלוב ב־${at(E.t)}, ועכשיו (${at(N.t)}) לא רואה אותה בכלוב · לא אושר`; }
+    const j = J.state === 'in_crate' ? `בכלוב מ־${at(J.t)}` : J.state === 'asleep' ? `כנראה ישנה מ־${at(J.t)}` : `${J.what === 'gravel' ? 'בחצץ' : J.what === 'pen' ? 'בגדר' : 'במנשא'} מ־${at(J.t)}`;
     const c = C.state === 'out' ? `לא בכלוב (${at(C.t)}${C.conf ? ', מהתיוג שלך' : ', לא אושר'})` : `בכלוב${C.t ? ` מ־${at(C.t)}` : ''} (${C.conf ? 'מהתיוג שלך' : 'לא אושר'})`;
     return `לא ידוע · ברישום: ${j} · המצלמה: ${c}`;
   }
@@ -3227,7 +3257,8 @@ function actualText(cs){
   if(cs.state === 'in_crate'){
     if(cs.src === 'label') return `בכלוב מ־${at(cs.since)} · לפי התיוג שלך במצלמה · לא ידוע אם ישנה`;
     if(cs.src === 'now') return `נראית בכלוב עכשיו · ${cam}`;
-    if(cs.src === 'live') return cs.fresh ? `נראית בכלוב מ־${at(cs.since)} · ${cam}` : `המצלמה זיהתה כניסה לכלוב ב־${at(cs.since)} · לא אושר · עכשיו לא ברור`;
+    const nn = cs.n > 1 ? ` (${cs.n} זיהויים)` : '';
+    if(cs.src === 'live') return cs.fresh ? `נראית בכלוב מ־${at(cs.since)}${nn} · ${cam}` : `המצלמה זיהתה כניסה לכלוב ב־${at(cs.since)}${nn} · לא אושר · עכשיו לא ברור`;
     return `בכלוב מ־${at(cs.since)}`;
   }
   if(cs.state === 'out') return cs.awake ? (cs.basis === 'logged' ? 'ערה, מחוץ לכלוב' : `כנראה ערה מחוץ לכלוב · נראתה ערה מ־${at(cs.since)}`) : `לא בכלוב · ${cam} · לא ידוע אם ערה`;
@@ -3235,26 +3266,45 @@ function actualText(cs){
 }
 // What was not logged since a stage began: the guidance names it instead of assuming it happened or did not (owner).
 const GD_MISS = {1: 'עשתה צרכים', 2: 'שיחקה או אכלה', 4: 'עשתה צרכים אחרי האוכל'};
+// A planned stage older than this with nothing observed now is shown as the last recorded stage (release 6b): on the
+// fully logged 23–26.11 the time from one routine entry to the next (out of the crate, 07–22) had p90 46 min and p95
+// 68 min (248 gaps); 90 min is past nearly all real stages.
+const ROUTINE_STALE = 90*60000;
+// what counts as a recent sign for that: any entry of hers within AWAKE.seen, or a running outing / pen / carrier —
+// not the crate toy, a crate setting or a note (context, not behaviour)
+const GD_NOSIGN = {toy:1, cset:1, note:1, born:1, away:1}, GD_RUN = {gravel:1, pen:1, carrier:1};
 function guidance(p){
   const r = PETS[p] && PETS[p].cycle && V && V[p] ? routine(p) : null, cs = currentState(p), nm = PETS[p] ? PETS[p].name : '';
   const g = {plan: r, cs, mode: 'plan', planned: '', actual: '', what: '', prefix: ''};
   // the trainer's words stand: no routine, a break, the night potty, a retry, free time, a finished round, the crate step
   if(!r || r.brk || r.night || r.retry || r.free || r.done || r.i === 0 || !CYCLE[r.i]) return g;
-  if(cs.state === 'out' && cs.awake) return g;                                    // awake out of the crate: the plan fits
+  // STALE (release 6b; her 19:52 screen still steered by "צרכים" from 16:38): the planned stage began more than
+  // ROUTINE_STALE ago and nothing observed NOW supports it (only a logged sign right now does). The trainer's cycle stays
+  // the plan, but it is shown as the last RECORDED stage and the words follow the current state — never a claim that
+  // the stage happened or did not.
+  const now = Date.now(), recent = state.log.some(e => e.p === p && !GD_NOSIGN[e.k] && !(ITEMS[e.k] || {}).hid && ((e.t <= now && now - e.t < AWAKE.seen) || (e.end == null && GD_RUN[e.k])));
+  g.stale = now - r.t >= ROUTINE_STALE && !recent && !(cs.state === 'out' && cs.basis === 'logged');
+  if(cs.state === 'out' && cs.awake && !g.stale) return g;                        // awake out of the crate: the plan fits
   const wb = cs.state === 'asleep' && wakeBy(p); if(wb && wb.past) return g;     // safety: "כדאי להעיר אותה" speaks
   const step = CYCLE[r.i].n, at = t => `<bdi dir="ltr">${clock(t)}</bdi>`;
-  g.planned = `בשגרה: ${step} מ־${at(r.t)}`; g.actual = `בפועל: ${actualText(cs)}`;
-  const cont = `ממשיכים בשגרה מ״${step}״`;
+  g.planned = g.stale ? `השלב האחרון שנרשם: ${step}, ${at(r.t)}` : `בשגרה: ${step} מ־${at(r.t)}`; g.actual = `בפועל: ${actualText(cs)}`;
+  const cont = g.stale ? 'קודם לחצץ, ואז ממשיכים בשגרה לפי מה שיצא' : `ממשיכים בשגרה מ״${step}״`;
   if(cs.state === 'asleep'){
     g.mode = 'rest';
     g.what = `${cs.basis === 'logged' || cs.basis === 'camera-confirmed' ? `${nm} ישנה: נותנים לה לישון` : `אם ${nm} ישנה, נותנים לה לישון`}, לא מעירים אותה כדי להשלים את השלב. כשתתעורר, ${cont}.`;
   } else if(cs.state === 'in_crate'){
     g.mode = 'crate';
-    const pend = cs.src === 'live' ? ' לאשר את הכניסה בכרטיס הכלוב (לא נרשם עד שמאשרים).' : '';
+    const pend = cs.src === 'live' ? ' לענות לשאלה מהמצלמה למעלה (לא נרשם עד שעונים).' : '';
     g.what = `לפי הרישום ${nm} מחוץ לכלוב, אבל ${cs.src === 'label' ? 'לפי התיוג שלך היא בכלוב' : cs.fresh || cs.src === 'now' ? 'המצלמה רואה אותה בכלוב' : 'המצלמה זיהתה אותה נכנסת לכלוב'}. אם היא בכלוב ונרדמה, אפשר להשאיר אותה. כשהיא יוצאת, ${cont}.${pend}`;
+  } else if(g.stale){   // the stage is old and unsupported: the current state drives the words, the stage is only history
+    g.mode = 'stale';
+    const seen = cs.state === 'out' && cs.awake ? `${nm} כנראה ערה מחוץ לכלוב (סימן אחרון ${at(cs.since)}), `
+      : cs.state === 'out' ? `לפי המצלמה ${nm} לא בכלוב, ומאז ${at(awakeSeen(p) || r.t)} לא נרשם כלום, אז לא ידוע אם היא ערה, `   // the camera's reading time is not her last sign
+      : cs.conflicts.length ? 'לא ברור מה היא עושה עכשיו, ' : `מאז ${at(cs.since || r.t)} לא נרשם כלום, אז לא ידוע אם ${nm} ערה, ישנה או בכלוב, `;
+    g.what = `${seen}והשלב האחרון שנרשם (${step}) הוא מלפני ${words(Date.now() - r.t)}. כשרואים אותה ערה: ${cont}. אם היא ישנה, לא מעירים.`;
   } else {   // unknown: nothing within the horizon, or journal and camera disagree
     g.mode = 'unknown';
-    g.prefix = cs.conflicts.length ? `הרישום והמצלמה לא מסכימים, אז לא ידוע מה ${nm} עושה עכשיו. אם היא ערה ומחוץ לכלוב: `
+    g.prefix = cs.conflicts.length ? `${cs.conflicts.some(c => c.src === 'journal') ? 'הרישום והמצלמה לא מסכימים' : 'המצלמה לא עקבית'}, אז לא ידוע מה ${nm} עושה עכשיו. אם היא ערה ומחוץ לכלוב: `
       : `מאז ${at(cs.state === 'unknown' ? (cs.since || r.t) : (awakeSeen(p) || r.t))} לא נרשם כלום, אז לא ידוע אם ${nm} ערה, ישנה או בכלוב${GD_MISS[r.i] ? `, ולא נרשם אם ${GD_MISS[r.i]}` : ''}. אם היא ערה ומחוץ לכלוב: `;
   }
   return g;
@@ -3333,6 +3383,53 @@ function dayParts(p, a, b){
   return {segs, tot};
 }
 const unknownSpans = (p, a, b) => dayParts(p, a, b).segs.filter(s => s.k === 'unk');   // the not-documented time in [a, b)
+// COVERAGE (release 6b, owner 27.11: "she no longer keeps a complete journal"). A last-recorded time says how long
+// since a pee / meal / poop only if the time after it is OBSERVED: documented by the journal (`dayParts`: sleep, a crate
+// stay, the outing / cry itself, the daytime horizon after a sign) or by the camera (a crate stay it saw — live or her
+// label, not rejected — inside its own coverage spans: the crate camera sees nothing outside the crate). Anything else is
+// UNOBSERVED. `COVER.gap`: 20 min of unobserved time in all after the event = coverage incomplete (that can hold an
+// unlogged pee or meal; under it the clock stays). Derived only.
+const COVER = {gap: 20*60000, inputs: 0.9};
+function camSeenIvs(p, a, b){
+  if(p !== CAMJ_P || typeof CAMJ === 'undefined' || !CAMJ.ready || typeof camjStays !== 'function') return [];
+  const cov = CAMJ.cov || [], out = [], st = camjStays(b).sort((x, y) => x.from - y.from);
+  st.forEach((s, i) => {   // a stay with no exit ends at the next stay, or where the journal has her out (gravel, potty…)
+    const o = typeof camjOutAfter === 'function' ? camjOutAfter(s.from) : null, end = s.to != null ? s.to : Math.min(st[i+1] ? st[i+1].from : b, o ? o.t : b);
+    const x0 = Math.max(a, s.from), x1 = Math.min(b, end); if(x1 <= x0) return;
+    for(const [c0, c1] of cov){ const y0 = Math.max(x0, c0), y1 = Math.min(x1, c1); if(y1 > y0) out.push([y0, y1]); }
+  });
+  out.sort((x, y) => x[0] - y[0]); const u = [];   // as a union: overlapping stays are counted once
+  for(const [x, y] of out){ const l = u[u.length - 1]; if(l && x <= l[1]) l[1] = Math.max(l[1], y); else u.push([x, y]); }
+  return u;
+}
+// unobserved ms in [a, b): the journal's unknown parts minus what the camera saw
+const UNOBS = {r: null, v: new Map()};   // one render's memo: many cards ask about the same last times
+function unobserved(p, a, b){
+  b = Math.min(b, Date.now()); if(!(b > a)) return 0;
+  // the memo holds only while nothing it reads changed: the same list, the same derived view, the same camera docs and
+  // answers, the same half-minute (object identity — a new list / V / camera doc is a new memo)
+  const C = typeof CAMJ !== 'undefined' ? CAMJ : {}, ref = [state, state.log, V, C.ev, C.cov, C.fb, JSON.stringify(C.fbLocal || {}), Math.floor(b / 30000)];
+  if(!UNOBS.r || UNOBS.r.some((x, i) => x !== ref[i])){ UNOBS.r = ref; UNOBS.v.clear(); }
+  const mk = p + '|' + a; if(UNOBS.v.has(mk)) return UNOBS.v.get(mk);
+  const cam = camSeenIvs(p, a, b);
+  const r = unknownSpans(p, a, b).reduce((n, u) => n + (u.b - u.a) - cam.reduce((m, [x, y]) => m + Math.max(0, Math.min(y, u.b) - Math.max(x, u.a)), 0), 0);
+  UNOBS.v.set(mk, r); return r;
+}
+// Is the time since t observed enough to read "since t" as elapsed time since the event? Kochik: always (no coverage model).
+const coveredSince = (p, t) => !t || !PETS[p] || !PETS[p].cycle || unobserved(p, t, Date.now()) < COVER.gap;
+// The share of the daytime (07–22) of [a, b) that is observed — the input completeness of a forecast.
+function inputCover(p, a, b){
+  let tot = 0, unk = 0; const H = 3600000;
+  for(let d = sod(a).getTime(); d < b; d += 86400000){ const x = Math.max(a, d + 7*H), y = Math.min(b, d + 22*H, Date.now()); if(y > x){ tot += y - x; unk += unobserved(p, x, y); } }
+  return tot ? 1 - unk / tot : 1;
+}
+const THIN_NOTE = 'מעט נתונים לאחרונה, ייתכן שלא מדויק';
+// a forecast's inputs (the last `days` days, from her first entry) are less than COVER.inputs observed by day
+function fcThin(p, days){
+  if(!PETS[p] || !PETS[p].cycle) return false;
+  const now = Date.now(), first = state.log.reduce((m, e) => e.p === p && e.t < m ? e.t : m, now);
+  return inputCover(p, Math.max(first, now - days*86400000), now) < COVER.inputs;
+}
 const hmm = ms => { const m = Math.round(ms / 60000); return `${Math.floor(m/60)}:${pad(m % 60)}`; };
 // A bar of [a, b): the three parts in colour, and under it what she did (pee / poop / meal / play; a pee or poop that
 // was not on the gravel or outside is red). Time runs left to right, like the summary's charts.
@@ -3760,7 +3857,7 @@ function camjDecide(ids, d, meta){   // approved / rejected / dismissed / delete
   const at = Date.now(), m = {}, by = String((meta && meta.by) || me || '').slice(0, 40), rid = meta && meta.rid ? { rid: String(meta.rid).slice(0, 100), ...(typeof meta.rat === 'number' ? { rat: meta.rat } : {}) } : {};   // rat = when she answered in the research UI
   for(const id of [].concat(ids)) if(id){ const old = camjDec(id);   // a changed answer keeps the earlier ones (provenance; a research decision keeps its rid)
     const keep = old && (old.d !== d || (rid.rid && old.rid !== rid.rid));
-    m[id] = { d, by, at, ...rid, ...(keep ? { prev: [...(Array.isArray(old.prev) ? old.prev : []), { d: old.d, at: old.at, by: old.by, ...(old.rid ? { rid: old.rid } : {}) }].slice(-10) } : old && old.prev ? { prev: old.prev } : {}) }; }   // the same answer again adds no history
+    m[id] = { d, by, at, ...rid, ...(meta && meta.ep && meta.ep !== id ? { ep: meta.ep } : {}), ...(keep ? { prev: [...(Array.isArray(old.prev) ? old.prev : []), { d: old.d, at: old.at, by: old.by, ...(old.rid ? { rid: old.rid } : {}) }].slice(-10) } : old && old.prev ? { prev: old.prev } : {}) }; }   // the same answer again adds no history
   Object.assign(CAMJ.fbLocal, m);
   if(MODE === 'live' && fb && fb.camMerge) fb.camMerge('feedback', { decisions: m }).catch(() => {});
 }
@@ -3772,7 +3869,12 @@ function camjDoorSpans(now){
   const exits = CAMJ.ev.filter(x => x.status === 'active' && x.kind === 'crate_exit' && !(camjDec(x.event_id) && camjDec(x.event_id).d === 'rejected')).map(x => x.ts).sort((a, b) => a - b);
   for(const e of CAMJ.ev){ const d = camjDec('door:' + e.event_id); if(e.kind === 'crate_entry' && d && (d.d === 'door_closed' || d.d === 'door_open')){ const nx = exits.find(t => t > e.ts); out.push({ from: e.ts, to: nx != null ? Math.min(nx, now) : now, value: d.d === 'door_closed' ? 'closed' : 'open', ans: 1 }); } }
   const cs = state.log.filter(e => e.p === CAMJ_P && e.k === 'cset' && CSET_DOOR[e.door]).sort(byT);
-  cs.forEach((e, i) => out.push({ from: e.t, to: cs[i+1] ? cs[i+1].t : now, value: e.door }));
+  // a door setting lasts until the next one — or until LATER door evidence says otherwise (her painted span / her door
+  // answer for a stay). Release 6b: the "door closed" set at 20:36 the night before still made every visit of 27.11 a
+  // "session?" question, 15 answered "door open" one by one.
+  const ev = out.slice();
+  cs.forEach((e, i) => { const nx = cs[i+1] ? cs[i+1].t : now, x = ev.filter(d => d.value !== e.door && d.from > e.t && d.from < nx).reduce((m, d) => Math.min(m, d.from), nx);
+    out.push({ from: e.t, to: x, value: e.door }); });
   return out;
 }
 function camjClosed(a, b, now){   // the closed-door parts of [a, b]
@@ -3950,6 +4052,48 @@ function camjWakePlan(L, now, acts){
   const st = camjStays(now).find(s => s.verified && s.from <= rs.t && s.x && s.x.source === 'owner_label' && !s.x.wide && s.x.ts > rs.t && s.x.ts <= now && !camjDec(s.x.event_id));
   if(st) acts.push({ do: 'swake', id: rs.id, ev: st.x });
 }
+// EPISODES AND THE QUESTION QUEUE (release 6b; 27.11 she answered 15 crate questions one by one, all "door open").
+// MERGE RULE — live crate entries are ONE physical occupancy (one question, one answer for all of them) only when the
+// camera itself gives no evidence she left between them: (1) a second entry with no exit event since the first (a
+// duplicate entry), or (2) the exit between them is not evidence — context only (IR / uncertain / a model switch,
+// `camjCtx`) or disputed by her labels, or rejected by her. Any other exit separates two episodes, however short the gap
+// (e.g. 17:35–17:38 and 17:40–17:49 stay two questions): if unsure, keep them separate; one answer is never carried
+// across episodes. Every event keeps its own id, decision and place in the review.
+function camjEpisodes(now){
+  const sup = new Set(CAMJ.ev.map(e => e.supersedes).filter(Boolean)), rej = e => camjDec(e.event_id) && camjDec(e.event_id).d === 'rejected';
+  const evs = CAMJ.ev.filter(e => e.status === 'active' && e.source === 'live_model' && (e.kind === 'crate_entry' || e.kind === 'crate_exit') && !sup.has(e.event_id) && e.ts <= now).sort(byTs);
+  const eps = []; let cur = null;
+  for(const e of evs){
+    if(e.kind === 'crate_entry'){ if(rej(e)) continue; if(cur && cur.open) cur.ents.push(e); else { cur = { ents: [e], exits: [], open: true }; eps.push(cur); } }
+    else if(cur && cur.open && !camjCtx(e) && !e.disputed_by_labels && !rej(e)){ cur.open = false; cur.exits.push(e); cur.to = e.ts; }
+  }
+  eps.forEach(x => { x.from = x.ents[0].ts; if(x.open) x.to = null; });
+  return eps;
+}
+// The visible queue: the pending episodes (rv.pending grouped), newest first, at most CAMJ_QMAX. An episode with a
+// member that is already answered / a visit / in a session is EXPLAINED; one older than CAMJ_TTL is OLD; beyond the cap
+// is MORE. Those are RETIRED — derived here, never stored: no decision is written (not rejected, not confirmed, not
+// dismissed), they count in no camera figure, and the review lists them folded, still answerable.
+const CAMJ_QMAX = 3;
+function camjQueue(rv, now){
+  const pend = new Map((rv.pending || []).map(e => [e.event_id, e])), qs = []; rv.retired = [];
+  for(const ep of camjEpisodes(now)){
+    const mem = ep.ents.filter(e => pend.has(e.event_id)); if(!mem.length) continue;
+    const q = { head: mem[0], members: mem, from: mem[0].ts, to: ep.to, n: mem.length };
+    if(ep.ents.some(e => !pend.has(e.event_id) && !camjCtx(e) && !e.disputed_by_labels)) rv.retired.push({ ...q, why: 'explained' });
+    else if(now - (ep.to || mem[mem.length - 1].ts) > CAMJ_TTL) rv.retired.push({ ...q, why: 'old' });
+    else qs.push(q);
+  }
+  qs.sort((a, b) => b.from - a.from);
+  rv.eps = qs.slice(0, CAMJ_QMAX); qs.slice(CAMJ_QMAX).forEach(q => rv.retired.push({ ...q, why: 'more' }));
+  rv.retired.sort((a, b) => b.from - a.from);
+}
+// The members one answer applies to: the episode's events that are unanswered or were answered with it (`ep`).
+function camjEpMembers(id, now){
+  const ep = camjEpisodes(now).find(z => z.ents.some(e => e.event_id === id)); if(!ep) return null;
+  const head = ep.ents[0].event_id, ids = ep.ents.filter(e => !camjCtx(e) && (e.event_id === id || e.event_id === head || !camjDec(e.event_id) || camjDec(e.event_id).ep === head)).map(e => e.event_id);
+  return { ids, head: CAMJ.ev.find(e => e.event_id === ids[0]), to: ep.to };
+}
 // Reconcile: journal actions (applied automatically) + what the crate card and the review view show.
 function camjPlan(log, now){
   const L = log.filter(e => e.p === CAMJ_P), sess = L.filter(e => e.k === 'crate').sort(byT);
@@ -4014,12 +4158,13 @@ function camjPlan(log, now){
   else { const cand = undecided.filter(e => e.kind === 'crate_entry' && now - e.ts <= CAMJ_TTL && !sess.some(s => Math.abs(s.t - e.ts) <= CAMJ_MATCH || (s.t <= e.ts && (s.end == null || s.end >= e.ts))));
     const inSess = e => sess.some(s => s.t >= e.ts && s.t <= camjEntryEnd(e, now));   // she closed the door during this occupancy: that session IS it
     for(const e of cand.filter(e => !inSess(e))) if(camjLiveDoor(e, now) === 'open') rv.visits.push({ s: { e, from: e.ts, to: null }, door: 'open', live: true });   // a visit: shown, never a session
-    const x = cand.filter(e => camjLiveDoor(e, now) !== 'open' && !inSess(e)).sort(byTs).pop();
-    if(x) rv.live.push({ ev: x, kind: 'start', door: camjLiveDoor(x, now) }); }
+  }
   rv.liveMore = Math.max(0, undecided.length - rv.live.length);
   camjFeedPlan(L, now, rv, acts);
   rv.pending = CAMJ.ev.filter(e => e.status === 'active' && e.source === 'live_model' && e.kind === 'crate_entry' && !camjCtx(e) && !sup.has(e.event_id) && !e.disputed_by_labels && !camjDec(e.event_id)
     && !sess.some(s => Math.abs(s.t - e.ts) <= CAMJ_MATCH || (s.t <= e.ts && (s.end == null || s.end >= e.ts)) || (s.t >= e.ts && s.t <= camjEntryEnd(e, now))) && camjLiveDoor(e, now) !== 'open').sort((a, b) => b.ts - a.ts);
+  camjQueue(rv, now);
+  if(!op && rv.eps[0] && now - rv.eps[0].head.ts <= CAMJ_TTL){ const q = rv.eps[0]; rv.live.push({ ev: q.head, kind: 'start', door: camjLiveDoor(q.head, now), ep: q }); }
   camjWakePlan(L, now, acts);
   return { acts, rv };
 }
@@ -4062,7 +4207,7 @@ function camjDo(a, who){   // inside a commit's mutate
     if(camjLiveDoor(x, Date.now()) === 'open') return;   // an open-door visit is never a session (production 26.11)
     endGravel(CAMJ_P, x.ts);
     const o = camjOutAfter(x.ts), xo = !a.retro ? null : CAMJ.ev.filter(z => z.status === 'active' && z.kind === 'crate_exit' && z.ts > x.ts && !(camjDec(z.event_id) && camjDec(z.event_id).d === 'rejected')).sort(byTs)[0];
-    const endAt = [o && o.t, xo && xo.ts].filter(v => v != null).sort((a, b) => a - b)[0];
+    const endAt = a.until != null ? a.until : [o && o.t, xo && xo.ts].filter(v => v != null).sort((a, b) => a - b)[0];   // an episode: its last exit
     const e = newStay(CAMJ_P, 'crate', x.ts, endAt != null && endAt < Date.now() - 60000 ? Math.max(endAt, x.ts + 1) : undefined);   // she was taken out since: the stay ends there
     e.id = id; e.cam = { cid: id, in: x.event_id, it: x.ts, ilo: x.lo, ihi: x.hi, src: 'live_model', ...ok }; state.log.push(e);
   } else if(a.do === 'feed'){   // §12c: a caregiver approved a food / water detection — a normal entry at the camera's time
@@ -4214,10 +4359,34 @@ function camjCamOk(){ const st = CAMS.status; return !!(st && typeof st.checked_
 // The camera can INFER right now (27.11): a fresh heartbeat AND a crate reading that is positive / negative and captured
 // within 5 min — not 'uncertain' / 'unavailable' (IR at night, outages). Only then may the screen promise that the
 // camera will offer an approval; otherwise the manual instruction stays. Changes no flag (IR automation stays off).
-function camjInferNow(){ const st = CAMS.status, cn = st && st.crate_now; return camjCamOk() && !!cn && typeof cn.capture_ts === 'number' && Date.now() - cn.capture_ts <= 5*60000 && (cn.status === 'positive' || cn.status === 'negative'); }
+// THE CAMERA'S READING OF NOW (release 6b, from the camera session's logs of 27.11 18:52–19:05): `camera/status.crate_now`
+// is written by two interleaved publishers, throttled — its capture_ts can go BACKWARDS between writes, and a reading
+// published after an entry event may have been captured before it (18:55:59 "negative" captured 18:55:25, the entry at
+// 18:55:56). So: compare capture_ts only (never published_at / checked_at); keep the latest DECISIVE reading by
+// capture_ts (`CAMS.cnD`, this session); 'uncertain' / 'unavailable' are no evidence and replace nothing.
+function camCN(){
+  const st = CAMS.status, cn = st && st.crate_now;
+  if(!st){ CAMS.cnD = null; return null; }
+  if(cn && typeof cn.capture_ts === 'number' && (cn.status === 'positive' || cn.status === 'negative') && (!CAMS.cnD || cn.capture_ts >= CAMS.cnD.capture_ts || CAMS.cnD.capture_ts > Date.now())) CAMS.cnD = cn;
+  // …and NEWER camera evidence of another kind SUPERSEDES it (no reading then — never a new one made up): the shared
+  // image's own detection (`camera/latest`) or a live crate entry / exit event captured after it. Between 18:55:59 and
+  // 18:57:19 the preview read the 18:55:25 negative as "now" while the 18:55:56 detection was already on the card.
+  const best = CAMS.cnD; if(!best) return null;
+  const det = CAMS.doc && CAMS.doc.detection, dt = det && typeof det.capture_ts === 'number' ? det.capture_ts : null;
+  if(dt != null && dt <= Date.now() && dt > best.capture_ts && best.status === 'negative') return null;
+  if(typeof CAMJ !== 'undefined' && CAMJ.ready && CAMJ.ev.some(e => e.status === 'active' && e.source === 'live_model' && (e.kind === 'crate_entry' ? best.status === 'negative' : e.kind === 'crate_exit' && best.status === 'positive') && !camjCtx(e) && e.ts > best.capture_ts && e.ts <= Date.now() && !(camjDec(e.event_id) && camjDec(e.event_id).d === 'rejected'))) return null;
+  return best;
+}
+function camjInferNow(){ const st = CAMS.status, cn = camCN(); return camjCamOk() && !!cn && typeof cn.capture_ts === 'number' && Date.now() - cn.capture_ts <= 5*60000 && (cn.status === 'positive' || cn.status === 'negative'); }
 function camjNowLine(){
-  const st = CAMS.status, cn = st && st.crate_now, now = Date.now();
+  const st = CAMS.status, now = Date.now();
   if(!st) return '';
+  // the same reading as everything else (release 6b): when the state of now rests on the camera, say that state
+  const cs = typeof currentState === 'function' && V && V[CAMJ_P] ? currentState(CAMJ_P) : null;
+  if(cs && camjCamOk() && (cs.basis === 'camera-unconfirmed' || cs.conflicts.some(c => c.src === 'camera'))){
+    const w = cs.state === 'in_crate' ? (cs.fresh || cs.src === 'now' ? 'בכלוב' : 'נכנסה לכלוב, עכשיו לא ברור') : cs.state === 'unknown' ? 'לא ברור' : 'לא בכלוב';
+    return `<span class="cam-t">עכשיו לפי המצלמה: <b>${w}</b> <small class="cam-dim">(לא מאומת)</small></span>`; }
+  const cn = camCN() || st.crate_now;
   if(!camjCamOk()) return `<span class="cam-t cam-err">המצלמה לא מעדכנת מאז <bdi dir="ltr">${clock(st.checked_at)}</bdi> · רישום ידני למטה</span>`;
   if(!cn || typeof cn.capture_ts !== 'number' || now - cn.capture_ts > 5*60000 || cn.status === 'unavailable') return `<span class="cam-t cam-dim">עכשיו: אין תמונה עדכנית</span>`;
   const w = { positive: 'בכלוב', negative: 'לא בכלוב', uncertain: 'לא ברור' }[cn.status]; if(!w) return '';
@@ -4232,13 +4401,14 @@ function camjDoorLine(){
 function camjActHTML(){
   if(!CAMJ.ready) return '';
   const pl = camjPlan(state.log, Date.now()).rv, lv = pl.live[0]; if(!lv) return '';
-  const more = (pl.pending || []).length - 1;
-  const x = lv.ev, end = lv.kind === 'end';
-  const o = !end ? camjOutAfter(x.ts) : null;
-  if(!end) return `<div class="camjt"><span><b>${o ? `הייתה בכלוב <bdi dir="ltr">${clock(x.ts)}–${clock(o.t)}</bdi>?` : `נכנסה לכלוב ב־<bdi dir="ltr">${clock(x.ts)}</bdi>?`}</b><small>זיהוי מצלמה${lv.door === 'unknown' ? ' · הדלת לא ידועה' : ''}</small>${camjClipHTML(x)}</span>
-    ${camjAnsBtns(x.event_id)}</div>${more > 0 ? `<button class="lnk camj-rv" data-camj="review">עוד ${more} זיהויים לאישור</button>` : ''}`;
+  const more = Math.max(0, (pl.eps || []).length - (lv.kind === 'start' ? 1 : 0)), old = (pl.retired || []).length;   // other questions in the capped queue (release 6b)
+  const x = lv.ev, end = lv.kind === 'end', ep = lv.ep;
+  const o = !end ? camjOutAfter(x.ts) : null, to = ep && ep.to != null ? ep.to : o ? o.t : null;
+  const moreL = more > 0 ? `<button class="lnk camj-rv" data-camj="review">עוד ${more} לאישור</button>` : old ? `<button class="lnk camj-rv" data-camj="review">היסטוריה · ${old} לא נשאלו</button>` : '';
+  if(!end) return `<div class="camjt"><span><b>${to ? `הייתה בכלוב <bdi dir="ltr">${clock(x.ts)}–${clock(to)}</bdi>?` : `נכנסה לכלוב ב־<bdi dir="ltr">${clock(x.ts)}</bdi>?`}</b><small>זיהוי מצלמה${ep && ep.n > 1 ? ` · ${ep.n} זיהויים, תשובה אחת לכולם` : ''}${lv.door === 'unknown' ? ' · הדלת לא ידועה' : ''}</small>${camjClipHTML(x)}</span>
+    ${camjAnsBtns(x.event_id)}</div>${moreL}`;
   return `<div class="camjt"><span><b>${end ? `יצאה מהכלוב ב־<bdi dir="ltr">${clock(x.ts)}</bdi>?` : o ? `הייתה בכלוב <bdi dir="ltr">${clock(x.ts)}–${clock(o.t)}</bdi>?` : `נכנסה לכלוב ב־<bdi dir="ltr">${clock(x.ts)}</bdi>?`}</b><small>זיהוי מצלמה</small>${camjClipHTML(x)}</span>
-    <span class="rt-a"><button class="go" data-camj="${end ? 'end' : 'start'}">${end ? 'אישור' : o ? 'אישור' : 'שהייה מ־' + clock(x.ts)}</button>${!end ? `<button class="btn" data-camvisit="${esc(x.event_id)}">ביקור מרצון (דלת פתוחה)</button>` : ''}<button class="btn" data-camj="reject">לא נכון</button></span></div>${more > 0 ? `<button class="lnk camj-rv" data-camj="review">עוד ${more} זיהויים לאישור</button>` : ''}`;
+    <span class="rt-a"><button class="go" data-camj="${end ? 'end' : 'start'}">${end ? 'אישור' : o ? 'אישור' : 'שהייה מ־' + clock(x.ts)}</button>${!end ? `<button class="btn" data-camvisit="${esc(x.event_id)}">ביקור מרצון (דלת פתוחה)</button>` : ''}<button class="btn" data-camj="reject">לא נכון</button></span></div>${moreL}`;
 }
 // CRATE OCCUPANCY: exactly four answers, everywhere (owner, next-review — the old כן / לא / לא נכון were ambiguous)
 const CAMJ_ANS = { closed: 'הייתה, דלת סגורה', open: 'הייתה, דלת פתוחה', no: 'לא הייתה בכלוב', unsure: 'לא זוכרת' };
@@ -4250,8 +4420,8 @@ const camjSleepAns = { ok: 'אישור', no: 'לא נכון', unsure: 'לא בט
 const camjAnsWord = (x, d) => { const a = CAMJ_D2A[d]; return a === 'dismiss' ? 'הוסתר' : x.kind === 'crate_entry' ? CAMJ_ANS[a] : (x.kind === 'sleep_onset' ? camjSleepAns : camjFoodAns(x))[a] || d; };
 // The journal side of an answer: a crate session (live entries; her labelled ones follow via the reconcile), a food /
 // water entry, a confirmed sleep — `cam:<event id>`, created through the same code (and dedup) as a first answer.
-function camjMake(x, who = me){
-  if(x.kind === 'crate_entry') return camjDo({ do: 'start', ev: x, retro: true }, who);
+function camjMake(x, who = me, until){
+  if(x.kind === 'crate_entry') return camjDo({ do: 'start', ev: x, retro: true, ...(until != null ? { until } : {}) }, who);
   if(CAMJ_FEED[x.kind]) return camjDo({ do: 'feed', ev: x }, who);
   const c = camjSleeps('live_model').find(z => z.on.event_id === x.event_id), eid = 'cam:' + x.event_id; if(!c || state.log.some(e => e.id === eid)) return;
   state.log.push({ id: eid, p: CAMJ_P, k: 'sleep', t: c.t, ...(c.end != null ? { end: Math.max(c.end, c.t + 1) } : {}),
@@ -4260,20 +4430,26 @@ function camjMake(x, who = me){
 // Set or CHANGE an answer: the feedback decision (history kept in `prev`) and the journal entry move together; the same
 // answer twice, or the same on two phones, changes nothing more (deterministic id, created only when missing).
 function camjSetAnswer(id, ans, meta){   // meta (§18): {by:'research_ui', rid, quiet, nojournal} — her explicit answer from the research UI on the Mac
-  const x = CAMJ.ev.find(e => e.event_id === id); if(!x) return;
+  let x = CAMJ.ev.find(e => e.event_id === id); if(!x) return;
   const who = (meta && meta.by) || me;
-  const nm = PETS[CAMJ_P].name, eid = 'cam:' + id, crate = x.kind === 'crate_entry';
+  const crate = x.kind === 'crate_entry';
+  // release 6b: a live crate entry is answered for its whole episode (`camjEpisodes`) — one decision per event id, one
+  // journal session from the episode's first entry to its last exit
+  const epm = crate && x.source === 'live_model' ? camjEpMembers(id, Date.now()) : null, ids = epm ? epm.ids : [id];
+  if(epm && epm.head){ x = epm.head; id = x.event_id; }
+  const nm = PETS[CAMJ_P].name, eid = 'cam:' + id;
+  const mt = ids.length > 1 ? { ...(meta || {}), ep: id } : meta;
   let d;
   if(crate){ d = { closed: 'approved', open: 'visit', no: 'rejected', unsure: 'unsure', dismiss: 'dismissed' }[ans]; if(!d) return;
-    if(ans === 'closed' || ans === 'open') camjDecide('door:' + id, ans === 'closed' ? 'door_closed' : 'door_open', meta); }
+    if(ans === 'closed' || ans === 'open') camjDecide(ids.map(i => 'door:' + i), ans === 'closed' ? 'door_closed' : 'door_open', mt); }
   else if(CAMJ_FEED[x.kind] || (x.kind === 'sleep_onset' && x.sug)){ d = { ok: x.sug ? 'confirmed' : 'approved', no: 'rejected', unsure: 'unsure', drink: 'drinking', dismiss: 'dismissed' }[ans]; if(!d) return; }
   else return;
-  camjDecide(id, d, meta);
+  camjDecide(ids, d, mt);
   if(meta && meta.nojournal){ setState(state); camjLast = ''; render(); return; }   // §18 guard: not pending in the app — the decision only
   const want = crate ? ans === 'closed' : ans === 'ok', has = state.log.some(e => e.id === eid);
   const what = crate ? 'בכלוב' : CAMJ_FEED[x.kind] ? ITEMS[CAMJ_FEED[x.kind]].log : 'שינה', msg = `${nm} · ${what} <bdi dir="ltr">${clock(x.ts)}</bdi>: ${camjAnsWord(x, d)}`;
   if(crate && x.source === 'owner_label'){ setState(state); camjLast = ''; camjApply(); render(); }   // her labels: the reconcile adds / removes the session
-  else if(want && !has) commit('', () => camjMake(x, who), { cam: true, quiet: true });
+  else if(want && !has) commit('', () => camjMake(x, who, epm && ids.length > 1 ? epm.to : undefined), { cam: true, quiet: true });
   else if(!want && has) commit('', () => { state.log = state.log.filter(e => e.id !== eid); }, { cam: true, quiet: true });
   else { setState(state); camjLast = ''; render(); }
   if(meta && meta.quiet) return;   // §18: applied from her research answer — no toast on every phone
@@ -4312,17 +4488,16 @@ function camjTileHTML(p){
 }
 // The journal says she is in the crate (or asleep) but fresh camera evidence says otherwise: one short line.
 // Unverified: it changes nothing, it only says the advice may rest on something the camera does not see.
-function camjConflict(){
-  if(!V || !V[CAMJ_P]) return '';
-  { const pe = camjPendingEntry(); if(pe) return `המצלמה רואה אותה בכלוב מ־<bdi dir="ltr">${clock(pe.ts)}</bdi> · לאשר בכרטיס הכלוב`; }
-  const S = V[CAMJ_P], now = Date.now(), inCrate = !!(S.crate && S.crate.start), asleep = !!(S.sleep && S.sleep.start);
-  if(!inCrate && !asleep) return '';
-  const since = Math.max(inCrate ? S.crate.start : 0, asleep ? S.sleep.start : 0);
-  const x = CAMJ.ready ? CAMJ.ev.filter(e => e.status === 'active' && e.kind === 'crate_exit' && !e.disputed_by_labels && e.ts > since && now - e.ts <= CAMJ_TTL && !(camjDec(e.event_id) && camjDec(e.event_id).d === 'rejected')).sort(byTs).pop() : null;
-  if(x) return `המצלמה זיהתה יציאה ב־<bdi dir="ltr">${clock(x.ts)}</bdi> (${x.source === 'owner_label' ? 'מהתיוג שלך' : 'לא מאומת'}) · כדאי לבדוק`;
-  const cn = CAMS.status && CAMS.status.crate_now;
-  if(inCrate && cn && cn.status === 'negative' && typeof cn.capture_ts === 'number' && now - cn.capture_ts <= 5*60000) return `המצלמה לא רואה אותה בכלוב (<bdi dir="ltr">${clock(cn.capture_ts)}</bdi>, לא מאומת) · כדאי לבדוק`;
-  return '';
+function camjConflict(){   // release 6b: one decider — every camera line about NOW is read from `currentState`
+  if(!V || !V[CAMJ_P] || typeof currentState !== 'function') return '';
+  const cs = currentState(CAMJ_P), at = t => `<bdi dir="ltr">${clock(t)}</bdi>`, nn = cs.n > 1 ? ` (${cs.n} זיהויים)` : '';
+  if(cs.state === 'in_crate' && cs.src === 'live') return `${cs.fresh ? `המצלמה רואה אותה בכלוב מ־${at(cs.since)}${nn}` : `המצלמה זיהתה כניסה לכלוב ב־${at(cs.since)}${nn} · לא אושר · עכשיו לא ברור`} · לאשר את השאלה מהמצלמה`;
+  if(!cs.conflicts.length) return '';
+  if(cs.state === 'asleep'){ const C = cs.conflicts[0]; return `המצלמה זיהתה יציאה ב־${at(C.t)} (${C.conf ? 'מהתיוג שלך' : 'לא מאומת'}) · כדאי לבדוק`; }
+  const J = cs.conflicts.find(c => c.src === 'journal'), C = cs.conflicts.find(c => c.src === 'camera' && c.state === 'out');
+  if(J && J.state === 'in_crate' && C && !C.conf && cs.occ === 'out') return `המצלמה לא רואה אותה בכלוב (${at(C.t)}, לא מאומת) · כדאי לבדוק`;
+  if(J && J.state === 'in_crate' && C) return `המצלמה זיהתה יציאה ב־${at(C.t)} (${C.conf ? 'מהתיוג שלך' : 'לא מאומת'}) · כדאי לבדוק`;
+  return actualText(cs) + ' · כדאי לבדוק';
 }
 // ----- the review view: what was imported, matched, left as a visit, needs her, was rejected; and the saving -----
 const CAMJ_RVOPEN = new Set();   // which folds of the review are open (this session)
@@ -4348,7 +4523,9 @@ function camjReview(){
     camjAnsBtns(e.event_id, hide('data-cjp', e.event_id))); };
   const feedRows = [...(rv.feed.food || []), ...(CAM_FEATURES.drinkSuggest ? rv.feed.water || [] : [])].sort((a, b) => b.ts - a.ts).map(e => row(`${CAMJ_FEED[e.kind] === 'food' ? 'אכלה' : 'שתתה'} ${when(e.ts)}${camjWin(e.lo, e.hi)}<small>${e.sug ? 'הצעה מהמצלמה, ניסיונית' : 'זיהוי מצלמה'} · לא נרשם עד שמאשרים</small>${camjClipHTML(e)}`, `<span class="rt-a"><button class="go" data-camf="ok" data-ev="${esc(e.event_id)}">אישור</button><button class="btn" data-camf="no" data-ev="${esc(e.event_id)}">לא נכון</button>${e.sug && e.kind === 'food_seen' ? `<button class="btn" data-camf="drink" data-ev="${esc(e.event_id)}">שתתה, לא אכלה</button>` : ''}<button class="lnk" data-camf="unsure" data-ev="${esc(e.event_id)}">לא בטוחה</button>${hide('data-camf', e.event_id)}</span>`));
   const sugSleepRows = camjSugSleeps(now).map(c => row(`ישנה ${span(c, true)}${c.end == null ? ' (עדיין)' : ''}<small>הצעה מהמצלמה, ניסיונית · משוער עד שמאשרים</small>`, `<span class="rt-a"><button class="go" data-camss="ok" data-ev="${esc(c.on.event_id)}">אישור</button><button class="btn" data-camss="no" data-ev="${esc(c.on.event_id)}">לא נכון</button><button class="lnk" data-camss="unsure" data-ev="${esc(c.on.event_id)}">לא בטוחה</button>${hide('data-camss', c.on.event_id)}</span>`));
-  const act = sec('זיהויים לאישור', (rv.pending || []).map(e => entryRow(e))) + sec('אוכל לאישור', feedRows) + sec('שינה לאישור', sugSleepRows) + sec('לבירור', resolveRows);
+  const epRow = q => entryRow(q.head, `זיהוי מצלמה${q.n > 1 ? ` · ${q.n} זיהויים, תשובה אחת לכולם` : ''}${q.to ? ` · עד <bdi dir="ltr">${clock(q.to)}</bdi>` : ''} · לא נרשם עד שמאשרים`);
+  const RETW = { explained: 'חלק מאותה שהייה כבר נענה', old: 'ישן מ־6 שעות', more: `מעבר ל־${CAMJ_QMAX} השאלות האחרונות` };
+  const act = sec('זיהויים לאישור', (rv.eps || []).map(epRow)) + sec('אוכל לאישור', feedRows) + sec('שינה לאישור', sugSleepRows) + sec('לבירור', resolveRows);
   // research / history: folded. Imported and matched rows say what they are (a SLEEP is never shown as a crate stay);
   // one row per journal entry however many camera observations matched it
   const asMade = r => r.e ? { ...r.c, t: r.e.t, end: r.e.end, ohi: r.e.cam && r.e.cam.ohi != null ? r.e.cam.ohi : r.c.ohi } : r.c;   // what the journal holds now
@@ -4373,6 +4550,7 @@ function camjReview(){
     ${fold('ctx', 'להקשר בלבד', (rv.context || []).map(e => camjModelFlag(e) && !e.ir
       ? row(`${kindW(e)} ${when(e.ts)}<small>לא ודאי: באותו זמן המצלמה החליפה מודל, ייתכן שזה רק השינוי · לא לאישור, לא משנה דבר</small>`, `<span class="rt-a">${hide('data-cjp', e.event_id)}</span>`)
       : row(`${kindW(e)} ${when(e.ts)}<small>${e.ir ? 'תאורת לילה (IR)' : 'זיהוי לא ודאי'} · לא לאישור, לא משנה דבר</small>`)), 'המודל לא בטוח מספיק')}
+    ${fold('ret', 'לא נשאלו (בלי תשובה)', (rv.retired || []).map(q => row(`נכנסה לכלוב ${when(q.from, q.to)}<small>${RETW[q.why]}${q.n > 1 ? ` · ${q.n} זיהויים` : ''} · לא נרשם, לא סומן כשגוי, לא נספר</small>${camjClipHTML(q.head)}`, camjAnsBtns(q.head.event_id))), 'אפשר לענות מכאן')}
     ${fold('dis', 'זיהויים במחלוקת', (rv.disputed || []).map(e => row(`${e.kind === 'crate_entry' ? 'כניסה' : 'יציאה'} ${when(e.ts)}<small>התיוג שלך לפני ואחרי סותר אותו · לא נרשם</small>${camjClipHTML(e)}`)))}
     ${fold('ans', 'התשובות שלך', ansRows, 'אפשר לשנות')}
     ${fold('hid', 'הוסתרו', (rv.dismissed || []).map(e => row(`${kindW(e)} ${when(e.ts)}<small>הוסתר בלי לסמן כשגוי · נשמר במצלמה</small>`, chg(e))))}
@@ -4670,7 +4848,7 @@ function nowNext(p){
 function nowCamHTML(p){
   if(p !== CAMJ_P) return '';
   const card = camCardHTML(p); if(!card || /hidden|cams-slot/.test(card) && !/<img/.test(card)) return card;   // nothing to show yet: keep the watched slot
-  const st = CAMS.status, cn = st && st.crate_now, now = Date.now(), priv = camBase() && (CAM.st === 'ok' || CAM.st === 'stale');
+  const st = CAMS.status, cn = camCN(), now = Date.now(), priv = camBase() && (CAM.st === 'ok' || CAM.st === 'stale');
   const shot = priv ? CAM.data && CAM.data.ls && CAM.data.ls.capture_ts : CAMS.doc && CAMS.doc.capture_ts;
   let line;
   if(st && !camjCamOk()) line = `המצלמה לא מעדכנת מאז <bdi dir="ltr">${clock(st.checked_at)}</bdi>`;
@@ -4697,7 +4875,8 @@ const camjOutAfter = t => state.log.filter(e => e.p === CAMJ_P && e.t > t && (OU
 function camjPendingEntry(){
   if(!CAMJ.ready || !V || !V[CAMJ_P]) return null;
   const S = V[CAMJ_P]; if((S.crate || {}).start || (S.sleep || {}).start) return null;
-  const lv = camjPlan(state.log, Date.now()).rv.live[0]; return lv && lv.kind === 'start' && !camjOutAfter(lv.ev.ts) ? lv.ev : null;   // she was taken out since: not "in the crate now"
+  // …and not when the camera itself saw that occupancy end (an exit event): then it is a past stay to answer, not "now"
+  const lv = camjPlan(state.log, Date.now()).rv.live[0]; return lv && lv.kind === 'start' && !camjOutAfter(lv.ev.ts) && !(lv.ep && lv.ep.to != null) ? { ...lv.ev, epFrom: lv.ep ? lv.ep.from : lv.ev.ts, epN: lv.ep ? lv.ep.n : 1 } : null;   // she was taken out since: not "in the crate now"
 }
 // The camera inside the crate card (owner, 26.11 evening): one full-width row of the card — the image with its capture
 // time and a refresh icon on its corner, a status line only when it matters, and the one approval right under it.
@@ -4731,10 +4910,10 @@ function camTop(p){ return p === CAMJ_P && view === 'now' && isPhone(); }
 function crateCamRowHTML(p, part){
   if(p !== CAMJ_P) return '';
   const card = camCardHTML(p); if(!card) return '';
-  const act = part === 'img' ? '' : camjActHTML() || camjDoorAskHTML(p), top = part === 'img' ? ' crtop' : '';
+  const act = part === 'img' ? '' : camjDoorAskHTML(p), top = part === 'img' ? ' crtop' : '';   // the live question: in the top card (release 6b)
   if(part === 'act') return act ? `<div class="crcam">${act}</div>` : '';
   if(!/<img/.test(card)){ return /cams-slot|camc" hidden/.test(card) ? `<div class="crcam${act ? '' : ' slot'}${top}">${card}${act}</div>` : `<div class="crcam${top}">${card}${act}</div>`; }   // the approval shows even with no image yet
-  const st = CAMS.status, cn = st && st.crate_now, now = Date.now(), priv = camBase() && (CAM.st === 'ok' || CAM.st === 'stale');
+  const st = CAMS.status, cn = camCN(), now = Date.now(), priv = camBase() && (CAM.st === 'ok' || CAM.st === 'stale');
   const sn = !priv && camsShown(), snap = sn && sn.snap ? sn : null;   // a snapshot on the card: its own line, no occupancy words
   const shot = snap ? null : priv ? CAM.data && CAM.data.ls && CAM.data.ls.capture_ts : CAMS.doc && CAMS.doc.capture_ts;
   const fresh = cn && typeof cn.capture_ts === 'number' && now - cn.capture_ts <= 5*60000;
@@ -4765,6 +4944,41 @@ function quickHTML(p){
   </div>`;
 }
 // The routine, slim: five steps, the current one marked; the wheel and its explanation open on tap.
+// THE TOP OF HER SCREEN (release 6b, owner 27.11: "the app still behaves like a manual journal with cameras attached").
+// Three answers first, each from the one function that decides it — nothing new is inferred here:
+//  (a) what is she probably doing now — `currentState` in words (`actualText`: basis and freshness included);
+//  (b) what to do now, if anything — the red alert's hint, wake-by, the retry / outing, else `guidance` (rest / crate /
+//      stale / unknown), else the routine's own next tap (`nowWhat`), else the calm `advice` line, else nothing to do;
+//  (c) one camera question (`camjActHTML`: the newest episode of the capped queue), else nothing.
+function nowAssess(p){
+  const S = V[p], cs = currentState(p), G = guidance(p), now = Date.now(), r = G.plan;
+  const asleep = !!(S.sleep && S.sleep.start), wb = asleep && wakeBy(p), al = alerts(p), red = al.find(a => !a.calm);
+  // nothing known now: the camera's latest crate event (≤ 1 h, unanswered) is said as what it is — an observation, not a state
+  const lx = cs.state === 'unknown' && !cs.conflicts.length && p === CAMJ_P && typeof CAMJ !== 'undefined' && CAMJ.ready ? CAMJ.ev.filter(e => e.status === 'active' && e.source === 'live_model' && (e.kind === 'crate_entry' || e.kind === 'crate_exit') && !camjCtx(e) && now - e.ts <= 3600000 && e.ts <= now && !(camjDec(e.event_id) && camjDec(e.event_id).d === 'rejected')).sort(byTs).pop() : null;
+  const doing = actualText(cs) + (cs.state === 'out' && cs.basis === 'logged' ? ' · לפי הרישום' : '') + (lx ? ` · המצלמה: ${lx.kind === 'crate_exit' ? 'יצאה מהכלוב' : 'נכנסה לכלוב'} ב־<bdi dir="ltr">${clock(lx.ts)}</bdi> (לא אושר)` : '');
+  let todo = '', btn = '';
+  const B = (act, k, label) => `<button class="go" data-act="${act}" data-k="${k}">${label}</button>`;
+  const un = al.filter(a => a.unc).map(a => ({food: 'האוכל', pee: 'הפיפי', poop: 'הקקי'})[a.k]);
+  if(red) todo = red.k === 'food' ? 'להציע לה אוכל (ההתראה למעלה)' : 'לבדוק אותה ולשקול להתקשר לווטרינר (ההתראה למעלה)';
+  else if(un.length) todo = `לבדוק אותה: ${un.join(' ו')} לא תועדו מאז הרישום האחרון${un.includes('האוכל') ? ' · אם לא אכלה, להציע לה אוכל' : ''}`;
+  else if(wb && wb.past){ todo = `להעיר אותה ולצאת לחצץ · ${wb.why}`; btn = B('dur', 'gravel', ITEMS.gravel.start); }
+  else if(S.gravel && S.gravel.start) todo = 'בחצץ: לסמן מה יצא, ואז ״סיום״';
+  else if(retry(p) && !asleep){ todo = 'ניסיון חוזר: לחצץ'; btn = B('dur', 'gravel', ITEMS.gravel.start); }
+  else if(G.mode === 'rest') todo = `${cs.basis === 'logged' || cs.basis === 'camera-confirmed' ? 'לתת לה לישון' : 'אם היא ישנה, לתת לה לישון'}${wb ? ` (עד <bdi dir="ltr">${clock(wb.t)}</bdi> לכל המאוחר)` : ''}`;
+  else if(G.mode === 'crate') todo = `אם היא בכלוב ונרדמה, אפשר להשאיר אותה${cs.src === 'live' ? ' · לענות לשאלה מהמצלמה' : ''}`;
+  else if(G.mode === 'stale') todo = 'לבדוק מה היא עושה. אם היא ערה: קודם לחצץ. אם היא ישנה, לא מעירים';
+  else if(G.mode === 'unknown'){ const w = nowWhat(p); todo = `לבדוק מה היא עושה${w.t ? `. אם היא ערה ומחוץ לכלוב: ${esc(w.t)}` : ''}`; }
+  else { const w = nowWhat(p); if(w.t){ todo = esc(w.t); btn = w.b; } }
+  if(!todo){ const a = advice(p); todo = a.level !== 'none' ? esc(a.text) : 'אין צורך לעשות דבר כרגע'; }
+  const ask = p === CAMJ_P && typeof camjActHTML === 'function' ? camjActHTML() : '';
+  return { cs, mode: G.mode, doing, todo, btn, ask };
+}
+function nowTopHTML(p){
+  if(!PETS[p].cycle) return '';
+  const n = nowAssess(p);
+  return `<div class="card nowtop ${n.cs.state}"><div class="nt-r nt-a"><i>עכשיו</i><span>${n.doing}</span></div>
+    <div class="nt-r nt-b"><i>מה לעשות</i><span>${n.todo}</span>${n.btn}</div>${n.ask ? `<div class="nt-r nt-c"><i>מהמצלמה</i><div class="nt-q">${n.ask}</div></div>` : ''}</div>`;
+}
 function cycleStripHTML(p){
   const r = routine(p), ci = r && !r.brk ? r.i : -1;
   const chips = CYCLE.map((s, i) => `<span class="st ${r && r.done ? 'done' : i === ci ? 'cur' : i < ci ? 'done' : ''}">${s.n}</span>`).join('');
@@ -4784,7 +4998,7 @@ function groomRowHTML(p, tiles){
 // never use up the free quota the journal needs. Experimental, informational only: nothing here touches the log,
 // STATE, advice or planning. Full frames, history and labeling stay on the owner's private local service.
 let CAMS_DAY_BYTES = 12e6, CAMS_HARD_BYTES = 20e6, CAMS_IDLE_MS = 60000; const CAMS_KEY = 'pets-timers-v1-camb', CAMS_FRESH_MS = 15*60000;
-const CAMS = { retryAt: 0, doc: null, status: null, denied: false, unsub: null, unsubS: null, idle: null, io: null, stopped: false,
+const CAMS = { retryAt: 0, doc: null, status: null, cnD: null, denied: false, unsub: null, unsubS: null, idle: null, io: null, stopped: false,
   snap: null, unsubN: null, snapDenied: false, snapRetry: 0, req: { at: 0, st: '' }, reqT: null };   // camera/snapshot (§16), below
 const camsDay = () => new Date().toDateString();
 function camsUsed(){ try { const u = JSON.parse(localStorage.getItem(CAMS_KEY) || 'null'); return u && u.day === camsDay() ? u.bytes : 0; } catch(e){ return 0; } }
@@ -5132,7 +5346,8 @@ function setSimple(on){
 }
 function simpleHTML(p){
   const S = V[p], gv = (S.gravel || {}).start, rt = retry(p), name = PETS[p].name;
-  const since = (t, lbl) => `<div class="smp-c"><small>${lbl}</small>${t ? `<b data-since="${t}">${dur(Date.now() - t)}</b><small>${dayLabel(t)} <bdi dir="ltr">${clock(t)}</bdi></small>` : `<b class="none">–</b><small>עוד לא נרשם</small>`}</div>`;
+  const since = (t, lbl, l2) => `<div class="smp-c">${t && !coveredSince(p, t) ? `<small>${l2}</small><b class="txt"><bdi dir="ltr">${clock(t)}</bdi></b><small>${dayLabel(t) === 'היום' ? '' : dayLabel(t) + ' · '}לא תועד מאז</small>`   /* release 6b: no running clock across unobserved time */
+    : `<small>${lbl}</small>${t ? `<b data-since="${t}">${dur(Date.now() - t)}</b><small>${dayLabel(t)} <bdi dir="ltr">${clock(t)}</bdi></small>` : `<b class="none">–</b><small>עוד לא נרשם</small>`}`}</div>`;
   const big = (k, txt, cls) => `<button class="go smp-b${cls ? ' ' + cls : ''}" data-act="spl" data-k="${k}">${txt}</button>`;
   const outing = gv
     ? `<div class="card smp-out"><div class="smp-oh"><b>בחצץ כבר <span data-since="${gv}">${dur(Date.now() - gv)}</span></b><small>${gravelDone(p, gv) || 'פיפי וקקי נרשמים והשעון ממשיך · "לא עשתה" או "סיום" סוגרים את היציאה'}</small></div>
@@ -5142,7 +5357,8 @@ function simpleHTML(p){
   return alertsHTML(p)
     + `<div class="card slim smp-h"><span><b>מסך יונתן</b><small>${name} · רישום מהיר, עכשיו</small></span><button class="btn" data-act="simple" data-k="0">למסך המלא</button></div>`
     + (rt ? `<div class="card slim withrt smp-rt ${rt.state}">${retryHead(rt)}</div>` : '')
-    + `<div class="smp-since">${since(S.pee, 'מאז הפיפי')}${since(S.food, 'מאז הארוחה')}</div>`
+    + `<div class="card slim smp-now"><span><small>עכשיו</small><b>${actualText(currentState(p))}</b></span></div>`
+    + `<div class="smp-since">${since(S.pee, 'מאז הפיפי', 'פיפי אחרון שנרשם')}${since(S.food, 'מאז הארוחה', 'ארוחה אחרונה שנרשמה')}</div>`
     + outing
     + `<div class="smp-two">${big('food', 'אכלה')}${big('water', 'שתתה')}</div>`;
 }
@@ -5226,7 +5442,9 @@ function renderView(){
 
   // Alerts, the retry card and the wheel live in the side column: on a computer it stays in place while
   // the tiles scroll; on a phone it is simply the top of the page.
-  let sideHTML = P.cycle ? alertsHTML(pet) + adviceHTML(pet) + sleepAskHTML(pet) + stillAsleepHTML(pet) + (V2 ? scoresHTML(pet) : '') + cycleHTML(pet) : '';
+  // release 6b: the three answers first (`nowTopHTML`, which also carries the advice line and the camera question); the
+  // research detail (the rings) goes below the wheel and the sleep / cry tiles
+  let sideHTML = P.cycle ? sleepAskHTML(pet) + stillAsleepHTML(pet) + cycleHTML(pet) : '';
 
   const tap = P.cycle ? routineTap(pet) : [];
   // the "טיפוח" group (owner, 25.11): compact tiles side by side, not a tall column, in the order of how often each is
@@ -5236,13 +5454,15 @@ function renderView(){
     const it = ITEMS[k], nowt = tap.includes(k) ? 'nowt' : ''; let h = '';
     if(!it.dur){
       const t = S[k];
-      h += `<div class="card item ${nowt} ${openX.has(pet+k) ? 'open' : ''}">
+      // release 6b: a last-RECORDED time, not elapsed time since the event, when the time after it is not observed
+      const unc = P.cycle && t && (k === 'pee' || k === 'poop' || k === 'food') && !coveredSince(pet, t);
+      h += `<div class="card item ${nowt} ${openX.has(pet+k) ? 'open' : ''}${unc ? ' unc' : ''}">
         <div class="ic">${ico(k)}</div>
-        <div><div class="lbl">${P.cycle && k === 'food' ? 'מאז הארוחה האחרונה שנרשמה' : hasWhere(k) && unknownLine(pet, k) ? `מאז ה${it.log} האחרון שזמנו ידוע` : it.lbl}</div>   <!-- the clock counts from the last MEAL; a bite is the line under it -->
-          ${k === 'weight' ? `<div class="big txt ${t?'':'none'}">${weightOf(pet).last ? `${weightOf(pet).last.kg.toFixed(1)} ק״ג` : '–'}</div>`
+        <div><div class="lbl">${unc ? (k === 'food' ? 'ארוחה אחרונה שנרשמה' : `${it.log} אחרון שנרשם`) : P.cycle && k === 'food' ? 'מאז הארוחה האחרונה שנרשמה' : hasWhere(k) && unknownLine(pet, k) ? `מאז ה${it.log} האחרון שזמנו ידוע` : it.lbl}</div>   <!-- the clock counts from the last MEAL; a bite is the line under it -->
+          ${unc ? `<div class="big txt"><bdi dir="ltr">${clock(t)}</bdi></div>` : k === 'weight' ? `<div class="big txt ${t?'':'none'}">${weightOf(pet).last ? `${weightOf(pet).last.kg.toFixed(1)} ק״ג` : '–'}</div>`
           : it.slow ? `<div class="big txt ${t?'':'none'}">${t ? wordsLong(Date.now()-t) : '–'}</div>`
                     : `<div class="big ${t?'':'none'}" ${t?`data-since="${t}"`:''}>${t ? dur(Date.now()-t) : '–'}</div>`}
-          <div class="sub">${t ? `${dayLabel(t)} ב־${clock(t)}${P.cycle && k === 'food' ? camOkd(pet, t) : ''}${whereOf(pet,k,t) || (hasWhere(k) ? ` · <button class="lnk" data-act="where" data-k="${k}">איפה?</button>` : '')}${typeOf(pet,k,t)}${byOf(pet,k,t)}` : 'עוד לא נרשם'}</div>
+          <div class="sub">${t ? `${unc ? (() => { const u = unobserved(pet, t, Date.now()); return `<b class="unkc">${u >= (Date.now() - t) / 2 ? 'לא תועד מאז' : 'תיעוד חלקי מאז'}</b> · ${hmm(u)} ללא תיעוד · `; })() : ''}${dayLabel(t)} ב־${clock(t)}${P.cycle && k === 'food' ? camOkd(pet, t) : ''}${whereOf(pet,k,t) || (hasWhere(k) ? ` · <button class="lnk" data-act="where" data-k="${k}">איפה?</button>` : '')}${typeOf(pet,k,t)}${byOf(pet,k,t)}` : 'עוד לא נרשם'}</div>
           ${hasWhere(k) ? unknownLine(pet, k) : ''}${P.cycle && k === 'pee' ? peeCardLines(pet) : ''}${k === 'pee' ? holdHint(pet) : ''}${P.cycle && k === 'poop' ? mealPoopHTML(pet) + poopLine(pet) + (V2 && !mealPoopCue(pet) ? gaugeHTML(poopWindow(pet), 'לחלון', 'הקקי האחרון ב־') : '') + poopHints(pet) : ''}${P.cycle && k === 'food' && S.bite > (S.food || 0) ? `<div class="sub hint bite">ביס אחרון ב־<bdi dir="ltr">${clock(S.bite)}</bdi>${camOkd(pet, S.bite)} · לא מאפס את השעון</div>` : ''}${P.cycle && k === 'food' ? mealLine(pet) + (V2 ? gaugeHTML(mealWindow(pet), 'לארוחה', 'הארוחה האחרונה ב־') : '') : ''}${k === 'bath' ? bathLine(pet) + (V2 && !noBathUntil(pet) ? gaugeHTML(bathWindow(pet), 'למקלחת', 'המקלחת האחרונה ב־') : '') : ''}${GROOM[pet] && ['flea','brush','teeth','weight'].includes(k) ? groomLine(pet, k) : ''}${todayWhere(pet,k) ? `<div class="sub hint x">${todayWhere(pet,k)}</div>` : ''}${P.cycle && typical(pet,k) ? `<div class="sub hint x">${typical(pet,k)}</div>` : ''}${it.note ? `<div class="sub hint x">${it.note}</div>` : ''}MOREBTN</div>
         <div class="acts"><button class="go" data-act="pt" data-k="${k}">${it.btn}</button>
           ${P.cycle && k === 'food' ? `<button class="ghost" data-act="nofood">${ico('none','s')}לא אכלה</button>` : ''}</div>${P.cycle && k === 'food' && !slim ? camjFeedRowHTML(pet, 'food') : ''}</div>`;
@@ -5337,11 +5557,11 @@ function renderView(){
     h += sec('4', 'אוכל ושתייה', tap.includes('food'), tileOf('food') + waterRowHTML(pet) + (P.treats ? treatCardHTML(pet) : ''), 'food');
     if(P.bath) h += sec('', 'טיפוח', false, groomTiles(), 'bath');
     // Sleep and crying sit right under the wheel, always at hand: in the crate she is either asleep or crying.
-    if(pottyTop) sideHTML = alertsHTML(pet) + adviceHTML(pet) + sleepAskHTML(pet) + stillAsleepHTML(pet) + pottySec + (V2 ? scoresHTML(pet) : '') + cycleHTML(pet);
-    sideHTML += `<section class="duo" id="sec-rest">${tileOf('sleep')}${tileOf('cry')}</section>`;
+    if(pottyTop) sideHTML = sleepAskHTML(pet) + stillAsleepHTML(pet) + pottySec + cycleHTML(pet);
+    sideHTML += `<section class="duo" id="sec-rest">${tileOf('sleep')}${tileOf('cry')}</section>` + (V2 ? scoresHTML(pet) : '');
   }
 
-  if(P.cycle) sideHTML = (camTop(pet) ? crateCamRowHTML(pet, 'img') : '') + sprayCardHTML(pet) + sideHTML; else h = sprayCardHTML(pet) + adviceHTML(pet) + h;   // Kochik: her calm line (Agent C); never on the slim night screen. On a phone Kishmish's camera image comes first (release 5)
+  if(P.cycle) sideHTML = alertsHTML(pet) + nowTopHTML(pet) + (camTop(pet) ? crateCamRowHTML(pet, 'img') : '') + sprayCardHTML(pet) + sideHTML; else h = sprayCardHTML(pet) + adviceHTML(pet) + h;   // Kochik: her calm line (Agent C); never on the slim night screen. On a phone Kishmish's camera image comes first (release 5)
   side.innerHTML = sideHTML; camsWatch(); camjSub();
   h += noteCardHTML(pet);
   if(P.cycle){
@@ -5435,7 +5655,8 @@ function cycleHTML(p){
   // The ring shows where she is; it cannot change the step. Tapping a step jumps to that step's tiles. Earlier steps of the round are tinted, the current
   // one is filled (red when the crate stay is too long) and the next one has a dashed outline.
   const R = 74, pt = (deg, rr) => [100 + rr*Math.cos(deg*Math.PI/180), 100 + rr*Math.sin(deg*Math.PI/180)].map(v => v.toFixed(1));
-  const cls = i => r && r.done ? (i === nx ? 'nxt' : 'done') : `${i === ci ? 'cur' : i < ci ? 'done' : ''} ${i === ci && over ? 'over' : ''} ${i === nx && i !== ci ? 'nxt' : ''}`;
+  const G0 = guidance(p), stale = G0.mode === 'stale';   // release 6b: an old, unsupported stage is drawn as history (no "current", no "next")
+  const cls = i => r && r.done ? (i === nx ? 'nxt' : 'done') : `${i === ci ? 'cur' : i < ci ? 'done' : ''}${i === ci && stale ? ' stale' : ''} ${i === ci && over ? 'over' : ''} ${i === nx && i !== ci && !stale ? 'nxt' : ''}`;
   const RO = 86, RI = 62, TIP = 11, GAP = 9;
   const segs = CYCLE.map((s, i) => {
     const a0 = -90 + i*72 + GAP/2, a1 = a0 + 72 - GAP, [ix,iy] = pt((a0 + a1 + TIP)/2, R);
@@ -5456,6 +5677,7 @@ function cycleHTML(p){
     : r.night ? `<b>לילה · חזרה לכלוב</b><span>צרכים לפני <span data-words="${r.t}">${words(now-r.t)}</span></span>`
     : r.free ? `<b>${FREE_LBL[r.free]}</b><span>${stepSince(r.t)}</span>`
     : r.done ? `<b>הסבב הושלם</b><span>${since(r.t)}</span>`
+    : stale ? `<span>השלב האחרון שנרשם</span><b>${CYCLE[ci].n}</b><span><bdi dir="ltr">${clock(r.t)}</bdi> · מאז לא תועד</span>`
     : `<b>${CYCLE[ci].n}</b><span>${inCrate ? since(r.t) : stepSince(r.t)}</span>${inCrate ? `<span>מ־<bdi dir="ltr">${clock(r.t)}</bdi></span>` : ''}`);
   // What moves the wheel on: always something on the tiles below.
   // Plain instructions for whoever is holding the phone: what is happening and what to press below.
@@ -5485,13 +5707,13 @@ function cycleHTML(p){
     : ci === 2 ? `זמן משחק. אפשר לסמן במה שיחקה. כש${nm} אוכלת, לוחצים <b>״אכלה״</b>.`
     : `אחרי האוכל מוציאים שוב לצרכים, ואז לוחצים <b>פיפי</b>, <b>קקי</b> או <b>״לא עשתה״</b>.`;
   // the third layer (owner, 27.11): the wheel keeps the planned stage; the words follow what is actually known
-  const G = guidance(p), say = G.what || G.prefix + what;
+  const G = G0, say = G.what || G.prefix + what;
   return `<div class="card cyc ${due||over||long3?'due':''}">
     <div class="cyc-h"><b>השגרה של ${PETS[p].name}</b><small>${r && !r.brk && rn ? roundName(rn)+' · ' : r && r.brk ? 'בהפסקה · ' : ''}<button class="lnk" data-act="help">איך זה עובד?</button></small></div>
     ${V2 ? flowHTML(cls, centre) : `<div class="steps"><svg class="ring" viewBox="0 0 200 200" aria-hidden="true">${segs}</svg>
       <div class="rc">${centre}</div>${labels}</div>`}
     ${G.mode !== 'plan' ? `<div class="gd ${G.mode}"><span class="gd-p">${G.planned}</span><span class="gd-a">${G.actual}</span></div>` : ''}
-    ${long3 ? `<div class="duemsg">${ico('pee','s')}<span>עברו ${words(now - S.pee)} מהפיפי האחרון${unk ? ' שנרשם · אם היא ערה, להוציא לחצץ' : ' · להוציא לחצץ'}</span></div>` : ''}
+    ${long3 ? `<div class="duemsg">${ico('pee','s')}<span>${coveredSince(p, S.pee) ? `עברו ${words(now - S.pee)} מהפיפי האחרון${unk ? ' שנרשם · אם היא ערה, להוציא לחצץ' : ' · להוציא לחצץ'}` : `פיפי אחרון שנרשם <bdi dir="ltr">${clock(S.pee)}</bdi> · לא תועד מאז · אם היא ערה, להוציא לחצץ`}</span></div>` : ''}
     ${tired && G.mode !== 'crate' ? `<div class="zz">${ico('sleep','s')}<span>${awakeUnknown(p) ? `שינה אחרונה שנרשמה <bdi dir="ltr">${clock(aw)}</bdi> · ${p === CAMJ_P && camjPendingEntry() ? 'המצלמה: כנראה בכלוב' : 'אם היא ערה, לכלוב לישון'}` : `${af > aw ? 'נראתה ערה כבר' : 'ערה כבר'} ${p === CAMJ_P && af === aw && wakeWin(p) ? `${words(now - wakeWin(p).hi)}–${words(now - aw)}` : words(now - af)} · ${p === CAMJ_P && camjPendingEntry() ? 'המצלמה: כנראה בכלוב' : 'לכלוב לישון'}`}</span></div>` : ''}
     ${ft && ft.phase !== 'run' && !inCrate ? `<div class="frm">${ico('paw','s')}<span>זמן החופש נגמר (${FREE.min} דקות מהפיפי) · חזרה לשגרה</span></div>` : ''}
     ${over ? `<div class="duemsg">${ico('crate','s')}<span>${awakeNow(p, S.crate.start) ? 'ערה בכלוב' : 'בכלוב'} יותר מ${words(CRATE_MAX)} · מ־<bdi dir="ltr">${clock(S.crate.start)}</bdi>${awakeNow(p, S.crate.start) ? '' : ' · לא תועד אם ישנה'}</span></div>` : ''}
@@ -5626,8 +5848,8 @@ function poopLine(p){
   const from = m.last + quantile(m.g, .25), to = m.last + quantile(m.g, .75);
   // EXPIRED (owner, 27.11): a window whose end has passed with no poop is not a live prediction. The old design says so
   // in this line; the new design's bar under it says the same (`gaugeHTML` with `miss`), so the line steps aside there.
-  if(now > to) return V2 && !mealPoopCue(p) ? '' : `<div class="sub hint fc past">${winPast(from, to, 'קקי')}</div>`;
-  return `<div class="sub hint fc">הקקי הבא צפוי בסביבות <bdi dir="ltr">${clock(from)}–${clock(to)}</bdi></div>`;
+  if(now > to) return V2 && !mealPoopCue(p) ? '' : `<div class="sub hint fc past">${winPast(from, to, 'קקי', !coveredSince(p, V[p].poop))}</div>`;
+  return `<div class="sub hint fc">הקקי הבא צפוי בסביבות <bdi dir="ltr">${clock(from)}–${clock(to)}</bdi>${fcThin(p, 14) ? ` · ${THIN_NOTE}` : ''}</div>`;
 }
 // WHEN SHE EATS NEXT: she eats every two hours or so all day, so times of day say little (the card once read
 // "usually eats around 15:48"). What helps is the last meal plus her usual gap between meals.
@@ -5639,7 +5861,7 @@ function mealGap(p){   // her usual gap between MEALS (bites are not meals): med
 function mealLine(p){
   const g = mealGap(p), last = V[p].food; if(!g || !last || isNight()) return '';
   const next = last + g; if(Date.now() > next + 3600000) return '';   // long past: the food alert speaks instead
-  return `<div class="sub hint fc">הארוחה הבאה בערך ב־<bdi dir="ltr">${clock(next)}</bdi></div>`;
+  return `<div class="sub hint fc">הארוחה הבאה בערך ב־<bdi dir="ltr">${clock(next)}</bdi>${!coveredSince(p, last) ? ' · לפי הארוחה האחרונה שנרשמה' : ''}${fcThin(p, 7) ? ` · ${THIN_NOTE}` : ''}</div>`;
 }
 // THE PEE WINDOW, from her own rhythm (owner's spec, 25.11; it replaced the 25th–75th percentile capped at the age
 // limit, which came out too early). Her usual gap = the median of the gaps between consecutive pees over the last
@@ -5682,10 +5904,11 @@ function forecastLine(p){
   const quiet = peeAsleep(p) !== 'late' && ((V[p].sleep && V[p].sleep.start) || (V[p].crate && V[p].crate.start));   // asleep or in the crate: no alarm colours (asleep 4 h from the pee: colours back, `peeAsleep`)
   const why = ` <button class="lnk fcq" data-act="fcwhy" aria-label="איך זה מחושב?">?</button>`;
   // where the window comes from, in one short line (the owner asked for it on the card)
-  const src = `<div class="sub hint fcsrc">${f.byAge ? 'לפי הגיל · עוד אין מספיק מרווחים שלה' : `לפי ${f.n} מרווחים מ־${PEE_RHYTHM.days} הימים האחרונים`}</div>`;
+  const thin = !f.byAge && fcThin(p, PEE_RHYTHM.days), unc = !coveredSince(p, f.last);
+  const src = `<div class="sub hint fcsrc">${f.byAge ? 'לפי הגיל · עוד אין מספיק מרווחים שלה' : `לפי ${f.n} מרווחים מ־${PEE_RHYTHM.days} הימים האחרונים`}${thin ? ` · <b>${THIN_NOTE}</b>` : ''}</div>`;
   if(f.state === 'soon') return `<div class="sub fc">הפיפי הבא צפוי ${span}${why}</div>${src}`;
   if(f.state === 'now') return `<div class="sub fc ${quiet ? '' : 'now'}"><i></i>הפיפי הבא צפוי עכשיו · עד <bdi dir="ltr">${clock(f.to)}</bdi>${why}</div>${src}`;
-  return `<div class="sub fc past ${quiet ? '' : 'late'}"><i></i>${winPast(f.from, f.to, 'פיפי')}${why}</div>${src}`;
+  return `<div class="sub fc past ${quiet || unc ? '' : 'late'}"><i></i>${winPast(f.from, f.to, 'פיפי', unc)}${why}</div>${src}`;   // unobserved since the last pee: not "late", unknown
 }
 function forecastWhy(p){   // where the window comes from, in plain words
   const f = peeForecast(p); if(!f) return;
@@ -5716,9 +5939,10 @@ function poopGap(p){
 function poopWindow(p){
   const last = V[p].poop; if(typeof last !== 'number') return null;
   const m = poopModel(p);
-  if(m && m.last != null && m.last > last){ const from = m.last + quantile(m.g, .25), to = m.last + quantile(m.g, .75); return {last, from, to, end: to + (to - last) * .25, miss: 'קקי'}; }
+  const unc = !coveredSince(p, last);
+  if(m && m.last != null && m.last > last){ const from = m.last + quantile(m.g, .25), to = m.last + quantile(m.g, .75); return {last, from, to, end: to + (to - last) * .25, miss: 'קקי', unc}; }
   const g = poopGap(p); if(!g) return null;
-  return {last, from: last + .75*g, to: last + 1.25*g, end: last + 1.5*g, miss: 'קקי'};
+  return {last, from: last + .75*g, to: last + 1.25*g, end: last + 1.5*g, miss: 'קקי', unc};
 }
 // Every forecast the app makes is drawn the same way (the owner: so she does not lose the sense of time): a bar from
 // the last time, filled up to now, with the expected window shaded (a point forecast gets a thin mark).
@@ -5726,14 +5950,14 @@ function poopWindow(p){
 const when = t => `${dayLabel(t) === 'היום' ? '' : dayLabel(t) + ' '}${clock(t)}`;
 // "החלון עבר (A–B) · לא נרשם קקי": a pee / poop window whose end has passed with nothing logged — the same words on the
 // card line and on the bar, both designs. How windows are computed is unchanged.
-const winPast = (a, b, what) => `החלון עבר (<bdi dir="ltr">${clock(a)}–${clock(b)}</bdi>) · לא נרשם ${what}`;
+const winPast = (a, b, what, unc) => `החלון עבר (<bdi dir="ltr">${clock(a)}–${clock(b)}</bdi>) · ${unc ? `לא תועד מאז, לא ידוע אם עשתה ${what}` : `לא נרשם ${what}`}`;
 function gaugeHTML(w, noun, lastLbl){
   if(!w) return '';
   const now = Date.now(), end = Math.max(w.end, now + 1), W = end - w.last, pc = t => Math.max(0, Math.min(100, (t - w.last) / W * 100));
   const fm = ms => ms >= 36*3600000 ? wordsLong(ms) : words(ms), point = w.to - w.from < 60000;
   const days = t => Math.round((sod(t) - sod(now)) / 86400000);   // bars days long count calendar days, like the line above them
   const st = W >= 36*3600000 && now < w.from ? (days(w.from) <= 0 ? `היום ${noun.replace(/^ל/, 'ה')}` : days(w.from) === 1 ? `מחר ${noun.replace(/^ל/, 'ה')}` : `עוד ${days(w.from)} ימים ${noun}`)
-    : now < w.from ? `עוד ${fm(w.from - now)} ${noun}` : now <= w.to ? (point ? 'עכשיו' : `עכשיו · עד ${w.to - w.from >= 36*3600000 ? dayLabel(w.to) : `<bdi dir="ltr">${clock(w.to)}</bdi>`}`) : w.miss ? winPast(w.from, w.to, w.miss) : `עברו ${fm(now - w.to)}`;
+    : now < w.from ? `עוד ${fm(w.from - now)} ${noun}` : now <= w.to ? (point ? 'עכשיו' : `עכשיו · עד ${w.to - w.from >= 36*3600000 ? dayLabel(w.to) : `<bdi dir="ltr">${clock(w.to)}</bdi>`}`) : w.miss ? winPast(w.from, w.to, w.miss, w.unc) : `עברו ${fm(now - w.to)}`;
   const cls = now < w.from ? 'soon' : now <= w.to + (point ? 15*60000 : 0) ? 'in' : 'past';
   const a = pc(w.from), b = Math.max(pc(w.to), a + 1.5);
   // the times written on the bar itself (the owner: "the time of each part, on the part"): the last one at the start,
@@ -5746,7 +5970,7 @@ function gaugeHTML(w, noun, lastLbl){
   const tw = point ? `צפוי בערך ב־${when(w.from)}` : `${w.miss && now > w.to ? 'החלון שעבר' : 'החלון הצפוי'}: ${when(w.from)}–${when(w.to)}`, tf = `${lastLbl}${when(w.last)} · עברו ${fm(now - w.last)}`;
   return `<div class="gauge ${cls}">${labels}<div class="gg" dir="ltr" data-tip="${tf} · ${tw}" title="${tf} · ${tw}"><span class="gw" style="left:${a.toFixed(1)}%;width:${(b - a).toFixed(1)}%" data-tip="${tw}" title="${tw}"></span><span class="gf" style="width:${pc(now).toFixed(1)}%" data-tip="${tf}" title="${tf}"></span><span class="gnow" style="left:${pc(now).toFixed(1)}%" title="עכשיו ${clock(now)}"></span></div><small>${st}</small><div class="ptip"></div></div>`;
 }
-const peeWindow = p => { const f = peeForecast(p); return f && {last: f.last, from: f.from, to: f.to, end: f.to + (f.to - f.last) * .2, miss: 'פיפי'}; };
+const peeWindow = p => { const f = peeForecast(p); return f && {last: f.last, from: f.from, to: f.to, end: f.to + (f.to - f.last) * .2, miss: 'פיפי', unc: !coveredSince(p, f.last)}; };
 function mealWindow(p){   // the same reading as `mealLine`: last meal + her usual gap
   const g = mealGap(p), last = V[p].food; if(!g || !last || isNight() || Date.now() > last + g + 3600000) return null;
   return {last, from: last + g, to: last + g, end: last + 1.25*g};

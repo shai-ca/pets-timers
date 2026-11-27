@@ -52,7 +52,7 @@
     ok('…and it can be undone', kinds() === 'meal,bite' && !logOf('kishmish', 'food').pop().m);
     pet = 'kochik'; seed([{ p:'kochik', k:'food', t: now - 30*MIN }]); tile('food').click();
     ok('Kochik: plain "ate", nothing extra', !toastBtn() && $q('#main').textContent.includes('מאז האוכל האחרון')); pet = 'kishmish';
-    seed([at('food', 130), at('food', 20)]);
+    seed([at('food', 130), { p:'kishmish', k:'play', y:'rope', t: now - 90*MIN }, { p:'kishmish', k:'play', y:'rope', t: now - 50*MIN }, at('food', 20)]);   // (release 6b: observed since the meal, so the clock stays)
     // 27.11 (state reconciliation, item 5): the clock counts from the last RECORDED meal, and the label says so
     ok('Kishmish\'s food card says what its clock counts from, and the bite is on the line under it', $q('#sec-food .lbl').textContent === 'מאז הארוחה האחרונה שנרשמה' && $q('#sec-food .bite').textContent.includes(clock(now - 20*MIN)));
     // timers

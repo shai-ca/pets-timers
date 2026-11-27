@@ -44,7 +44,7 @@
     // the sleep total is a reading of the list
     seed(morning);
     ok('"below the age range" says it is by the list', SLEEP_RANGE.below.includes('לפי מה שנרשם') && (() => { openScores(p); const t = sh.textContent; close(); return scores(p).range !== 'below' || t.includes('לפי מה שנרשם'); })());
-    if(V2) ok('the sleep goal line says what was counted, not that she slept', !!$q('.gauge.goal') && $q('.gauge.goal').textContent.includes('נספרה שינה של') && !$q('.gauge.goal').textContent.includes('השעות האחרונות ישנה'));
+    if(V2) ok('the sleep goal line says what was counted, not that she slept', !!$q('.gauge.goal') && $q('.gauge.goal').textContent.includes('שינה מוערכת') && !$q('.gauge.goal').textContent.includes('השעות האחרונות ישנה'));
     // Kochik: no awake timer at all, nothing changes
     pet = 'kochik'; render(); ok("Kochik's screen has no awake line" + ['#main', '#side', '#sh'].map(s => $q(s) && $q(s).textContent.includes('לא נרשמה שינה מאז') ? ' in ' + s : '').join(''), !($q('#main').textContent + $q('#side').textContent).includes('לא נרשמה שינה מאז')); pet = 'kishmish'; render();
     done();

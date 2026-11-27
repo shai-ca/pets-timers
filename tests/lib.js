@@ -184,7 +184,7 @@ async function camClipSuite(){
   fb = { auth: { currentUser: { uid: 'U1', getIdToken: async () => TOK } }, camDoc: (n, on) => { subs[n] = on; return () => { delete subs[n]; }; }, camGet: async () => null, camMerge: async (n, d) => { merged.push([n, d]); } };
   CAMJ.fbLocal = {}; CAMJ.imgs = {}; render(); await wait(2);
   await camPoll(); await wait(3);
-  const card = () => $q('#sec-crate .camjt'), food = () => $q('.camjf[data-feed=food]'), water = () => $q('.camjf[data-feed=water]');
+  const card = () => $q('.nowtop .camjt'), food = () => $q('.camjf[data-feed=food]'), water = () => $q('.camjf[data-feed=water]');
   const send = async () => { if(subs.events) subs.events({ schema: 'cam-events/1', events: EVS, coverage: [{ from: T - 30*HOUR, to: Date.now() }], door_spans: [], published_at: T, updated_at: T }, false); await wait(3); render(); await wait(3); };
   await send(); for(let i = 0; i < 20 && !(card() && card().querySelector('img.camj-img') && food() && food().querySelector('img.camj-img')); i++){ await pause(50); await wait(3); render(); await wait(3); }
   const D = window.CLIP_DESIGN = V2 ? 'v2' : 'v1';
@@ -212,7 +212,7 @@ async function camClipSuite(){
   const g0 = gate; gate = null; g0.forEach(f => f()); await pause(30); await wait(6);
   const v = () => $q('video');
   ok('the player: one <video>, a blob URL, controls, playsinline, preload none, no autoplay', document.querySelectorAll('video').length === 1 && /^blob:/.test(v().src) && v().controls && v().playsInline && v().hasAttribute('playsinline') && v().preload === 'none' && !v().autoplay && !v().hasAttribute('autoplay'));
-  ok('…inside the crate card\'s own question', !!v().closest('#sec-crate .camjt') && v().closest('.camjt') === card());
+  ok('…inside the crate card\'s own question', !!v().closest('.nowtop .camjt') && v().closest('.camjt') === card());
   const when = card().querySelector('.cjv-when').textContent;
   ok('the ACTUAL footage times with seconds (start / end the service returned), not the requested window: ' + when, when.includes(clipClock(tE - 3000) + '–' + clipClock(tE + 9000)) && !when.includes(clipClock(tE - 8000)) && /שוב/.test(when) && /מסך מלא/.test(when) && /סגירה/.test(when));
   // (real decoding is checked outside the virtual clock: tests/../ real-playback smoke, see the report)
@@ -228,7 +228,7 @@ async function camClipSuite(){
     ok('…nothing inside the crate card overlaps ' + bad.join(', '), !bad.length); }
   // 4. a repaint keeps the same player (it does not restart); a second clip replaces it, revoking the first blob
   const el1 = v(), url1 = el1.src; render(); await wait(3); render(); await wait(3);
-  ok('repaints: the same <video> element, still in its card, same blob', v() === el1 && v().src === url1 && !!v().closest('#sec-crate .camjt') && clipCalls().length === 1);
+  ok('repaints: the same <video> element, still in its card, same blob', v() === el1 && v().src === url1 && !!v().closest('.nowtop .camjt') && clipCalls().length === 1);
   food().querySelector('[data-clip]').click(); await pause(30); await wait(6);
   ok('another clip: one player on the page, the first blob revoked', document.querySelectorAll('video').length === 1 && revoked.includes(url1) && v() !== el1 && !!v().closest('.camjf[data-feed=food]') && clipCalls().length === 2 && clipCalls()[1].q.get('cam') === 'cam2');
   ok('…the crate card is back to its thumbnail and play button', !!card().querySelector(`.cjv [data-clip="cam1:${tE}"]`));

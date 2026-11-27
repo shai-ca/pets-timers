@@ -14,9 +14,9 @@
     ok('asleep: "pee right when she wakes" instead of the window', $q('#sec-potty .wakepee').textContent === 'פיפי צפוי מיד כשהיא מתעוררת' && !pc().includes('הפיפי הבא צפוי') && !$q('#sec-potty .gauge'));
     seed([{...K0, k:'pee', t: now - 200*MIN, w:'gravel'}, {...K0, k:'sleep', t: now - 30*MIN}]);
     ok('asleep 3:20 after the pee (past the window by age): still no late colours', !!$q('#sec-potty .wakepee') && !$q('#sec-potty .fc.late'));
-    seed([{...K0, k:'pee', t: now - 250*MIN, w:'gravel'}, {...K0, k:'sleep', t: now - 30*MIN}]);
+    seed([{...K0, k:'pee', t: now - 250*MIN, w:'gravel'}, {...K0, k:'crate', t: now - 249*MIN, end: now - 31*MIN}, {...K0, k:'sleep', t: now - 30*MIN}]);   // observed since (release 6b: else not "late" but unknown)
     ok('asleep 4 h after the pee: the window and its late colour are back', !$q('#sec-potty .wakepee') && !!$q('#sec-potty .fc.late') && peeAsleep('kishmish') === 'late');
-    seed([{...K0, k:'pee', t: now - 250*MIN, w:'gravel'}]);
+    seed([{...K0, k:'pee', t: now - 250*MIN, w:'gravel'}, {...K0, k:'crate', t: now - 249*MIN, end: now - 10*MIN}]);   // observed since (release 6b)
     ok('awake: the ordinary window line (a passed window reads "החלון עבר … · לא נרשם פיפי" since 27.11, item 6)', !$q('#sec-potty .wakepee') && pc().includes('החלון עבר') && pc().includes('לא נרשם פיפי'));
     // --- waking from a nap of 45 min or more
     seed([{...K0, k:'pee', t: now - 120*MIN, w:'gravel'}, {...K0, k:'sleep', t: now - 65*MIN, end: now - 5*MIN}]);

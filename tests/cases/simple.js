@@ -120,7 +120,7 @@
     ok('…then the drink, stamped with the chosen name', logOf('kishmish', 'water').length === 1 && !!logOf('kishmish', 'water')[0].by);
 
     // ---- the elapsed clocks ----
-    reset(); seed([{ ...K0, k:'food', t: now - 2*HOUR, m:'meal' }, { ...K0, k:'food', t: now - 10*MIN, m:'bite' }, { ...K0, k:'pee', t: now - 50*MIN, w:'gravel' }]); simple(true);
+    reset(); seed([{ ...K0, k:'food', t: now - 2*HOUR, m:'meal' }, { ...K0, k:'play', y:'rope', t: now - 80*MIN }, { ...K0, k:'food', t: now - 10*MIN, m:'bite' }, { ...K0, k:'pee', t: now - 50*MIN, w:'gravel' }]); simple(true);   // observed since (release 6b)
     { const c = [...document.querySelectorAll('.smp-since [data-since]')];
       ok('two clocks: since the last pee and since the last MEAL (a bite does not reset it), live like the tiles', c.length === 2 && +c[0].dataset.since === K().pee && +c[1].dataset.since === K().food && K().food === now - 2*HOUR && c[1].textContent === dur(Date.now() - (now - 2*HOUR)) && $q('.smp-since').textContent.includes('מאז הפיפי') && $q('.smp-since').textContent.includes('מאז הארוחה')); }
     spl('gravel').click(); ageG(); spl('pee').click(); close();

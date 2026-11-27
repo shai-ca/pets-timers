@@ -44,10 +44,10 @@
     await fresh(() => [{ ...K0, k:'pee', t: T - HOUR, w:'gravel' }]);
     DOORS = [{ from: T - 40*MIN, to: T, value: 'closed' }];
     await send([L('ce_c', 'crate_entry', T - 20*MIN)]);
-    { const q = $q('#sec-crate .camjt'), r0 = JSON.stringify(routine('kishmish'));
+    { const q = $q('.nowtop .camjt'), r0 = JSON.stringify(routine('kishmish'));
       ok('card (door marked closed): the same four answers, in order', !!q && [...q.querySelectorAll('[data-camans]')].map(b => b.textContent).join('|') === 'הייתה, דלת סגורה|הייתה, דלת פתוחה|לא הייתה בכלוב|לא זוכרת');
       q.querySelector('[data-camans=open]').click(); await wait(3);
-      ok('…"ביקור מרצון": no crate entry, routine unchanged, nothing more to approve', !crates().length && JSON.stringify(routine('kishmish')) === r0 && camjDec('ce_c').d === 'visit' && !$q('#sec-crate .camjt')); }
+      ok('…"ביקור מרצון": no crate entry, routine unchanged, nothing more to approve', !crates().length && JSON.stringify(routine('kishmish')) === r0 && camjDec('ce_c').d === 'visit' && !$q('.nowtop .camjt')); }
     // dismissing an eating suggestion and a sleep suggestion
     await fresh(() => [{ ...K0, k:'pee', t: T - 3*HOUR }]);
     await sugs({ schema: 'cam-suggestions/1', enabled: true, suggestions: [{ id: 'sug_e', kind: 'eating_suggestion', ts: T - 30*MIN, lo: T - 31*MIN, hi: T - 29*MIN, ir: false, status: 'active' }, { id: 'sug_s', kind: 'sleep_suggestion', ts: T - 100*MIN, lo: T - 101*MIN, hi: T - 100*MIN, end: T - 60*MIN, lo2: T - 60*MIN, hi2: T - 55*MIN, ir: false, status: 'active' }], published_at: Date.now() });
@@ -76,7 +76,7 @@
     DOORS = [{ from: T - 2*HOUR, to: T, value: 'closed' }];
     await send([L('ce_o1', 'crate_exit', T - 60*MIN, { model_version: 'occ-A' }), L('ce_n1', 'crate_entry', T - 30*MIN, { model_version: 'occ-B', model_switch: true, prev_model_version: 'occ-A' })]);
     { const rv = camjPlan(state.log, Date.now()).rv;
-      ok('model_switch:true entry: never offered (card or pending), uncertain context', !rv.live.length && !rv.pending.length && rv.context.some(e => e.event_id === 'ce_n1') && !$q('#sec-crate .camjt'));
+      ok('model_switch:true entry: never offered (card or pending), uncertain context', !rv.live.length && !rv.pending.length && rv.context.some(e => e.event_id === 'ce_n1') && !$q('.nowtop .camjt'));
       const r = await review(), ctx = r.querySelector('details[data-cjd=ctx]');
       ok('…listed in the folded "להקשר בלבד" with a neutral note and "להסתיר", no approve button', !!ctx && !ctx.open && ctx.textContent.includes('החליפה מודל') && !!ctx.querySelector('[data-cjp=dismiss][data-ev=ce_n1]') && !r.querySelector('[data-camans][data-ev=ce_n1]'));
       ctx.querySelector('[data-cjp=dismiss]').click(); await wait(3);

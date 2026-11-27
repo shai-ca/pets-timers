@@ -7,7 +7,7 @@
     const kinds = () => logOf('kishmish', 'food').map(mealKind).join(','), alertText = () => [...document.querySelectorAll('.card.alertc')].map(c => c.textContent).join(' | ');
     seed([]); tile('food').click();
     ok('the first "ate" is a meal, and the toast says so', kinds() === 'meal' && $q('#toastMsg').textContent.includes('אכלה · ארוחה') && $q('.uni').textContent.includes('אכלה · ארוחה'));
-    seed([food(240), food(180)]);
+    seed([food(240), food(180), { ...K0, k:'play', y:'rope', t: now - 140*MIN }, { ...K0, k:'play', y:'rope', t: now - 100*MIN }, { ...K0, k:'play', y:'rope', t: now - 60*MIN }, { ...K0, k:'play', y:'rope', t: now - 20*MIN }]);   // observed since (release 6b)
     ok('an hour after a meal: a bite; the timer still counts from the meal', kinds() === 'meal,bite' && K().food === now - 240*MIN && K().bite === now - 180*MIN && +$q('#sec-food [data-since]').dataset.since === now - 240*MIN);
     ok('the tile says there was a bite and that it did not reset the clock', $q('#sec-food .bite').textContent.includes('ביס אחרון ב־') && $q('#sec-food .bite').textContent.includes(clock(now - 180*MIN)));
     ok('3.5 hours since the MEAL: the alert shows although she had a bite since', $n('.card.alertc') === 1 && alertText().includes('מאז האוכל האחרון'));

@@ -167,10 +167,10 @@
       fb = { auth:{ currentUser:{} }, camDoc: (n, on) => { subs[n] = on; return () => {}; }, camGet: async () => null, camMerge: async () => {} };
       DOORS = []; await send([E('ce_k', 'crate_entry', T - 40*MIN, { source: 'live_model' })]);   // door unknown: the card asks about the door
       CAMS.status = { checked_at: Date.now() - MIN, crate_now: null }; render(); await wait(2);
-      ok('pending camera entry, she is still out in the journal: the routine / advice point to the crate card; manual buttons visible', !!camjPendingEntry() && camjConflict().includes('לאשר בכרטיס הכלוב') && !!$q('#sec-crate .crcam .camjt') && !$q('details.cr-more') && !!$q('#sec-crate [data-act=dur][data-k=crate]'));
+      ok('pending camera entry, she is still out in the journal: the routine / advice point to the crate card; manual buttons visible', !!camjPendingEntry() && camjConflict().includes('לאשר את השאלה מהמצלמה') && !!$q('.nowtop .camjt') && !$q('details.cr-more') && !!$q('#sec-crate [data-act=dur][data-k=crate]'));
       commit('', () => state.log.push({ p:'kishmish', k:'gravel', t: T - 10*MIN, end: T - 5*MIN }), { quiet: true }); render(); await wait(2);
-      ok('…then taken to the gravel: no longer "in the crate now"; offered as a past stay', !camjPendingEntry() && $q('#sec-crate .crcam .camjt').textContent.includes('הייתה בכלוב'));
-      $q('#sec-crate .crcam .camjt [data-camans=closed]').click(); await wait(3);   // "סגרת את הדלת?" כן
+      ok('…then taken to the gravel: no longer "in the crate now"; offered as a past stay', !camjPendingEntry() && $q('.nowtop .camjt').textContent.includes('הייתה בכלוב'));
+      $q('.nowtop .camjt [data-camans=closed]').click(); await wait(3);   // "סגרת את הדלת?" כן
       const s = state.log.find(e => e.id === 'cam:ce_k');
       ok('…approved: a finished stay, ending when she was taken out (never an open session while she is outside)', !!s && Math.abs(s.t - (T - 40*MIN)) < 1000 && s.end === T - 10*MIN);
       ok('no statistics on the crate card; the review is reachable from the camera sheet', !$q('#sec-crate .camj-rv') && !$q('#sec-crate').textContent.includes('שהיות ב־24'));
@@ -215,7 +215,7 @@
       fb = { auth:{ currentUser:{} }, camDoc: (n, on) => { subs[n] = on; return () => {}; }, camGet: async () => null, camMerge: async () => {} };
       await send([E('ce_a1', 'crate_entry', T - 4*HOUR, { source:'live_model' }), E('ce_a1x', 'crate_exit', T - 3*HOUR, { source:'live_model' }), E('ce_a2', 'crate_entry', T - 2*HOUR, { source:'live_model' }), E('ce_a2x', 'crate_exit', T - 90*MIN, { source:'live_model' }), E('ce_a3', 'crate_entry', T - 20*MIN, { source:'live_model' })]);
       render(); await wait(2);
-      ok('the card: one approval (the newest) + "עוד 2 זיהויים לאישור"', $n('#sec-crate .camjt') === 1 && $q('#sec-crate').textContent.includes('עוד 2 זיהויים לאישור'));
+      ok('the card: one approval (the newest) + "עוד 2 זיהויים לאישור"', $n('.nowtop .camjt') === 1 && $q('.nowtop').textContent.includes('עוד 2 לאישור'));
       camjReview(); await wait(2);
       ok('the review lists every pending entry with its own buttons', sh.querySelectorAll('[data-camans=closed]').length === 3);
       [...sh.querySelectorAll('[data-camans=closed]')].find(b => b.dataset.ev === 'ce_a1').click(); await wait(3);

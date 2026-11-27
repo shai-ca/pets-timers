@@ -28,15 +28,17 @@
     ok('a phone width (real media query)', isPhone() && innerWidth < 760);
     const top = $q('#side > .crcam.crtop'), img = top && top.querySelector('.cam-th'), o = top && top.querySelector('.crcam-ov'), l = top && top.querySelector('.camrq-l');
     const sk = [...$q('#side').children].filter(vis);
-    ok('the image block is the first thing in the side column', !!top && sk[0] === top);
-    ok('it is above the red alert card, the wheel and the tiles', !!top && !!$q('#side .card.alertc') && R(top).bottom <= R($q('#side .card.alertc')).top + 1 && R(top).bottom <= R($q('#side .card.cyc')).top + 1 && R(top).bottom <= R($q('#main')).top + 1);
-    ok('nothing above it on the page but the header', !!top && [...document.querySelectorAll('#side .card, #main .card')].every(c => c.closest('.crtop') || R(c).top >= R(top).bottom - 1));
+    // release 6b: the alert cards and the three answers (`.nowtop`) come first; then the image block, above everything else
+    const nt = $q('#side > .nowtop');
+    ok('the image block comes right after the alert cards and the top card', !!top && !!nt && sk.indexOf(top) === sk.indexOf(nt) + 1 && sk.slice(0, sk.indexOf(nt)).every(x => x.classList.contains('alertc')));
+    ok('it is below the alert card and the top card, above the wheel and the tiles', !!top && !!$q('#side .card.alertc') && R(top).top >= R($q('#side .card.alertc')).bottom - 1 && R(top).top >= R(nt).bottom - 1 && R(top).bottom <= R($q('#side .card.cyc')).top + 1 && R(top).bottom <= R($q('#main')).top + 1);
+    ok('nothing above it on the page but the header, the alerts and the top card', !!top && [...document.querySelectorAll('#side .card, #main .card')].every(c => c.closest('.crtop') || c.closest('.nowtop') || c.classList.contains('alertc') || R(c).top >= R(top).bottom - 1));
     ok('the image has real height, the full width of its block', !!img && R(img).height > 100 && R(img).width >= R(top).width - 24);
     ok('the line on the image (snapshot + IR) stays inside the image', !!o && inside(o, img) && o.textContent.includes('תמונה עדכנית מהמצלמה') && !!o.querySelector('.cam-ir'));
     ok('"תמונה חדשה" (pending) is in the block, under the image', !!l && inside(l, top) && R(l).top >= R(img).bottom - 1 && l.textContent.includes('מבקשת תמונה…'));
     ok('one camera card on the page (none left in the crate card)', document.querySelectorAll('.camc').length === 1 && !$q('#sec-crate .cam-th') && !$q('#sec-crate .crcam-img'));
     const q = $q('#tq');
-    ok('the camera question stays in the crate card', !!q && !!q.closest('#sec-crate .card.item') && !q.closest('.crtop'));
+    ok('the camera question is in the top card (release 6b), not in the image block or the crate card', !!q && !!q.closest('.nowtop') && !q.closest('.crtop') && !q.closest('#sec-crate'));
     const bad = []; for(let i = 0; i < sk.length; i++) for(let j = i + 1; j < sk.length; j++) if(over(R(sk[i]), R(sk[j])) > 4) bad.push((sk[i].id || sk[i].className) + ' × ' + (sk[j].id || sk[j].className));
     ok('no two cards of the side column overlap ' + bad.join(', '), !bad.length);
     const mk = [...$q('#main').children].filter(vis), bm = [];

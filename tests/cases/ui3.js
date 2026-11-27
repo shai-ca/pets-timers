@@ -105,12 +105,11 @@
     const realAdvice = advice;
     advice = () => ({level:'info', text:'כנראה תצטרך לצאת לחצץ בעוד כחצי שעה', why:'לפי השבוע האחרון'});
     render();
-    ok('advice: one plain line in the side column for level info', $n('#side .advice') === 1 && $n('.advice') === 1 && $q('.advice').textContent.includes('חצץ') && !$q('.advice button') && !$q('.advice').closest('#main'));
-    const ac = getComputedStyle($q('.advice'));
-    ok('…calm: no border, no alert background', (ac.borderTopWidth === '0px' || ac.borderTopStyle === 'none') && (ac.backgroundColor === 'rgba(0, 0, 0, 0)' || ac.backgroundColor === 'transparent'));
+    // release 6b: Kishmish's calm line is the top card's "מה לעשות" (no separate advice card)
+    ok('advice: one plain line, in the top card of the side column, for level info', $n('#side .nowtop') === 1 && $n('.advice') === 0 && $q('.nowtop .nt-b').textContent.includes('חצץ') && !$q('.nowtop .nt-b button'));
     const sideKids = [...$q('#side').children].filter(x => !x.classList.contains('alertc') && !x.classList.contains('spraydry'));
-    ok('…at the top of the side column (under any alert)', sideKids[0] === $q('.advice'));
-    advice = realAdvice; render(); ok('…gone again with level none', $n('.advice') === 0);
+    ok('…at the top of the side column (under any alert)', sideKids[0] === $q('.nowtop'));
+    advice = realAdvice; render(); ok('…gone again with level none', !$q('.nowtop .nt-b').textContent.includes('כנראה תצטרך'));
 
     // --- summary rows
     const Y = midnight() - 12*HOUR;   // yesterday noon: the day view does not depend on the real clock

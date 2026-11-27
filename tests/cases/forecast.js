@@ -60,9 +60,9 @@
     // the next meal: the last MEAL plus her usual gap between meals
     const fl = () => { const e = $q('#sec-food .fc'); return e ? e.textContent : ''; }, meals = offs => offs.map(m => ({ ...K0, k:'food', t: now - m*MIN }));
     seed(meals([730, 590, 440, 300, 150, 20]));   // gaps 140, 150, 140, 150, 130 -> median 140
-    ok('"next meal at about" = last meal + the median gap between her meals', mealGap('kishmish') === 140*MIN && fl() === 'הארוחה הבאה בערך ב־' + clock(now - 20*MIN + 140*MIN));
+    ok('"next meal at about" = last meal + the median gap between her meals', mealGap('kishmish') === 140*MIN && fl().startsWith('הארוחה הבאה בערך ב־' + clock(now - 20*MIN + 140*MIN)));
     seed(meals([730, 590, 440, 300, 150, 20]).concat([{ ...K0, k:'food', t: now - 5*MIN }]));
-    ok('a bite does not move it', fl() === 'הארוחה הבאה בערך ב־' + clock(now - 20*MIN + 140*MIN));
+    ok('a bite does not move it', fl().startsWith('הארוחה הבאה בערך ב־' + clock(now - 20*MIN + 140*MIN)));
     seed(meals([430, 290, 140, 20]));
     ok('fewer than four gaps: no line', mealGap('kishmish') === 0 && fl() === '');
     seed(meals([24*60 + 600, 24*60 + 460, 24*60 + 320, 24*60 + 180, 20]));

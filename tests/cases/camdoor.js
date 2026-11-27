@@ -32,7 +32,7 @@
     await send([...CAMJ.ev0, E('ce_xx', 'crate_exit', T - 4*MIN)]);
     { const lv = camjPlan(state.log, Date.now()).rv.live[0];
       ok('…the camera\'s exit is offered for THIS session', !!lv && lv.kind === 'end' && lv.stay === crates()[0].id);
-      $q('#sec-crate .camjt [data-camj=end]').click(); await wait(3);
+      $q('.nowtop .camjt [data-camj=end]').click(); await wait(3);
       ok('…and ends it there; still one session', crates().length === 1 && crates()[0].end === T - 4*MIN); }
     // her labels: the same occupancy becomes the same session (linked, not duplicated)
     await fresh(() => [{ ...K0, k:'pee', t: T - 2*HOUR, w:'gravel' }, { ...K0, k:'cset', t: T - 3*HOUR, door:'open' }]);

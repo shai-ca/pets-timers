@@ -21,7 +21,7 @@
       DOORS = [{ from: T - 2*HOUR, to: T, value: 'open' }];
       await send([E('ce_o', 'crate_entry', T - 30*MIN, { source: 'live_model' })]);
       const { rv } = camjPlan(state.log, Date.now());
-      ok('door OPEN at a live entry: not offered as a stay, listed as a visit, not in the review\'s approvals', !rv.live.length && !rv.pending.length && rv.visits.some(v => v.live && v.door === 'open') && !$q('#sec-crate .camjt'));
+      ok('door OPEN at a live entry: not offered as a stay, listed as a visit, not in the review\'s approvals', !rv.live.length && !rv.pending.length && rv.visits.some(v => v.live && v.door === 'open') && !$q('.nowtop .camjt'));
       commit('', () => camjDo({ do: 'start', ev: CAMJ.ev.find(e => e.event_id === 'ce_o') }, me), { quiet: true, cam: true });
       ok('…even if an approval reaches the action, no crate entry: no new cycle, routine unchanged', crates().length === 1 && rounds() === r0 && JSON.stringify(routine('kishmish')) === rt0);
       // the app's own "הגדרות כלוב: דלת פתוחה" counts the same
@@ -31,13 +31,13 @@
     await fresh(() => [{ ...K0, k:'pee', t: T - 50*MIN, w:'gravel' }]);
     { const r0 = rounds();
       await send([E('ce_u', 'crate_entry', T - 30*MIN, { source: 'live_model' })]);
-      const q = $q('#sec-crate .camjt');
+      const q = $q('.nowtop .camjt');
       ok('door unknown: the card asks with the four answers', !!q && q.textContent.includes('הדלת לא ידועה') && q.querySelector('[data-camans=closed]').textContent === 'הייתה, דלת סגורה' && q.querySelector('[data-camans=open]').textContent === 'הייתה, דלת פתוחה' && !q.querySelector('[data-camj=start]'));
       q.querySelector('[data-camans=open]').click(); await wait(3);
-      ok('"לא": a visit — no crate entry, no cycle, decisions to feedback, not asked again', !crates().length && rounds() === r0 && camjDec('ce_u').d === 'visit' && camjDec('door:ce_u').d === 'door_open' && !$q('#sec-crate .camjt')); }
+      ok('"לא": a visit — no crate entry, no cycle, decisions to feedback, not asked again', !crates().length && rounds() === r0 && camjDec('ce_u').d === 'visit' && camjDec('door:ce_u').d === 'door_open' && !$q('.nowtop .camjt')); }
     await fresh(() => [{ ...K0, k:'pee', t: T - 50*MIN, w:'gravel' }]);
     await send([E('ce_y', 'crate_entry', T - 30*MIN, { source: 'live_model' })]);
-    $q('#sec-crate .camjt [data-camans=closed]').click(); await wait(3);
+    $q('.nowtop .camjt [data-camans=closed]').click(); await wait(3);
     ok('"כן": an intentional session from the camera time', crates().length === 1 && Math.abs(crates()[0].t - (T - 30*MIN)) < 1000 && crates()[0].id === 'cam:ce_y');
     // 1c. retrospective approvals in the review
     await fresh(() => [{ ...K0, k:'pee', t: T - 5*HOUR }]);
@@ -96,7 +96,7 @@
     // an approved live exit from a session ends the sleep with it
     await fresh(() => [{ ...K0, k:'pee', t: T - 2*HOUR }, { ...K0, k:'crate', t: T - 60*MIN }, { ...K0, k:'sleep', t: T - 40*MIN }]);
     await send([E('ce_lx2', 'crate_exit', T - 8*MIN, { source: 'live_model' })]);
-    $q('#sec-crate .camjt [data-camj=end]').click(); await wait(3);
+    $q('.nowtop .camjt [data-camj=end]').click(); await wait(3);
     ok('an approved live exit: the session and the sleep end at the camera time', crates()[0].end === T - 8*MIN && state.log.find(e => e.k === 'sleep').end === T - 8*MIN);
 
     // 4. separate states: occupancy (camera) / session (journal) / sleep — a voluntary return and her own sleep start no cycle
@@ -120,7 +120,7 @@
     { const keep = CAM_FEATURES; CAM_FEATURES = { ...keep, sleepSuggest: false, eatSuggest: false, irContext: false };
       await sugs({ schema: 'cam-suggestions/1', enabled: true, suggestions: [{ id: 'sug_e2', kind: 'eating_suggestion', ts: T - 10*MIN, lo: T - 11*MIN, hi: T - 9*MIN, ir: false, status: 'active' }, { id: 'sug_s2', kind: 'sleep_suggestion', ts: T - 40*MIN, lo: T - 41*MIN, hi: T - 40*MIN, end: T - 20*MIN, ir: false, status: 'active' }], published_at: Date.now() });
       await send([E('ce_ir', 'crate_entry', T - 5*MIN, { source: 'live_model', ir: true })]);
-      ok('all suggestion flags off and IR context off: nothing at all', !$q('.camjf') && !$q('[data-camss]') && !V.kishmish.spans.some(x => x.cam) && !camjPlan(state.log, Date.now()).rv.context.length && !$q('#sec-crate .camjt'));
+      ok('all suggestion flags off and IR context off: nothing at all', !$q('.camjf') && !$q('[data-camss]') && !V.kishmish.spans.some(x => x.cam) && !camjPlan(state.log, Date.now()).rv.context.length && !$q('.nowtop .camjt'));
       CAM_FEATURES = keep; }
     ok('the only camera write path is camera/feedback', merged.every(([n]) => n === 'feedback'));
     fb = null; CAMJ.ready = CAMJ.sready = false; CAMJ.ev = []; CAMJ.ev0 = []; CAMJ.sev = []; setState(state);

@@ -19,14 +19,14 @@
     ok('sleep total is the last 24 hours', Math.abs(s.total - inDay) < 1000);
     ok('all of it marked: observed = total, estimated 0', Math.abs(s.marked - s.total) < 1000 && s.est === 0);
     ok('no 0–100 sleep score and no readiness number (owner, 26.11)', s.sleep === undefined && s.ready === null);
-    ok('the age range is information: below 18 h here', s.range === 'below' && s.g === 18 && s.top === 20);
+    ok('the age range is information: below 18 h here', s.range === (s.total + s.unk < 18*HOUR ? 'below' : 'unknown') && s.g === 18 && s.top === 20);
     ok('gravel: 3 of 4 on the gravel = 75', s.gravel === 75 && s.good === 3 && s.all === 4);
     // awake time, play, the carrier, the pen change nothing in the rings
     const ringsTxt = () => { render(); return $q('.scores').textContent; };
     V2 = true; render();
-    ok('three rings right above the routine (urgent cards stay first)', !!$q('#side > .card.scores + .card.cyc') && $n('.scores .scr') === 3 && $q('.scores').textContent.includes('75'));
+    ok('three rings, below the routine and the sleep / cry tiles (release 6b: research detail is secondary)', !!$q('#side > .duo + .card.scores') && $n('.scores .scr') === 3 && $q('.scores').textContent.includes('75'));
     ok('sleep ring: observed and estimated apart, neutral colour; readiness: "אין מספיק נתונים"', $q('.scores').textContent.includes('נצפה ' + hmm(s.marked)) && $q('.scores').textContent.includes('משוער 0:00')
-      && $q('.scores .scr').className.trim() === 'scr' && $q('.scores').textContent.includes('אין מספיק נתונים'));
+      && /^scr( unkr)?$/.test($q('.scores .scr').className.trim()) && $q('.scores').textContent.includes('אין מספיק נתונים'));
     const before = ringsTxt();
     seed(L.concat([{...K0, k:'play', t: now - 10*MIN, y:'train'}, {...K0, k:'carrier', t: now - 8*MIN, end: now - 3*MIN}, {...K0, k:'pen', t: now - 2*MIN}]));
     ok('play, training, the carrier and the pen: the rings do not move', ringsTxt() === before);

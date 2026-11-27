@@ -18,7 +18,7 @@
     ok('night: a gap touching 23:00–05:00 counts as night; a daytime one does not', touchesNight(at(1, 20, 10), at(1, 23, 30)) && touchesNight(at(1, 2, 0), at(1, 6, 0)) && !touchesNight(at(1, 6, 0), at(1, 8, 30)));
     const f = peeForecast('kishmish');
     ok('window: 85%–115% of it after the last pee, not cut at the age limit', Math.abs(f.from - (last + .85*170*MIN)) < 1000 && Math.abs(f.to - (last + 1.15*170*MIN)) < 1000 && !f.byAge);
-    ok('the card says where the window comes from', $q('#sec-potty .fcsrc').textContent === 'לפי 5 מרווחים מ־3 הימים האחרונים');
+    ok('the card says where the window comes from', $q('#sec-potty .fcsrc').textContent.startsWith('לפי 5 מרווחים מ־3 הימים האחרונים'));
     ok('the age line carries her usual gap', $q('#sec-potty .byage').textContent === 'לפי הגיל: עד כ־3 שעות · בדרך כלל מחזיקה 2:50');
     // fewer than 5 gaps: by age
     seed(day.slice(0, 4).concat([{...K0, k:'pee', t: last, w:'gravel'}]));
