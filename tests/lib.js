@@ -1,7 +1,7 @@
 // Shared helpers for the test cases. A case ends by calling done().
 const T = { out: [] };
 function ok(name, cond){ T.out.push((cond ? 'PASS ' : 'FAIL ') + name); }
-function done(extra){ const sk = T.out.some(x => x.startsWith('PASS skipped')); document.title = (T.out.filter(x => !x.startsWith('PASS')).join(' | ') || 'ALL PASS ' + T.out.length + (sk ? ' SKIPPED' : '')) + (extra ? ' :: ' + extra : ''); }   // a skip is reported, never a silent pass
+function done(extra){ const sk = T.out.some(x => x.startsWith('PASS skipped (')); document.title = (T.out.filter(x => !x.startsWith('PASS')).join(' | ') || 'ALL PASS ' + T.out.length + (sk ? ' SKIPPED' : '')) + (extra ? ' :: ' + extra : ''); }   // a skip is reported, never a silent pass
 function crashed(e){ T.out.push('ERROR ' + String((e && e.stack) || JSON.stringify(e)).replace(/\s+/g, ' ').slice(0, 400)); done(); }
 // Lets pending promise work (a save in flight, a merge) run. Microtasks only, so thousands of them are instant.
 const wait = async (n = 1) => { for(let i = 0; i < n * 60; i++) await null; };
