@@ -33,6 +33,9 @@
     ok('the planned stage stays on the wheel: "בשגרה: צרכים"', cyc().includes('בשגרה: צרכים') && routine(p).i === 4);
     ok('no bare "take her out" while she may be asleep; "if she is in the crate and asleep, leave her"', !what().includes('אחרי האוכל מוציאים שוב לצרכים') && what().includes('אם היא בכלוב ונרדמה, אפשר להשאיר אותה') && what().includes('ממשיכים בשגרה מ״צרכים״'));
     ok('sleep tile: the last RECORDED sleep, "maybe asleep unlogged", never "ערה כבר"', tile().includes('שינה אחרונה שנרשמה') && tile().includes('ייתכן שישנה בלי רישום') && !tile().includes('ערה כבר'));
+    // the camera reads her OUT of the crate now (awake unknown): the guidance names the last LOGGED sign, not the camera time
+    CAMS.status = { checked_at: N - MIN, service: 'pets-camera', crate_now: { status: 'negative', capture_ts: N - MIN, confidence: 0.99 } }; setState(state); render();
+    ok('camera "out", awake unknown: "מאז 18:16 לא נרשם כלום", never the camera reading time', currentState(p).state === 'out' && what().includes('מאז 18:16 לא נרשם כלום') && !what().includes('מאז ' + clock(N - MIN) + ' לא נרשם'));
     camOn(false);
     cs = currentState(p);
     ok('no camera: the actual state is unknown (nothing logged since 18:16 supports awake)', cs.state === 'unknown');

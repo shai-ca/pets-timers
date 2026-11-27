@@ -3255,7 +3255,7 @@ function guidance(p){
   } else {   // unknown: nothing within the horizon, or journal and camera disagree
     g.mode = 'unknown';
     g.prefix = cs.conflicts.length ? `הרישום והמצלמה לא מסכימים, אז לא ידוע מה ${nm} עושה עכשיו. אם היא ערה ומחוץ לכלוב: `
-      : `מאז ${at(cs.since || r.t)} לא נרשם כלום, אז לא ידוע אם ${nm} ערה, ישנה או בכלוב${GD_MISS[r.i] ? `, ולא נרשם אם ${GD_MISS[r.i]}` : ''}. אם היא ערה ומחוץ לכלוב: `;
+      : `מאז ${at(cs.state === 'unknown' ? (cs.since || r.t) : (awakeSeen(p) || r.t))} לא נרשם כלום, אז לא ידוע אם ${nm} ערה, ישנה או בכלוב${GD_MISS[r.i] ? `, ולא נרשם אם ${GD_MISS[r.i]}` : ''}. אם היא ערה ומחוץ לכלוב: `;
   }
   return g;
 }
