@@ -1,3 +1,4 @@
 .firebase/
 tests/out/
 .claude/
+version.json

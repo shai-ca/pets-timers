@@ -20,7 +20,11 @@ live=$(curl -fsS "$LIVE/?x=$RANDOM" | sum); main=$(git show main:index.html | su
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 git archive main | tar -x -C "$tmp"                                   # the live site, exactly as main has it
 mkdir -p "$tmp/preview"
-cp index.html icon.svg icon-192.png apple-touch-icon.png "$tmp/preview/"   # the branch's page under /preview/
+cp index.html icon.svg icon-192.png apple-touch-icon.png "$tmp/preview/"
+vj(){ printf '{"schema":"app-version/1","commit":"%s","logic_version":%s,"released_at":%s}\n' "$1" "$2" "$3"; }   # CAMERA-API §19
+lvm=$(git show main:index.html | grep -o '^const LOGIC_VERSION = [0-9]*' | grep -o '[0-9]*$'); lvb=$(grep -o '^const LOGIC_VERSION = [0-9]*' index.html | grep -o '[0-9]*$')
+vj "$(git rev-parse --short main)" "${lvm:-5}" "$(($(git log -1 --format=%ct main) * 1000))" > "$tmp/version.json"   # production stays described (a hosting deploy replaces the whole site)
+vj "$(git rev-parse --short HEAD)" "${lvb:-5}" 0 > "$tmp/preview/version.json"   # the branch's page under /preview/
 python3 - "$tmp/firebase.json" <<'PY'
 import json, sys
 p = sys.argv[1]; c = json.load(open(p)); h = c['hosting']
