@@ -6,7 +6,11 @@
 set -e
 cd "$(dirname "$0")"
 if [ -n "$(git status --porcelain)" ]; then echo "Commit your changes first (git status is not clean)."; exit 1; fi
-echo "== tests"; tests/run.sh
+# TESTED_COMMIT=<sha>: reuse a full-suite pass ONLY if that commit is an ancestor and neither index.html nor tests/
+# changed since (the owner, 27.11: no redundant full run for the exact tested code). Otherwise the full suite runs.
+if [ -n "${TESTED_COMMIT:-}" ] && git merge-base --is-ancestor "$TESTED_COMMIT" HEAD 2>/dev/null && git diff --quiet "$TESTED_COMMIT" HEAD -- index.html tests; then
+  echo "== tests: reusing the full-suite pass of $TESTED_COMMIT (index.html and tests/ unchanged since)"
+else echo "== tests"; tests/run.sh; fi
 mark=$(git rev-parse --short HEAD)
 echo "== push ($mark)"; git push -q origin main
 lv=$(grep -o '^const LOGIC_VERSION = [0-9]*' index.html | grep -o '[0-9]*$' || true); [ -n "$lv" ] || { echo "LOGIC_VERSION missing in index.html"; exit 1; }
