@@ -17,7 +17,7 @@
     seed([{...K0, k:'pee', t: now - 250*MIN, w:'gravel'}, {...K0, k:'sleep', t: now - 30*MIN}]);
     ok('asleep 4 h after the pee: the window and its late colour are back', !$q('#sec-potty .wakepee') && !!$q('#sec-potty .fc.late') && peeAsleep('kishmish') === 'late');
     seed([{...K0, k:'pee', t: now - 250*MIN, w:'gravel'}]);
-    ok('awake: the ordinary window line', !$q('#sec-potty .wakepee') && pc().includes('הפיפי היה צפוי'));
+    ok('awake: the ordinary window line (a passed window reads "החלון עבר … · לא נרשם פיפי" since 27.11, item 6)', !$q('#sec-potty .wakepee') && pc().includes('החלון עבר') && pc().includes('לא נרשם פיפי'));
     // --- waking from a nap of 45 min or more
     seed([{...K0, k:'pee', t: now - 120*MIN, w:'gravel'}, {...K0, k:'sleep', t: now - 65*MIN, end: now - 5*MIN}]);
     ok('woke 5 min ago from an hour: "straight to the gravel" on the gravel card', gv().startsWith('ישר לחצץ') && gv().includes('אחרי שהתעוררה'));

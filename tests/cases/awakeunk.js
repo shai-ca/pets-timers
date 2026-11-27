@@ -16,7 +16,8 @@
     seed(morning); const log0 = JSON.stringify(state.log);
     ok('the last logged sleep is still where the timer starts (nothing re-dated)', awakeSince(p) === now - 72*MIN && awakeSeen(p) === now - 50*MIN && awakeUnknown(p));
     ok('50 minutes with nothing logged: the tile says "לא נרשמה שינה מאז" + the time, no running timer, no orange', tileS().textContent.includes('לא נרשמה שינה מאז') && tileS().textContent.includes(clock(now - 72*MIN)) && tileS().textContent.includes('נראתה ערה לאחרונה ב־') && tileS().textContent.includes(clock(now - 50*MIN)) && !tileS().textContent.includes('ערה כבר') && !tileS().querySelector('.big[data-since]') && !tileS().classList.contains('warn'));
-    ok('the wheel does not claim an hour awake: "לא נרשמה שינה מאז … · אם היא ערה, לכלוב לישון"', cyc().includes('לא נרשמה שינה מאז') && cyc().includes('אם היא ערה, לכלוב לישון') && !cyc().includes('ערה כבר'));
+    // 27.11 (state reconciliation, item 4): the wheel names the last RECORDED sleep — "שינה אחרונה שנרשמה HH:MM"
+    ok('the wheel does not claim an hour awake: "שינה אחרונה שנרשמה … · אם היא ערה, לכלוב לישון"', cyc().includes('שינה אחרונה שנרשמה') && cyc().includes('אם היא ערה, לכלוב לישון') && !cyc().includes('ערה כבר'));
     ok('no "to sleep" bar from an unlogged gap', sleepWindow(p) === null && !tileS().querySelector('.gauge:not(.goal)'));
     ok('rendering wrote nothing', JSON.stringify(state.log) === log0);
     openScores(p); ok('the scores sheet says "לא נרשמה שינה", not "ערה, מחוץ לכלוב"', sh.textContent.includes('עכשיו: לא נרשמה שינה') && !sh.textContent.includes('ערה, מחוץ לכלוב')); close();

@@ -53,7 +53,8 @@
     pet = 'kochik'; seed([{ p:'kochik', k:'food', t: now - 30*MIN }]); tile('food').click();
     ok('Kochik: plain "ate", nothing extra', !toastBtn() && $q('#main').textContent.includes('מאז האוכל האחרון')); pet = 'kishmish';
     seed([at('food', 130), at('food', 20)]);
-    ok('Kishmish\'s food card says what its clock counts from, and the bite is on the line under it', $q('#sec-food .lbl').textContent === 'מאז הארוחה האחרונה' && $q('#sec-food .bite').textContent.includes(clock(now - 20*MIN)));
+    // 27.11 (state reconciliation, item 5): the clock counts from the last RECORDED meal, and the label says so
+    ok('Kishmish\'s food card says what its clock counts from, and the bite is on the line under it', $q('#sec-food .lbl').textContent === 'מאז הארוחה האחרונה שנרשמה' && $q('#sec-food .bite').textContent.includes(clock(now - 20*MIN)));
     // timers
     ok('a timer under an hour shows the hours: 0:23:30', dur(23*MIN + 30000) === '0:23:30' && dur(45000) === '0:00:45' && dur(HOUR + 5*MIN) === '1:05:00');
     seed([at('pee', 23, { w:'gravel' }), at('crate', 300, { end: now - 40*MIN }), at('sleep', 290, { end: now - 40*MIN })]);

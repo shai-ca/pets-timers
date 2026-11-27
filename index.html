@@ -360,6 +360,10 @@
   .cyc-a .mainact{margin-inline-start:auto;display:flex;flex-direction:column;align-items:stretch;gap:4px}
   .cyc-a .sub{flex:1;min-width:0}
   .cyc-a .go.wait{background:none;color:var(--btn);box-shadow:inset 0 0 0 1.5px var(--btn)}
+  /* planned stage vs what is known (owner, 27.11): two quiet lines under the wheel, never a colour alarm */
+  .gd{display:flex;flex-direction:column;gap:2px;margin-top:10px;padding:8px 12px;border-radius:12px;background:var(--bg);font-size:13px;line-height:1.45}
+  .gd .gd-p{color:var(--muted)}
+  .gd .gd-a{font-weight:600}
   .zz{display:flex;align-items:center;gap:8px;margin-top:10px;padding:9px 12px;border-radius:12px;background:var(--ok-soft);color:var(--ok);font-size:13.5px;font-weight:500}
 
   /* ---------- desktop: square tiles in a grid (phones keep the single-column list above) ---------- */
@@ -1567,7 +1571,9 @@ function advice(p){
 }
 // adviceHTML(p): the advice slot in the side column (Agent E draws it). Empty while `advice` says nothing.
 function adviceHTML(p){ const a = advice(p), occ = p === CAMJ_P && typeof camjOccNow === 'function' && !(V[p].sleep || {}).start && !(V[p].crate || {}).start ? camjOccNow(p) : null;
-  const cf = (p === CAMJ_P && typeof camjConflict === 'function' ? camjConflict() : '') || (occ ? `לפי התיוג שלך בכלוב מ־<bdi dir="ltr">${clock(occ)}</bdi> · לא ידוע אם ישנה` : '');
+  // a live camera entry nobody approved: said as the camera has it now (seen / entered, then unclear), from `currentState`
+  const cs = p === CAMJ_P ? currentState(p) : null, live = cs && cs.state === 'in_crate' && cs.src === 'live' ? `${cs.fresh ? `המצלמה רואה אותה בכלוב מ־<bdi dir="ltr">${clock(cs.since)}</bdi>` : `המצלמה זיהתה כניסה לכלוב ב־<bdi dir="ltr">${clock(cs.since)}</bdi> · לא אושר · עכשיו לא ברור`} · לאשר בכרטיס הכלוב` : '';
+  const cf = live || (p === CAMJ_P && typeof camjConflict === 'function' ? camjConflict() : '') || (occ ? `לפי התיוג שלך בכלוב מ־<bdi dir="ltr">${clock(occ)}</bdi> · לא ידוע אם ישנה` : '');
   return a.level === 'none' && !cf ? '' : `<div class="card slim advice ${a.level === 'none' ? 'info' : a.level}"><span><b>${esc(a.level === 'none' ? 'כדאי לבדוק' : a.text)}</b>${a.why ? `<small>${esc(a.why)}</small>` : ''}${cf ? `<small class="cam-err">${cf}</small>` : ''}</span></div>`; }
 // advice('kochik') (Agent C, owner 26.11): one calm line about comfort and rest, or none. None while anything asks for
 // action: a medicine due (from PLAN.medLead before 11:00 / 21:00) or late, unless on a break; her pee window open or past
@@ -2868,8 +2874,21 @@ function alerts(p){
   return out;
 }
 function alertsHTML(p){
-  return alerts(p).map(a => `<div class="card alertc${a.calm ? ' calm' : ''}"><div class="ic">${ico(a.k)}</div><span><b>${a.text}</b><small>${a.hint}</small>${a.offer ? `<button class="ghost" data-act="nofood">${ico('none','s')}הצעתי, לא אכלה</button>` : ''}</span></div>`).join('');
+  const seen = alerts(p).some(a => a.k === 'food') ? camFoodSeen(p) : 0;
+  return alerts(p).map(a => `<div class="card alertc${a.calm ? ' calm' : ''}"><div class="ic">${ico(a.k)}</div><span><b>${a.text}</b><small>${a.hint}</small>${a.k === 'food' && seen ? `<small class="alc-cam">ייתכן שאכלה ב־<bdi dir="ltr">${clock(seen)}</bdi> לפי המצלמה, לא אושר</small>` : ''}${a.offer ? `<button class="ghost" data-act="nofood">${ico('none','s')}הצעתי, לא אכלה</button>` : ''}</span></div>`).join('');
 }
+
+// CAMERA EATING, unapproved (owner, 27.11): the newest food detection / eating suggestion still waiting for her answer
+// that is LATER than the last recorded meal (`camjPlan` → rv.feed.food: not answered, not matched to an entry, within
+// CAMJ_TTL, not context-only) — its time, else 0. Display only: the meal clock, the alert's threshold and the routine
+// never read it; only her "אישור" in the food card writes a meal.
+function camFoodSeen(p){
+  if(p !== CAMJ_P || typeof camjOn !== 'function' || !camjOn() || !V || !V[p]) return 0;
+  const x = (camjPlan(state.log, Date.now()).rv.feed || {}).food; const e = x && x[0];
+  return e && e.ts > (V[p].food || 0) ? e.ts : 0;
+}
+// " · מהמצלמה, אושר" after a meal / bite whose entry came from an approved camera event (an id `cam:…`)
+function camOkd(p, t){ const e = state.log.find(x => x.p===p && x.t===t && (x.k==='food') && typeof x.id === 'string' && x.id.startsWith('cam:')); return e ? ' · מהמצלמה, אושר' : ''; }
 
 // ---------- "when?" ----------
 // Every logging button first asks when it happened: "עכשיו" (one big button), a few "X minutes ago"
@@ -3114,6 +3133,115 @@ function routine(p){
   const sx = out ? selfExit(p, out) : null;
   if(!rt && (mvE || sx)) return {free: mvE ? mvE.k : sx, i:-1, t: mvE ? Math.max(mvE.t, out) : out, next:-1};
   return out || rt ? {i:1, t: out || rt.none.t, next:2, retry:!!rt} : null;
+}
+// THREE LAYERS (owner, 27.11 evening — the 17:42 screen said "זמן משחק" while the camera had just seen her go into the
+// crate, and nothing had been logged since 16:35). Each layer is derived on every render; none is stored or written.
+//  1. INTENDED ROUTINE — `routine(p)`: the dog trainer's cycle and the planned stage, exactly as before (the night potty
+//     routine stays separate). The wheel and the "עכשיו בשגרה" tags show it. Camera evidence never moves it.
+//  2. ACTUAL BEHAVIOUR — `currentState(p)`: what is known about her right now, and from what:
+//     {state: 'asleep'|'awake'|'in_crate'|'out'|'unknown', basis: 'logged'|'camera-confirmed'|'camera-unconfirmed'|
+//      'inferred'|'none', since, conflicts: [{src:'journal'|'camera', state, t, what?, conf?}], occ: 'in'|'out'|null,
+//      awake: true|null, src?: 'label'|'live'|'now', fresh?}
+//     logged = a journal entry tapped by hand; camera-confirmed = a journal entry that came from an approved camera event,
+//     or her own camera labels; camera-unconfirmed = a live detection / estimate nobody approved; inferred = the app's
+//     own reading (an estimated sleep in a stay, the daytime horizon after an awake sign, `awakeIvs`); none = nothing.
+//     A journal stage with nothing supporting it within the horizon is UNKNOWN, never "out" or "awake". Journal and camera
+//     contradicting each other about now → 'unknown' with both in `conflicts`; fresh camera occupancy (`camjInferNow`) is
+//     preferred for `occ` only — never for sleep, never written.
+//  3. ADAPTIVE GUIDANCE — `guidance(p)`: reconciles 1 with 2 for the "מה עושים עכשיו?" box and the wheel's "בשגרה / בפועל"
+//     line. The planned stage stays on the wheel; the words adapt: a resting dog is not woken to finish a stage, a dog of
+//     unknown state gets conditional words ("אם היא ערה…", "לא נרשם אם…"), unconfirmed camera evidence only conditional
+//     advice. Safety (wake-by, the three red alerts, the retry, the night routine) is not touched: guidance steps aside.
+function camNowReading(){   // the camera's CURRENT occupancy reading, only when it can infer now (fresh positive / negative)
+  if(typeof camjInferNow !== 'function' || !camjInferNow()) return null;
+  const cn = CAMS.status.crate_now; return {occ: cn.status === 'positive' ? 'in' : 'out', t: cn.capture_ts};
+}
+function camExitAfter(since){   // an unrejected camera exit after `since` (as `camjConflict` reads it)
+  if(typeof CAMJ === 'undefined' || !CAMJ.ready) return null; const now = Date.now();
+  return CAMJ.ev.filter(e => e.status === 'active' && e.kind === 'crate_exit' && !e.disputed_by_labels && e.ts > since && now - e.ts <= CAMJ_TTL && !(camjDec(e.event_id) && camjDec(e.event_id).d === 'rejected')).sort(byTs).pop() || null;
+}
+function currentState(p){
+  const mk = (state, basis, since, x) => ({state, basis, since: since || 0, conflicts: [], occ: null, awake: null, ...(x || {})});
+  if(!PETS[p] || !V || !V[p]) return mk('unknown', 'none', 0);
+  const S = V[p], now = Date.now(), sl = S.sleep || {}, cr = S.crate || {};
+  if(!PETS[p].cycle) return sl.start ? mk('asleep', 'logged', sl.start) : mk('unknown', 'none', 0);   // Kochik: only a marked sleep is known
+  const cam = p === CAMJ_P && typeof camjInferNow === 'function', rd = cam ? camNowReading() : null;
+  const entry = (k, t) => state.log.find(e => e.p===p && e.k===k && e.t===t && e.end == null);
+  if(sl.start){
+    const e = !sl.assumed && entry('sleep', sl.start);
+    const r = mk('asleep', sl.assumed ? (sl.cam ? 'camera-unconfirmed' : 'inferred') : e && e.cam ? 'camera-confirmed' : 'logged', sl.start, {occ: cr.start ? 'in' : null});
+    const x = cam && camExitAfter(Math.max(sl.start, cr.start || 0)), neg = cr.start && rd && rd.occ === 'out' && rd.t > sl.start;
+    if(x) r.conflicts.push({src:'camera', state:'out', t:x.ts, conf: x.source === 'owner_label'}); else if(neg) r.conflicts.push({src:'camera', state:'out', t:rd.t});
+    // an unconfirmed sleep (the app's assumption / a camera estimate) against the camera seeing her elsewhere: unknown
+    if(r.conflicts.length && (r.basis === 'inferred' || r.basis === 'camera-unconfirmed')) return {...r, state:'unknown', occ: neg ? 'out' : r.occ, conflicts: [{src:'journal', state: cr.start ? 'in_crate' : 'asleep', t: cr.start || sl.start}, ...r.conflicts]};
+    return r;
+  }
+  if(cr.start){
+    const e = entry('crate', cr.start), basis = e && e.cam ? 'camera-confirmed' : 'logged';
+    const x = cam && camExitAfter(cr.start), neg = rd && rd.occ === 'out' && rd.t > cr.start;
+    if(x || neg) return mk('unknown', basis, cr.start, {occ: neg ? 'out' : null, conflicts: [{src:'journal', state:'in_crate', t:cr.start}, {src:'camera', state:'out', t: neg ? rd.t : x.ts, conf: !neg && x.source === 'owner_label'}]});
+    return mk('in_crate', basis, cr.start, {occ:'in', awake: awakeNow(p, cr.start) || null});
+  }
+  // out of the crate by the journal. Running activities that put her outside it:
+  const run = ['gravel', 'pen', 'carrier'].map(k => S[k] && S[k].start ? {k, t:S[k].start} : null).filter(Boolean).sort((a, b) => b.t - a.t)[0];
+  // the camera's occupancy: her own labels (an open verified stay), else a live entry not yet answered, else the fresh reading
+  const lab = cam && typeof camjOccNow === 'function' ? camjOccNow(p) : null, pe = cam && !lab && typeof camjPendingEntry === 'function' ? camjPendingEntry() : null;
+  const camIn = lab ? {t: lab, basis:'camera-confirmed', src:'label', fresh: !!(rd && rd.occ === 'in')}
+    : pe && !(rd && rd.occ === 'out' && rd.t > pe.ts) ? {t: pe.ts, basis:'camera-unconfirmed', src:'live', fresh: !!(rd && rd.occ === 'in')}
+    : rd && rd.occ === 'in' ? {t: 0, basis:'camera-unconfirmed', src:'now', fresh: true} : null;
+  if(run && camIn) return mk('unknown', 'logged', Math.max(run.t, camIn.t), {occ: camIn.fresh ? 'in' : null, conflicts: [{src:'journal', state:'out', what: run.k, t: run.t}, {src:'camera', state:'in_crate', t: camIn.t, conf: camIn.basis === 'camera-confirmed'}]});
+  if(camIn) return mk('in_crate', camIn.basis, camIn.t, {occ:'in', src: camIn.src, fresh: camIn.fresh});
+  if(run) return mk('out', 'logged', run.t, {occ:'out', awake:true, what: run.k});
+  const af = awakeFrom(p), aw = awakeSince(p);
+  if(af){ const seen = awakeIvs(p, af, now).some(x => x.k === 'seen' && x.b >= now - 1000); return mk('out', seen ? 'logged' : 'inferred', af, {occ: rd ? rd.occ : 'out', awake:true}); }
+  if(rd && rd.occ === 'out') return mk('out', 'camera-unconfirmed', rd.t, {occ:'out'});   // not in the crate by the camera; awake or not is unknown
+  return mk('unknown', 'none', aw ? awakeSeen(p) || aw : 0);
+}
+// "בפועל: …" — the actual-behaviour line, in words, with its basis (no claim beyond it).
+function actualText(cs){
+  const at = t => `<bdi dir="ltr">${clock(t)}</bdi>`, cam = cs.basis === 'camera-unconfirmed' ? 'לפי המצלמה, לא אושר' : '';
+  if(cs.state === 'unknown'){
+    if(!cs.conflicts.length) return cs.since ? `לא ידוע · לא נרשם כלום מאז ${at(cs.since)}` : 'לא ידוע';
+    const J = cs.conflicts.find(c => c.src === 'journal'), C = cs.conflicts.find(c => c.src === 'camera');
+    const j = J.state === 'in_crate' ? `בכלוב מ־${at(J.t)}` : `${J.what === 'gravel' ? 'בחצץ' : J.what === 'pen' ? 'בגדר' : 'במנשא'} מ־${at(J.t)}`;
+    const c = C.state === 'out' ? `לא בכלוב (${at(C.t)}${C.conf ? ', מהתיוג שלך' : ', לא אושר'})` : `בכלוב${C.t ? ` מ־${at(C.t)}` : ''} (${C.conf ? 'מהתיוג שלך' : 'לא אושר'})`;
+    return `לא ידוע · ברישום: ${j} · המצלמה: ${c}`;
+  }
+  if(cs.state === 'asleep') return `${cs.basis === 'logged' || cs.basis === 'camera-confirmed' ? 'ישנה' : 'כנראה ישנה'} מ־${at(cs.since)} · ${cs.basis === 'logged' ? 'נרשם' : cs.basis === 'camera-confirmed' ? 'מהמצלמה, אושר' : cam || 'לפי הנחה'}${cs.conflicts.length ? ` · המצלמה זיהתה יציאה ב־${at(cs.conflicts[0].t)}` : ''}`;
+  if(cs.state === 'in_crate'){
+    if(cs.src === 'label') return `בכלוב מ־${at(cs.since)} · לפי התיוג שלך במצלמה · לא ידוע אם ישנה`;
+    if(cs.src === 'now') return `נראית בכלוב עכשיו · ${cam}`;
+    if(cs.src === 'live') return cs.fresh ? `נראית בכלוב מ־${at(cs.since)} · ${cam}` : `המצלמה זיהתה כניסה לכלוב ב־${at(cs.since)} · לא אושר · עכשיו לא ברור`;
+    return `בכלוב מ־${at(cs.since)}`;
+  }
+  if(cs.state === 'out') return cs.awake ? (cs.basis === 'logged' ? 'ערה, מחוץ לכלוב' : `כנראה ערה מחוץ לכלוב · נראתה ערה מ־${at(cs.since)}`) : `לא בכלוב · ${cam} · לא ידוע אם ערה`;
+  return 'לא ידוע';
+}
+// What was not logged since a stage began: the guidance names it instead of assuming it happened or did not (owner).
+const GD_MISS = {1: 'עשתה צרכים', 2: 'שיחקה או אכלה', 4: 'עשתה צרכים אחרי האוכל'};
+function guidance(p){
+  const r = PETS[p] && PETS[p].cycle && V && V[p] ? routine(p) : null, cs = currentState(p), nm = PETS[p] ? PETS[p].name : '';
+  const g = {plan: r, cs, mode: 'plan', planned: '', actual: '', what: '', prefix: ''};
+  // the trainer's words stand: no routine, a break, the night potty, a retry, free time, a finished round, the crate step
+  if(!r || r.brk || r.night || r.retry || r.free || r.done || r.i === 0 || !CYCLE[r.i]) return g;
+  if(cs.state === 'out' && cs.awake) return g;                                    // awake out of the crate: the plan fits
+  const wb = cs.state === 'asleep' && wakeBy(p); if(wb && wb.past) return g;     // safety: "כדאי להעיר אותה" speaks
+  const step = CYCLE[r.i].n, at = t => `<bdi dir="ltr">${clock(t)}</bdi>`;
+  g.planned = `בשגרה: ${step} מ־${at(r.t)}`; g.actual = `בפועל: ${actualText(cs)}`;
+  const cont = `ממשיכים בשגרה מ״${step}״`;
+  if(cs.state === 'asleep'){
+    g.mode = 'rest';
+    g.what = `${cs.basis === 'logged' || cs.basis === 'camera-confirmed' ? `${nm} ישנה: נותנים לה לישון` : `אם ${nm} ישנה, נותנים לה לישון`}, לא מעירים אותה כדי להשלים את השלב. כשתתעורר, ${cont}.`;
+  } else if(cs.state === 'in_crate'){
+    g.mode = 'crate';
+    const pend = cs.src === 'live' ? ' לאשר את הכניסה בכרטיס הכלוב (לא נרשם עד שמאשרים).' : '';
+    g.what = `לפי הרישום ${nm} מחוץ לכלוב, אבל ${cs.src === 'label' ? 'לפי התיוג שלך היא בכלוב' : cs.fresh || cs.src === 'now' ? 'המצלמה רואה אותה בכלוב' : 'המצלמה זיהתה אותה נכנסת לכלוב'}. אם היא בכלוב ונרדמה, אפשר להשאיר אותה. כשהיא יוצאת, ${cont}.${pend}`;
+  } else {   // unknown: nothing within the horizon, or journal and camera disagree
+    g.mode = 'unknown';
+    g.prefix = cs.conflicts.length ? `הרישום והמצלמה לא מסכימים, אז לא ידוע מה ${nm} עושה עכשיו. אם היא ערה ומחוץ לכלוב: `
+      : `מאז ${at(cs.since || r.t)} לא נרשם כלום, אז לא ידוע אם ${nm} ערה, ישנה או בכלוב${GD_MISS[r.i] ? `, ולא נרשם אם ${GD_MISS[r.i]}` : ''}. אם היא ערה ומחוץ לכלוב: `;
+  }
+  return g;
 }
 // Rounds are a view of the log, not separate data: a round begins each time she goes into the crate
 // (a crate entry in the log, or the running crate timer). The wheel's round number, the grouped list on
@@ -4917,12 +5045,12 @@ function render(){
       const t = S[k];
       h += `<div class="card item ${nowt} ${openX.has(pet+k) ? 'open' : ''}">
         <div class="ic">${ico(k)}</div>
-        <div><div class="lbl">${P.cycle && k === 'food' ? 'מאז הארוחה האחרונה' : hasWhere(k) && unknownLine(pet, k) ? `מאז ה${it.log} האחרון שזמנו ידוע` : it.lbl}</div>   <!-- the clock counts from the last MEAL; a bite is the line under it -->
+        <div><div class="lbl">${P.cycle && k === 'food' ? 'מאז הארוחה האחרונה שנרשמה' : hasWhere(k) && unknownLine(pet, k) ? `מאז ה${it.log} האחרון שזמנו ידוע` : it.lbl}</div>   <!-- the clock counts from the last MEAL; a bite is the line under it -->
           ${k === 'weight' ? `<div class="big txt ${t?'':'none'}">${weightOf(pet).last ? `${weightOf(pet).last.kg.toFixed(1)} ק״ג` : '–'}</div>`
           : it.slow ? `<div class="big txt ${t?'':'none'}">${t ? wordsLong(Date.now()-t) : '–'}</div>`
                     : `<div class="big ${t?'':'none'}" ${t?`data-since="${t}"`:''}>${t ? dur(Date.now()-t) : '–'}</div>`}
-          <div class="sub">${t ? `${dayLabel(t)} ב־${clock(t)}${whereOf(pet,k,t) || (hasWhere(k) ? ` · <button class="lnk" data-act="where" data-k="${k}">איפה?</button>` : '')}${typeOf(pet,k,t)}${byOf(pet,k,t)}` : 'עוד לא נרשם'}</div>
-          ${hasWhere(k) ? unknownLine(pet, k) : ''}${P.cycle && k === 'pee' ? peeCardLines(pet) : ''}${k === 'pee' ? holdHint(pet) : ''}${P.cycle && k === 'poop' ? mealPoopHTML(pet) + poopLine(pet) + (V2 && !mealPoopCue(pet) ? gaugeHTML(poopWindow(pet), 'לחלון', 'הקקי האחרון ב־') : '') + poopHints(pet) : ''}${P.cycle && k === 'food' && S.bite > (S.food || 0) ? `<div class="sub hint bite">ביס אחרון ב־<bdi dir="ltr">${clock(S.bite)}</bdi> · לא מאפס את השעון</div>` : ''}${P.cycle && k === 'food' ? mealLine(pet) + (V2 ? gaugeHTML(mealWindow(pet), 'לארוחה', 'הארוחה האחרונה ב־') : '') : ''}${k === 'bath' ? bathLine(pet) + (V2 && !noBathUntil(pet) ? gaugeHTML(bathWindow(pet), 'למקלחת', 'המקלחת האחרונה ב־') : '') : ''}${GROOM[pet] && ['flea','brush','teeth','weight'].includes(k) ? groomLine(pet, k) : ''}${todayWhere(pet,k) ? `<div class="sub hint x">${todayWhere(pet,k)}</div>` : ''}${P.cycle && typical(pet,k) ? `<div class="sub hint x">${typical(pet,k)}</div>` : ''}${it.note ? `<div class="sub hint x">${it.note}</div>` : ''}MOREBTN</div>
+          <div class="sub">${t ? `${dayLabel(t)} ב־${clock(t)}${P.cycle && k === 'food' ? camOkd(pet, t) : ''}${whereOf(pet,k,t) || (hasWhere(k) ? ` · <button class="lnk" data-act="where" data-k="${k}">איפה?</button>` : '')}${typeOf(pet,k,t)}${byOf(pet,k,t)}` : 'עוד לא נרשם'}</div>
+          ${hasWhere(k) ? unknownLine(pet, k) : ''}${P.cycle && k === 'pee' ? peeCardLines(pet) : ''}${k === 'pee' ? holdHint(pet) : ''}${P.cycle && k === 'poop' ? mealPoopHTML(pet) + poopLine(pet) + (V2 && !mealPoopCue(pet) ? gaugeHTML(poopWindow(pet), 'לחלון', 'הקקי האחרון ב־') : '') + poopHints(pet) : ''}${P.cycle && k === 'food' && S.bite > (S.food || 0) ? `<div class="sub hint bite">ביס אחרון ב־<bdi dir="ltr">${clock(S.bite)}</bdi>${camOkd(pet, S.bite)} · לא מאפס את השעון</div>` : ''}${P.cycle && k === 'food' ? mealLine(pet) + (V2 ? gaugeHTML(mealWindow(pet), 'לארוחה', 'הארוחה האחרונה ב־') : '') : ''}${k === 'bath' ? bathLine(pet) + (V2 && !noBathUntil(pet) ? gaugeHTML(bathWindow(pet), 'למקלחת', 'המקלחת האחרונה ב־') : '') : ''}${GROOM[pet] && ['flea','brush','teeth','weight'].includes(k) ? groomLine(pet, k) : ''}${todayWhere(pet,k) ? `<div class="sub hint x">${todayWhere(pet,k)}</div>` : ''}${P.cycle && typical(pet,k) ? `<div class="sub hint x">${typical(pet,k)}</div>` : ''}${it.note ? `<div class="sub hint x">${it.note}</div>` : ''}MOREBTN</div>
         <div class="acts"><button class="go" data-act="pt" data-k="${k}">${it.btn}</button>
           ${P.cycle && k === 'food' ? `<button class="ghost" data-act="nofood">${ico('none','s')}לא אכלה</button>` : ''}</div>${P.cycle && k === 'food' && !slim ? camjFeedRowHTML(pet, 'food') : ''}</div>`;
       // "עוד" (new design): the reference lines (class `x`) fold away until asked for; the old design shows them as always.
@@ -4937,9 +5065,9 @@ function render(){
 
       } else if(k === 'sleep' && aw && Date.now() - aw < 6*3600000 && P.cycle && awakeUnknown(pet)){   // nothing shows her awake lately: no awake timer (reduced logging)
         const seen = awakeSeen(pet);
-        lbl = 'לא נרשמה שינה מאז';
+        lbl = 'שינה אחרונה שנרשמה';
         big = `<div class="big txt"><bdi dir="ltr">${clock(aw)}</bdi></div>`;
-        sub = `${dayLabel(aw) === 'היום' ? '' : dayLabel(aw) + ' · '}נראתה ערה לאחרונה ב־<bdi dir="ltr">${clock(seen)}</bdi> · ייתכן שישנה בלי רישום`;
+        sub = `${dayLabel(aw) === 'היום' ? '' : dayLabel(aw) + ' · '}לא נרשמה שינה מאז · נראתה ערה לאחרונה ב־<bdi dir="ltr">${clock(seen)}</bdi> · ייתכן שישנה בלי רישום`;
       } else if(k === 'sleep' && P.cycle && af > aw && Date.now() - af < 6*3600000){   // seen awake again after an undocumented stretch: count only from there (27.11)
         lbl = 'נראתה ערה כבר';
         big = `<div class="big" data-since="${af}">${dur(Date.now()-af)}</div>`;
@@ -5163,17 +5291,20 @@ function cycleHTML(p){
     : ci === 1 ? `מוציאים את ${nm} לצרכים, ואז לוחצים למטה מה קרה: <b>פיפי</b>, <b>קקי</b> או <b>״לא עשתה״</b>.`
     : ci === 2 ? `זמן משחק. אפשר לסמן במה שיחקה. כש${nm} אוכלת, לוחצים <b>״אכלה״</b>.`
     : `אחרי האוכל מוציאים שוב לצרכים, ואז לוחצים <b>פיפי</b>, <b>קקי</b> או <b>״לא עשתה״</b>.`;
+  // the third layer (owner, 27.11): the wheel keeps the planned stage; the words follow what is actually known
+  const G = guidance(p), say = G.what || G.prefix + what;
   return `<div class="card cyc ${due||over||long3?'due':''}">
     <div class="cyc-h"><b>השגרה של ${PETS[p].name}</b><small>${r && !r.brk && rn ? roundName(rn)+' · ' : r && r.brk ? 'בהפסקה · ' : ''}<button class="lnk" data-act="help">איך זה עובד?</button></small></div>
     ${V2 ? flowHTML(cls, centre) : `<div class="steps"><svg class="ring" viewBox="0 0 200 200" aria-hidden="true">${segs}</svg>
       <div class="rc">${centre}</div>${labels}</div>`}
+    ${G.mode !== 'plan' ? `<div class="gd ${G.mode}"><span class="gd-p">${G.planned}</span><span class="gd-a">${G.actual}</span></div>` : ''}
     ${long3 ? `<div class="duemsg">${ico('pee','s')}<span>עברו ${words(now - S.pee)} מהפיפי האחרון${unk ? ' שנרשם · אם היא ערה, להוציא לחצץ' : ' · להוציא לחצץ'}</span></div>` : ''}
-    ${tired ? `<div class="zz">${ico('sleep','s')}<span>${awakeUnknown(p) ? `לא נרשמה שינה מאז <bdi dir="ltr">${clock(aw)}</bdi> · ${p === CAMJ_P && camjPendingEntry() ? 'המצלמה: כנראה בכלוב' : 'אם היא ערה, לכלוב לישון'}` : `${af > aw ? 'נראתה ערה כבר' : 'ערה כבר'} ${p === CAMJ_P && af === aw && wakeWin(p) ? `${words(now - wakeWin(p).hi)}–${words(now - aw)}` : words(now - af)} · ${p === CAMJ_P && camjPendingEntry() ? 'המצלמה: כנראה בכלוב' : 'לכלוב לישון'}`}</span></div>` : ''}
+    ${tired && G.mode !== 'crate' ? `<div class="zz">${ico('sleep','s')}<span>${awakeUnknown(p) ? `שינה אחרונה שנרשמה <bdi dir="ltr">${clock(aw)}</bdi> · ${p === CAMJ_P && camjPendingEntry() ? 'המצלמה: כנראה בכלוב' : 'אם היא ערה, לכלוב לישון'}` : `${af > aw ? 'נראתה ערה כבר' : 'ערה כבר'} ${p === CAMJ_P && af === aw && wakeWin(p) ? `${words(now - wakeWin(p).hi)}–${words(now - aw)}` : words(now - af)} · ${p === CAMJ_P && camjPendingEntry() ? 'המצלמה: כנראה בכלוב' : 'לכלוב לישון'}`}</span></div>` : ''}
     ${ft && ft.phase !== 'run' && !inCrate ? `<div class="frm">${ico('paw','s')}<span>זמן החופש נגמר (${FREE.min} דקות מהפיפי) · חזרה לשגרה</span></div>` : ''}
     ${over ? `<div class="duemsg">${ico('crate','s')}<span>${awakeNow(p, S.crate.start) ? 'ערה בכלוב' : 'בכלוב'} יותר מ${words(CRATE_MAX)} · מ־<bdi dir="ltr">${clock(S.crate.start)}</bdi>${awakeNow(p, S.crate.start) ? '' : ' · לא תועד אם ישנה'}</span></div>` : ''}
     ${due && !long3 ? `<div class="duemsg">${ico('pee','s')}<span>${unk ? 'אם היא ערה, ' : ''}זמן להוציא לצרכים · ${due.why}, לפני <span data-words="${due.t}">${words(now-due.t)}</span></span></div>` : ''}
     ${asleep ? `<div class="zz">${ico('sleep','s')}<span>ישנה ${S.sleep.assumed ? 'כנראה ' : ''}מ־<bdi dir="ltr">${clock(S.sleep.start)}</bdi> · ${wb && wb.past ? 'כדאי להעיר אותה' : wb ? `נותנים לה לישון עד <bdi dir="ltr">${clock(wb.t)}</bdi>` : 'נותנים לה לישון'}${(() => { const we = !(wb && wb.past) && wakeExpect(p, now); return we && we.likely ? ` · כנראה תתעורר בין <bdi dir="ltr">${clock(we.likely.from)}–${clock(we.likely.to)}</bdi>` : ''; })()}${S.sleep.assumed ? ' <small>(הנחה: נרדמת בכלוב תוך כמה דקות)</small>' : ''}</span><button class="lnk" data-act="notasleep">לא נרדמה</button></div>` : ''}
-    <div class="cyc-n"><span class="nx"><b>מה עושים עכשיו?</b>${wakeGravelWhat(p)}${what}${routineTap(p).length ? ` החלק המתאים למטה מסומן <span class="tagk">עכשיו בשגרה</span>.` : ''}</span>
+    <div class="cyc-n"><span class="nx"><b>מה עושים עכשיו?</b>${wakeGravelWhat(p)}${say}${routineTap(p).length ? ` החלק המתאים למטה מסומן <span class="tagk">עכשיו בשגרה</span>.` : ''}</span>
       ${r && !r.brk && !inCrate ? `<button class="ghost" data-act="brk">${ico('none','s')}הפסקה בשגרה</button>` : ''}</div></div>`;
 }
 // New design: the wheel as a row of the five steps with arrows between them and a loop back from the last to the
@@ -5300,7 +5431,9 @@ function poopLine(p){
   const m = poopModel(p), now = Date.now(); if(!m || m.last == null) return '';
   if(state.log.some(e => e.p===p && e.k==='poop' && !isTU(e) && e.t >= m.last)) return '';
   const from = m.last + quantile(m.g, .25), to = m.last + quantile(m.g, .75);
-  if(now > to + 30*60000) return '';
+  // EXPIRED (owner, 27.11): a window whose end has passed with no poop is not a live prediction. The old design says so
+  // in this line; the new design's bar under it says the same (`gaugeHTML` with `miss`), so the line steps aside there.
+  if(now > to) return V2 && !mealPoopCue(p) ? '' : `<div class="sub hint fc past">${winPast(from, to, 'קקי')}</div>`;
   return `<div class="sub hint fc">הקקי הבא צפוי בסביבות <bdi dir="ltr">${clock(from)}–${clock(to)}</bdi></div>`;
 }
 // WHEN SHE EATS NEXT: she eats every two hours or so all day, so times of day say little (the card once read
@@ -5359,7 +5492,7 @@ function forecastLine(p){
   const src = `<div class="sub hint fcsrc">${f.byAge ? 'לפי הגיל · עוד אין מספיק מרווחים שלה' : `לפי ${f.n} מרווחים מ־${PEE_RHYTHM.days} הימים האחרונים`}</div>`;
   if(f.state === 'soon') return `<div class="sub fc">הפיפי הבא צפוי ${span}${why}</div>${src}`;
   if(f.state === 'now') return `<div class="sub fc ${quiet ? '' : 'now'}"><i></i>הפיפי הבא צפוי עכשיו · עד <bdi dir="ltr">${clock(f.to)}</bdi>${why}</div>${src}`;
-  return `<div class="sub fc ${quiet ? '' : 'late'}"><i></i>הפיפי היה צפוי עד <bdi dir="ltr">${clock(f.to)}</bdi>${why}</div>${src}`;
+  return `<div class="sub fc past ${quiet ? '' : 'late'}"><i></i>${winPast(f.from, f.to, 'פיפי')}${why}</div>${src}`;
 }
 function forecastWhy(p){   // where the window comes from, in plain words
   const f = peeForecast(p); if(!f) return;
@@ -5390,21 +5523,24 @@ function poopGap(p){
 function poopWindow(p){
   const last = V[p].poop; if(typeof last !== 'number') return null;
   const m = poopModel(p);
-  if(m && m.last != null && m.last > last){ const from = m.last + quantile(m.g, .25), to = m.last + quantile(m.g, .75); return {last, from, to, end: to + (to - last) * .25}; }
+  if(m && m.last != null && m.last > last){ const from = m.last + quantile(m.g, .25), to = m.last + quantile(m.g, .75); return {last, from, to, end: to + (to - last) * .25, miss: 'קקי'}; }
   const g = poopGap(p); if(!g) return null;
-  return {last, from: last + .75*g, to: last + 1.25*g, end: last + 1.5*g};
+  return {last, from: last + .75*g, to: last + 1.25*g, end: last + 1.5*g, miss: 'קקי'};
 }
 // Every forecast the app makes is drawn the same way (the owner: so she does not lose the sense of time): a bar from
 // the last time, filled up to now, with the expected window shaded (a point forecast gets a thin mark).
 // `noun`: what is due ("לחלון", "לארוחה"…), used in "עוד X לחלון".
 const when = t => `${dayLabel(t) === 'היום' ? '' : dayLabel(t) + ' '}${clock(t)}`;
+// "החלון עבר (A–B) · לא נרשם קקי": a pee / poop window whose end has passed with nothing logged — the same words on the
+// card line and on the bar, both designs. How windows are computed is unchanged.
+const winPast = (a, b, what) => `החלון עבר (<bdi dir="ltr">${clock(a)}–${clock(b)}</bdi>) · לא נרשם ${what}`;
 function gaugeHTML(w, noun, lastLbl){
   if(!w) return '';
   const now = Date.now(), end = Math.max(w.end, now + 1), W = end - w.last, pc = t => Math.max(0, Math.min(100, (t - w.last) / W * 100));
   const fm = ms => ms >= 36*3600000 ? wordsLong(ms) : words(ms), point = w.to - w.from < 60000;
   const days = t => Math.round((sod(t) - sod(now)) / 86400000);   // bars days long count calendar days, like the line above them
   const st = W >= 36*3600000 && now < w.from ? (days(w.from) <= 0 ? `היום ${noun.replace(/^ל/, 'ה')}` : days(w.from) === 1 ? `מחר ${noun.replace(/^ל/, 'ה')}` : `עוד ${days(w.from)} ימים ${noun}`)
-    : now < w.from ? `עוד ${fm(w.from - now)} ${noun}` : now <= w.to ? (point ? 'עכשיו' : `עכשיו · עד ${w.to - w.from >= 36*3600000 ? dayLabel(w.to) : `<bdi dir="ltr">${clock(w.to)}</bdi>`}`) : `עברו ${fm(now - w.to)}`;
+    : now < w.from ? `עוד ${fm(w.from - now)} ${noun}` : now <= w.to ? (point ? 'עכשיו' : `עכשיו · עד ${w.to - w.from >= 36*3600000 ? dayLabel(w.to) : `<bdi dir="ltr">${clock(w.to)}</bdi>`}`) : w.miss ? winPast(w.from, w.to, w.miss) : `עברו ${fm(now - w.to)}`;
   const cls = now < w.from ? 'soon' : now <= w.to + (point ? 15*60000 : 0) ? 'in' : 'past';
   const a = pc(w.from), b = Math.max(pc(w.to), a + 1.5);
   // the times written on the bar itself (the owner: "the time of each part, on the part"): the last one at the start,
@@ -5414,10 +5550,10 @@ function gaugeHTML(w, noun, lastLbl){
   const wpos = mid > 78 ? 'left:auto;right:0' : mid < 30 ? `left:${Math.max(a, 26).toFixed(1)}%` : `left:${mid.toFixed(1)}%;transform:translateX(-50%)`;
   const labels = `<div class="gl" dir="ltr"><span>${lab(w.last)}</span><span class="glw" style="${wpos}">${wl}</span></div>`;
   // hover / tap: when each part is (`showTip`, like the day ribbon)
-  const tw = point ? `צפוי בערך ב־${when(w.from)}` : `החלון הצפוי: ${when(w.from)}–${when(w.to)}`, tf = `${lastLbl}${when(w.last)} · עברו ${fm(now - w.last)}`;
+  const tw = point ? `צפוי בערך ב־${when(w.from)}` : `${w.miss && now > w.to ? 'החלון שעבר' : 'החלון הצפוי'}: ${when(w.from)}–${when(w.to)}`, tf = `${lastLbl}${when(w.last)} · עברו ${fm(now - w.last)}`;
   return `<div class="gauge ${cls}">${labels}<div class="gg" dir="ltr" data-tip="${tf} · ${tw}" title="${tf} · ${tw}"><span class="gw" style="left:${a.toFixed(1)}%;width:${(b - a).toFixed(1)}%" data-tip="${tw}" title="${tw}"></span><span class="gf" style="width:${pc(now).toFixed(1)}%" data-tip="${tf}" title="${tf}"></span><span class="gnow" style="left:${pc(now).toFixed(1)}%" title="עכשיו ${clock(now)}"></span></div><small>${st}</small><div class="ptip"></div></div>`;
 }
-const peeWindow = p => { const f = peeForecast(p); return f && {last: f.last, from: f.from, to: f.to, end: f.to + (f.to - f.last) * .2}; };
+const peeWindow = p => { const f = peeForecast(p); return f && {last: f.last, from: f.from, to: f.to, end: f.to + (f.to - f.last) * .2, miss: 'פיפי'}; };
 function mealWindow(p){   // the same reading as `mealLine`: last meal + her usual gap
   const g = mealGap(p), last = V[p].food; if(!g || !last || isNight() || Date.now() > last + g + 3600000) return null;
   return {last, from: last + g, to: last + g, end: last + 1.25*g};

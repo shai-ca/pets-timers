@@ -39,7 +39,8 @@
     seed(L.concat([{...K0, k:'crate', t: now - 5*MIN}]));
     ok('in the crate: no "time to sleep" bar', !$q('#sec-rest .gauge:not(.goal)') && !!$q('#sec-rest .gauge.goal'));
     seed(L.map(e => e.k === 'pee' && e.t === now - 60*MIN ? {...e, t: now - 260*MIN} : e));
-    ok('a pee window that has passed: the bar says so', !!card('pee').querySelector('.gauge.past') && card('pee').querySelector('.gauge small').textContent.includes('עברו'));
+    // 27.11 (state reconciliation, item 6): a passed window is no longer a live "עברו X" countdown but "החלון עבר (A–B) · לא נרשם פיפי"
+    ok('a pee window that has passed: the bar says so', !!card('pee').querySelector('.gauge.past') && card('pee').querySelector('.gauge small').textContent.startsWith('החלון עבר (') && card('pee').querySelector('.gauge small').textContent.endsWith('· לא נרשם פיפי'));
     V2 = false;
     done();
   } catch(e){ crashed(e); }
