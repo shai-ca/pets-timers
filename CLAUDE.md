@@ -156,6 +156,18 @@ Branch `camera-experimental`. A card "נראתה לאחרונה" on Kishmish's t
 
 **`preview.sh`** (run by the owner only; `deploy.sh` is untouched and keeps deploying only the live app): refuses on main, with a dirty tree, or if the branch's page lacks `applyMode` / `guardRef`; runs the tests; refuses unless the live page is byte-for-byte `main:index.html`; then builds a temp dir from `git archive main` (the live site) plus the branch's `index.html` and icons under `preview/`, adds no-cache headers for `/preview/`, deploys hosting from there and checks that `/` is still main and `/preview/` the branch. Hosting replaces the whole site on each deploy, which is why it ships main's files too; the next `deploy.sh` drops `/preview/` (`firebase.json` ignores `preview/**` in the repo).
 
+## Working efficiently (owner, 27.11 — mandatory)
+
+- Give agents narrow, bounded tasks with explicit deliverables and stopping conditions.
+- Prefer Sonnet for routine implementation, tests and audits; reserve Opus for genuinely complex reasoning.
+- Avoid repeated full-file reads: use targeted searches and line ranges.
+- Keep tool output and agent reports concise.
+- Run targeted tests during development and the full regression suite at release checkpoints.
+- Target 30k–50k tokens per ordinary task; for larger tasks, checkpoint and report progress before going beyond 100k.
+- Reuse existing findings, artifacts and computations.
+- Do not expand a task's scope without approval.
+- Prefer deterministic scripts over repeated LLM analysis wherever possible.
+
 ## Files
 
 - `index.html` — the whole app: HTML, CSS, and JS in one file, no build step. The icons are hand-drawn inline SVGs in the `ICONS` object. Font: Heebo from Google Fonts.
