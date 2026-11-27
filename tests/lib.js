@@ -1,7 +1,7 @@
 // Shared helpers for the test cases. A case ends by calling done().
 const T = { out: [] };
 function ok(name, cond){ T.out.push((cond ? 'PASS ' : 'FAIL ') + name); }
-function done(extra){ document.title = (T.out.filter(x => !x.startsWith('PASS')).join(' | ') || 'ALL PASS ' + T.out.length) + (extra ? ' :: ' + extra : ''); }
+function done(extra){ const sk = T.out.some(x => x.startsWith('PASS skipped')); document.title = (T.out.filter(x => !x.startsWith('PASS')).join(' | ') || 'ALL PASS ' + T.out.length + (sk ? ' SKIPPED' : '')) + (extra ? ' :: ' + extra : ''); }   // a skip is reported, never a silent pass
 function crashed(e){ T.out.push('ERROR ' + String((e && e.stack) || JSON.stringify(e)).replace(/\s+/g, ' ').slice(0, 400)); done(); }
 // Lets pending promise work (a save in flight, a merge) run. Microtasks only, so thousands of them are instant.
 const wait = async (n = 1) => { for(let i = 0; i < n * 60; i++) await null; };
@@ -15,7 +15,7 @@ function reset(who = 'shai', showPet = 'kishmish'){
   localStorage.clear(); try { localStorage.setItem(LS_KEY + '-salvaged', '1'); } catch(e){}
   use(blank(), blank()); me = who; pet = showPet; view = 'now'; sumFilter = null;
   if(typeof ASK_WHEN !== 'undefined') ASK_WHEN = false;   // cases tap buttons and expect the entry at once; when.js tests the prompt
-  if(typeof FAKE_HOUR !== 'undefined'){ FAKE_HOUR = 12; FAKE_PHONE = false; nightFull = false; }   // night.js and routine.js test the night screen and the phone layout
+  if(typeof FAKE_HOUR !== 'undefined'){ FAKE_HOUR = window.TEST_HOUR ?? 12; FAKE_PHONE = window.TEST_PHONE ?? false; nightFull = false; }   // a case's own "// @hour" / "// @phone" win over the defaults; never overridden silently   // night.js and routine.js test the night screen and the phone layout
   if(typeof FAKE_TODAY !== 'undefined') FAKE_TODAY = null;
   if(typeof awakeUntil !== 'undefined') awakeUntil = 0;
   if(typeof stillUntil !== 'undefined') stillUntil = 0;
