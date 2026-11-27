@@ -42,6 +42,43 @@ service cloud.firestore {
           || (d == 'status'
               && request.resource.data.keys().hasOnly(['checked_at','service','model_version','experimental','crate_now','budget','published_at'])
               && request.resource.data.checked_at is int));
+      // camera/gravel_live_preview (trial) and camera/gravel_live (production, §18c): the Cam 3 gravel visit as it happens.
+      // Only the camera publisher writes, only these two documents, only this shape (≤ 3 visits — the rules' expression
+      // budget allows three checked field by field); caregivers read. It never touches state/main. Added 27.11 (release 7), additive: nothing above changes.
+      // One visit, field by field (a missing field is an error = denied; opened_at / closed_at / camera / model_version optional).
+      function gravelVisitOk(v, now) {
+        return v.keys().hasOnly(['visit_id','kind','status','t_start','last_seen','t_end','opened_at','closed_at','dog','identity_confidence','ir','uncertain','camera','model_version'])
+          && v.visit_id is string && v.visit_id.size() > 0 && v.visit_id.size() <= 40
+          && v.kind == 'gravel_live'
+          && v.t_start is int && v.t_start > now - 86400000 && v.t_start < now + 60000
+          && v.last_seen is int && v.last_seen >= v.t_start && v.last_seen < now + 60000
+          && (v.status == 'open' ? v.t_end == null : (v.status == 'closed' && v.t_end is int && v.t_end >= v.t_start && v.t_end < now + 60000))
+          && v.dog in [null, 'kishmish', 'kochik']
+          && v.identity_confidence in ['ask', 'reliable']
+          && v.ir is bool && v.uncertain is bool
+          && (v.get('opened_at', null) == null || v.opened_at is int) && (v.get('closed_at', null) == null || v.closed_at is int)
+          && v.get('camera', 'cam3') == 'cam3' && v.get('model_version', '') is string;
+      }
+      allow read: if (d == 'gravel_live' || d == 'gravel_live_preview') && caregiver();
+      allow create, update: if (d == 'gravel_live' || d == 'gravel_live_preview') && request.auth != null && request.auth.uid == '<CAMERA_UID>'
+        && request.resource.data.keys().hasAll(['schema','camera','published_at','visits'])
+        && request.resource.data.keys().hasOnly(['schema','camera','published_at','model_version','coverage','visits'])
+        && request.resource.data.schema == 'cam-gravel-live/1'
+        && request.resource.data.camera == 'cam3'
+        && request.resource.data.published_at is int
+        && request.resource.data.published_at > request.time.toMillis() - 300000
+        && request.resource.data.published_at < request.time.toMillis() + 300000
+        && (!('model_version' in request.resource.data) || (request.resource.data.model_version is string && request.resource.data.model_version.size() <= 64))
+        && (!('coverage' in request.resource.data) || (request.resource.data.coverage is map
+              && request.resource.data.coverage.keys().hasOnly(['recorder_ok','status_age_s','live_file_age_s','reason'])
+              && request.resource.data.coverage.recorder_ok is bool
+              && (request.resource.data.coverage.get('status_age_s', null) == null || request.resource.data.coverage.status_age_s is int)
+              && (request.resource.data.coverage.get('live_file_age_s', null) == null || request.resource.data.coverage.live_file_age_s is int)
+              && (request.resource.data.coverage.get('reason', null) == null || (request.resource.data.coverage.reason is string && request.resource.data.coverage.reason.size() <= 80))))
+        && request.resource.data.visits is list && request.resource.data.visits.size() <= 3
+        && (request.resource.data.visits.size() < 1 || gravelVisitOk(request.resource.data.visits[0], request.time.toMillis()))
+        && (request.resource.data.visits.size() < 2 || gravelVisitOk(request.resource.data.visits[1], request.time.toMillis()))
+        && (request.resource.data.visits.size() < 3 || gravelVisitOk(request.resource.data.visits[2], request.time.toMillis()));
       allow delete: if false;
     }
   }
