@@ -203,11 +203,12 @@
       const n = (($q('#side').innerText + $q('#main').innerText).match(/לאשר בכרטיס הכלוב/g) || []).length;
       ok('a waiting camera entry: the instruction appears once on the screen (' + n + ')', n === 1); }
     // waking known only as a window: the screen shows a range, never a made-up moment
-    { reset(); const T = Date.now(); seed([{ ...K0, k:'gravel', t: T - 60*MIN, end: T - 57*MIN }, { ...K0, k:'play', t: T - 10*MIN, y:'rope' }]); serverSeen = true; pet = 'kishmish';   // (release 5: a play 10 min ago shows her awake now)
+    { reset(); const T = Date.now(); seed([{ ...K0, k:'gravel', t: T - 60*MIN, end: T - 57*MIN }, { ...K0, k:'play', t: T - 15*MIN, y:'rope' }]); serverSeen = true; pet = 'kishmish';   // (release 5: a play 15 min ago shows her awake now; 27.11: and within 45 min of the gravel's end, so the chain from the waking is unbroken)
       fb = { auth:{ currentUser:{} }, camDoc: (n, on) => { subs[n] = on; return () => {}; }, camGet: async () => null, camMerge: async () => {} };
       await send([E('ce_w1', 'sleep_onset', T - 100*MIN, { lo: T - 110*MIN, hi: T - 100*MIN, single_mark: true })]); camjApply(); render(); await wait(2);
       const w = wakeWin('kishmish'), tile = $q('#sec-rest .card.item');
-      ok('woke between her last asleep mark and the gravel: a window, the awake time shown as a range', !!w && w.lo === T - 100*MIN + 1 && w.hi === T - 60*MIN && tile.textContent.includes('התעוררה בין') && !!tile.querySelector('.big .rng'));
+      if(!isNightAt(T)) ok('woke between her last asleep mark and the gravel: a window, the awake time shown as a range', !!w && w.lo === T - 100*MIN + 1 && w.hi === T - 60*MIN && tile.textContent.includes('התעוררה בין') && !!tile.querySelector('.big .rng'));
+      else ok('…at night (27.11) the same window, but no awake range is claimed: night signs show her awake only for minutes', !!w && w.lo === T - 100*MIN + 1 && w.hi === T - 60*MIN && awakeUnknown('kishmish') && !tile.querySelector('.big .rng') && tile.textContent.includes('לא נרשמה שינה מאז'));
       ok('…timing logic uses the earliest possible waking (no invented moment)', awakeSince('kishmish') === w.lo); }
     // several pending detections: the card shows the newest + a link; every one is approvable in the review
     { reset(); const T = Date.now(); seed([{ ...K0, k:'pee', t: T - 5*HOUR }]); serverSeen = true; pet = 'kishmish'; CAMJ.fbLocal = {};

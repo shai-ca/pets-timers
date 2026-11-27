@@ -11,7 +11,8 @@
     // (release 5, reduced logging: the claim needs something showing her awake in the last AWAKE.seen — here a play)
     seed([{ ...K0, k:'crate', t: now - 120*MIN, end: now - 50*MIN }, { ...K0, k:'pee', t: now - 48*MIN, w:'pad' }, { ...K0, k:'play', t: now - 10*MIN, y:'rope' }]);
     ok('45 minutes awake: the tile turns orange, no "crate to sleep" yet', sleepTile().classList.contains('warn') && !$q('.cyc').textContent.includes('לכלוב לישון'));
-    seed([{ ...K0, k:'crate', t: now - 150*MIN, end: now - 65*MIN }, { ...K0, k:'pee', t: now - 60*MIN, w:'pad' }, { ...K0, k:'play', t: now - 10*MIN, y:'rope' }]);
+    // (27.11: an unbroken chain — each sign within 45 min of the one before; a play 10 min ago after a pee 60 min ago left 5 min undocumented)
+    seed([{ ...K0, k:'crate', t: now - 150*MIN, end: now - 65*MIN }, { ...K0, k:'pee', t: now - 60*MIN, w:'pad' }, { ...K0, k:'play', t: now - 20*MIN, y:'rope' }]);
     ok('an hour awake: "crate to sleep"', sleepTile().classList.contains('warn') && $q('.cyc').textContent.includes('לכלוב לישון'));
     seed([{ ...K0, k:'crate', t: now - 150*MIN, end: now - 65*MIN }, { ...K0, k:'none', t: now - 60*MIN }, { ...K0, k:'crate', t: now - 55*MIN, end: now - 40*MIN }, { ...K0, k:'pee', t: now - 38*MIN, w:'gravel' }]);
     ok('a retry wait is not a sleep: the awake timer keeps running through it', awakeSince('kishmish') === now - 65*MIN);

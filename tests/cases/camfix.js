@@ -56,7 +56,13 @@
 
     // 2. the routine's crate line points to the camera while it works (same length, manual stays the fallback)
     await fresh(() => [{ ...K0, k:'pee', t: T - 50*MIN, w:'gravel' }, { ...K0, k:'crate', t: T - 20*MIN }]);
-    CAMS.status = { checked_at: Date.now() - MIN, crate_now: null }; render(); await wait(2);
+    // 27.11: only when the camera can INFER now (fresh heartbeat AND a positive / negative reading from the last 5 min);
+    // a heartbeat alone, 'uncertain' (IR at night) or 'unavailable', or an old reading keep the manual instruction
+    for(const cn of [null, { status:'uncertain', capture_ts: Date.now() - MIN }, { status:'unavailable', capture_ts: Date.now() - MIN }, { status:'positive', capture_ts: Date.now() - 8*MIN }]){
+      CAMS.status = { checked_at: Date.now() - MIN, crate_now: cn }; render(); await wait(2);
+      ok('camera cannot infer now (' + (cn ? cn.status + (Date.now() - cn.capture_ts > 5*MIN ? ', old' : '') : 'heartbeat only') + '): the manual instruction, no camera promise', cycleHTML('kishmish').includes('לוחצים <b>״יצאה מהכלוב״</b>') && !cycleHTML('kishmish').includes('המצלמה תציע') && !camjInferNow());
+    }
+    CAMS.status = { checked_at: Date.now() - MIN, crate_now: { status:'positive', capture_ts: Date.now() - MIN } }; render(); await wait(2);
     { const h = cycleHTML('kishmish');
       ok('camera working: "המצלמה תציע לאשר", no "לוחצים ״יצאה מהכלוב״"', h.includes('המצלמה תציע לאשר') && !h.includes('לוחצים <b>״יצאה מהכלוב״</b>'));
       ok('…the manual exit button is still in the crate card (folded)', !!$q('#sec-crate [data-act=dur][data-k=crate]')); }

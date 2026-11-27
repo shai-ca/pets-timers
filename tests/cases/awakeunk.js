@@ -34,6 +34,9 @@
     // the 25.11 morning: in the crate since an hour ago, food there, nothing more (no estimate: she said "לא ישנה" for it)
     seed([{ ...K0, k:'crate', t: now - 300*MIN, end: now - 200*MIN, c:'mesh' }, { ...K0, k:'sleep', t: now - 290*MIN, end: now - 200*MIN }, { ...K0, k:'crate', t: now - 60*MIN, c:'mesh', nsx:[now - 60*MIN] }, { ...K0, k:'food', t: now - 59*MIN }]);
     ok('in the crate, nothing logged for an hour: no "ערה כבר" and no orange (the "נרדמה?" card still asks)', awakeUnknown(p) && !tileS().textContent.includes('ערה כבר') && !tileS().classList.contains('warn') && !!$q('.sleepq'));
+    ok('…and the crate card does not claim "ערה בכלוב כבר" either (27.11): "בכלוב כבר … לא תועד אם ערה או ישנה"', crateAwakeNote(p).includes('לא תועד אם ערה או ישנה') && !crateAwakeNote(p).includes('ערה בכלוב') && $q('#sec-crate').textContent.includes('לא תועד אם ערה או ישנה'));
+    seed(state.log.concat([{ ...K0, k:'cry', t: now - 12*MIN, end: now - 10*MIN }]));
+    ok('a cry in the crate 10 minutes ago: "ערה בכלוב כבר", as before', crateAwakeNote(p).includes('ערה בכלוב כבר'));
     // a cry or a camera-confirmed exit counts as a sign like any other MEANINGFUL entry
     seed([{ ...K0, k:'crate', t: now - 300*MIN, end: now - 200*MIN, c:'mesh' }, { ...K0, k:'sleep', t: now - 290*MIN, end: now - 200*MIN }, { ...K0, k:'cry', t: now - 30*MIN, end: now - 25*MIN }]);
     ok('a cry 25 minutes ago shows her awake', !awakeUnknown(p) && tileS().textContent.includes('ערה כבר'));
