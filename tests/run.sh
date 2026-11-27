@@ -21,7 +21,7 @@ if [ -z "${1:-}" ] && [ -z "${NO_LOCK:-}" ]; then
     [ $waited = 0 ] && echo "waiting for another full test run (pid ${owner:-?}) to finish…"
     sleep 10; waited=$((waited + 10))
   done
-  echo $$ > "$LOCK/pid"; trap 'rm -rf "$LOCK"' EXIT INT TERM
+  echo $$ > "$LOCK/pid"; trap '[ "$(cat "$LOCK/pid" 2>/dev/null)" = "$$" ] && rm -rf "$LOCK"' EXIT INT TERM   # remove ONLY our own lock (a stopped run once deleted a live run's lock)
 fi
 fail=0; flaky=0; SK=$(mktemp); RAN=$(mktemp)
 for clk in $CLOCKS; do
