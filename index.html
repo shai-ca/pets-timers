@@ -3814,7 +3814,7 @@ const CAMJ_FEED = { food_seen: 'food', water_seen: 'water' };   // §12c: detect
 let CAM_FEATURES = { sleepSuggest: true, eatSuggest: true, drinkSuggest: false, irContext: true, liveSleepEstimate: false, foodWaterEvents: false };
 function camjFlag(e){   // may this event exist in the app at all?
   const F = CAM_FEATURES;
-  if(e.sug && e.source === 'owner_review') return e.kind === 'food_seen' || e.kind === 'water_seen';   // §18b: her own reviewed + answered footage, a separate path
+  if(e.sug && e.source === 'owner_review') return e.kind === 'food_seen' || e.kind === 'water_seen' || e.kind === 'sleep_onset' || e.kind === 'sleep_wake';   // §18b: her own reviewed + answered footage (incl. her bounded sleep intervals), a separate path
   if(e.sug) return e.kind === 'food_seen' ? F.eatSuggest : (e.kind === 'sleep_onset' || e.kind === 'sleep_wake') ? F.sleepSuggest : e.kind === 'water_seen' ? F.drinkSuggest : false;
   if(e.kind === 'water_seen') return F.foodWaterEvents && F.drinkSuggest;
   if(e.kind === 'food_seen') return F.foodWaterEvents;
@@ -4321,15 +4321,21 @@ function camjSugValid(d){
     // §18b: an eating session she reviewed on footage herself (`source:'owner_review'`, id rv_…): her answer, not a model
     // claim — only with her research-UI decision, only eating (drinking stays off with drinkSuggest)
     if(g.test === true && !CAMJ_TEST_OK) continue;   // a camera-side TEST item (fixtures): never applied outside a test harness
-    const rvw = g.source === 'owner_review'; if(rvw && (!(g.kind === 'eating_suggestion' || g.kind === 'drinking_suggestion') || !/^rv_/.test(g.id) || !g.owner_decision)) continue;
+    const rvw = g.source === 'owner_review'; if(rvw && (!(g.kind === 'eating_suggestion' || g.kind === 'drinking_suggestion' || g.kind === 'sleep_suggestion') || !/^rv_/.test(g.id) || !g.owner_decision)) continue;
+    // her reviewed SLEEP (owner, 27.11): only an interval she bounded herself — a start AND an end, each with its outer bounds
+    // (lo / hi around the start, lo2 / hi2 around the end). No end = no entry: a duration is never invented.
+    // camera shape (§18b sleep): ts = lo = her start, end = hi = her end; `interval_basis:'outer_bound'` = the sleep lies
+    // somewhere INSIDE [start, end] (kept on the entry, shown as such)
+    if(rvw && g.kind === 'sleep_suggestion' && !(num(g.end) && g.end > g.ts && g.end - g.ts <= 12*3600000 && (!num(g.lo) || g.lo <= g.ts) && (!num(g.hi) || g.hi >= g.ts))) continue;
     if(!rvw && g.kind === 'drinking_suggestion') continue;   // automatic drinking suggestions stay off (drinkSuggest); only her reviewed + answered ones pass
     const id = 'sug:' + g.id, base = { source: 'live_model', status: 'active', sug: true, confidence: num(g.confidence) ? g.confidence : null, model_version: g.model_version || null,
-      image_id: g.image_id, image_ts: g.image_ts, ir: false, uncertain: g.uncertain === true, lo: g.lo, hi: g.hi, ...(g.owner_decision ? { owner_decision: g.owner_decision } : {}), ...(rvw ? { rvw: true } : {}) };
+      image_id: g.image_id, image_ts: g.image_ts, ir: false, uncertain: g.uncertain === true, lo: g.lo, hi: g.hi, ...(g.owner_decision ? { owner_decision: g.owner_decision } : {}), ...(rvw ? { rvw: true, ...(g.interval_basis === 'outer_bound' ? { ob: 1 } : {}) } : {}) };
     if(g.kind === 'eating_suggestion') out.push({ ...base, event_id: id, kind: 'food_seen', ts: g.ts });
     else if(g.kind === 'drinking_suggestion') out.push({ ...base, event_id: id, kind: 'water_seen', ts: g.ts });   // §18b: reviewed only (above)
     else if(g.kind === 'sleep_suggestion'){
       out.push({ ...base, event_id: id, kind: 'sleep_onset', ts: g.ts, ...(num(g.end) ? { pair_id: id + ':w' } : {}) });
       if(num(g.end) && g.end >= g.ts) out.push({ ...base, owner_decision: undefined, event_id: id + ':w', kind: 'sleep_wake', ts: g.end, lo: num(g.lo2) ? g.lo2 : g.end, hi: num(g.hi2) ? g.hi2 : g.end, image_id: null, image_ts: null });
+      if(rvw) out[out.length - (num(g.end) && g.end >= g.ts ? 2 : 1)].lo = out[out.length - (num(g.end) && g.end >= g.ts ? 2 : 1)].hi = g.ts;   // her start is the start (the item's hi is her END, not a start bound)
     }
   }
   return camjValid({ events: out }).ev.map(e => ({ ...e, sug: true, ...(e.rvw ? { source: 'owner_review' } : {}) }));
@@ -4611,6 +4617,7 @@ function camjNote(e, long){   // list rows and the entry's sheet
   if((e.k !== 'crate' && !((e.k === 'sleep' || e.k === 'food' || e.k === 'water') && e.cam)) || e.p !== CAMJ_P) return '';
   const c = e.cam || {};
   if(e.k === 'food' || e.k === 'water') return ` · ${c.src === 'owner_review' ? 'מסקירה ידנית של צילום' : c.ok === 'research_ui' ? 'מהמצלמה (אושר במחקר)' : /^sug:/.test(c.in || '') ? 'הצעה מהמצלמה (אושרה)' : c.ok ? 'זיהוי מצלמה (אושר)' : 'מהתיוג שלך'}${long ? camjWin(c.ilo, c.ihi) : ''}`;
+  if(e.k === 'sleep' && c.src === 'owner_review') return ` · מסקירה ידנית של צילום${c.ob ? ' · גבול חיצוני: השינה בתוך הטווח הזה' : ''}`;   // her reviewed interval (owner, 27.11): provenance + outer-bound uncertainty
   if(c.cid || c.in){
     const src = c.ok === 'research_ui' ? 'מצלמה (אושר במחקר)' : /^cams?:/.test(e.id || '') ? (c.conf ? 'הצעה מהמצלמה (אושרה)' : c.src === 'live_model' ? 'מצלמה (אושר)' : e.k === 'sleep' ? 'מהתיוג שלך' : 'מצלמה') : c.was ? 'תוקן לפי המצלמה' : 'אושר במצלמה';
     if(!long) return ` · ${src}${c.single ? ' · נראתה ישנה (סימון אחד)' : camUnc(e) ? ' · שעה לא ודאית' : ''}`;
@@ -4688,9 +4695,9 @@ const camjAnsWord = (x, d) => { const a = CAMJ_D2A[d]; return a === 'dismiss' ? 
 function camjMake(x, who = me, until){
   if(x.kind === 'crate_entry') return camjDo({ do: 'start', ev: x, retro: true, ...(until != null ? { until } : {}) }, who);
   if(CAMJ_FEED[x.kind]) return camjDo({ do: 'feed', ev: x }, who);
-  const c = camjSleeps('live_model').find(z => z.on.event_id === x.event_id), eid = 'cam:' + x.event_id; if(!c || state.log.some(e => e.id === eid)) return;
+  const c = [...camjSleeps('live_model'), ...camjSleeps('owner_review')].find(z => z.on.event_id === x.event_id), eid = 'cam:' + x.event_id; if(!c || state.log.some(e => e.id === eid)) return;
   state.log.push({ id: eid, p: CAMJ_P, k: 'sleep', t: c.t, ...(c.end != null ? { end: Math.max(c.end, c.t + 1) } : {}),
-    cam: { cid: eid, in: x.event_id, it: c.t, ilo: c.ilo, ihi: c.ihi, src: 'live_model', conf: 1, ok: who, ...(c.wk ? { out: c.wk.event_id, ot: c.end, olo: c.olo, ohi: c.ohi } : {}), ...(c.unc || c.ounc ? { unc: 1 } : {}) } });
+    cam: { cid: eid, in: x.event_id, it: c.t, ilo: c.ilo, ihi: c.ihi, src: x.rvw ? 'owner_review' : 'live_model', ...(x.ob ? { ob: 1 } : {}), conf: 1, ok: who, ...(c.wk ? { out: c.wk.event_id, ot: c.end, olo: c.olo, ohi: c.ohi } : {}), ...(c.unc || c.ounc ? { unc: 1 } : {}) } });
 }
 // Set or CHANGE an answer: the feedback decision (history kept in `prev`) and the journal entry move together; the same
 // answer twice, or the same on two phones, changes nothing more (deterministic id, created only when missing).
@@ -5046,7 +5053,7 @@ document.addEventListener('click', e => {
 function camjSugSleeps(now){
   if(!camjOn()) return [];
   const L = state.log.filter(e => e.p === CAMJ_P && !isTU(e)), sl = L.filter(e => e.k === 'sleep');
-  return camjSleeps('live_model').filter(c => c.on.sug && !camjDec(c.on.event_id) && !L.some(e => e.id === 'cam:' + c.on.event_id) && now - (c.end == null ? c.t : c.end) <= CAMJ_TTL)
+  return [...camjSleeps('live_model'), ...camjSleeps('owner_review')].filter(c => c.on.sug && !camjDec(c.on.event_id) && !L.some(e => e.id === 'cam:' + c.on.event_id) && (c.on.rvw ? camjRvwLive(c.on, now) : now - (c.end == null ? c.t : c.end) <= CAMJ_TTL))   // her reviewed sleep: the review window (§18b)
     .filter(c => { const b = c.end == null ? now : c.end;
       return !sl.some(e => (e.t < b && (e.end == null ? now : e.end) > c.t) || (e.t - c.t <= CAMJ_LATE && c.t - e.t <= CAMJ_MATCH))
         && !L.some(e => (AWAKE_PT[e.k] || OUT_KINDS[e.k] || e.k === 'gravel') && e.t > c.t && e.t < b); })

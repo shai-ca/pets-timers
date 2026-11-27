@@ -175,6 +175,19 @@
     await fresh(() => [...base(), { ...K0, id: 'cam:sug:rv_cam2_q', k:'crate', t: T - 3*HOUR, end: T - 2*HOUR, cam: { src: 'owner_review' } }]);
     EV = []; await send(); camjReview();
     ok('review weekly figures exclude owner_review / cam:sug:rv_* entries', /השבוע: <b>0<\/b> שהיות נרשמו מהמצלמה/.test(sh.innerHTML)); close();
+    // her reviewed SLEEP interval (owner, 27.11): start + end from her own record, outer bound; never an invented duration
+    await fresh(base); const s0 = T - 20*HOUR, s1 = s0 + 4*MIN + 10000, OK = rid => ({ owner_decision: { ans: 'ok', at: Date.now() - MIN, src: 'research_ui', rid } });
+    const RS = (id, ts, end, o = {}) => ({ id, kind: 'sleep_suggestion', ts, lo: ts, hi: end, end, status: 'active', source: 'owner_review', validated: false, interval_basis: 'outer_bound', ...o });
+    SUG = [RS('rv_cam1_sleep_' + s0, s0, s1, OK('rs1')), RS('rv_cam1_sleep_' + (s0 + 3*HOUR), s0 + 3*HOUR, undefined, OK('rs2'))]; await send();
+    { const sl = state.log.filter(e => e.k === 'sleep' && /^cam:sug:rv_cam1_sleep_/.test(e.id));
+      ok('reviewed sleep interval: ONE sleep entry at her start and end, provenance owner_review, outer bound kept', sl.length === 1 && sl[0].t === s0 && sl[0].end === s1 && sl[0].cam.src === 'owner_review' && sl[0].cam.ob === 1);
+      ok('…labelled as her review with the outer-bound note', camjNote(sl[0], true).includes('מסקירה ידנית של צילום') && camjNote(sl[0], true).includes('גבול חיצוני'));
+      ok('…an item with no end: nothing (a duration is never invented)', !state.log.some(e => String(e.id).includes('rv_cam1_sleep_' + (s0 + 3*HOUR))));
+      ok('…excluded from camera figures', camjIsReview(sl[0]));
+      const n0 = state.log.length; await send(); ok('…re-sent: nothing added', state.log.length === n0); }
+    // a sleep she logged by hand over the same time: no second entry
+    await fresh(() => [...base(), { ...K0, k:'sleep', t: s0 - 2*MIN, end: s1 + MIN }]); SUG = [RS('rv_cam1_sleep_' + s0, s0, s1, OK('rs3'))]; await send();
+    ok('reviewed sleep over a hand-logged sleep: no duplicate', state.log.filter(e => e.k === 'sleep').length === 1);
     CAM_FEATURES = FEAT0; fb = null; camjStop(); CAMJ.ev0 = []; CAMJ.sev = []; CAMJ.ev = []; CAMJ.ready = CAMJ.sready = false; CAMJ.fbLocal = {}; render();
     done();
   } catch(e){ crashed(e); }
