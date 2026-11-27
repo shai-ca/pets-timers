@@ -8,6 +8,21 @@ CHROME="${CHROME:-/Applications/Google Chrome.app/Contents/MacOS/Google Chrome}"
 # a case may pin its own with "// @clock HH:MM") and an explicit window (WINDOW, default 800,600 = the old implicit
 # headless size; a case may ask for its own with "// @window W,H"). The wall clock never decides what is tested.
 CLOCKS="${CLOCKS:-12:00 02:00}"; WINDOW="${WINDOW:-800,600}"
+# One FULL run at a time across all worktrees: a lock directory, not process polling (two sessions that each waited
+# for "no tests/run.sh in the process list" saw each other's waiting shells and never started). A filtered run does not
+# lock. The lock is released on exit; a lock whose owner is gone is taken over; waiting gives up after LOCK_WAIT seconds.
+LOCK="${TMPDIR:-/tmp}/pets-timers-tests.lock"
+if [ -z "${1:-}" ] && [ -z "${NO_LOCK:-}" ]; then
+  waited=0
+  until mkdir "$LOCK" 2>/dev/null; do
+    owner=$(cat "$LOCK/pid" 2>/dev/null)
+    if [ -n "$owner" ] && ! kill -0 "$owner" 2>/dev/null; then rm -rf "$LOCK"; continue; fi   # stale: its owner is gone
+    [ $waited -ge "${LOCK_WAIT:-2400}" ] && { echo "another full test run (pid ${owner:-?}) still holds the lock after ${waited}s; not waiting any longer"; exit 3; }
+    [ $waited = 0 ] && echo "waiting for another full test run (pid ${owner:-?}) to finish…"
+    sleep 10; waited=$((waited + 10))
+  done
+  echo $$ > "$LOCK/pid"; trap 'rm -rf "$LOCK"' EXIT INT TERM
+fi
 fail=0; SK=$(mktemp); RAN=$(mktemp)
 for clk in $CLOCKS; do
   echo "== clock $clk"
