@@ -20,7 +20,7 @@
       seed(base); camSet([E('a1', 'crate_entry', now - 50*MIN), E('a1x', 'crate_exit', now - 45*MIN), E('a2', 'crate_entry', now - 25*MIN), E('a2x', 'crate_exit', now - 20*MIN)]);
       let R = rv();
       ok(tag + 'near miss: two visits 20 min apart = two questions', R.eps.length === 2 && R.eps.every(q => q.n === 1) && R.eps[0].head.event_id === 'a2');
-      ok(tag + 'the question is in the top card only (one set of answers on screen)', $n('.nowtop [data-camans="closed"]') === 1 && !$q('[data-k=crate]').closest('.card').querySelector('[data-camans]'));
+      ok(tag + 'the question is in the top card only (one set of answers on screen)', $n('.nowtop [data-camans="closed"]') === 1 && !$q('#sec-crate [data-k=crate]').closest('.card').querySelector('[data-camans]'));
       camjSetAnswer('a2', 'open');
       ok(tag + 'answering the newer one decides only it', dec('a2') && dec('a2').d === 'visit' && !dec('a1') && rv().eps.length === 1 && rv().eps[0].head.event_id === 'a1');
       // a SHORT real exit still separates (3 min) — the rule is the evidence, not the gap

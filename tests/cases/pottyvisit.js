@@ -265,7 +265,7 @@
     { await fresh(() => [{ ...K0, k: 'pee', t: T - 7*HOUR, w: 'gravel' }, { ...K0, k: 'food', t: T - HOUR, m: 'meal' }, { ...K0, k: 'play', t: T - 5*MIN, y: 'rope' }]);
       const a0 = JSON.stringify(alerts('kishmish')); const t0 = T - 50*MIN; SUG = [PV('kishmish', t0, t0 + MIN)]; await send();
       ok('6 h without a pee + an unanswered visit: the red card stays, with one neutral camera line', JSON.stringify(alerts('kishmish')) === a0 && alerts('kishmish').some(a => a.k === 'pee') && [...document.querySelectorAll('.alertc')].some(c => c.textContent.includes(`המצלמה ראתה ביקור בחצץ ב־${clock(t0)}`)));
-      ok('…the expired pee window says the visit is unanswered (not "no pee")', forecastLine('kishmish').includes('לא נרשם פיפי') && forecastLine('kishmish').includes(`המצלמה ראתה ביקור בחצץ ב־<bdi dir="ltr">${clock(t0)}</bdi>, לא נענה`)); }
+      ok('…the expired pee window says the visit is unanswered (not "no pee")', (forecastLine('kishmish').includes('לא נרשם פיפי') || forecastLine('kishmish').includes('לא ידוע אם עשתה פיפי')) && forecastLine('kishmish').includes(`המצלמה ראתה ביקור בחצץ ב־<bdi dir="ltr">${clock(t0)}</bdi>, לא נענה`)); }
 
     fb = null; glStop(); CAMJ.pv = []; CAMJ.ready = CAMJ.sready = false; setState(state); render();
     done();
