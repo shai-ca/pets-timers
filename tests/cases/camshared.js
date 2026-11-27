@@ -57,7 +57,7 @@
     CAMS_IDLE_MS = 30; const c0 = closed;
     pet = 'kochik'; render(); await settle();
     ok('Kochik\'s screen: no card, the listener closes', !card() && closed >= c0 + 2 && !subs.latest);
-    pet = 'kishmish'; render(); await settle(); for(let i = 0; i < 20 && !subs.latest; i++) await pause(50);   // under load the listener can take longer than one settle
+    pet = 'kishmish'; render(); await settle(); for(let i = 0; i < 60 && !subs.latest; i++){ await new Promise(r => requestAnimationFrame(() => r())); await pause(25); }   // the listener opens when the card is seen on a FRAME (IntersectionObserver): wait on frames, not only on a timer
     ok('back on Kishmish: it listens again, and the last image is there at once', !!subs.latest && !!card());
 
     // the daily cap

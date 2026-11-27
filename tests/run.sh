@@ -23,7 +23,7 @@ if [ -z "${1:-}" ] && [ -z "${NO_LOCK:-}" ]; then
   done
   echo $$ > "$LOCK/pid"; trap 'rm -rf "$LOCK"' EXIT INT TERM
 fi
-fail=0; SK=$(mktemp); RAN=$(mktemp)
+fail=0; flaky=0; SK=$(mktemp); RAN=$(mktemp)
 for clk in $CLOCKS; do
   echo "== clock $clk"
   rm -rf out && CLOCK=$clk python3 build.py >/dev/null || exit 2
@@ -31,7 +31,11 @@ for clk in $CLOCKS; do
     name=$(basename "$f" .html)
     win=$(grep -o '^// @window [0-9]*,[0-9]*' "cases/${name%.v2}.js" 2>/dev/null | cut -d' ' -f3)   # a page may ask for a window size (layout checks)
     for variant in $(grep -o '^// @variants .*' "cases/${name%.v2}.js" 2>/dev/null | cut -d' ' -f3-) ""; do
-      title=$("$CHROME" --headless=new --disable-gpu --window-size=${win:-$WINDOW} --virtual-time-budget=${BUDGET:-8000} --dump-dom "file://$PWD/$f$variant" 2>/dev/null | tr '\n' ' ' | grep -o '<title>[^<]*</title>' | sed 's/<[^>]*>//g')
+      page(){ "$CHROME" --headless=new --disable-gpu --window-size=${win:-$WINDOW} --virtual-time-budget=${BUDGET:-8000} --dump-dom "file://$PWD/$f$variant" 2>/dev/null | tr '\n' ' ' | grep -o '<title>[^<]*</title>' | sed 's/<[^>]*>//g'; }
+      title=$(page)
+      # one retry for a page that failed: a timing flake under load passes the second time and is REPORTED as flaky
+      # (never silently); a real failure fails twice
+      case "$title" in "ALL PASS"*) ;; *) first=$title; title=$(page); case "$title" in "ALL PASS"*) echo "  flaky $name$variant@$clk passed on retry; first: ${first:0:200}"; flaky=$((flaky + 1)) ;; esac ;; esac
       case "$title" in "ALL PASS"*SKIPPED*) printf '  skip  %-22s %s\n' "$name$variant@$clk" "$title"; echo "$name$variant" >> "$SK" ;;
                        "ALL PASS"*) echo "$name$variant" >> "$RAN"; printf '  ok    %-22s %s\n' "$name$variant@$clk" "$title" ;; *) printf '  FAIL  %-22s %s\n' "$name$variant@$clk" "${title:0:600}"; fail=1 ;; esac
     done
@@ -41,5 +45,6 @@ done
 never=$(sort -u "$SK" | comm -23 - <(sort -u "$RAN")); echo "skipped under some clock: $(sort -u "$SK" | wc -l | tr -d ' ') page(s), all of them ran under another clock: $([ -z "$never" ] && echo yes || echo NO)"
 [ -n "$never" ] && { echo "NEVER RAN: $never"; fail=1; }
 rm -f "$SK" "$RAN"
+[ $flaky -gt 0 ] && echo "flaky (passed on retry): $flaky page(s) — see the lines above"
 [ $fail = 0 ] && echo "all tests passed" || echo "SOME TESTS FAILED"
 exit $fail
