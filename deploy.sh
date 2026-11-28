@@ -6,10 +6,9 @@
 set -e
 cd "$(dirname "$0")"
 if [ -n "$(git status --porcelain)" ]; then echo "Commit your changes first (git status is not clean)."; exit 1; fi
-# TESTED_COMMIT=<sha>: reuse a full-suite pass ONLY if that commit is an ancestor and neither index.html nor tests/
-# changed since (the owner, 27.11: no redundant full run for the exact tested code). Otherwise the full suite runs.
-if [ -n "${TESTED_COMMIT:-}" ] && git merge-base --is-ancestor "$TESTED_COMMIT" HEAD 2>/dev/null && git diff --quiet "$TESTED_COMMIT" HEAD -- index.html tests; then
-  echo "== tests: reusing the full-suite pass of $TESTED_COMMIT (index.html and tests/ unchanged since)"
+# A full-suite pass is reused only if one is on record for EXACTLY the current index.html + tests/ (content hash,
+# tests/prun.py --check); otherwise the full suite runs here.
+if python3 tests/prun.py --check; then echo "== tests: reusing the recorded full pass for these exact sources"
 else echo "== tests"; tests/run.sh; fi
 mark=$(git rev-parse --short HEAD)
 echo "== push ($mark)"; git push -q origin main

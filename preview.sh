@@ -13,7 +13,7 @@ branch=$(git rev-parse --abbrev-ref HEAD)
 [ -z "$(git status --porcelain)" ] || { echo "Commit your changes first (git status is not clean)."; exit 1; }
 grep -q "applyMode(detectMode());" index.html && grep -q "ref = guardRef({" index.html \
   || { echo "This branch's index.html has no preview isolation (applyMode / guardRef). Nothing deployed."; exit 1; }
-echo "== tests"; { [ -n "${TESTED_SHA:-}" ] && [ "$TESTED_SHA" = "$(shasum -a 256 index.html | cut -c1-64)" ] && echo "tests: already passed on this exact index.html (TESTED_SHA)"; } || tests/run.sh
+echo "== tests"; { python3 tests/prun.py --check && echo "tests: reusing the recorded full pass for these exact sources"; } || tests/run.sh
 sum() { shasum -a 256 | cut -c1-16; }
 live=$(curl -fsS "$LIVE/?x=$RANDOM" | sum); main=$(git show main:index.html | sum)
 [ "$live" = "$main" ] || { echo "The live app is not main's index.html (live $live, main $main). Publish main with deploy.sh first. Nothing deployed."; exit 1; }
