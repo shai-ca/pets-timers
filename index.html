@@ -3263,11 +3263,20 @@ function currentState(p){
   if(rd && rd.occ === 'out') return mk('out', 'camera-unconfirmed', rd.t, {occ:'out'});   // not in the crate by the camera; awake or not is unknown
   return mk('unknown', 'none', aw ? awakeSeen(p) || aw : 0);
 }
+// MISSING CAMERA COVERAGE IS NOT OBSERVED INACTIVITY (owner, 28.11): when the state is unknown and a camera exists but
+// cannot read now, say why — never let silence read as "the camera saw nothing". A fresh definite reading is shown as
+// what the camera sees (elsewhere); nothing here when there is no camera at all.
+function camGapText(){
+  if(typeof CAMS === 'undefined' || !CAMS.status || typeof camjInferNow !== 'function' || camjInferNow()) return '';
+  const st = CAMS.status, at = t => `<bdi dir="ltr">${clock(t)}</bdi>`;
+  if(!camjCamOk()) return typeof st.checked_at === 'number' ? ` · המצלמה לא מעדכנת מאז ${at(st.checked_at)}, אז אין ממנה מידע` : ' · אין מידע מהמצלמה';
+  return ' · המצלמה לא יכולה לקבוע עכשיו (קריאה לא ודאית או לא זמינה)';
+}
 // "בפועל: …" — the actual-behaviour line, in words, with its basis (no claim beyond it).
 function actualText(cs){
   const at = t => `<bdi dir="ltr">${clock(t)}</bdi>`, cam = cs.basis === 'camera-unconfirmed' ? 'לפי המצלמה, לא אושר' : '';
   if(cs.state === 'unknown'){
-    if(!cs.conflicts.length) return cs.since ? `לא ידוע · לא נרשם כלום מאז ${at(cs.since)}` : 'לא ידוע';
+    if(!cs.conflicts.length) return (cs.since ? `לא ידוע · לא נרשם כלום מאז ${at(cs.since)}` : 'לא ידוע') + camGapText();
     const J = cs.conflicts.find(c => c.src === 'journal'), C = cs.conflicts.find(c => c.src === 'camera');
     if(!J){ const E = cs.conflicts.find(c => c.what === 'entry'), N = cs.conflicts.find(c => c.what === 'now');   // the camera against itself
       return `לא ברור · המצלמה זיהתה כניסה לכלוב ב־${at(E.t)}, ועכשיו (${at(N.t)}) לא רואה אותה בכלוב · לא אושר`; }
