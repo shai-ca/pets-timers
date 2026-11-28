@@ -2626,24 +2626,33 @@ function fat30HTML(p){   // always the last 30 days, whatever period the summary
 }
 // "DID SHE FALL ASLEEP?" — when she has been quiet in the crate for SLEEP_ASK and nothing says she is asleep
 // (no mark, and no estimate — a new crate has none), a small card asks. "נרדמה" is the ordinary sleep button
-// (with "when?"); "עדיין ערה" hides the card for another SLEEP_ASK on this phone only (nothing is saved for it).
-const SLEEP_ASK = 5*60000;
-let awakeUntil = 0;
+// (with "when?"); "עדיין ערה" hides the card for another SLEEP_ASK on this phone only (never in the list).
+// Owner, 28.11: that answer survives a hard refresh — it is kept per device (localStorage, `…-awake`), tied to the crate
+// stay it was given in: after a reload the same stay shows the countdown ("נשאל שוב בעוד"), not the question again.
+const SLEEP_ASK = 5*60000, AWAKE_KEY = LS_KEY + '-awake';
+let awakeUntil = 0, awakeAt = { st: 0, at: 0 };
+function loadAwake(){ awakeUntil = 0; awakeAt = { st: 0, at: 0 }; try { const a = JSON.parse(localStorage.getItem(AWAKE_KEY) || 'null'); if(a && typeof a.st === 'number' && typeof a.at === 'number'){ awakeAt = a; awakeUntil = a.at + SLEEP_ASK; } } catch(e){} }
+loadAwake();   // at start-up (and in tests, to simulate a reload)
+function stillAwake(p, now = Date.now()){   // "עדיין ערה" / "לא נרדמה": remembered for the running stay
+  const st = V[p] && V[p].crate && V[p].crate.start || 0; awakeUntil = now + SLEEP_ASK; awakeAt = { st, at: now };
+  try { localStorage.setItem(AWAKE_KEY, JSON.stringify(awakeAt)); } catch(e){}
+}
 function sleepAsk(p){
   const S = V[p], now = Date.now(), st = S.crate && S.crate.start;
   if(!PETS[p].cycle || !st || S.sleep.start || S.cry.start) return null;
+  const seen = awakeAt.st === st ? awakeAt.at : 0;   // her "still awake" in THIS stay (survives a reload): the countdown card, not a new question
   const quiet = Math.max(st, ...state.log.filter(e => e.p===p && e.t >= st && e.t <= now && (AWAKE_PT[e.k] || ((e.k==='cry' || e.k==='sleep') && e.end != null))).map(e => e.end != null ? e.end : e.t));
   if(now - quiet < SLEEP_ASK) return null;
   // after a kong / lick mat / food in the crate she is expected awake for CRATE_TREAT_AWAKE: no "נרדמה?" before then
   const stay = state.log.filter(e => e.p===p && e.k==='crate' && e.end == null).sort((x,y) => x.t-y.t)[0];
   if(stay && treatAwakeUntil(state.log.filter(e => e.p===p), stay, now) > now) return null;
-  return {since: quiet, snooze: awakeUntil > now ? awakeUntil : 0};   // snooze: she said "still awake" — a countdown to the next ask
+  return {since: quiet, snooze: seen && awakeUntil > now ? awakeUntil : 0};   // snooze: she said "still awake" — a countdown to the next ask
 }
 function sleepAskHTML(p){
   const a = sleepAsk(p); if(!a) return '';
   if(a.snooze) return `<div class="card slim sleepq wait"><span><b>עדיין ערה</b><small>נשאל שוב בעוד <b class="rt-t" data-until="${a.snooze}">${mmss(a.snooze - Date.now())}</b></small></span>
     <span class="rt-a"><button class="btn" data-act="dur" data-k="sleep">${ITEMS.sleep.start}</button></span></div>`;
-  return `<div class="card slim sleepq"><span><b>נרדמה?</b><small>שקטה בכלוב כבר <span data-words="${a.since}">${words(Date.now() - a.since)}</span></small></span>
+  return `<div class="card slim sleepq"><span><b>נרדמה?</b><small>לא נרשם דבר בכלוב כבר <span data-words="${a.since}">${words(Date.now() - a.since)}</span></small></span>
     <span class="rt-a"><button class="go" data-act="dur" data-k="sleep">${ITEMS.sleep.start}</button><button class="btn" data-act="stillawake">עדיין ערה</button></span></div>`;
 }
 // "SHE DID NOT FALL ASLEEP" in one tap, from the sleep tile and the wheel's "asleep" line, while the app shows
@@ -2661,7 +2670,7 @@ function notAsleep(p, sure){
     sh.querySelector('#ok').onclick = () => { close(); notAsleep(p, true); };
     bg.classList.add('show'); return;
   }
-  awakeUntil = now + SLEEP_ASK;
+  stillAwake(p, now);
   if(sl.assumed && sl.cam){   // the camera's probable sleep (§12b): nothing in the journal to change — a "wrong" example for the camera
     camjDecide(sl.cam, 'rejected'); setState(state); render(); showToast(`${name} · לא נרדמה (נשלח למצלמה כדוגמה שגויה)`); return; }
   commit(`${name} · לא נרדמה`, () => {
@@ -7434,7 +7443,7 @@ document.getElementById('shell').addEventListener('click', e => {
   else if(a==='brk') goBreak(pet);
   else if(a==='swap') askSwap(pet);
   else if(a==='fcwhy') forecastWhy(pet);
-  else if(a==='stillawake'){ awakeUntil = Date.now() + SLEEP_ASK; render(); }
+  else if(a==='stillawake'){ stillAwake(pet); render(); }
   else if(a==='stillasleep'){ stillSnooze(pet); render(); }
   else if(a==='wokeup') askWhen(`${PETS[pet].name} · ${ITEMS.sleep.stop} — מתי?`, ts => ts ? endDurAt(pet, 'sleep', ts) : tapDur(pet, 'sleep'));
   else if(a==='notasleep') notAsleep(pet);

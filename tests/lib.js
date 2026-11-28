@@ -17,7 +17,7 @@ function reset(who = 'shai', showPet = 'kishmish'){
   if(typeof ASK_WHEN !== 'undefined') ASK_WHEN = false;   // cases tap buttons and expect the entry at once; when.js tests the prompt
   if(typeof FAKE_HOUR !== 'undefined'){ FAKE_HOUR = window.TEST_HOUR ?? 12; FAKE_PHONE = window.TEST_PHONE ?? false; nightFull = false; }   // a case's own "// @hour" / "// @phone" win over the defaults; never overridden silently   // night.js and routine.js test the night screen and the phone layout
   if(typeof FAKE_TODAY !== 'undefined') FAKE_TODAY = null;
-  if(typeof awakeUntil !== 'undefined') awakeUntil = 0;
+  if(typeof awakeUntil !== 'undefined'){ awakeUntil = 0; if(typeof awakeAt !== 'undefined') awakeAt = { st: 0, at: 0 }; }
   if(typeof stillUntil !== 'undefined') stillUntil = 0;
   if(typeof RETRY2_FROM !== 'undefined') RETRY2_FROM = -Infinity;   // the two-hour rule everywhere; retry.js also checks entries from before it
   if(typeof RETRY3_FROM !== 'undefined') RETRY3_FROM = Infinity;   // …not yet her own rhythm (25.11); rhythm.js moves it

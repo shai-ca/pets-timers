@@ -50,6 +50,14 @@
     ok('a typed number of minutes works there as well', Math.abs(K().sleep.start - (Date.now() - 7*MIN)) < 3000 && !K().sleep.assumed);
     close();
     ok('Kochik has no such button', (pet = 'kochik', render(), !$q('[data-act=notasleep]')));
+    // owner, 28.11: "עדיין ערה" survives a hard refresh, for the same crate stay only
+    { reset(); const T = Date.now(); SLEEP2_FROM = T - 5*24*HOUR; seed([{ p:'kishmish', k:'crate', t: T - 30*MIN }]); render();   // the mesh crate with too few marked sleeps: no estimate, so the question is asked
+      ok('reload: a quiet crate asks "נרדמה?" (wording: nothing logged, not "quiet")', !!$q('.sleepq:not(.wait)') && $q('.sleepq').textContent.includes('לא נרשם דבר בכלוב') && !$q('.sleepq').textContent.includes('שקטה'));
+      $q('[data-act=stillawake]').click(); await wait(2);
+      loadAwake(); render();   // = a hard refresh: memory gone, the answer read back from this device
+      ok('…after a reload the same stay shows the countdown, not the question again', !!$q('.sleepq.wait') && !$q('.sleepq:not(.wait)'));
+      seed([{ p:'kishmish', k:'crate', t: T - 50*MIN, end: T - 40*MIN }, { p:'kishmish', k:'crate', t: T - 20*MIN }]); loadAwake(); render();
+      ok('…a DIFFERENT stay is asked normally (the answer belonged to the earlier stay)', !!$q('.sleepq:not(.wait)')); }
     done();
   } catch(e){ crashed(e); }
 })();
