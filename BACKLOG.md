@@ -1,19 +1,11 @@
 # Backlog — things deliberately not done yet
 
-## NEXT TASK — resolve BEFORE the night of 28.11: the night reassessment reminder (`nightRecheck`, live in logic v7, unchanged by owner's instruction)
+## Night reassessment reminder (28.11) — fixed on branch `night-reminder` (logic v8), awaiting her review
 
-After `RETRY.nightMax` (2) unsuccessful night attempts the retry ends and a reassessment card should appear `RETRY.nightRecheck`
-(45 min) after the last one. It has two known flaws; with the real entries of the night of 27–28.11 (last exact pee 22:27,
-"לא עשתה" 02:00 and 02:10, a poop on the gravel 02:28; a pee and a poop in the crate followed, 02:35–06:44) it would NOT
-have appeared.
-1. **The 4-hour test (`WAKE.sleepNoPee`) is measured at the last attempt** (`N.t - ref`: 3:43 at 02:10), not at the time of the
-   check — by 02:55 it was over 4 hours.
-2. **A poop cancels it** (`OUT_KINDS` after the last attempt includes poop), although a poop says nothing about whether she peed.
-
-Proposed (needs the owner's OK): measure the 4 hours at the time of the check; only a pee (exact or confirmed at an unknown
-time) or a real exit after the attempts cancels it. Test with the real times above. It stays a recommendation: no writes, no
-sound, safety alerts unchanged. Narrow change on its own branch; one full suite; her approval before deploy.
-
+Fixed: the pee's age is judged at the check; a poop no longer cancels; nor does a crate exit (a third flaw found with the
+real data: water ending the automatic retry stay cancelled it). Only a confirmed pee ends it. Optional calendar reminder.
+**Still open: real background notifications** need Web Push (Home Screen install, manifest, service worker, permission)
+AND a server that sends at the chosen time; none exists (hosting only, free plan). Not built; needs her decision.
 
 ## Design requirement: fewer manual controls as automation is validated (owner, 26.11.2026)
 

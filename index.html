@@ -52,6 +52,7 @@
   .card.item.warn{background:var(--warn-soft);border-color:var(--warn)} .card.item.warn .big,.card.item.warn .lbl{color:var(--warn)}
   .frm{display:flex;align-items:center;gap:8px;margin-top:10px;padding:9px 12px;border-radius:12px;background:var(--warn-soft);color:var(--warn);font-size:13.5px;font-weight:500}
   .lnk.fcq{display:inline-block;width:17px;height:17px;line-height:15px;text-align:center;border:1px solid var(--faint);border-radius:50%;font-size:11px;text-decoration:none;color:var(--muted);margin-inline-start:4px}
+  .card.slim.recheck{flex-wrap:wrap} .recheck>span{display:flex;flex-direction:column;gap:6px;min-width:0} .recheck .rc-how{color:var(--muted)} .recheck .btn{align-self:flex-start}
   .card.slim.gravel{flex-wrap:wrap;gap:8px 12px} .card.slim.gravel .rt-a{flex-wrap:wrap}
   .card.slim.gravel.on{border-color:var(--ok);background:var(--ok-soft)} .card.slim.gravel small b{font-weight:600;color:var(--ink)}
   /* §18c: Cam 3 gravel visits — the provisional live timer (dashed: not written) and the completed visit's question */
@@ -1040,9 +1041,10 @@ const iconOf = k => (ITEMS[k] && ITEMS[k].icon) || k;
 // Behavioural-state logic version (CAMERA-API §19): bumped ONLY when derived state changes (awake / unknown intervals,
 // dayParts, sleepSpans, routine, currentState, guidance, meal / bite reading, potty windows) — not for UI-only releases.
 // 5 = release 5 (observed / inferred / unknown); 6 = the three layers (trainer routine · actual state · guidance).
+// 8 = the night reassessment: pee age judged at the check, attempts (not poop / crate exits) schedule it, only a pee ends it.
 // 7 = latest confirmed vs latest exactly timed elimination (ranges, no forecast from them), night retry end + reassessment, camera-gap wording.
 // deploy.sh / preview.sh publish it with the deployed commit as /version.json; the research UI warns when its copy differs.
-const LOGIC_VERSION = 7;
+const LOGIC_VERSION = 8;
 window.APP_VERSION = { logic_version: LOGIC_VERSION };
 const LOG_MAX = 5000, LS_KEY = 'pets-timers-v1', LS_DATA = 'pets-timers-v2';
 const SCHEMA = 2;   // version of the saved data; see `norm()` and the Firestore rule
@@ -3091,23 +3093,56 @@ function contraGuard(p, k, t, go){
 // crate stay. Old data may carry `r` (a countdown, from when the card had one) — it is ignored.
 const isRetryStay = e => e.k === 'crate' && !!V && V[e.p].retryStays.has(e.id) && ((e.end == null ? Date.now() : e.end) - e.t) <= RETRY.max;
 const FREE = {min:15, max:20};      // minutes of freedom after a pee in the right place
-// EARLIER REASSESSMENT after unsuccessful night attempts (owner, 28.11 — a pee and poop accident in the crate followed):
-// once a night retry cycle has ended (RETRY.nightMax), she may go back to sleep, but when the last CONFIRMED pee is
-// WAKE.sleepNoPee or more ago, a calm card recommends checking her again RETRY.nightRecheck after the last attempt. A
-// recommendation only: nothing written, no sound, the safety alerts unchanged. Gone once a pee / "לא עשתה" / exit follows.
+// EARLIER REASSESSMENT after unsuccessful night attempts (owner, 28.11 — a pee and poop accident in the crate followed;
+// two flaws and a third fixed the same day). Once at least RETRY.nightMax night attempts without a pee have followed the
+// latest CONFIRMED pee, a calm card recommends checking her at the later of: RETRY.nightRecheck after the LAST attempt,
+// or WAKE.sleepNoPee after the pee — the pee's age is judged AT THE CHECK, not when she last tried.
+//  - an ATTEMPT is a finished gravel outing with a result but no pee ("לא עשתה" or only a poop), or a "לא עשתה" outside
+//    any outing. It moves the schedule; it never counts as a pee and never restarts the pee's clock.
+//  - ONLY a confirmed pee ends it. A poop, food, water or a crate stay that ended does not. A pee at an unknown time
+//    counts from its EARLIEST possible moment: attempts after that may have come after it, and the wording says "ייתכן".
+// A recommendation only: nothing written, the app makes no sound, the safety alerts are separate and unchanged.
+function nightAttempts(p, since, now){
+  const L = state.log.filter(e => e.p===p && !isTU(e) && e.t <= now), outs = L.filter(e => e.k==='gravel' && e.end != null);
+  const inOut = (g, e) => e.t >= g.t && e.t <= g.end + 60000, out = [];
+  for(const g of outs){
+    if(g.t <= since || g.end > now || !isNightAt(g.t)) continue;
+    const res = L.filter(e => (e.k==='pee' || e.k==='poop' || e.k==='none') && inOut(g, e));
+    if(res.length && !res.some(e => e.k==='pee')) out.push(g.end);
+  }
+  for(const e of L) if(e.k==='none' && e.t > since && isNightAt(e.t) && !outs.some(g => inOut(g, e))) out.push(e.t);
+  return out.sort((a, b) => a - b);
+}
 function nightRecheck(p, now = Date.now()){
-  if(!PETS[p].cycle) return null;
-  const L = state.log.filter(e => e.p===p && !isTU(e)), N = L.filter(e => e.k === 'none').pop(); if(!N || !isNightAt(N.t)) return null;
-  const lastPee = L.filter(e => e.k === 'pee').reduce((m, e) => Math.max(m, e.t), 0), u = tuNewer(p, 'pee'), ref = Math.max(lastPee, u ? u.tu[1] : 0);
-  if(!ref || N.t - ref < WAKE.sleepNoPee) return null;                                    // her last confirmed pee is recent enough
-  const tries = L.filter(e => e.k === 'none' && e.t > ref && isNightAt(e.t)).length; if(tries < RETRY.nightMax) return null;
-  if(L.some(e => e.t > N.t && (OUT_KINDS[e.k] || (e.k === 'crate' && e.end != null && e.end > N.t + 60000)))) return null;
-  return { at: N.t + RETRY.nightRecheck, ref, due: now >= N.t + RETRY.nightRecheck, tries };
+  if(!PETS[p].cycle || !V || !V[p]) return null;
+  const pe = lastElim(p, 'pee'); if(!pe) return null;
+  const A = nightAttempts(p, pe.lo, now); if(A.length < RETRY.nightMax) return null;
+  const last = A[A.length - 1]; if(now - last > NIGHT_SPAN) return null;                    // the night is long over
+  if(V[p].gravel && V[p].gravel.start) return null;                                         // she is out trying right now
+  if(retry(p)) return null;                                                                 // the retry's own countdown speaks
+  const at = Math.max(last + RETRY.nightRecheck, pe.lo + WAKE.sleepNoPee);
+  return { at, due: now >= at, tries: A.length, last, pee: pe };
+}
+function nightPeeAge(r, now = Date.now()){
+  const x = r.pee;
+  if(x.exact) return `פיפי אחרון שאושר לפני ${words(now - x.t)}`;
+  return `הפיפי האחרון שאושר בזמן לא ידוע (${tuSpan({tu: [x.lo, x.hi]})}): ${now - x.hi >= WAKE.sleepNoPee ? `לפחות ${words(now - x.hi)}, ואולי ${words(now - x.lo)}` : `ייתכן שעברו כבר ${words(now - x.lo)}`}`;
+}
+// AN OPTIONAL REMINDER THAT CAN REACH A SLEEPING OWNER (28.11): the app itself cannot notify with the screen off (no push,
+// no service worker, no server that could send one). What the phone can do: a calendar event with an alert, which she
+// adds herself. A Focus / sleep mode may silence it, so the card says so and names a clock alarm as the safer choice.
+function nightICS(p, at){
+  const t = Math.ceil(at / 60000) * 60000, stamp = new Date(Date.now()).toISOString().replace(/[-:]/g, '').replace(/\.\d+/, '');
+  const utc = x => new Date(x).toISOString().replace(/[-:]/g, '').replace(/\.\d+/, '');
+  return ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//pets-timers//night//HE', 'METHOD:PUBLISH', 'BEGIN:VEVENT', `UID:night-${p}-${t}@pets-timers`, `DTSTAMP:${stamp}`,
+    `DTSTART:${utc(t)}`, `DTEND:${utc(t + 10*60000)}`, `SUMMARY:לבדוק את ${PETS[p].name} · פיפי`, 'BEGIN:VALARM', 'ACTION:DISPLAY', `DESCRIPTION:לבדוק את ${PETS[p].name} · פיפי`, 'TRIGGER:PT0S', 'END:VALARM', 'END:VEVENT', 'END:VCALENDAR'].map(plIcsFold).join('\r\n') + '\r\n';
 }
 function nightRecheckHTML(p){
   const r = nightRecheck(p); if(!r) return '';
-  const when = `<bdi dir="ltr">${clock(r.at)}</bdi>`, ago = `פיפי אחרון שאושר לפני ${words(Date.now() - r.ref)}`;
-  return `<div class="card slim sleepq recheck"><span><b>${r.due ? 'כדאי לבדוק אותה עכשיו' : `חזרה לישון · לבדוק שוב בסביבות ${when}`}</b><small>${r.tries} ניסיונות בלי פיפי הלילה · ${ago}. אם היא ערה או מתעוררת: לחצץ.</small></span></div>`;
+  const when = `<bdi dir="ltr">${clock(r.at)}</bdi>`;
+  const head = r.due ? 'כדאי לבדוק אותה עכשיו' : `חזרה לישון · לבדוק שוב בסביבות ${when}`;
+  const remind = r.due ? '' : `<small class="rc-how">האפליקציה לא יכולה להעיר אותך. הכי בטוח: שעון מעורר בטלפון ל־${when}. אפשר גם אירוע ביומן עם התראה (מצב שינה או ריכוז עלול להשתיק אותה, ואם השעה משתנה צריך להוסיף מחדש).</small><button class="btn" data-act="nightcal">תזכורת ביומן ל־${when}</button>`;
+  return `<div class="card slim sleepq recheck"${r.due ? '' : ` data-at="${r.at}"`}><span><b>${head}</b><small>${r.tries} ניסיונות בלי פיפי הלילה · ${nightPeeAge(r)}. אם היא ערה או מתעוררת: לחצץ.${r.due ? '' : ` <span hidden data-until="${r.at}"></span>`}</small>${remind}</span></div>`;
 }
 function retry(p){
   if(!PETS[p].cycle) return null;
@@ -7519,6 +7554,7 @@ document.getElementById('shell').addEventListener('click', e => {
   else if(a==='swap') askSwap(pet);
   else if(a==='fcwhy') forecastWhy(pet);
   else if(a==='stillawake'){ stillAwake(pet); render(); }
+  else if(a==='nightcal'){ const r = nightRecheck(pet); if(r && !r.due) planDownload(nightICS(pet, r.at), 'night-check.ics'); }
   else if(a==='stillasleep'){ stillSnooze(pet); render(); }
   else if(a==='wokeup') askWhen(`${PETS[pet].name} · ${ITEMS.sleep.stop} — מתי?`, ts => ts ? endDurAt(pet, 'sleep', ts) : tapDur(pet, 'sleep'));
   else if(a==='notasleep') notAsleep(pet);
