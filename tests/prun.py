@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Parallel, resumable test runner (replaces the body of tests/run.sh; same output lines).
 
-Usage: tests/prun.py [name-filter]          env: WORKERS (default 4), CLOCKS ("12:00 02:00"), WINDOW ("800,600"),
+Usage: tests/prun.py [name-filter]          env: WORKERS (default 2), CLOCKS ("12:00 02:00"), WINDOW ("800,600"),
        tests/prun.py --check                BUDGET (8000), PAGE_TIMEOUT (45 s), NO_RESUME=1, NO_LOCK=1
 --check exits 0 only if a FULL run already passed for exactly the current index.html + tests/ (the snapshot hash).
 
@@ -26,7 +26,7 @@ HERE = os.path.dirname(os.path.abspath(__file__)); ROOT = os.path.dirname(HERE)
 CHROME = os.environ.get('CHROME', '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome')
 CLOCKS = os.environ.get('CLOCKS', '12:00 02:00').split()
 WINDOW = os.environ.get('WINDOW', '800,600'); BUDGET = os.environ.get('BUDGET', '8000')
-WORKERS = max(1, int(os.environ.get('WORKERS', '4'))); PAGE_TIMEOUT = int(os.environ.get('PAGE_TIMEOUT', '45'))
+WORKERS = max(1, int(os.environ.get('WORKERS', '2'))); PAGE_TIMEOUT = int(os.environ.get('PAGE_TIMEOUT', '45'))
 CACHE = os.path.expanduser('~/.cache/pets-timers-tests')
 SRC = ['index.html'] + sorted(os.path.relpath(p, ROOT) for p in glob.glob(os.path.join(HERE, 'cases', '*.js'))) + \
       ['tests/lib.js', 'tests/build.py', 'tests/fake-sdk.js']
