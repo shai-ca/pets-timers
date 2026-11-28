@@ -254,8 +254,9 @@ async function camClipSuite(){
   { const t0 = CAM_CLIP_TIMEOUT_MS; CAM_CLIP_TIMEOUT_MS = 30; gate = []; delete CLIP.fail['cam2:' + tW]; const n = clipCalls().length; clipOpen('cam2:' + tW, false, null); await pause(120); await wait(6);
     const pend = gate; gate = null; CAM_CLIP_TIMEOUT_MS = t0; pend.forEach(f => f());
     ok('too slow: "לקח יותר מדי זמן", one request', water().textContent.includes('לקח יותר מדי זמן') && clipCalls().length - n === 1); }
-  { const h0 = CLIP_HEVC; CLIP_HEVC = true; clipMode = 'garbage'; delete CLIP.fail['cam2:' + tF]; const n = clipCalls().length; clipOpen('cam2:' + tF, false, null); await pause(1200); await wait(6);
-    const cc = clipCalls().slice(n);
+  { const h0 = CLIP_HEVC; CLIP_HEVC = true; clipMode = 'garbage'; delete CLIP.fail['cam2:' + tF]; const n = clipCalls().length; clipOpen('cam2:' + tF, false, null);
+    for(let i = 0; i < 60 && !(clipCalls().length - n >= 2 && food().textContent.includes('הסרטון לא מתנגן במכשיר הזה')); i++){ await pause(100); await wait(2); }   // the real media decoder reports the error when it gets to it: wait for the outcome (≤ 6 s), not a fixed 1.2 s (flaked under load, 27.11)
+    await wait(6); const cc = clipCalls().slice(n);
     ok('an undecodable clip: ONE more try as H.264 (h264=1), then "הסרטון לא מתנגן במכשיר הזה" — no loop', cc.length === 2 && !cc[0].q.get('h264') && cc[1].q.get('h264') === '1' && food().textContent.includes('הסרטון לא מתנגן במכשיר הזה') && !$q('video') && !CLIP.url);
     CLIP_HEVC = h0; clipMode = 'ok'; }
   ok('a browser without HEVC asks the service for H.264', (() => { const h0 = CLIP_HEVC; CLIP_HEVC = false; const r = clipHevcOk() === false; CLIP_HEVC = h0; return r; })());
