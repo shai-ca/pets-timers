@@ -1218,7 +1218,7 @@ const ASSUME_SLEEP = 2*60000;
 const SLEEP_PIECE = 5*60000;
 // Retries: a crate stay counts as one when it began within `gap` of a "לא עשתה" and lasted at most `max`;
 // a "לא עשתה" stops calling for a retry after `life`. (Defined here because `derive` runs while the page loads.)
-const RETRY = {gap:30*60000, max:30*60000, life:3*3600000, wait:10*60000, fresh:2*3600000, after:60*60000, nightMax:2};   // nightMax (owner, 28.11): at night, after this many unsuccessful attempts she goes back to sleep — no endless retries   // fresh: under this long since a pee, "לא עשתה" starts no retry
+const RETRY = {gap:30*60000, max:30*60000, life:3*3600000, wait:10*60000, fresh:2*3600000, after:60*60000, nightMax:2, nightRecheck:45*60000};   // nightMax (owner, 28.11): at night, after this many unsuccessful attempts she goes back to sleep — no endless retries   // fresh: under this long since a pee, "לא עשתה" starts no retry
 let RETRY2_FROM = Date.UTC(2026, 10, 24, 15, 5);   // 24.11.2026 17:05 in Israel; tests move it
 let RETRY3_FROM = Date.UTC(2026, 10, 25, 11, 0);   // 25.11.2026 13:00 in Israel (the publish): her own rhythm decides (PEE_RHYTHM.retry); tests move it
 // ---------- POTTY BY WAKING AND BY MEALS (25.11) ----------
@@ -2927,9 +2927,16 @@ function alerts(p){
   }
   // release 6b (owner's safeguard): the same thresholds, but a red alarm only for a CONFIRMED overdue event — the time
   // since the last one is observed (`coveredSince`). Missing records alone give a calm, distinct card.
-  if(S.pee && awake && now - S.pee >= ALERT.pee) out.push(coveredSince(p, S.pee) ? {k:'pee', text:`${ago(now - S.pee)} בלי פיפי`, hint:'לשקול להתקשר לווטרינר.'}
+  const tuAlert = (k, lim) => { const u = tuNewer(p, k); if(!u) return null; const [a, b] = u.tu;   // the elimination lies in [a, b]
+    if(now - b >= lim) return { k, text: `${ago(now - b)} לפחות בלי ${ITEMS[k].log}`, hint: `ה${ITEMS[k].log} האחרון היה בזמן לא ידוע, לכל המאוחר ב־${clock(b)} (נמצא ב־${clock(u.t)}). לשקול להתקשר לווטרינר.` };
+    if(now - a >= lim) return { k, calm: true, unc: true, text: `${ITEMS[k].log} בזמן לא ידוע (בין ${clock(a)} ל־${clock(b)})`, hint: `ייתכן שעברו כבר ${ago(now - a)}, ולפחות ${ago(now - b)}. כדאי לבדוק.` };
+    return 'none'; };
+  const tP = tuAlert('pee', ALERT.pee), tQ = tuAlert('poop', ALERT.poop);
+  if(tP && tP !== 'none' && awake) out.push(tP);
+  if(!tP && S.pee && awake && now - S.pee >= ALERT.pee) out.push(coveredSince(p, S.pee) ? {k:'pee', text:`${ago(now - S.pee)} בלי פיפי`, hint:'לשקול להתקשר לווטרינר.'}
     : {k:'pee', calm:true, unc:true, text:`לא נרשם פיפי מאז ${clock(S.pee)}`, hint:'לא תועד מאז, כדאי לבדוק. אם באמת לא עשתה כבר 6 שעות, לשקול להתקשר לווטרינר.'});
-  if(S.poop && now - S.poop >= ALERT.poop) out.push(coveredSince(p, S.poop) ? {k:'poop', text:`${ago(now - S.poop)} בלי קקי`, hint:'לשקול להתקשר לווטרינר.'}
+  if(tQ && tQ !== 'none') out.push(tQ);
+  if(!tQ && S.poop && now - S.poop >= ALERT.poop) out.push(coveredSince(p, S.poop) ? {k:'poop', text:`${ago(now - S.poop)} בלי קקי`, hint:'לשקול להתקשר לווטרינר.'}
     : {k:'poop', calm:true, unc:true, text:`לא נרשם קקי מאז ${dayLabel(S.poop) === 'היום' ? '' : dayLabel(S.poop) + ' '}${clock(S.poop)}`, hint:'לא תועד מאז, כדאי לבדוק. אם באמת לא עשתה כבר יומיים, לשקול להתקשר לווטרינר.'});
   return out;
 }
@@ -2999,6 +3006,11 @@ function logUnknown(p, k, from, to){
 }
 // The pee / poop card: "פיפי בזמן לא ידוע (בין A ל־B)" while the newest such entry is newer than the last known one.
 // The clock above keeps counting from the last known time.
+// INTERVAL-CENSORED pee / poop (owner, 28.11): an elimination found later, known only to lie in [tu[0], tu[1]] (e.g. in
+// the crate between 02:35 and 06:44, found 06:44). When its range ends AFTER the last known one, the elapsed time is a
+// RANGE (now − tu[1] … now − tu[0]) and the safety alert uses both ends: certain only if even the latest possible time is
+// past the threshold. The discovery time (`t`) is never the occurrence time. Derived only.
+function tuNewer(p, k){ const u = V[p] && V[p][k + 'U'], t = V[p] && V[p][k] || 0; return u && Array.isArray(u.tu) && u.tu[1] > t ? u : null; }
 function unknownLine(p, k){
   const u = V[p][k + 'U']; if(!u || (V[p][k] || 0) >= u.t || Date.now() - u.t > 24*3600000) return '';
   return `<div class="sub hint tuline">${ITEMS[k].log} ${tuText(u).replace(/, נמצא ב־.*\)$/, ')')}${WHERE[u.w] ? ' · ' + WHERE[u.w] : ''} · אחרי הפעם שזמנה ידוע היה ${ITEMS[k].log} נוסף בזמן לא ידוע, כך שהשעון לא אומר שהיא התאפקה כל הזמן הזה</div>`;
@@ -3059,6 +3071,24 @@ function contraGuard(p, k, t, go){
 // crate stay. Old data may carry `r` (a countdown, from when the card had one) — it is ignored.
 const isRetryStay = e => e.k === 'crate' && !!V && V[e.p].retryStays.has(e.id) && ((e.end == null ? Date.now() : e.end) - e.t) <= RETRY.max;
 const FREE = {min:15, max:20};      // minutes of freedom after a pee in the right place
+// EARLIER REASSESSMENT after unsuccessful night attempts (owner, 28.11 — a pee and poop accident in the crate followed):
+// once a night retry cycle has ended (RETRY.nightMax), she may go back to sleep, but when the last CONFIRMED pee is
+// WAKE.sleepNoPee or more ago, a calm card recommends checking her again RETRY.nightRecheck after the last attempt. A
+// recommendation only: nothing written, no sound, the safety alerts unchanged. Gone once a pee / "לא עשתה" / exit follows.
+function nightRecheck(p, now = Date.now()){
+  if(!PETS[p].cycle) return null;
+  const L = state.log.filter(e => e.p===p && !isTU(e)), N = L.filter(e => e.k === 'none').pop(); if(!N || !isNightAt(N.t)) return null;
+  const lastPee = L.filter(e => e.k === 'pee').reduce((m, e) => Math.max(m, e.t), 0), u = tuNewer(p, 'pee'), ref = Math.max(lastPee, u ? u.tu[1] : 0);
+  if(!ref || N.t - ref < WAKE.sleepNoPee) return null;                                    // her last confirmed pee is recent enough
+  const tries = L.filter(e => e.k === 'none' && e.t > ref && isNightAt(e.t)).length; if(tries < RETRY.nightMax) return null;
+  if(L.some(e => e.t > N.t && (OUT_KINDS[e.k] || (e.k === 'crate' && e.end != null && e.end > N.t + 60000)))) return null;
+  return { at: N.t + RETRY.nightRecheck, ref, due: now >= N.t + RETRY.nightRecheck, tries };
+}
+function nightRecheckHTML(p){
+  const r = nightRecheck(p); if(!r) return '';
+  const when = `<bdi dir="ltr">${clock(r.at)}</bdi>`, ago = `פיפי אחרון שאושר לפני ${words(Date.now() - r.ref)}`;
+  return `<div class="card slim sleepq recheck"><span><b>${r.due ? 'כדאי לבדוק אותה עכשיו' : `חזרה לישון · לבדוק שוב בסביבות ${when}`}</b><small>${r.tries} ניסיונות בלי פיפי הלילה · ${ago}. אם היא ערה או מתעוררת: לחצץ.</small></span></div>`;
+}
 function retry(p){
   if(!PETS[p].cycle) return null;
   const L = state.log.filter(e => e.p===p), now = Date.now(), calls = V[p].retryNones;
@@ -5749,7 +5779,7 @@ function renderView(){
   // the tiles scroll; on a phone it is simply the top of the page.
   // release 6b: the three answers first (`nowTopHTML`, which also carries the advice line and the camera question); the
   // research detail (the rings) goes below the wheel and the sleep / cry tiles
-  let sideHTML = P.cycle ? sleepAskHTML(pet) + stillAsleepHTML(pet) + cycleHTML(pet) : '';
+  let sideHTML = P.cycle ? nightRecheckHTML(pet) + sleepAskHTML(pet) + stillAsleepHTML(pet) + cycleHTML(pet) : '';
 
   const tap = P.cycle ? routineTap(pet) : [];
   // the "טיפוח" group (owner, 25.11): compact tiles side by side, not a tall column, in the order of how often each is
@@ -5760,11 +5790,13 @@ function renderView(){
     if(!it.dur){
       const t = S[k];
       // release 6b: a last-RECORDED time, not elapsed time since the event, when the time after it is not observed
-      const unc = P.cycle && t && (k === 'pee' || k === 'poop' || k === 'food') && !coveredSince(pet, t);
+      const tun = (k === 'pee' || k === 'poop') && tuNewer(pet, k);   // a later elimination at an unknown time: the clock is a range
+      const unc = !tun && P.cycle && t && (k === 'pee' || k === 'poop' || k === 'food') && !coveredSince(pet, t);
       h += `<div class="card item ${nowt} ${openX.has(pet+k) ? 'open' : ''}${unc ? ' unc' : ''}">
         <div class="ic">${ico(k)}</div>
-        <div><div class="lbl">${unc ? (k === 'food' ? 'ארוחה אחרונה שנרשמה' : `${it.log} אחרון שנרשם`) : P.cycle && k === 'food' ? 'מאז הארוחה האחרונה שנרשמה' : hasWhere(k) && unknownLine(pet, k) ? `מאז ה${it.log} האחרון שזמנו ידוע` : it.lbl}</div>   <!-- the clock counts from the last MEAL; a bite is the line under it -->
-          ${unc ? `<div class="big txt"><bdi dir="ltr">${clock(t)}</bdi></div>` : k === 'weight' ? `<div class="big txt ${t?'':'none'}">${weightOf(pet).last ? `${weightOf(pet).last.kg.toFixed(1)} ק״ג` : '–'}</div>`
+        <div><div class="lbl">${tun ? `מאז ה${it.log} (זמן לא ידוע)` : unc ? (k === 'food' ? 'ארוחה אחרונה שנרשמה' : `${it.log} אחרון שנרשם`) : P.cycle && k === 'food' ? 'מאז הארוחה האחרונה שנרשמה' : hasWhere(k) && unknownLine(pet, k) ? `מאז ה${it.log} האחרון שזמנו ידוע` : it.lbl}</div>   <!-- the clock counts from the last MEAL; a bite is the line under it -->
+          ${tun ? `<div class="big tu"><bdi dir="ltr"><span data-since="${tun.tu[1]}">${dur(Date.now() - tun.tu[1])}</span><small class="rng">–</small><span data-since="${tun.tu[0]}">${dur(Date.now() - tun.tu[0])}</span></bdi></div>`   /* at least – at most (owner, 28.11) */
+          : unc ? `<div class="big txt"><bdi dir="ltr">${clock(t)}</bdi></div>` : k === 'weight' ? `<div class="big txt ${t?'':'none'}">${weightOf(pet).last ? `${weightOf(pet).last.kg.toFixed(1)} ק״ג` : '–'}</div>`
           : it.slow ? `<div class="big txt ${t?'':'none'}">${t ? wordsLong(Date.now()-t) : '–'}</div>`
                     : `<div class="big ${t?'':'none'}" ${t?`data-since="${t}"`:''}>${t ? dur(Date.now()-t) : '–'}</div>`}
           <div class="sub">${t ? `${unc ? (() => { const u = unobserved(pet, t, Date.now()); return `<b class="unkc">${u >= (Date.now() - t) / 2 ? 'לא תועד מאז' : 'תיעוד חלקי מאז'}</b> · ${hmm(u)} ללא תיעוד · `; })() : ''}${dayLabel(t)} ב־${clock(t)}${P.cycle && k === 'food' ? camOkd(pet, t) : ''}${whereOf(pet,k,t) || (hasWhere(k) ? ` · <button class="lnk" data-act="where" data-k="${k}">איפה?</button>` : '')}${typeOf(pet,k,t)}${byOf(pet,k,t)}` : 'עוד לא נרשם'}</div>
@@ -5854,7 +5886,7 @@ function renderView(){
             : `<b>יוצאים לחצץ?</b>${slim ? '' : tryNowHTML(pet)}<small>${uw && uw.n >= 3 ? `בדרך כלל עושה פיפי תוך ${words(uw.ms)}` : 'השעון מודד כמה זמן לקח ומה יצא'}${lastOutingText(pet)}</small>`}</span>
           <span class="rt-a"><button class="go" data-act="dur" data-k="gravel">${ITEMS.gravel.start}</button><button class="btn" data-act="pt" data-k="none">לא עשתה</button></span></div>`)
       + pvRowHTML(pet);   // §18c: the completed visit's question, right under the gravel card (also on the night screen)
-    if(slim){ camsWatch(); side.innerHTML = alertsHTML(pet) + sleepAskHTML(pet); /* v3 validation S5: no advice line on the slim night screen */ document.getElementById('main').innerHTML = nightCardsHTML(pet, tileOf, gravelRow); return; }
+    if(slim){ camsWatch(); side.innerHTML = alertsHTML(pet) + nightRecheckHTML(pet) + sleepAskHTML(pet); /* v3 validation S5: no advice line on the slim night screen */ document.getElementById('main').innerHTML = nightCardsHTML(pet, tileOf, gravelRow); return; }
     h += sec('1', 'כלוב', tap.includes('crate'), tileOf('crate'), 'crate');
     const pottySec = sec('2 · 5', 'צרכים', tap.includes('pee') || !!rt, gravelRow + gravelRatesHTML(pet) + tileOf('pee') + tileOf('poop'), 'potty');
     // Just woken up or out of the crate: on a phone the potty tiles come to the top of the page, above the wheel.
@@ -5864,7 +5896,7 @@ function renderView(){
     h += sec('4', 'אוכל ושתייה', tap.includes('food'), tileOf('food') + waterRowHTML(pet) + (P.treats ? treatCardHTML(pet) : ''), 'food');
     if(P.bath) h += sec('', 'טיפוח', false, groomTiles(), 'bath');
     // Sleep and crying sit right under the wheel, always at hand: in the crate she is either asleep or crying.
-    if(pottyTop) sideHTML = sleepAskHTML(pet) + stillAsleepHTML(pet) + pottySec + cycleHTML(pet);
+    if(pottyTop) sideHTML = nightRecheckHTML(pet) + sleepAskHTML(pet) + stillAsleepHTML(pet) + pottySec + cycleHTML(pet);
     sideHTML += `<section class="duo" id="sec-rest">${tileOf('sleep')}${tileOf('cry')}</section>` + (V2 ? scoresHTML(pet) : '');
   }
 
