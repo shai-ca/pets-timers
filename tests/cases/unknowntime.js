@@ -44,7 +44,7 @@
     ok('nothing ended: the crate stay and the marked sleep go on', !!K().crate.start && !!K().sleep.start && logOf(P, 'crate')[0].end == null && logOf(P, 'sleep').find(e => e.t === slp.t).end == null);
     ok('the last KNOWN pee stays the reference; the clock is now the RANGE since the unknown-time pee (owner, 28.11)', K().pee === lastKnown && !!$q('#sec-potty .big.tu') && $q(`#sec-potty .big.tu [data-since="${u.tu[1]}"]`) != null && $q(`#sec-potty .big.tu [data-since="${u.tu[0]}"]`) != null);
     ok('…and the card says a pee was found, time unknown', !!$q('.tuline') && $q('.tuline').textContent.includes('בזמן לא ידוע'));
-    ok('usual gap and pee forecast unchanged', JSON.stringify(usualPeeGap(P, Date.now())) === JSON.stringify(gap0) && peeForecast(P).from === fc0.from && peeForecast(P).to === fc0.to);
+    ok('usual gap unchanged; the pee forecast is withheld while the latest confirmed pee has no exact time (owner, 28.11)', JSON.stringify(usualPeeGap(P, Date.now())) === JSON.stringify(gap0) && !!fc0 && peeForecast(P) === null && forecastLine(P).includes('אין תחזית לפיפי הבא'));
     ok('sleep pieces unchanged (no waking inferred)', JSON.stringify(K().spans) === spans0);
     ok('gravel rates unchanged', JSON.stringify(gravelRates(P)) === rates0);
     ok('peeGapsObs: not a gap, an interval-censored record', peeGapsObs(P, now - 2*86400000, now + MIN).gaps.length === 6 && peeGapsObs(P, now - 2*86400000, now + MIN).intervals.length === 1 && peeGapsObs(P, now - 2*86400000, now + MIN).intervals[0].censored === 'interval');
@@ -94,7 +94,7 @@
       ok('…and the miss is not given to the discovery day', successOf('kishmish', m0, m0 + 24*HOUR).all === 0);
       view = 'sum'; sumMode = 'day'; sumAnchor = m0 + HOUR; render();
       ok('the day summary says it is not counted there', !!$q('.tuunsure') && $q('.tuunsure').textContent.includes('לא ידוע באיזה יום')); view = 'now'; render();
-      ok('the pee clock says a later pee at an unknown time happened', ($q('#sec-potty').textContent.includes('מאז הפיפי האחרון שזמנו ידוע') || $q('#sec-potty').textContent.includes('פיפי אחרון שנרשם') || $q('#sec-potty').textContent.includes('זמן לא ידוע')) && $q('#sec-potty').textContent.includes('לא אומר שהיא התאפקה'));
+      ok('the pee clock says a later pee at an unknown time happened', ($q('#sec-potty').textContent.includes('מאז הפיפי האחרון שזמנו ידוע') || $q('#sec-potty').textContent.includes('פיפי אחרון שנרשם') || $q('#sec-potty').textContent.includes('זמן לא ידוע')) && $q('#sec-potty').textContent.includes('האחרון שאושר: בזמן לא ידוע') && $q('#sec-potty').textContent.includes('בשעה ידועה לאחרונה'));
     }
     done();
   } catch(e){ crashed(e); }

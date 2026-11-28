@@ -1583,7 +1583,7 @@ function advice(p){
   if((ask && !ask.snooze) || (typeof stillAsleep === 'function' && stillAsleep(p))) return none;
   const ft = freeTime(p); if(ft && ft.phase !== 'run' && !inCrate) return none;
   const pen = !!(S.pen && S.pen.start), carrier = !!(S.carrier && S.carrier.start), awake = !asleep && !inCrate;
-  if(awake && S.pee && now - S.pee >= 3*3600000) return none;                                  // the wheel: "להוציא לחצץ"
+  if(awake && elimLo(p, 'pee') && now - elimLo(p, 'pee') >= 3*3600000) return none;             // the wheel: "להוציא לחצץ"
   const aw = awakeFrom(p);   // the unbroken chain of awake signs, as on the sleep tile (reduced logging, 27.11)
   if(awake && !pen && !carrier && aw && now - aw >= AWAKE.warn) return none;                   // the sleep tile is orange / "לכלוב לישון"
   // (3) calm states
@@ -1592,7 +1592,7 @@ function advice(p){
     const how = we.words === 'likely' ? 'לפי השינות שלה, סביר שתמשיך לישון עוד זמן מה. ' : '';
     return say('sleep', how + (wb ? `לא מעירים בגלל אורך השינה; רק לפי הפיפי או האוכל, עד ${clock(wb.t)} לכל המאוחר (${wb.why}).` : 'לא מעירים בגלל אורך השינה.'));
   }
-  if(!S.pee || !S.food || now - S.pee > 12*3600000) return say('thin', 'צריך פיפי וארוחה רשומים מהשעות האחרונות כדי לדעת מה צפוי.');
+  if(!S.pee || !S.food || now - lastElim(p, 'pee').hi > 12*3600000) return say('thin', 'צריך פיפי וארוחה רשומים מהשעות האחרונות כדי לדעת מה צפוי.');
   if(inCrate){
     const st = S.crate.start, toy = state.log.some(e => e.p===p && e.k==='play' && (e.y === 'kong' || e.y === 'lick') && e.t >= st && e.t <= now);
     return say('busy', toy ? 'ערה בכלוב עם קונג או משטח ליקוק, בלי בכי.' : 'ערה בכלוב, בלי בכי מסומן.');
@@ -1624,6 +1624,7 @@ function adviceKochik(){
   const asleep = !!(S.sleep && S.sleep.start);
   if(!S.pee || now - S.pee > 12*3600000) return asleep ? say('rest', 'יש שינה מסומנת שעדיין נמשכת.') : say('thin', 'אין פיפי רשום ב־12 השעות האחרונות, אז אין למה להשוות. זה לא אומר שלא עשתה.');
   const e = kochikExpect(now);
+  if(e.unknownPee) return say('thin', 'היה פיפי בזמן לא ידוע, אז אין למה להשוות עד לפיפי בשעה ידועה.');
   if(e.from != null && now >= e.from) return none;                                   // her pee is due by her rhythm (or the cap)
   if(e.drinkFrom != null && now >= e.drinkFrom) return none;                         // she drank: a pee may come now
   const next = e.drinkFrom != null ? Math.min(e.from, e.drinkFrom) : e.from;
@@ -1846,6 +1847,7 @@ function wakeExpect(p, now){
 // usual gap ± a quarter (`poopGap`; 'gap', 'learned'). Nothing known: trigger 'none'.
 function peeGapWin(p, now){   // the pee window from the last pee: her usual gap, or by age
   const last = V[p].pee; if(typeof last !== 'number') return null;
+  if(tuNewer(p, 'pee')) return null;   // owner, 28.11: no window from an interval-censored pee, and none from the older timed one
   const u = usualPeeGap(p, now), h = holdHours(p) * 3600000;
   if(!u && !h) return null;
   return {from: last + (u ? PEE_RHYTHM.from * u.med : PEE_RHYTHM.from * h), to: last + (u ? PEE_RHYTHM.to * u.med : h), last, med: u ? u.med : 0, n: u ? u.n : 0, byAge: !u};
@@ -1863,13 +1865,13 @@ function pottyExpect(p, now){
     const g = peeGapWin(p, now);
     if(g) pee = {from: g.from, to: g.to, trigger: g.byAge ? 'age' : 'gap', src: g.byAge ? 'rule' : 'learned', n: g.n};
     // §12d: just woke (nothing since): the pee comes within PEE_WAKE of the waking — a range when the waking is a window
-    const aw = PETS[p].cycle && !(S.sleep && S.sleep.start) ? awakeSince(p) : 0, ww = aw ? wakeWin(p) : null, done = Math.max(S.pee || 0, S.poop || 0, S.none || 0);
+    const aw = PETS[p].cycle && !(S.sleep && S.sleep.start) ? awakeSince(p) : 0, ww = aw ? wakeWin(p) : null, done = Math.max(elimLo(p, 'pee'), elimLo(p, 'poop'), S.none || 0);
     if(aw && done < aw && now <= (ww ? ww.hi : aw) + PEE_WAKE + 30*60000) pee = {...pee, afterWake: {from: aw, to: (ww ? ww.hi : aw) + PEE_WAKE, range: !!ww}};
   }
   let poop = none;
   const mc = mealPoopCue(p), m = poopModel(p);
   if(mc) poop = {from: mc, to: mc + POTTY_CUE.mealPoop, trigger: 'meal', src: 'rule', n: 0};
-  else if(typeof S.poop === 'number'){
+  else if(typeof S.poop === 'number' && !(tuNewer(p, 'poop') && !(m && m.last != null && m.last >= tuNewer(p, 'poop').tu[1]))){
     if(m && m.last != null && m.last > S.poop) poop = {from: m.last + quantile(m.g, .25), to: m.last + quantile(m.g, .75), trigger: m.anchor === 'food' ? 'meal' : 'wake', src: 'learned', n: m.g.length};
     else { const g = poopGap(p); if(g){ const n = state.log.filter(e => e.p===p && e.k==='poop' && !isTU(e) && e.t >= now - 14*86400000).length - 1; poop = {from: S.poop + .75*g, to: S.poop + 1.25*g, trigger: 'gap', src: 'learned', n}; } }
   }
@@ -1914,7 +1916,7 @@ function kochikRhythm(now, log){
   return {gap: q ? Math.min(q, cap) : cap, q, n: g.length, g, cap, sick, lastPee, drink: water && (lastPee == null || water.t > lastPee) ? water.t : null};
 }
 function kochikExpect(now){
-  const r = kochikRhythm(now), out = {gap: r.gap, from: r.lastPee != null ? r.lastPee + r.gap : null, to: r.lastPee != null ? r.lastPee + r.cap : null,
+  const r = kochikRhythm(now), uk = V && V.kochik ? tuNewer('kochik', 'pee') : null, lt = uk ? null : r.lastPee, out = {gap: r.gap, from: lt != null ? lt + r.gap : null, to: lt != null ? lt + r.cap : null, ...(uk ? {unknownPee: uk.tu} : {}),
     cap: r.cap, sick: !!r.sick, n: r.n, src: r.q ? 'learned' : 'cap'};
   if(r.drink != null){ out.drinkFrom = r.drink + PLAN.drink[0]; out.drinkTo = r.drink + PLAN.drink[1]; }
   return out;
@@ -2516,7 +2518,7 @@ function scores(p){
   const unk = dayParts(p, a, now).tot.unk;   // not documented: never sleep, never awake (reduced logging, 27.11)
   // below the range only if even the undocumented time could not have filled it (release 6b); else unknown
   const top = sleepGoalTop(p), range = total > top*H ? 'above' : total >= g*H ? 'in' : total + unk < g*H && unk < SLEEP_UNK_MAX ? 'below' : 'unknown';
-  const pts = state.log.filter(e => e.p===p && (e.k==='pee' || e.k==='poop') && !isTU(e) && e.t >= a && e.t <= now && WHERE[e.w]);
+  const pts = state.log.filter(e => e.p===p && (e.k==='pee' || e.k==='poop') && (isTU(e) ? e.tu[0] >= a && e.tu[1] <= now : e.t >= a && e.t <= now) && WHERE[e.w]);   // unknown time: counted when its whole range is inside (owner, 28.11)
   const good = pts.filter(e => e.w === 'gravel' || e.w === 'out').length;
   return {total, marked, est, share: total / (24*H), g, top, range, night, nightMarked, nightFrom: NS.from, nightTo: NS.to,
     ready: null, asleep, awakeFrom: af || null, awakeGap: !!(af && aw && af > aw), unk, gravel: pts.length >= 3 ? Math.round(good / pts.length * 100) : null, good, all: pts.length};
@@ -2547,7 +2549,7 @@ function openScores(p){
         לילה (${nf}–${nt}): ${hmm(s.night)}, מתוכם נצפה ${hmm(s.nightMarked)}.<br>
         הקשת: החלק מ־24 השעות שבו ישנה.</p>
       <p><b>מוכנות: אין מספיק נתונים</b> · ברשימה אין שום דבר שמודד כמה היא רעננה. זמן ערות, משחק, אילוף, מנשא וגדר טובים לה ולא מורידים כלום. עכשיו: ${doing}${s.awakeFrom ? (s.awakeGap ? ` · נראתה ערה מ־<bdi dir="ltr">${clock(s.awakeFrom)}</bdi> (לפני כן לא תועד)` : ` מ־<bdi dir="ltr">${clock(s.awakeFrom)}</bdi>`) : ''}.</p>
-      <p><b>חצץ ${s.gravel == null ? '–' : s.gravel + '%'}</b> · מכל הפיפי והקקי ב־24 השעות האחרונות שסומן איפה: ${s.good} מתוך ${s.all} בחצץ או בחוץ. צריך לפחות 3. ירוק 85 ומעלה · כתום 70–84 · אדום מתחת ל־70.</p>
+      <p><b>חצץ ${s.gravel == null ? '–' : s.gravel + '%'}</b> · מכל הפיפי והקקי ב־24 השעות האחרונות שסומן איפה: ${s.good} מתוך ${s.all} בחצץ או בחוץ. נספר גם מה שזמנו לא ידוע, אם כל הטווח בתוך 24 השעות. צריך לפחות 3. ירוק 85 ומעלה · כתום 70–84 · אדום מתחת ל־70.</p>
       <p class="sub">אלה הערכות פשוטות מהרשימה, לא מדע.</p>
     </div><div class="foot"><span></span><button class="btn primary" id="cancel">סגירה</button></div>`;
   sh.querySelector('#cancel').onclick = close; bg.classList.add('show');
@@ -2858,13 +2860,16 @@ function wakeBy(p){
   const S = V[p], st = S.sleep && S.sleep.start, now = Date.now();
   if(!PETS[p].cycle || !st || touchesNight(st, now)) return null;
   const c = [];
-  if(S.pee) c.push([S.pee + WAKE.sleepNoPee, `${words(WAKE.sleepNoPee)} מהפיפי האחרון`, !coveredSince(p, S.pee) && 'עשתה פיפי']);
+  const lp = lastElim(p, 'pee');
+  if(lp && lp.exact) c.push([lp.t + WAKE.sleepNoPee, `${words(WAKE.sleepNoPee)} מהפיפי האחרון`, !coveredSince(p, lp.t) && 'עשתה פיפי']);
+  else if(lp){ const sure = now >= lp.hi + WAKE.sleepNoPee;   // unknown time: possible from the earliest, certain only from the latest
+    c.push([lp.lo + WAKE.sleepNoPee, sure ? `${words(WAKE.sleepNoPee)} לפחות מהפיפי (בזמן לא ידוע)` : `ייתכן שעברו ${words(WAKE.sleepNoPee)} מהפיפי, שזמנו לא ידוע`, '', !sure]); }
   if(S.food) c.push([S.food + ALERT.food, `${words(ALERT.food)} מהארוחה האחרונה`, !coveredSince(p, S.food) && 'אכלה']);
   if(!c.length) return null;
   c.sort((x, y) => x[0] - y[0]);
   // unc (owner, 27.11): the gap since that last RECORDED event was not observed — the threshold is the same, but it is not
   // known that the event did not happen, so no instruction to wake her ("לפי מה שנרשם … לא תועד אם אכלה מאז")
-  return {t: c[0][0], why: c[0][1], past: now >= c[0][0], unc: c[0][2] || ''};
+  return {t: c[0][0], why: c[0][1], past: now >= c[0][0], unc: c[0][2] || '', iv: !!c[0][3]};
 }
 // "היא עדיין ישנה?" (owner, 25.11; v3 timing; owner 26.11: fewer prompts). A predicted waking alone never asks. It asks
 // AT MOST ONCE PER SLEEP EPISODE (`stillDone`, this phone, nothing saved), by day only (not touching NIGHTS.learn or
@@ -2908,7 +2913,7 @@ function stillAsleepHTML(p){
 function sleepPeeNote(p){   // asleep by day, past the age limit from the pee but not yet WAKE.sleepNoPee: information only
   const S = V[p], h = holdHours(p) * 3600000, now = Date.now();
   if(!S.sleep || !S.sleep.start || !S.pee || !h || touchesNight(S.sleep.start, now)) return '';
-  const d = now - S.pee; return d >= h && d < WAKE.sleepNoPee ? `עברו ${words(d)} מהפיפי (לפי הגיל: עד כ־${words(h)}) · לא חייבים להעיר` : '';
+  const lp = lastElim(p, 'pee'), d = now - lp.hi; return d >= h && d < WAKE.sleepNoPee ? `עברו ${lp.exact ? '' : 'לפחות '}${words(d)} מהפיפי (לפי הגיל: עד כ־${words(h)}) · לא חייבים להעיר` : '';
 }
 function alerts(p){
   if(!PETS[p].cycle) return [];
@@ -2928,8 +2933,8 @@ function alerts(p){
   // release 6b (owner's safeguard): the same thresholds, but a red alarm only for a CONFIRMED overdue event — the time
   // since the last one is observed (`coveredSince`). Missing records alone give a calm, distinct card.
   const tuAlert = (k, lim) => { const u = tuNewer(p, k); if(!u) return null; const [a, b] = u.tu;   // the elimination lies in [a, b]
-    if(now - b >= lim) return { k, text: `${ago(now - b)} לפחות בלי ${ITEMS[k].log}`, hint: `ה${ITEMS[k].log} האחרון היה בזמן לא ידוע, לכל המאוחר ב־${clock(b)} (נמצא ב־${clock(u.t)}). לשקול להתקשר לווטרינר.` };
-    if(now - a >= lim) return { k, calm: true, unc: true, text: `${ITEMS[k].log} בזמן לא ידוע (בין ${clock(a)} ל־${clock(b)})`, hint: `ייתכן שעברו כבר ${ago(now - a)}, ולפחות ${ago(now - b)}. כדאי לבדוק.` };
+    if(now - b >= lim) return { k, tu: true, text: `${ago(now - b)} לפחות בלי ${ITEMS[k].log}`, hint: `ה${ITEMS[k].log} האחרון היה בזמן לא ידוע, לכל המאוחר ב־${clock(b)} (נמצא ב־${clock(u.t)}). לשקול להתקשר לווטרינר.` };
+    if(now - a >= lim) return { k, calm: true, unc: true, tu: true, text: `${ITEMS[k].log} בזמן לא ידוע (בין ${clock(a)} ל־${clock(b)})`, hint: `ייתכן שעברו כבר ${ago(now - a)}, ולפחות ${ago(now - b)}. כדאי לבדוק.` };
     return 'none'; };
   const tP = tuAlert('pee', ALERT.pee), tQ = tuAlert('poop', ALERT.poop);
   if(tP && tP !== 'none' && awake) out.push(tP);
@@ -2985,7 +2990,7 @@ function unknownSheet(p, k){
   sheet(`${PETS[p].name} · ${ITEMS[k].log} · לא ידוע מתי`,
     `<div class="sub" style="margin-bottom:8px">מתי זה יכול היה לקרות? (${g.why})</div><div class="sub" style="margin:4px 0 8px">מ־ ביום:</div>${dayPick()}
      <label class="field">מ־ ${timeField('tuA', clock(g.from))}</label><label class="field">עד (מתי נמצא) ${timeField('tuB', clock(g.to))}</label>
-     <div class="sub">נספר בספירה ובפספוסים, אבל לא כזמן שבו עשתה: השעון ממשיך מהפעם האחרונה שהזמן שלה ידוע.</div>`,
+     <div class="sub">נספר בספירה ובפספוסים. אם זה אחרי הפעם האחרונה שבשעה ידועה, השעון יראה טווח (לפחות ולכל היותר) ולא תוצג תחזית עד לפעם הבאה בשעה ידועה. השעה הזו לא נכנסת לחישוב המרווחים.</div>`,
     cancelBtn, () => {
       const a = timeVal('tuA'), b = timeVal('tuB'); if(!a || !b) return;
       const d0 = dayBack; dayBack = 0; let to = timeToTs(b); dayBack = d0;
@@ -3010,10 +3015,24 @@ function logUnknown(p, k, from, to){
 // the crate between 02:35 and 06:44, found 06:44). When its range ends AFTER the last known one, the elapsed time is a
 // RANGE (now − tu[1] … now − tu[0]) and the safety alert uses both ends: certain only if even the latest possible time is
 // past the threshold. The discovery time (`t`) is never the occurrence time. Derived only.
-function tuNewer(p, k){ const u = V[p] && V[p][k + 'U'], t = V[p] && V[p][k] || 0; return u && Array.isArray(u.tu) && u.tu[1] > t ? u : null; }
+// TWO DIFFERENT THINGS (owner, 28.11): `V[p][k]` = the latest PRECISELY TIMED one (what learners and the retry rules use);
+// `lastElim(p, k)` = the latest CONFIRMED one, as bounds {lo, hi, exact, t, w}: it happened no earlier than `lo` and no
+// earlier knowledge than `hi` allows. exact = the timed one is the latest. Every card, reminder and forecast that asks
+// "when did she last…" reads this one.
+function lastElim(p, k){
+  const t = V[p] && typeof V[p][k] === 'number' ? V[p][k] : 0;
+  if(!V[p] || !V[p][k + 'U']) return t ? {lo: t, hi: t, exact: true, t} : null;
+  let lo = t, hi = t, u = null; const now = Date.now();
+  for(const e of state.log) if(e.p === p && e.k === k && isTU(e) && e.tu[1] > t && e.tu[1] <= now){ if(e.tu[0] > lo) lo = e.tu[0]; if(e.tu[1] > hi){ hi = e.tu[1]; u = e; } }
+  return hi ? {lo, hi, exact: !u, t, u} : null;
+}
+function tuNewer(p, k){ const l = V && V[p] ? lastElim(p, k) : null; return l && !l.exact ? {tu: [l.lo, l.hi], t: l.u.t, w: l.u.w} : null; }
+const elimLo = (p, k) => { const l = lastElim(p, k); return l ? l.lo : 0; };   // "it happened at least this late": what counts as done since
+const tuSpan = u => `בין <bdi dir="ltr">${clock(u.tu[0])}</bdi> ל־<bdi dir="ltr">${clock(u.tu[1])}</bdi>`;
+const noForecast = (k, u) => `<div class="sub fc tufc">אין תחזית ל${k} הבא: היה ${k} בזמן לא ידוע (${tuSpan(u)}). התחזית תחזור אחרי ${k} בשעה ידועה.</div>`;
 function unknownLine(p, k){
-  const u = V[p][k + 'U']; if(!u || (V[p][k] || 0) >= u.t || Date.now() - u.t > 24*3600000) return '';
-  return `<div class="sub hint tuline">${ITEMS[k].log} ${tuText(u).replace(/, נמצא ב־.*\)$/, ')')}${WHERE[u.w] ? ' · ' + WHERE[u.w] : ''} · אחרי הפעם שזמנה ידוע היה ${ITEMS[k].log} נוסף בזמן לא ידוע, כך שהשעון לא אומר שהיא התאפקה כל הזמן הזה</div>`;
+  const l = lastElim(p, k); if(!l || l.exact || Date.now() - l.u.t > 24*3600000) return '';
+  return `<div class="sub hint tuline"><b>ה${ITEMS[k].log} האחרון שאושר: בזמן לא ידוע</b> · ${tuText(l.u)}${WHERE[l.u.w] ? ' · ' + WHERE[l.u.w] : ''}. השעון מראה טווח: לפחות ולכל היותר.</div>`;
 }
 function endDurAt(p, k, ts){   // "woke up / came out 10 minutes ago"
   const t = Math.min(ts, Date.now());
@@ -3302,11 +3321,16 @@ function camGapText(){
   if(!camjCamOk()) return typeof st.checked_at === 'number' ? ` · המצלמה לא מעדכנת מאז ${at(st.checked_at)}, אז אין ממנה מידע` : ' · אין מידע מהמצלמה';
   return ' · המצלמה לא יכולה לקבוע עכשיו (קריאה לא ודאית או לא זמינה)';
 }
+// What IS known to have happened after t although no exact time was logged — so no line says "nothing since t" alone.
+function tuSinceText(p, t){
+  const ks = ['pee', 'poop'].filter(k => { const u = tuNewer(p, k); return u && u.tu[1] > t; });
+  return ks.length ? ` · כן היה ${ks.map(k => ITEMS[k].log).join(' ו')} בזמן לא ידוע (${tuSpan(tuNewer(p, ks[0]))})` : '';
+}
 // "בפועל: …" — the actual-behaviour line, in words, with its basis (no claim beyond it).
 function actualText(cs){
   const at = t => `<bdi dir="ltr">${clock(t)}</bdi>`, cam = cs.basis === 'camera-unconfirmed' ? 'לפי המצלמה, לא אושר' : '';
   if(cs.state === 'unknown'){
-    if(!cs.conflicts.length) return (cs.since ? `לא ידוע · לא נרשם כלום מאז ${at(cs.since)}` : 'לא ידוע') + camGapText();
+    if(!cs.conflicts.length) return (cs.since ? `לא ידוע · לא נרשם כלום בשעה ידועה מאז ${at(cs.since)}${tuSinceText(CAMJ_P, cs.since)}` : 'לא ידוע') + camGapText();
     const J = cs.conflicts.find(c => c.src === 'journal'), C = cs.conflicts.find(c => c.src === 'camera');
     if(!J){ const E = cs.conflicts.find(c => c.what === 'entry'), N = cs.conflicts.find(c => c.what === 'now');   // the camera against itself
       return `לא ברור · המצלמה זיהתה כניסה לכלוב ב־${at(E.t)}, ועכשיו (${at(N.t)}) לא רואה אותה בכלוב · לא אושר`; }
@@ -3346,7 +3370,7 @@ function guidance(p){
   const now = Date.now(), recent = state.log.some(e => e.p === p && !GD_NOSIGN[e.k] && !(ITEMS[e.k] || {}).hid && ((e.t <= now && now - e.t < AWAKE.seen) || (e.end == null && GD_RUN[e.k])));
   g.stale = now - r.t >= ROUTINE_STALE && !recent && !(cs.state === 'out' && cs.basis === 'logged');
   if(cs.state === 'out' && cs.awake && !g.stale) return g;                        // awake out of the crate: the plan fits
-  const wb = cs.state === 'asleep' && wakeBy(p); if(wb && wb.past && !wb.unc) return g;     // safety: "כדאי להעיר אותה" speaks (not from an unobserved gap)
+  const wb = cs.state === 'asleep' && wakeBy(p); if(wb && wb.past && !wb.unc && !wb.iv) return g;     // safety: "כדאי להעיר אותה" speaks (not from an unobserved gap)
   const step = CYCLE[r.i].n, at = t => `<bdi dir="ltr">${clock(t)}</bdi>`;
   g.planned = g.stale ? `השלב האחרון שנרשם: ${step}, ${at(r.t)}` : `בשגרה: ${step} מ־${at(r.t)}`; g.actual = `בפועל: ${actualText(cs)}`;
   const cont = g.stale ? 'קודם לחצץ, ואז ממשיכים בשגרה לפי מה שיצא' : `ממשיכים בשגרה מ״${step}״`;
@@ -3360,13 +3384,13 @@ function guidance(p){
   } else if(g.stale){   // the stage is old and unsupported: the current state drives the words, the stage is only history
     g.mode = 'stale';
     const seen = cs.state === 'out' && cs.awake ? `${nm} כנראה ערה מחוץ לכלוב (סימן אחרון ${at(cs.since)}), `
-      : cs.state === 'out' ? `לפי המצלמה ${nm} לא בכלוב, ומאז ${at(awakeSeen(p) || r.t)} לא נרשם כלום, אז לא ידוע אם היא ערה, `   // the camera's reading time is not her last sign
-      : cs.conflicts.length ? 'לא ברור מה היא עושה עכשיו, ' : `מאז ${at(cs.since || r.t)} לא נרשם כלום, אז לא ידוע אם ${nm} ערה, ישנה או בכלוב, `;
+      : cs.state === 'out' ? `לפי המצלמה ${nm} לא בכלוב, ומאז ${at(awakeSeen(p) || r.t)} לא נרשם כלום בשעה ידועה${tuSinceText(p, awakeSeen(p) || r.t)}, אז לא ידוע אם היא ערה, `   // the camera's reading time is not her last sign
+      : cs.conflicts.length ? 'לא ברור מה היא עושה עכשיו, ' : `מאז ${at(cs.since || r.t)} לא נרשם כלום בשעה ידועה${tuSinceText(p, cs.since || r.t)}, אז לא ידוע אם ${nm} ערה, ישנה או בכלוב, `;
     g.what = `${seen}והשלב האחרון שנרשם (${step}) הוא מלפני ${words(Date.now() - r.t)}. כשרואים אותה ערה: ${cont}. אם היא ישנה, לא מעירים.`;
   } else {   // unknown: nothing within the horizon, or journal and camera disagree
     g.mode = 'unknown';
     g.prefix = cs.conflicts.length ? `${cs.conflicts.some(c => c.src === 'journal') ? 'הרישום והמצלמה לא מסכימים' : 'המצלמה לא עקבית'}, אז לא ידוע מה ${nm} עושה עכשיו. אם היא ערה ומחוץ לכלוב: `
-      : `מאז ${at(cs.state === 'unknown' ? (cs.since || r.t) : (awakeSeen(p) || r.t))} לא נרשם כלום, אז לא ידוע אם ${nm} ערה, ישנה או בכלוב${GD_MISS[r.i] ? `, ולא נרשם אם ${GD_MISS[r.i]}` : ''}. אם היא ערה ומחוץ לכלוב: `;
+      : `מאז ${at(cs.state === 'unknown' ? (cs.since || r.t) : (awakeSeen(p) || r.t))} לא נרשם כלום בשעה ידועה${tuSinceText(p, cs.state === 'unknown' ? (cs.since || r.t) : (awakeSeen(p) || r.t))}, אז לא ידוע אם ${nm} ערה, ישנה או בכלוב${GD_MISS[r.i] && !(r.i !== 2 && Math.max(elimLo(p, 'pee'), elimLo(p, 'poop')) >= r.t) ? `, ולא נרשם אם ${GD_MISS[r.i]}` : ''}. אם היא ערה ומחוץ לכלוב: `;
   }
   return g;
 }
@@ -3542,7 +3566,7 @@ function tryNow(p){
   if(!PETS[p].cycle || (S.sleep && S.sleep.start)) return null;
   const nw = napWake(p); if(nw) return {t: nw.t, why: 'אחרי שהתעוררה', nap: nw.len, ...(nw.hi ? {hi: nw.hi} : {})};
   if(S.crate && S.crate.start) return null;
-  const done = Math.max(S.pee || 0, S.poop || 0, S.none || 0), c = [];
+  const done = Math.max(elimLo(p, 'pee'), elimLo(p, 'poop'), S.none || 0), c = [];
   // a sleep that ended at a drink is not "she woke up" for potty advice (v3: a drink alone gives no potty advice)
   if(S.sleep && S.sleep.lastEnd && !state.log.some(e => e.p===p && e.k==='water' && e.t === S.sleep.lastEnd)){ const ww = wakeWin(p); c.push([S.sleep.lastEnd, TRY.wake, 'אחרי שהתעוררה', false, ww && ww.lo === S.sleep.lastEnd ? ww.hi : 0]); }
   const fw = state.log.filter(e => e.p===p && (e.k==='water' || (e.k==='food' && mealKind(e) === 'meal')) && e.t <= now).sort((x,y) => y.t - x.t)[0];
@@ -3583,7 +3607,7 @@ function pottyDue(p){
   if(fc && fc.state !== 'soon' && !nightPotty(p)) c.push([fc.from, 'לפי הקצב הרגיל שלה']);   // the day's rhythm, not after a night potty
   c.sort((a,b) => b[0]-a[0]);
   if(!c.length) return null;
-  const done = Math.max(S.pee || 0, S.poop || 0, S.none || 0, S.out || 0);
+  const done = Math.max(elimLo(p, 'pee'), elimLo(p, 'poop'), S.none || 0, S.out || 0);
   if(done >= c[0][0] || Date.now() - Math.max(c[0][0], c[0][2] || 0) > DUE_MAX) return null;
   return {t:c[0][0], why:c[0][1], ...(c[0][2] ? {hi: c[0][2]} : {})};
 }
@@ -4484,7 +4508,7 @@ function pvRows(p, now = Date.now()){
 // The newest unanswered visit later than the dog's last result: what guidance and the red cards may mention (never more).
 function pvSeen(p){
   const S = V && V[p]; if(!S) return null;
-  const last = Math.max(S.pee || 0, S.poop || 0, S.none || 0), r = pvRows(p).find(x => x.t_end > last);
+  const last = Math.max(elimLo(p, 'pee'), elimLo(p, 'poop'), S.none || 0), r = pvRows(p).find(x => x.t_end > last);
   return r || null;
 }
 const pvWhen = x => `<bdi dir="ltr">${clock(x.t_start)}–${clock(x.t_end)}</bdi>${dayLabel(x.t_start) === 'היום' ? '' : ' · ' + dayLabel(x.t_start)}`;
@@ -5293,10 +5317,11 @@ function nowAssess(p){
   const doing = actualText(cs) + (cs.state === 'out' && cs.basis === 'logged' ? ' · לפי הרישום' : '') + (lx ? ` · המצלמה: ${lx.kind === 'crate_exit' ? 'יצאה מהכלוב' : 'נכנסה לכלוב'} ב־<bdi dir="ltr">${clock(lx.ts)}</bdi> (לא אושר)` : '');
   let todo = '', btn = '';
   const B = (act, k, label) => `<button class="go" data-act="${act}" data-k="${k}">${label}</button>`;
-  const un = al.filter(a => a.unc).map(a => ({food: 'האוכל', pee: 'הפיפי', poop: 'הקקי'})[a.k]);
+  const NM = {food: 'האוכל', pee: 'הפיפי', poop: 'הקקי'}, un = al.filter(a => a.unc && !a.tu).map(a => NM[a.k]), unT = al.filter(a => a.unc && a.tu).map(a => NM[a.k]);
   if(red) todo = red.k === 'food' ? 'להציע לה אוכל (ההתראה למעלה)' : 'לבדוק אותה ולשקול להתקשר לווטרינר (ההתראה למעלה)';
-  else if(un.length) todo = `לבדוק אותה: ${un.join(' ו')} לא תועדו מאז הרישום האחרון${un.includes('האוכל') ? ' · אם לא אכלה, להציע לה אוכל' : ''}`;
-  else if(wb && wb.past){ todo = `להעיר אותה ולצאת לחצץ · ${wb.why}`; btn = B('dur', 'gravel', ITEMS.gravel.start); }
+  else if(un.length) todo = `לבדוק אותה: ${un.join(' ו')} ${un.length > 1 ? 'לא תועדו' : 'לא תועד'} מאז הרישום האחרון${un.includes('האוכל') ? ' · אם לא אכלה, להציע לה אוכל' : ''}`;
+  else if(unT.length) todo = `לבדוק אותה: ${unT.join(' ו')} בזמן לא ידוע, ייתכן שעבר הרבה זמן (ההסבר בכרטיס למעלה)`;
+  else if(wb && wb.past){ todo = `${wb.iv ? 'לשקול ' : ''}להעיר אותה ולצאת לחצץ · ${wb.why}`; btn = B('dur', 'gravel', ITEMS.gravel.start); }
   else if(S.gravel && S.gravel.start) todo = 'בחצץ: לסמן מה יצא, ואז ״סיום״';
   else if(retry(p) && !asleep){ todo = 'ניסיון חוזר: לחצץ'; btn = B('dur', 'gravel', ITEMS.gravel.start); }
   else if(G.mode === 'rest') todo = `${cs.basis === 'logged' || cs.basis === 'camera-confirmed' ? 'לתת לה לישון' : 'אם היא ישנה, לתת לה לישון'}${wb ? ` (עד <bdi dir="ltr">${clock(wb.t)}</bdi> לכל המאוחר)` : ''}`;
@@ -5681,7 +5706,7 @@ function setSimple(on){
 }
 function simpleHTML(p){
   const S = V[p], gv = (S.gravel || {}).start, rt = retry(p), name = PETS[p].name;
-  const since = (t, lbl, l2) => `<div class="smp-c">${t && !coveredSince(p, t) ? `<small>${l2}</small><b class="txt"><bdi dir="ltr">${clock(t)}</bdi></b><small>${dayLabel(t) === 'היום' ? '' : dayLabel(t) + ' · '}לא תועד מאז</small>`   /* release 6b: no running clock across unobserved time */
+  const since = (t, lbl, l2, u) => u ? `<div class="smp-c"><small>${lbl} (זמן לא ידוע)</small><b><bdi dir="ltr"><span data-since="${u.tu[1]}">${dur(Date.now() - u.tu[1])}</span>–<span data-since="${u.tu[0]}">${dur(Date.now() - u.tu[0])}</span></bdi></b><small>${tuSpan(u)}</small></div>` : `<div class="smp-c">${t && !coveredSince(p, t) ? `<small>${l2}</small><b class="txt"><bdi dir="ltr">${clock(t)}</bdi></b><small>${dayLabel(t) === 'היום' ? '' : dayLabel(t) + ' · '}לא תועד מאז</small>`   /* release 6b: no running clock across unobserved time */
     : `<small>${lbl}</small>${t ? `<b data-since="${t}">${dur(Date.now() - t)}</b><small>${dayLabel(t)} <bdi dir="ltr">${clock(t)}</bdi></small>` : `<b class="none">–</b><small>עוד לא נרשם</small>`}`}</div>`;
   const big = (k, txt, cls) => `<button class="go smp-b${cls ? ' ' + cls : ''}" data-act="spl" data-k="${k}">${txt}</button>`;
   const outing = gv
@@ -5693,7 +5718,7 @@ function simpleHTML(p){
     + `<div class="card slim smp-h"><span><b>מסך יונתן</b><small>${name} · רישום מהיר, עכשיו</small></span><button class="btn" data-act="simple" data-k="0">למסך המלא</button></div>`
     + (rt ? `<div class="card slim withrt smp-rt ${rt.state}">${retryHead(rt)}</div>` : '')
     + `<div class="card slim smp-now"><span><small>עכשיו</small><b>${actualText(currentState(p))}</b></span></div>`
-    + `<div class="smp-since">${since(S.pee, 'מאז הפיפי', 'פיפי אחרון שנרשם')}${since(S.food, 'מאז הארוחה', 'ארוחה אחרונה שנרשמה')}</div>`
+    + `<div class="smp-since">${since(S.pee, 'מאז הפיפי', 'פיפי אחרון שנרשם', tuNewer(p, 'pee'))}${since(S.food, 'מאז הארוחה', 'ארוחה אחרונה שנרשמה')}</div>`
     + outing
     + `<div class="smp-two">${big('food', 'אכלה')}${big('water', 'שתתה')}</div>`;
 }
@@ -5799,7 +5824,7 @@ function renderView(){
           : unc ? `<div class="big txt"><bdi dir="ltr">${clock(t)}</bdi></div>` : k === 'weight' ? `<div class="big txt ${t?'':'none'}">${weightOf(pet).last ? `${weightOf(pet).last.kg.toFixed(1)} ק״ג` : '–'}</div>`
           : it.slow ? `<div class="big txt ${t?'':'none'}">${t ? wordsLong(Date.now()-t) : '–'}</div>`
                     : `<div class="big ${t?'':'none'}" ${t?`data-since="${t}"`:''}>${t ? dur(Date.now()-t) : '–'}</div>`}
-          <div class="sub">${t ? `${unc ? (() => { const u = unobserved(pet, t, Date.now()); return `<b class="unkc">${u >= (Date.now() - t) / 2 ? 'לא תועד מאז' : 'תיעוד חלקי מאז'}</b> · ${hmm(u)} ללא תיעוד · `; })() : ''}${dayLabel(t)} ב־${clock(t)}${P.cycle && k === 'food' ? camOkd(pet, t) : ''}${whereOf(pet,k,t) || (hasWhere(k) ? ` · <button class="lnk" data-act="where" data-k="${k}">איפה?</button>` : '')}${typeOf(pet,k,t)}${byOf(pet,k,t)}` : 'עוד לא נרשם'}</div>
+          <div class="sub">${t ? `${unc ? (() => { const u = unobserved(pet, t, Date.now()); return `<b class="unkc">${u >= (Date.now() - t) / 2 ? 'לא תועד מאז' : 'תיעוד חלקי מאז'}</b> · ${hmm(u)} ללא תיעוד · `; })() : ''}${tun ? 'בשעה ידועה לאחרונה: ' : ''}${dayLabel(t)} ב־${clock(t)}${P.cycle && k === 'food' ? camOkd(pet, t) : ''}${whereOf(pet,k,t) || (hasWhere(k) ? ` · <button class="lnk" data-act="where" data-k="${k}">איפה?</button>` : '')}${typeOf(pet,k,t)}${byOf(pet,k,t)}` : 'עוד לא נרשם'}</div>
           ${hasWhere(k) ? unknownLine(pet, k) : ''}${P.cycle && k === 'pee' ? peeCardLines(pet) : ''}${k === 'pee' ? holdHint(pet) : ''}${P.cycle && k === 'poop' ? mealPoopHTML(pet) + poopLine(pet) + (V2 && !mealPoopCue(pet) ? gaugeHTML(poopWindow(pet), 'לחלון', 'הקקי האחרון ב־') : '') + poopHints(pet) : ''}${P.cycle && k === 'food' && S.bite > (S.food || 0) ? `<div class="sub hint bite">ביס אחרון ב־<bdi dir="ltr">${clock(S.bite)}</bdi>${camOkd(pet, S.bite)} · לא מאפס את השעון</div>` : ''}${P.cycle && k === 'food' ? mealLine(pet) + (V2 ? gaugeHTML(mealWindow(pet), 'לארוחה', 'הארוחה האחרונה ב־') : '') : ''}${k === 'bath' ? bathLine(pet) + (V2 && !noBathUntil(pet) ? gaugeHTML(bathWindow(pet), 'למקלחת', 'המקלחת האחרונה ב־') : '') : ''}${GROOM[pet] && ['flea','brush','teeth','weight'].includes(k) ? groomLine(pet, k) : ''}${todayWhere(pet,k) ? `<div class="sub hint x">${todayWhere(pet,k)}</div>` : ''}${P.cycle && typical(pet,k) ? `<div class="sub hint x">${typical(pet,k)}</div>` : ''}${it.note ? `<div class="sub hint x">${it.note}</div>` : ''}MOREBTN</div>
         <div class="acts"><button class="go" data-act="pt" data-k="${k}">${it.btn}</button>
           ${P.cycle && k === 'food' ? `<button class="ghost" data-act="nofood">${ico('none','s')}לא אכלה</button>` : ''}</div>${P.cycle && k === 'food' && !slim ? camjFeedRowHTML(pet, 'food') : ''}</div>`;
@@ -5838,7 +5863,7 @@ function renderView(){
       if(k === 'crate' && live && P.cycle && CRATES[crateAt(pet, Date.now())]) sub += ` · ${CRATES[crateAt(pet, Date.now())]}`;
       if(k === 'crate' && !live && P.cycle) sub += crateMealHint(pet);   // after a meal: gravel before the crate (POTTY_CUE)
       if(k === 'sleep' && live && P.cycle){ const wb = wakeBy(pet);   // after the totals: until when, and what comes next
-        sub += wb ? (wb.past ? (wb.unc ? `<span class="wake"><b>לפי מה שנרשם: ${wb.why}</b><small>מאז לא תועד אם ${wb.unc} · אם לא, כדאי להעיר אותה ולצאת לחצץ</small></span>` : `<span class="wake past"><b>כדאי להעיר אותה ולצאת לחצץ</b><small>עבר ${clock(wb.t)} · ${wb.why}</small></span>`)
+        sub += wb ? (wb.past ? (wb.iv ? `<span class="wake"><b>${wb.why}</b><small>כדאי לשקול להעיר אותה ולצאת לחצץ</small></span>` : wb.unc ? `<span class="wake"><b>לפי מה שנרשם: ${wb.why}</b><small>מאז לא תועד אם ${wb.unc} · אם לא, כדאי להעיר אותה ולצאת לחצץ</small></span>` : `<span class="wake past"><b>כדאי להעיר אותה ולצאת לחצץ</b><small>עבר ${clock(wb.t)} · ${wb.why}</small></span>`)
           : `<span class="wake"><b>נותנים לה לישון עד ${clock(wb.t)} לכל המאוחר</b><small>${wb.why}</small></span>`) : '';
         if(sleepPeeNote(pet)) sub += `<span class="wake then">${sleepPeeNote(pet)}</span>`;
         if(napMedian(pet)) sub += `<span class="wake then">נמנום ארוך רגיל אצלה: כ־${words(napMedian(pet))}</span>`;
@@ -6027,9 +6052,9 @@ function cycleHTML(p){
   // Not after a night potty (`nightPotty`): whether she is back in the crate or asleep is unknown unless logged.
   const nightR = !!(r && r.night);
   const tired = awake && !nightR && aw >= sod(now).getTime() && (unk ? now - aw >= AWAKE.max : af && now - af >= AWAKE.max);   // known: only an unbroken chain of awake signs (27.11)
-  const long3 = awake && !nightR && S.pee && now - S.pee >= 3*3600000 && !retry(p);
+  const pl = lastElim(p, 'pee'), long3 = awake && !nightR && pl && now - pl.lo >= 3*3600000 && !retry(p);
   const wb = asleep && wakeBy(p);
-  const what = wb && wb.past ? `כדאי להעיר את ${nm} ולצאת לחצץ (${wb.why}).` : r && r.retry ? (asleep ? `נותנים לה לישון. כשהיא מתעוררת, ישר לחצץ.` : `ניסיון חוזר: עושים מה שכתוב בכרטיס שלמעלה, עד ש${nm} עושה פיפי.`)
+  const what = wb && wb.past ? `כדאי ${wb.iv ? 'לשקול להעיר' : 'להעיר'} את ${nm} ולצאת לחצץ (${wb.why}).` : r && r.retry ? (asleep ? `נותנים לה לישון. כשהיא מתעוררת, ישר לחצץ.` : `ניסיון חוזר: עושים מה שכתוב בכרטיס שלמעלה, עד ש${nm} עושה פיפי.`)
     : nightR ? (asleep ? `לילה: ${nm} ישנה. אין מה לסמן עכשיו; כשהיא מתעוררת, ישר לחצץ.`
       : S.gravel && S.gravel.start ? `לילה: בחצץ. כשמסיימים, לוחצים <b>״סיום״</b> ומחזירים את ${nm} לכלוב לישון, בלי משחק ובלי אוכל.`
       : `לילה: אחרי הצרכים מחזירים את ${nm} לכלוב לישון, בלי משחק ובלי אוכל. <b>״נכנסה לכלוב״</b> בכרטיס הכלוב אם רוצים, לא חובה: בלי רישום האפליקציה לא יודעת אם היא כבר בכלוב, ולא מניחה שהיא ערה או ישנה.`)
@@ -6052,12 +6077,12 @@ function cycleHTML(p){
     ${V2 ? flowHTML(cls, centre) : `<div class="steps"><svg class="ring" viewBox="0 0 200 200" aria-hidden="true">${segs}</svg>
       <div class="rc">${centre}</div>${labels}</div>`}
     ${G.mode !== 'plan' ? `<div class="gd ${G.mode}"><span class="gd-p">${G.planned}</span><span class="gd-a">${G.actual}</span></div>` : ''}
-    ${long3 ? `<div class="duemsg">${ico('pee','s')}<span>${coveredSince(p, S.pee) ? `עברו ${words(now - S.pee)} מהפיפי האחרון${unk ? ' שנרשם · אם היא ערה, להוציא לחצץ' : ' · להוציא לחצץ'}` : `פיפי אחרון שנרשם <bdi dir="ltr">${clock(S.pee)}</bdi> · לא תועד מאז · אם היא ערה, להוציא לחצץ`}</span></div>` : ''}
+    ${long3 ? `<div class="duemsg">${ico('pee','s')}<span>${!pl.exact ? (now - pl.hi >= 3*3600000 ? `עברו לפחות ${words(now - pl.hi)} מהפיפי (בזמן לא ידוע) · אם היא ערה, להוציא לחצץ` : `היה פיפי בזמן לא ידוע, ${tuSpan({tu: [pl.lo, pl.hi]})} · ייתכן שכבר עברו 3 שעות · אם היא ערה, להוציא לחצץ`) : coveredSince(p, S.pee) ? `עברו ${words(now - S.pee)} מהפיפי האחרון${unk ? ' שנרשם · אם היא ערה, להוציא לחצץ' : ' · להוציא לחצץ'}` : `פיפי אחרון שנרשם <bdi dir="ltr">${clock(S.pee)}</bdi> · לא תועד מאז · אם היא ערה, להוציא לחצץ`}</span></div>` : ''}
     ${tired && G.mode !== 'crate' ? `<div class="zz">${ico('sleep','s')}<span>${awakeUnknown(p) ? `שינה אחרונה שנרשמה <bdi dir="ltr">${clock(aw)}</bdi> · ${p === CAMJ_P && camjPendingEntry() ? 'המצלמה: כנראה בכלוב' : 'אם היא ערה, לכלוב לישון'}` : `${af > aw ? 'נראתה ערה כבר' : 'ערה כבר'} ${p === CAMJ_P && af === aw && wakeWin(p) ? `${words(now - wakeWin(p).hi)}–${words(now - aw)}` : words(now - af)} · ${p === CAMJ_P && camjPendingEntry() ? 'המצלמה: כנראה בכלוב' : 'לכלוב לישון'}`}</span></div>` : ''}
     ${ft && ft.phase !== 'run' && !inCrate ? `<div class="frm">${ico('paw','s')}<span>זמן החופש נגמר (${FREE.min} דקות מהפיפי) · חזרה לשגרה</span></div>` : ''}
     ${over ? `<div class="duemsg">${ico('crate','s')}<span>${awakeNow(p, S.crate.start) ? 'ערה בכלוב' : 'בכלוב'} יותר מ${words(CRATE_MAX)} · מ־<bdi dir="ltr">${clock(S.crate.start)}</bdi>${awakeNow(p, S.crate.start) ? '' : ' · לא תועד אם ישנה'}</span></div>` : ''}
     ${due && !long3 ? `<div class="duemsg">${ico('pee','s')}<span>${unk ? 'אם היא ערה, ' : ''}זמן להוציא לצרכים · ${due.why}, לפני <span data-words="${due.t}">${words(now-due.t)}</span></span></div>` : ''}
-    ${asleep ? `<div class="zz">${ico('sleep','s')}<span>ישנה ${S.sleep.assumed ? 'כנראה ' : ''}מ־<bdi dir="ltr">${clock(S.sleep.start)}</bdi> · ${wb && wb.past ? (wb.unc ? `לא תועד אם ${wb.unc} מאז מה שנרשם` : 'כדאי להעיר אותה') : wb ? `נותנים לה לישון עד <bdi dir="ltr">${clock(wb.t)}</bdi>` : 'נותנים לה לישון'}${(() => { const we = !(wb && wb.past) && wakeExpect(p, now); return we && we.likely ? ` · כנראה תתעורר בין <bdi dir="ltr">${clock(we.likely.from)}–${clock(we.likely.to)}</bdi>` : ''; })()}${S.sleep.assumed ? ' <small>(הנחה: נרדמת בכלוב תוך כמה דקות)</small>' : ''}</span><button class="lnk" data-act="notasleep">לא נרדמה</button></div>` : ''}
+    ${asleep ? `<div class="zz">${ico('sleep','s')}<span>ישנה ${S.sleep.assumed ? 'כנראה ' : ''}מ־<bdi dir="ltr">${clock(S.sleep.start)}</bdi> · ${wb && wb.past ? (wb.iv ? wb.why : wb.unc ? `לא תועד אם ${wb.unc} מאז מה שנרשם` : 'כדאי להעיר אותה') : wb ? `נותנים לה לישון עד <bdi dir="ltr">${clock(wb.t)}</bdi>` : 'נותנים לה לישון'}${(() => { const we = !(wb && wb.past) && wakeExpect(p, now); return we && we.likely ? ` · כנראה תתעורר בין <bdi dir="ltr">${clock(we.likely.from)}–${clock(we.likely.to)}</bdi>` : ''; })()}${S.sleep.assumed ? ' <small>(הנחה: נרדמת בכלוב תוך כמה דקות)</small>' : ''}</span><button class="lnk" data-act="notasleep">לא נרדמה</button></div>` : ''}
     <div class="cyc-n"><span class="nx"><b>מה עושים עכשיו?</b>${wakeGravelWhat(p)}${say}${pvGuideHTML(p)}${routineTap(p).length ? ` החלק המתאים למטה מסומן <span class="tagk">עכשיו בשגרה</span>.` : ''}</span>
       ${r && !r.brk && !inCrate ? `<button class="ghost" data-act="brk">${ico('none','s')}הפסקה בשגרה</button>` : ''}</div></div>`;
 }
@@ -6182,7 +6207,9 @@ function poopModel(p){
   return best;
 }
 function poopLine(p){
-  const m = poopModel(p), now = Date.now(); if(!m || m.last == null) return '';
+  const m = poopModel(p), now = Date.now(), tq = tuNewer(p, 'poop');
+  if(tq && !(m && m.last != null && m.last >= tq.tu[1])) return noForecast('קקי', tq);
+  if(!m || m.last == null) return '';
   if(state.log.some(e => e.p===p && e.k==='poop' && !isTU(e) && e.t >= m.last)) return '';
   const from = m.last + quantile(m.g, .25), to = m.last + quantile(m.g, .75);
   // EXPIRED (owner, 27.11): a window whose end has passed with no poop is not a live prediction. The old design says so
@@ -6238,6 +6265,7 @@ function peeForecast(p){
   return {from, to, last: g.last, med: g.med, n: g.n, byAge: g.byAge, state: now < from ? 'soon' : now <= to ? 'now' : 'late'};
 }
 function forecastLine(p){
+  const uc = tuNewer(p, 'pee'); if(uc) return noForecast('פיפי', uc);
   const f = peeForecast(p); if(!f) return '';
   const span = `בין <bdi dir="ltr">${clock(f.from)}–${clock(f.to)}</bdi>`;
   const quiet = peeAsleep(p) !== 'late' && ((V[p].sleep && V[p].sleep.start) || (V[p].crate && V[p].crate.start));   // asleep or in the crate: no alarm colours (asleep 4 h from the pee: colours back, `peeAsleep`)
@@ -6277,7 +6305,8 @@ function poopGap(p){
 // card starts saying "longer than usual".
 function poopWindow(p){
   const last = V[p].poop; if(typeof last !== 'number') return null;
-  const m = poopModel(p);
+  const m = poopModel(p), tq = tuNewer(p, 'poop');
+  if(tq && !(m && m.last != null && m.last >= tq.tu[1])) return null;   // a poop at an unknown time after the anchor: no window (a meal / waking AFTER it still anchors one)
   const unc = !coveredSince(p, last);
   if(m && m.last != null && m.last > last){ const from = m.last + quantile(m.g, .25), to = m.last + quantile(m.g, .75); return {last, from, to, end: to + (to - last) * .25, miss: 'קקי', unc}; }
   const g = poopGap(p); if(!g) return null;
@@ -6404,7 +6433,8 @@ function poopHints(p){
   const S = V[p], now = Date.now(); let h = '';
   // (the after-meal line moved to `mealPoopHTML`, 25.11: "possible", not "usually" — 3 of her 6 poops came 3–30 min after food)
   const g = poopGap(p), lim = g ? 1.5*g : POOP_QUIET;
-  if(S.poop && now - S.poop > lim) h += `<div class="sub hint poopgap">לא היה קקי כבר ${Math.floor((now - S.poop)/3600000)} שעות${g ? ', יותר מהרגיל אצלה' : ''}</div>`;
+  const lq = lastElim(p, 'poop');   // "at least N hours" counts from the latest it can have happened
+  if(lq && now - lq.hi > lim) h += `<div class="sub hint poopgap">לא היה קקי כבר ${lq.exact ? '' : 'לפחות '}${Math.floor((now - lq.hi)/3600000)} שעות${g ? ', יותר מהרגיל אצלה' : ''}</div>`;
   return h;
 }
 // ---------- POTTY BY WAKING AND BY MEALS: what the cards say (settings in POTTY_CUE, near RETRY) ----------
@@ -6417,7 +6447,7 @@ function napWake(p){
   if(!sp.length) return null;
   const end = sp[sp.length-1].end; let start = sp[sp.length-1].t;
   for(let i = sp.length - 2; i >= 0 && sp[i].end >= start - 60000; i--) start = Math.min(start, sp[i].t);
-  const done = Math.max(S.pee || 0, S.poop || 0, S.none || 0);
+  const done = Math.max(elimLo(p, 'pee'), elimLo(p, 'poop'), S.none || 0);
   if(state.log.some(e => e.p===p && e.k==='water' && e.t === end)) return null;   // v3: woke at a drink — a drink alone gives no potty advice
   const ww = wakeWin(p), hi = ww && ww.lo === end ? ww.hi : end;   // §12d: woke somewhere in [end, hi]
   return end - start >= POTTY_CUE.nap && now - hi <= POTTY_CUE.napFor && done < end ? {t: end, len: end - start, ...(hi > end ? {hi} : {})} : null;
@@ -6428,7 +6458,9 @@ function wakeGravelWhat(p){ const w = napWake(p); return w ? `${PETS[p].name} ה
 // WAKE.sleepNoPee (4 h) since the last pee — the usual window and its colours are back (`wakeBy` says "wake her").
 function peeAsleep(p){
   const S = V[p]; if(!PETS[p].cycle || !(S.sleep && S.sleep.start)) return null;
-  return S.pee && Date.now() - S.pee >= WAKE.sleepNoPee ? 'late' : 'wake';
+  // owner, 28.11: the on-waking advice stands on the sleep itself; with a pee at an unknown time there is no window to
+  // switch to, so it stays ("consider waking her" is `wakeBy`'s separate, uncertainty-worded line)
+  const l = lastElim(p, 'pee'); return l && l.exact && Date.now() - l.t >= WAKE.sleepNoPee ? 'late' : 'wake';
 }
 function peeCardLines(p){   // the pee card's forecast: the window line + bar, or while she sleeps the one line
   if(peeAsleep(p) === 'wake') return `<div class="sub fc wakepee">פיפי צפוי מיד כשהיא מתעוררת</div>`;
@@ -6439,7 +6471,7 @@ function peeCardLines(p){   // the pee card's forecast: the window line + bar, o
 // Meals: the last MEAL was at most POTTY_CUE.mealPoop ago and no poop since → its time, else 0.
 function mealPoopCue(p){
   const S = V[p], now = Date.now();
-  return PETS[p].cycle && S.food && S.food <= now && now - S.food <= POTTY_CUE.mealPoop && !(S.poop >= S.food) ? S.food : 0;
+  return PETS[p].cycle && S.food && S.food <= now && now - S.food <= POTTY_CUE.mealPoop && !(elimLo(p, 'poop') >= S.food) ? S.food : 0;
 }
 function mealPoopHTML(p){   // first line of the poop card; while it shows, the usual-window bar (`poopWindow`, "עוד X לחלון") is hidden (owner, 25.11: the two read as a contradiction); `poopLine` (her own after-meal delays) stays
   const t = mealPoopCue(p);
