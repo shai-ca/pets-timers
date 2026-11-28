@@ -23,7 +23,10 @@ mkdir -p "$tmp/preview"
 cp index.html icon.svg icon-192.png apple-touch-icon.png "$tmp/preview/"
 vj(){ printf '{"schema":"app-version/1","commit":"%s","logic_version":%s,"released_at":%s}\n' "$1" "$2" "$3"; }   # CAMERA-API §19
 lvm=$(git show main:index.html | grep -o '^const LOGIC_VERSION = [0-9]*' | grep -o '[0-9]*$' || true); lvb=$(grep -o '^const LOGIC_VERSION = [0-9]*' index.html | grep -o '[0-9]*$' || true)   # || true: production may predate LOGIC_VERSION (set -e)
-vj "$(git rev-parse --short main)" "${lvm:-5}" "$(($(git log -1 --format=%ct main) * 1000))" > "$tmp/version.json"   # production stays described (a hosting deploy replaces the whole site)
+# PRODUCTION's version.json is KEPT AS SERVED, never rebuilt from main (28.11: main was ahead of the deployed commit and a
+# preview publish made production name a commit that was never deployed). LIVE_VERSION_JSON overrides it once, to repair.
+livevj=${LIVE_VERSION_JSON:-$(curl -s "https://pets-timers.firebaseapp.com/version.json?x=$RANDOM")}
+case "$livevj" in '{"schema":"app-version/1"'*) printf '%s\n' "$livevj" > "$tmp/version.json" ;; *) echo "the live version.json could not be read: not publishing"; exit 1 ;; esac
 vj "$(git rev-parse --short HEAD)" "${lvb:-5}" 0 > "$tmp/preview/version.json"   # the branch's page under /preview/
 python3 - "$tmp/firebase.json" <<'PY'
 import json, sys
