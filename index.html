@@ -1040,8 +1040,9 @@ const iconOf = k => (ITEMS[k] && ITEMS[k].icon) || k;
 // Behavioural-state logic version (CAMERA-API §19): bumped ONLY when derived state changes (awake / unknown intervals,
 // dayParts, sleepSpans, routine, currentState, guidance, meal / bite reading, potty windows) — not for UI-only releases.
 // 5 = release 5 (observed / inferred / unknown); 6 = the three layers (trainer routine · actual state · guidance).
+// 7 = latest confirmed vs latest exactly timed elimination (ranges, no forecast from them), night retry end + reassessment, camera-gap wording.
 // deploy.sh / preview.sh publish it with the deployed commit as /version.json; the research UI warns when its copy differs.
-const LOGIC_VERSION = 6;
+const LOGIC_VERSION = 7;
 window.APP_VERSION = { logic_version: LOGIC_VERSION };
 const LOG_MAX = 5000, LS_KEY = 'pets-timers-v1', LS_DATA = 'pets-timers-v2';
 const SCHEMA = 2;   // version of the saved data; see `norm()` and the Firestore rule
